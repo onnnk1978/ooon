@@ -592,7 +592,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  </div>
  <canvas id="ooon-ascii" width="360" height="108" style="display:block;margin:0 auto 16px;width:min(360px,90vw);height:auto"></canvas>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041101</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041102</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -5576,13 +5576,15 @@ function _showSettingsMain(){
   <div style="color:var(--magic);font-size:var(--font-sm);margin-bottom:14px;text-align:center">⚙ 設定</div>
   <button id="fsp-font-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> フォント設定</button>
   <button id="fsp-world-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> OOONの世界</button>
-  <button id="fsp-guide-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:12px;text-align:left"> ゲームシステム</button>
+  <button id="fsp-guide-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> ゲームシステム</button>
+  <button id="fsp-transfer-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:12px;text-align:left"> セーブデータ 書き出し／読み込み</button>
   <button id="fsp-close" style="width:100%;background:none;border:1px solid #334;color:#667;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px;cursor:pointer;border-radius:3px"> 閉じる</button>
  `;
  document.body.appendChild(panel);
  document.getElementById('fsp-font-btn').onclick  = ()=>_showFontSettings();
  document.getElementById('fsp-world-btn').onclick = ()=>_showWorldMenu();
  document.getElementById('fsp-guide-btn').onclick = ()=>_showGuideMenu();
+ document.getElementById('fsp-transfer-btn').onclick = ()=>_showTransferPanel();
  document.getElementById('fsp-close').onclick = ()=>panel.remove();
 }
 
@@ -5631,6 +5633,115 @@ function _showFontSettings(){
  document.getElementById('fsp-default').onclick = ()=>applySize(14);
  document.getElementById('fsp-large').onclick   = ()=>applySize(18);
  document.getElementById('fsp-back').onclick    = ()=>_showSettingsMain();
+}
+
+function _showTransferPanel(){
+ const existing = document.getElementById('font-size-panel');
+ if(existing) existing.remove();
+
+ // 各スロットの情報を取得
+ const slotInfos = [1,2,3].map(s=>{
+  const raw = localStorage.getItem(getSaveKey(s));
+  if(!raw) return {slot:s, empty:true};
+  try {
+   const d = JSON.parse(raw);
+   const pc = d.pc || {};
+   const gt = d.gameTime || {};
+   const date = `${gt.year||'?'}年${gt.month||'?'}月${gt.day||'?'}日`;
+   return {slot:s, empty:false, name:pc.name||'?', level:pc.level||1, date, raw};
+  } catch(e){ return {slot:s, empty:true}; }
+ });
+
+ const panel = document.createElement('div');
+ panel.id = 'font-size-panel';
+ panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#080c18;border:2px solid #224466;border-radius:6px;padding:16px;z-index:9998;min-width:280px;max-width:340px;box-shadow:0 0 30px #000a;font-family:system-ui,sans-serif';
+
+ const slotHtml = slotInfos.map(si=>{
+  if(si.empty) return `
+   <div style="background:#0a0a0a;border:1px solid #223;border-radius:3px;padding:8px;margin-bottom:6px">
+    <span style="color:#445;font-size:calc(var(--font-sm) - 1px)">スロット${si.slot}：空</span>
+   </div>`;
+  return `
+   <div style="background:#0a0f1a;border:1px solid #334466;border-radius:3px;padding:8px;margin-bottom:6px">
+    <div style="color:#88aacc;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">スロット${si.slot}：${si.name} Lv${si.level}　${si.date}</div>
+    <div style="display:flex;gap:6px">
+     <button data-export="${si.slot}" style="flex:1;background:#001018;border:1px solid #2a5a7a;color:#6aaccc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:6px;cursor:pointer;border-radius:3px"> 書き出し</button>
+     <button data-import="${si.slot}" style="flex:1;background:#100800;border:1px solid #5a3a1a;color:#cc9a44;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:6px;cursor:pointer;border-radius:3px"> 上書き読込</button>
+    </div>
+   </div>`;
+ }).join('');
+
+ panel.innerHTML = `
+  <div style="color:var(--magic);font-size:var(--font-sm);margin-bottom:12px;text-align:center"> セーブデータ 書き出し／読み込み</div>
+  ${slotHtml}
+  <div style="margin-bottom:10px">
+   <button id="fsp-import-new" style="width:100%;background:#0a0a0a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px;text-align:left"> ファイルから新規スロットへ読み込む</button>
+  </div>
+  <button id="fsp-back" style="width:100%;background:none;border:1px solid #334;color:#667;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px;cursor:pointer;border-radius:3px">◀ 戻る</button>
+  <input id="fsp-file-input" type="file" accept=".json" style="display:none">
+  <div id="fsp-transfer-msg" style="min-height:18px;margin-top:8px;font-size:calc(var(--font-sm) - 2px);text-align:center"></div>
+ `;
+ document.body.appendChild(panel);
+
+ const msg = (text, color='#6aaa60')=>{
+  document.getElementById('fsp-transfer-msg').innerHTML = `<span style="color:${color}">${text}</span>`;
+ };
+
+ // 書き出しボタン
+ panel.querySelectorAll('[data-export]').forEach(btn=>{
+  btn.onclick = ()=>{
+   const slot = +btn.dataset.export;
+   const raw = localStorage.getItem(getSaveKey(slot));
+   if(!raw){ msg('データがありません', '#c05040'); return; }
+   const si = slotInfos.find(s=>s.slot===slot);
+   const filename = `ooon_save_slot${slot}_${si?.name||'unknown'}.json`;
+   const blob = new Blob([raw], {type:'application/json'});
+   const url = URL.createObjectURL(blob);
+   const a = document.createElement('a');
+   a.href = url; a.download = filename; a.click();
+   URL.revokeObjectURL(url);
+   msg(` ${filename} をダウンロードしました`);
+  };
+ });
+
+ // スロット指定上書き読み込み
+ let _targetSlot = null;
+ panel.querySelectorAll('[data-import]').forEach(btn=>{
+  btn.onclick = ()=>{
+   _targetSlot = +btn.dataset.import;
+   if(!confirm(`スロット${_targetSlot}のデータをファイルで上書きします。よろしいですか？`)) return;
+   document.getElementById('fsp-file-input').click();
+  };
+ });
+
+ // 新規スロット読み込み
+ document.getElementById('fsp-import-new').onclick = ()=>{
+  const emptySlot = slotInfos.find(s=>s.empty);
+  if(!emptySlot){ msg('空きスロットがありません', '#c05040'); return; }
+  _targetSlot = emptySlot.slot;
+  document.getElementById('fsp-file-input').click();
+ };
+
+ // ファイル読み込み共通処理
+ document.getElementById('fsp-file-input').onchange = (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+   try {
+    const data = JSON.parse(ev.target.result);
+    if(!data.pc || !data.gameTime) throw new Error('形式が不正です');
+    localStorage.setItem(getSaveKey(_targetSlot), JSON.stringify(data));
+    msg(` スロット${_targetSlot}に読み込みました。再起動後に反映されます`);
+   } catch(err){
+    msg(` 読み込み失敗：${err.message}`, '#c05040');
+   }
+   e.target.value = '';
+  };
+  reader.readAsText(file);
+ };
+
+ document.getElementById('fsp-back').onclick = ()=>_showSettingsMain();
 }
 
 function _showGuideMenu(){
@@ -5831,7 +5942,7 @@ function checkSaveOnTitle(){
      <div style="color:#556677;font-size:calc(var(--font-sm) - 4px)">${info.ts}</div>
     </div>
     <button onclick="loadGame(${s})" style="background:#001a33;border:1px solid #0066aa;color:#a09060;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 4px);padding:6px 8px;cursor:pointer;border-radius:3px;white-space:nowrap">▶ 再開</button>
-    <button onclick="deleteSave(${s})" style="background:none;border:1px solid #440000;color:#884444;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 4px);padding:6px 8px;cursor:pointer;border-radius:3px"></button>`;
+    <button onclick="deleteSave(${s})" style="background:none;border:1px solid #440000;color:#884444;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 4px);padding:6px 8px;cursor:pointer;border-radius:3px">🗑</button>`;
   } else {
    slotDiv.innerHTML = `
     <div style="flex:1">
