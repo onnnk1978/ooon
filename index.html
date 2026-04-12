@@ -592,7 +592,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  </div>
  <canvas id="ooon-ascii" width="360" height="108" style="display:block;margin:0 auto 16px;width:min(360px,90vw);height:auto"></canvas>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041102</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041201</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -1255,8 +1255,10 @@ function getTrust(townId){ return (PC.trust||{})[townId] || 0; }
 // type='delivery' の場合は上限49
 function changeTrust(townId, delta, type){
  if(!PC.trust) initTrust(PC._startTown);
- const cap = type==='delivery' ? 49 : 100;
  const cur = PC.trust[townId] || 0;
+ // 宅配・護衛は信頼度49上限（ただし既に50以上なら変更しない）
+ if(type==='delivery' && cur >= 50) return;
+ const cap = type==='delivery' ? 49 : 100;
  const next = Math.min(cap, Math.max(0, cur + delta));
  PC.trust[townId] = next;
 
@@ -1292,6 +1294,969 @@ const CHAOS_NEST_TOWNS = [
  'oasis_fort','saroon','duna',  // ザハラ地方
  'dorua','sarpe','nebra',       // マレア諸島
 ];
+
+
+// ══════════════════════════════════════════════════════
+// 英雄依頼システム
+// ══════════════════════════════════════════════════════
+
+const HERO_QUEST_CLIENTS = [
+ { name:'街の長老',    intro:'白髭の老人が重い腰を上げてこちらへやってきた。',     icon:'' },
+ { name:'商人ギルド代表', intro:'高価な服を着た男が品定めするような目で近づいてきた。', icon:'' },
+ { name:'衛兵隊長',   intro:'鎧姿の隊長が声を潜めて話しかけてきた。',             icon:'' },
+ { name:'神殿の司祭', intro:'神殿の紋章を纏った人物が静かに席に着いた。',          icon:'' },
+ { name:'謎めいた旅人', intro:'フードを深く被った人物がテーブルに封書を置いた。',  icon:'' },
+];
+
+const HERO_QUEST_TEMPLATES = [
+ {
+  id:'hq_monster_chief',
+  title:'周辺を荒らす首魁の討伐',
+  clientLine:(town)=>`「${town}の周辺の村々が壊滅的な被害を受けている。大型のモンスターの群れだ。普通の傭兵では歯が立たない。あなたにしか頼めない」`,
+  mrType:true,
+  nodes:[
+   { txt:'村の外れで獣道を辿ると、踏み荒らされた跡が続いていた。木々が根こそぎ倒され、巨大な何かが通り抜けた痕跡が生々しい。奥から低い唸り声が聞こえてくる。', sr:{attr:'lk', level:2, reason:'罠や奇襲を避けながら巣へ近づく。', fail:{attr:'con', dmg:2}, failTxt:'踏み込んだ瞬間、隠された罠に引っかかった。CON-2'} },
+   { txt:'唸り声が大きくなった。茂みを抜けると開けた場所に出た。地面には白骨が散乱し、獣の臭いが充満している。ここが巣だ。中心に大きな影が動いている。', sr:null },
+  ],
+  bossDesc:'巣の主',
+  winTxt:'首魁を倒した。周辺の群れも散り散りになるだろう。',
+ },
+ {
+  id:'hq_cave_boss',
+  title:'洞窟に潜む怪物の討伐',
+  clientLine:(town)=>`「${town}の水源近くの洞窟に何かが棲みついた。放置すれば水が汚染される。すでに一組の傭兵が戻らなかった。急いでほしい」`,
+  mrType:true,
+  nodes:[
+   { txt:'洞窟の入口に傭兵の装備が散乱していた。血の跡が奥へ続いている。壁を伝う冷たい水の音に混じって、何かが動く気配がする。', sr:{attr:'dex', level:2, reason:'滑りやすい岩場を慎重に進む必要がある。', fail:{attr:'st', dmg:2}, failTxt:'足を滑らせて壁に激突した。ST-2'} },
+   { txt:'奥へ進むほど水音が大きくなる。光が届かない暗闇の中、何かの眼が光った。一つではない。', sr:{attr:'lk', level:3, reason:'暗闇の中、何かの気配を感じながら進む。', fail:{attr:'con', dmg:3}, failTxt:'暗闇で体を掴まれた。CON-3'} },
+  ],
+  bossDesc:'洞窟の主',
+  winTxt:'洞窟の主を倒した。水源は守られた。',
+ },
+ {
+  id:'hq_road_monster',
+  title:'街道に潜む怪物の討伐',
+  clientLine:(town)=>`「隣街への街道で旅人の行方不明が続いている。商人も通れない状況だ。あなたの名前なら恐れをなして逃げるかと思ったが、そうはいかないようだ」`,
+  mrType:true,
+  nodes:[
+   { txt:'街道を外れた茂みに、壊れた荷車が捨てられていた。積み荷は食い荒らされ、御者の姿はない。新しい足跡が獣道の奥へと続いている。', sr:{attr:'lk', level:2, reason:'怪物の気配を感じながら茂みを進む。', fail:{attr:'lk', dmg:2}, failTxt:'嫌な予感が当たった。不意打ちを受ける。LK-2'} },
+   { txt:'足跡が突然消えた。上だ——と気づいたとき、木の上から何かが飛びかかってきた。間一髪でかわし、体勢を整える。', sr:{attr:'dex', level:3, reason:'木の上から飛びかかってきた怪物をかわす。', fail:{attr:'con', dmg:3}, failTxt:'着地に失敗して体を痛めた。CON-3'} },
+  ],
+  bossDesc:'街道に潜む怪物',
+  winTxt:'怪物を倒した。街道の安全が戻るだろう。',
+ },
+ {
+  id:'hq_haunted_ruin',
+  title:'廃屋に棲みつくものの討伐',
+  clientLine:(town)=>`「街外れの廃屋に何かが棲みついた。近づく者を襲い、住民が怯えている。衛兵を送ったが二度と戻らなかった。あなたにしか頼めない」`,
+  nodes:[
+   { txt:'廃屋の玄関に衛兵の武具が転がっていた。扉は内側から壊されており、暗闇から腐敗した臭いが漂ってくる。床が軋む。何かがいる。', sr:{attr:'lk', level:2, reason:'朽ちた床を踏み抜かないよう慎重に歩く。', fail:{attr:'con', dmg:2}, failTxt:'床が抜けて落下した。CON-2'} },
+   { txt:'二階から物音がした。階段を上がると壁に奇妙な紋様が刻まれている。魔法的な何かの気配だ。部屋の奥で影が動いた。', sr:null },
+  ],
+  bossDesc:'廃屋の主',
+  winTxt:'廃屋の主を倒した。住民の安堵の声が聞こえるようだ。',
+ },
+ {
+  id:'hq_bandit_leader',
+  title:'盗賊団頭目の討伐',
+  clientLine:(town)=>`「物資の輸送路を盗賊団に封鎖されて3ヶ月になる。頭目を仕留めれば残りは散ると商人ギルドは言っている。あなたの力が必要だ」`,
+  ydType:true,
+  ydStyle:'fortress',
+  nodes:[
+   { txt:'盗賊団の野営地の周囲を偵察した。見張りが複数いる。正面突破は得策ではない。抜け道を探して進んでいると、見張りの一人がこちらを向いた。', sr:{attr:'dex', level:2, reason:'見張りに気づかれないよう野営地に忍び込む。', fail:{attr:'lk', dmg:2}, failTxt:'物音を立ててしまった。警戒が高まる。LK-2'} },
+   { txt:'野営地の中心に大きな天幕がある。頭目がいるはずだ。天幕の前には護衛が待ち構えていた。正面から行くしかない。', sr:null },
+  ],
+  bossDesc:'盗賊団頭目',
+  winTxt:'頭目を討った。盗賊団は四散するだろう。',
+ },
+ {
+  id:'hq_rogue_veteran',
+  title:'暴れる元傭兵の排除',
+  clientLine:(town)=>`「腕の立つ元傭兵が街に居座り、住民に因縁をつけている。穏便に話したが聞かなかった。あなたに実力行使をお願いしたい」`,
+  nodes:[
+   { txt:'元傭兵は街の酒場に陣取っていた。手下を引き連れ、酒を飲んでいる。こちらを見て不敵な笑みを浮かべた。「英雄様のご到着だ」と周囲に囃し立てる。', sr:{attr:'chr', level:2, reason:'元傭兵の挑発をかわし、有利な状況を作る。', fail:{attr:'lk', dmg:1}, failTxt:'挑発に乗ってしまった。冷静さを欠く。LK-1'} },
+   { txt:'「英雄とやらが何をしてくれるか見てやろう」元傭兵が立ち上がった。手下たちも武器に手をかける。避けられない戦いだ。', sr:null },
+  ],
+  bossDesc:'元傭兵の頭',
+  winTxt:'元傭兵を退けた。街に平和が戻るだろう。',
+ },
+ {
+  id:'hq_fugitive',
+  title:'凶悪な逃亡犯の捕縛',
+  clientLine:(town)=>`「重大な犯罪を犯した男が近郊に潜伏している。抵抗するなら倒して構わない。逃がすな。あなたの判断に任せる」`,
+  nodes:[
+   { txt:'情報屋から聞き出した潜伏場所へ向かう。廃坑の入口に人の気配がある。中から声が聞こえた。複数いる。事前の情報より多い。', sr:{attr:'iq', level:2, reason:'潜伏先に仕掛けられた罠を見抜く。', fail:{attr:'con', dmg:2}, failTxt:'罠を見抜けなかった。CON-2'} },
+   { txt:'「来ると思っていたぞ」逃亡犯が奥から姿を現した。その目は追い詰められた獣のように光っている。「生きて捕まる気はない」', sr:null },
+  ],
+  bossDesc:'凶悪な逃亡犯',
+  winTxt:'逃亡犯を捕縛した。依頼は完了だ。',
+ },
+ {
+  id:'hq_smuggler',
+  title:'密輸団の壊滅',
+  clientLine:(town)=>`「街の地下を使って危険な物を運ぶ集団がいる。巣を突き止めた。壊滅させてほしい。ただし証拠を残してはならない事情がある」`,
+  ydType:true,
+  ydStyle:'mine',
+  nodes:[
+   { txt:'地下通路の入口は隠し扉の奥にあった。松明の光を頼りに進んでいくと、荷物を運ぶ男たちの声が聞こえてくる。まだ気づかれていない。', sr:{attr:'dex', level:2, reason:'地下通路で荷物を運ぶ男たちに気づかれないよう進む。', fail:{attr:'lk', dmg:2}, failTxt:'足音を立てた。警戒される。LK-2'} },
+   { txt:'地下の倉庫に出た。積まれた荷物の陰から武装した男たちが現れた。首謀者らしき大柄な男が前に出る。「ここで終わりにしてやろう」', sr:null },
+  ],
+  bossDesc:'密輸団の首謀者',
+  winTxt:'密輸団を壊滅させた。依頼は完了だ。',
+ },
+];
+
+// 英雄依頼の発生チェック（酒場ノードのtxt()から呼ぶ）
+// ══════════════════════════════════════════════════════
+// 特命依頼：砂漠の砦掃討作戦（アル・ラシード限定）
+// ══════════════════════════════════════════════════════
+
+function checkSpecialMission(townId){
+ if(townId !== 'al_rashid') return false;
+ if(!PC._specialMissionCooldown) PC._specialMissionCooldown = 0;
+ if(GAME_TIME.totalDays < PC._specialMissionCooldown) return false;
+ if((PC.quests||[]).some(q=>q.type==='special_mission' && q.status==='active')) return false;
+ return true;
+}
+
+function renderSpecialMissionBoard(){
+ if(!checkSpecialMission('al_rashid')) return '';
+ return `<div style="background:#0c0800;border:2px solid #884400;border-radius:4px;padding:12px;margin-bottom:10px">
+  <div style="color:#cc6600;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px"> 特命依頼</div>
+  <div style="color:#c8a44a;font-size:var(--font-sm);margin-bottom:6px"> 砂漠の砦　掃討作戦</div>
+  <div style="color:#998877;font-size:calc(var(--font-sm) - 1px);line-height:1.8;margin-bottom:10px">「砂漠の奥地、カシュール砦が混沌の勢力に汚染された。正規軍は増援として遊撃兵を募っている。生き残れる保証はない」</div>
+  <button onclick="acceptSpecialMission()" style="width:100%;background:#1a0800;border:1px solid #884400;color:#cc6600;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:9px;cursor:pointer;border-radius:3px"> 作戦に参加する</button>
+ </div>`;
+}
+
+function acceptSpecialMission(){
+ if(!PC.quests) PC.quests=[];
+ const q = {
+  id: Date.now()+Math.random(),
+  type:'special_mission',
+  status:'active',
+  fromTownId:'al_rashid',
+  title:'砂漠の砦　掃討作戦',
+  issuedDay: GAME_TIME.totalDays,
+ };
+ PC.quests.push(q);
+ showSaveToast(' 特命依頼を引き受けた：砂漠の砦　掃討作戦');
+ _refreshTavernBoard('al_rashid');
+}
+
+function startSpecialMission(){
+ const q = (PC.quests||[]).find(q=>q.type==='special_mission' && q.status==='active');
+ if(!q) return;
+ _runSpecialMissionNode(q, 0);
+}
+
+// カオスSR：DEX/LK/IQからランダムに判定
+function _chaosSR(level){
+ const attrs = ['dex','lk','iq'];
+ return attrs[Math.floor(Math.random()*attrs.length)];
+}
+
+const _SPECIAL_FLAVOR = {
+ // ノード0：進軍
+ march: [
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">正規軍の隊列に加わり、砂漠の深部へ向かう。行軍が続くにつれて、兵士たちが奇妙な訴えをし始めた。<br><br>
+「自分の声が、一瞬遅れて聞こえる」と若い兵士が言った。<br>「俺は昨日食った羊肉の味が今口の中にある」と古参が顔をしかめた。<br><br>
+隊長が静かに言う。「砦が近い。ここから先は——慎重に」<br><br>
+地平線の先に、歪んだ陽炎の向こうに、カシュール砦の影が見えた。塔から煙は出ていない。それなのに、確かに何かがそこにいる。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">砂漠の隊列は無言だった。誰もが感じていた——空気の質が変わっていることを。<br><br>
+先頭の兵士が立ち止まった。「妙だ。俺の影が、俺より先に動いた」<br>隣の男が首を振る。「俺は——三歩前に踏んだ砂の感触を、今感じた」<br><br>
+混沌の汚染が時間そのものを侵食している。カシュール砦を中心に、因果の秩序が崩れ始めていた。<br><br>
+「全員、間隔を詰めろ。逃げ場はない」隊長の声は、一拍遅れて全員の耳に届いた。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">砦が視界に入った頃から、隊の雰囲気が変わった。<br><br>
+若い衛兵が青ざめた顔で言った。「隊長……俺、さっき転んだんですが、痛みがまだ来ていません」<br>「俺は逆だ」と古参が答えた。「昨日の戦いの傷が、今になって疼いている」<br><br>
+砦の壁は無傷に見えた。だが旗は下ろされ、歩哨の姿はなく、代わりに何か——時間ではないものが——砦の上を漂っていた。<br><br>
+隊長が剣の柄に手をかけた。「突入する。生き残ることだけ考えろ」</div>`,
+ ],
+ // ノード1：突入
+ breach: [
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">重装歩兵が盾を並べて正門へ前進する。<br><br>
+最初の「剥離した徴用兵」が現れたとき、誰もが一瞬動きを止めた。<br><br>
+人の形をしていた。していた——が、皮膚が鎧の縁から剥がれかけており、その下から別の皮膚が覗いていた。まるで何枚もの「自分」が重なって貼り合わさったような、ぬめりとした表面だった。歩くたびに、肉が少しずれる。骨格のある場所と、ない場所が混在している。<br><br>
+敵は壁を透過し、隊列の真ん中に現れた。一瞬前にいた場所から消え、別の兵士の背後に立った。<br><br>
+通常の戦闘本能では対応できない。時間の概念が違う相手だ——</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">正門を突破した瞬間、最初の敵が現れた。<br><br>
+兵士の一人が剣を構えた。しかし敵はそこにいなかった——いや、「いた」が「いない」状態だった。<br><br>
+それは人間だった。かつて。今も、辛うじて。<br>鎧の継ぎ目から漏れ出た何かが、地面に触れるたびに音もなく消えた。皮膚は半透明で、内側の血管が光の加減で透けて見えた。腐敗ではない——熟れすぎた果実のような、過剰な生命の匂いがした。存在に留まりきれない肉が、縁から少しずつ滲み出していた。<br><br>
+「どこだ！」と誰かが叫んだ。答える代わりに、声を上げた兵士の背後で刃が光った。<br><br>
+これは普通の戦いではない——</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">突入直後、隊列が乱れた。<br><br>
+敵が「前にいた」のは確かだ。しかし攻撃が届く前に、敵はそこにいない。<br><br>
+近くで見た者が後で言った。目が合った、と。その目は二重だった——今の目と、少し後の目が重なって、まるで縦に並んでいるようだった。肌は湿っており、触れれば剥がれそうな薄さで、実際に刃が掠ると表面だけが薄皮のように剥離した。その下にも、同じ顔があった。<br><br>
+古参兵が叫んだ。「狙うな！感じろ！やつらの時間に合わせるんだ！」<br><br>
+意味は分からなかった。しかし体は本能的に理解し始めていた——</div>`,
+ ],
+ // ノード2：砦内
+ inside: [
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">第一区画を突破し、砦の内部に入る。<br><br>
+そこで見たものが、正規軍の兵士たちの精神を削った。<br><br>
+守備兵の生存者が数人、壁際に座っていた——だが彼らは、「数秒後の死体」と「今この瞬間の生きた姿」が重なったまま固定されていた。息をしながら、すでに死んでいる。叫ぼうとしたが声が出なかった。<br><br>
+一人の古参兵が呟いた。<br>「あいつら……俺が子供の頃に死んだ親父の顔をしていた……」<br><br>
+誰も返す言葉を持たなかった。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">中庭を抜けると、かつての守備兵たちが「固定」されていた。<br><br>
+動いている。確かに動いている。しかし同時に——倒れている。断末魔の瞬間と今この瞬間が、同じ体の中で重なって存在していた。<br><br>
+若い兵士が嘔吐した。それを責める者はいなかった。<br><br>
+隊の中で最も口の重い男が、小声で言った。「俺の……俺の母親がいた。あそこに。七年前に死んだはずなのに、今ここにいた。そして死んでいた」<br><br>
+足が止まった。隊長が静かに「進め」と言った。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">砦の廊下は静かだった。静かすぎた。<br><br>
+壁際に、男が一人立っていた。守備兵の格好をしている。生きているように見える——だが彼の足元には、同じ男の遺体が横たわっていた。完全に同一の人物が、生きたまま死んでいた。<br><br>
+「助けてくれ」男は言った。声は正常に聞こえた。<br>「俺はいつ死んだんだ」男は続けた。それも正常な声で。<br><br>
+誰も触れようとしなかった。誰も理由を説明できなかった。隊は無言で廊下を進んだ。</div>`,
+ ],
+ // ノード3：パニック
+ panic: [
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">第二区画で、霧のような「因果の歪み」が発生した。<br><br>
+隊長が叫んだ。「退却しろ！」<br>直後に——同じ声で「突撃だ！」という命令が重なって聞こえた。<br><br>
+過去の命令と未来の命令が同時に響く。兵士たちが動きを止め、混乱が広がった。一部が後退し、一部が前進した。<br>
+隊列が崩れたその瞬間、敵が来た——腹部が透けて見えるほど薄い皮膚を持つ兵が、誰かの背後に滲み出るように現れた。その手は少し多かった。五本より、確かに多かった。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">霧が湧いた。砂漠に霧はあり得ない——だがそれは確かに存在し、白く、重く、因果の匂いがした。<br><br>
+その中で、全員が別々の命令を聞いた。「前進！」「撤退！」「右へ！」「伏せろ！」——すべて隊長の声だった。<br><br>
+隊は崩壊した。そこへ敵が現れた——霧から滲み出るように、いくつもの腕が先に出てきた。胴体はその後だった。皮膚はたるんで余っており、鎧の隙間から垂れた肉が揺れていた。目が合った兵士が硬直した。目は一つの顔に四つあった。すべてが別々の方向を向いていた。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">突然、隊長の声が二重になった。<br><br>
+「止まれ」と「走れ」が同時に聞こえた。兵士の半数が膝をついた。<br><br>
+そこへ——壁から、肉が押し出されるように敵が現れた。石の表面を突き破るのではなく、まるで石そのものが敵の形に変形するように、ぬらりと出てきた。人の形だが、関節が多すぎた。肘の位置が二か所あり、首が途中で折れ曲がっていた。それでも歩いていた。それでも剣を持っていた。<br><br>
+「どっちだ！どっちが今の命令だ！」と叫んだ者の声は、ひとりでに反響して返ってきた——一秒前の自分の声として。</div>`,
+ ],
+ // ノード4：ボス
+ boss: [
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">砦の最奥で、それは待っていた。<br><br>
+三つの時間軸の姿が同時に重なって見える騎士。「盾を構えている姿」と「剣を振り下ろしている姿」が同時に存在している。<br>どちらが「今」なのか——<br><br>
+通常の知覚では対処できない。このような存在に刃を届かせるには、時間の歪みを読む知覚が必要だ。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">最奥の間に入った瞬間、空気が変わった。<br><br>
+中央に立つ騎士は——三人いた。いや、一人だった。過去の姿、現在の姿、未来の姿が重なり合い、三重の輪郭として存在している。<br><br>
+「来るのが遅い」声が言った。「来るのが早い」同じ声が言った。「来ない方がよかった」また同じ声が言った。<br><br>
+すべて同じ口から、同時に。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">指揮官はすでにこちらを見ていた。いつからそこにいたのか分からない。<br><br>
+剣を抜いている。盾を構えている。兜を脱いでいる。すべてが同時に、同じ体の上で起きていた。<br><br>
+古参兵の一人が呟いた。「俺が十五年前に倒した男に……似ている」<br>別の兵士が続けた。「俺は……俺自身に似ていると思った」<br><br>
+多重存在は、見る者によって別の顔を見せる。時間の交差点に立つ存在——これが指揮官だ。</div>`,
+ ],
+};
+
+const _SM_KEYS = ['march','breach','inside','panic','boss'];
+
+const _SPECIAL_NODES = [
+ // ノード0：進軍（フレーバーのみ）
+ {
+  flavorKey:'march', title:' カシュール砦への進軍',
+  sr: null,
+ },
+ // ノード1：突入（SR失敗でダメージ→MR型戦闘）
+ {
+  flavorKey:'breach', title:' 砦への突入',
+  sr: { level:2, failDmg:3, failAttr:'con', failTxt:'混乱した状況で適切な行動が取れず、敵の攻撃をまともに受けた。' },
+  combat: { mr_min:100, mr_max:200, name:'剥離した徴用兵（先遣隊）' },
+ },
+ // ノード2：砦内（フレーバーのみ）
+ {
+  flavorKey:'inside', title:' 砦内部の光景',
+  sr: null,
+ },
+ // ノード3：因果の歪みパニック（SR失敗でダメージ→MR型戦闘）
+ {
+  flavorKey:'panic', title:' 因果の歪み',
+  sr: { level:3, failDmg:4, failAttr:'con', failTxt:'命令の混濁に翻弄され、陣形から離れた瞬間を狙われた。' },
+  combat: { mr_min:100, mr_max:200, name:'剥離した徴用兵（精鋭）' },
+ },
+ // ノード4：ボス戦（NPC型、カオスSR必須）
+ {
+  flavorKey:'boss', title:' 多重存在の指揮官',
+  isBoss: true,
+ },
+];
+
+function _runSpecialMissionNode(q, nodeIdx){
+ const node = _SPECIAL_NODES[nodeIdx];
+ const story = document.getElementById('story');
+ const isBoss = node.isBoss;
+ const border = isBoss ? '#884400' : '#553300';
+ const bg = isBoss ? '#0c0600' : '#0a0600';
+ const flavors = _SPECIAL_FLAVOR[node.flavorKey] || [];
+ const bodyHtml = flavors[Math.floor(Math.random()*flavors.length)] || '';
+ story.innerHTML = `<div style="border:1px solid ${border};border-radius:4px;padding:12px;background:${bg}">
+  <div style="color:#cc6600;font-size:var(--font-sm);margin-bottom:8px">${node.title}</div>
+  ${bodyHtml}
+ </div>`;
+
+ if(node.isBoss){
+  // ボス戦（カオスSR必須NPC型）
+  renderChoices([{label:' 指揮官に立ち向かう', fn:()=>_startSpecialMissionBoss(q)}]);
+  return;
+ }
+
+ if(node.sr){
+  const sr = node.sr;
+  const attr = _chaosSR(sr.level);
+  const attrNames = {dex:'DEX 器用',lk:'LK 運',iq:'IQ 知力'};
+  story.innerHTML += `<div style="color:#997744;font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:#080600;border-left:2px solid #553300;line-height:1.9">時間の歪みに対応するための判定が必要だ。<br><span style="color:#cc7700"> ${attrNames[attr]} Lv${sr.level} セービングロール</span></div>`;
+  renderChoices([{label:` ダイスを振る（${attrNames[attr]} Lv${sr.level} SR）`, fn:()=>{
+   document.getElementById('dice-area').classList.remove('hidden');
+   setupSavingRoll({
+    attr, level:sr.level, label:'特命依頼',
+    onSuccess(){
+     document.getElementById('dice-area').classList.add('hidden');
+     story.innerHTML += `<div style="color:#6aaa60;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#081200;border-left:2px solid #336622;line-height:1.9"> 歪みを読んだ。体が正しく動いた。</div>`;
+     _startSpecialMissionCombat(q, node, nodeIdx, false);
+    },
+    onFail(){
+     document.getElementById('dice-area').classList.add('hidden');
+     PC[sr.failAttr] = Math.max(0, (PC[sr.failAttr]||0) - sr.failDmg);
+     updateHUD();
+     story.innerHTML += `<div style="color:#c05040;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#120800;border-left:2px solid #663322;line-height:1.9"> ${sr.failTxt}（${sr.failAttr.toUpperCase()} -${sr.failDmg}）</div>`;
+     if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 1000); return; }
+     _startSpecialMissionCombat(q, node, nodeIdx, true);
+    },
+   });
+  }}]);
+  return;
+ }
+
+ // フレーバーのみ
+ const isLast = nodeIdx >= _SPECIAL_NODES.length - 1;
+ renderChoices([{label:'▶ 進む', fn:()=>_runSpecialMissionNode(q, nodeIdx+1)}]);
+}
+
+function _startSpecialMissionCombat(q, node, nodeIdx, srFailed){
+ const mr = node.combat.mr_min + Math.floor(Math.random()*(node.combat.mr_max - node.combat.mr_min + 1));
+ renderChoices([]);
+ drawScene('combat');
+ document.getElementById('dice-area').classList.add('hidden');
+ startCombat({
+  name: node.combat.name,
+  mr, armor: Math.floor(mr/25),
+  canFlee: false,
+  win:'__noop__', lose:'DEAD',
+  onWin(){
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   _runSpecialMissionNode(q, nodeIdx+1);
+  },
+ });
+}
+
+function _startSpecialMissionBoss(q){
+ renderChoices([]);
+ drawScene('combat');
+ document.getElementById('dice-area').classList.add('hidden');
+ document.getElementById('text-win').style.display='none';
+
+ // ボス生成（混沌根城と同等）
+ const baseLv = 5 + Math.floor(Math.random()*4);
+ const bossLv = Math.round(baseLv * 1.5);
+ const boss = generateNPC(bossLv);
+ boss.name = '多重存在の指揮官';
+ boss.curCon = boss.con;
+
+ const MINION_TYPES = ['warrior','warrior','rogue'];
+ const minions = [0,1].map(()=>{
+  const m = generateNPC(bossLv);
+  m.type = MINION_TYPES[Math.floor(Math.random()*MINION_TYPES.length)];
+  m.name = '剥離した護衛';
+  m.curCon = m.con;
+  return m;
+ });
+
+ const onWin = ()=>{
+  document.getElementById('cbt-area').classList.add('hidden');
+  document.getElementById('scroll-area').classList.remove('in-combat');
+  document.getElementById('text-win').style.display='';
+  cbtState = null;
+  PC.quests = (PC.quests||[]).filter(qq=>qq.id!==q.id);
+  // 報酬：英雄依頼の1.5倍相当（bossLv×75〜112GP）
+  const reward = Math.floor(bossLv * (75 + Math.floor(Math.random()*38)));
+  gainGPAll(reward);
+  changeTrust('al_rashid', 10);
+  PC._specialMissionCooldown = GAME_TIME.totalDays + (720 + Math.floor(Math.random()*361));
+  updateHUD();
+  addLifeEvent('', '砂漠の砦掃討作戦を生き延びた。');
+  showSaveToast(` 特命依頼完了！ +${reward}GP`);
+  const story = document.getElementById('story');
+  story.innerHTML = `<div style="border:1px solid #4a7020;border-radius:4px;padding:12px;background:#081200">
+   <div style="color:#6aaa60;font-size:var(--font-sm);margin-bottom:8px"> 作戦完了</div>
+   <div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">指揮官が崩れ落ちると、砦に充満していた歪みが急速に薄れた。<br><br>
+正規軍の隊長が近づき、敬礼した。「よくやってくれた。この件は——公式には記録されない」<br><br>
+砂漠の風が砦の中を吹き抜けた。</div>
+   <div style="color:#c8a44a;font-size:calc(var(--font-sm) - 1px);margin-top:8px">報酬: ${reward}GP　信頼度+10</div>
+  </div>`;
+  renderChoices([{label:'← アル・ラシードへ戻る', go:'TOWN_AL_RASHID'}]);
+ };
+
+ // カオスSR必須戦闘システムを注入
+ startCombatNPC({
+  enemies: [boss, ...minions],
+  canFlee: false,
+  win:'__noop__', lose:'DEAD',
+  chaosMode: true,  // カオスSRフラグ
+  onWin,
+ });
+}
+
+function checkSpecialMissionBoard(){
+ const q = (PC.quests||[]).find(q=>q.type==='special_mission' && q.status==='active');
+ if(q) return renderSpecialMissionActive(q);
+ if(checkSpecialMission('al_rashid')) return renderSpecialMissionBoard();
+ return '';
+}
+
+function renderSpecialMissionActive(q){
+ const isVald = q.fromTownId === 'valdheim';
+ const bg = isVald ? '#080c18' : '#0c0800';
+ const border = isVald ? '#336688' : '#884400';
+ const color = isVald ? '#88aacc' : '#cc6600';
+ const startFn = isVald ? 'startSpecialMissionValdheim()' : 'startSpecialMission()';
+ return `<div style="background:${bg};border:1px solid ${border};border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
+  <span style="color:${color}"> 特命依頼</span>　${q.title}<br>
+  <button onclick="${startFn}" style="margin-top:5px;width:100%;background:${bg};border:1px solid ${border};color:${color};font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 出発する</button>
+ </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// 特命依頼：氷原の砦掃討作戦（ヴァルドヘイム限定）
+// ══════════════════════════════════════════════════════
+
+function checkSpecialMissionValdheim(townId){
+ if(townId !== 'valdheim') return false;
+ if(!PC._specialMissionVCooldown) PC._specialMissionVCooldown = 0;
+ if(GAME_TIME.totalDays < PC._specialMissionVCooldown) return false;
+ if((PC.quests||[]).some(q=>q.type==='special_mission' && q.status==='active')) return false;
+ return true;
+}
+
+function renderSpecialMissionValdheimBoard(){
+ if(!checkSpecialMissionValdheim('valdheim')) return '';
+ return `<div style="background:#080c18;border:2px solid #336688;border-radius:4px;padding:12px;margin-bottom:10px">
+  <div style="color:#88aacc;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px"> 特命依頼</div>
+  <div style="color:#aaccee;font-size:var(--font-sm);margin-bottom:6px"> 氷原の砦　掃討作戦</div>
+  <div style="color:#667788;font-size:calc(var(--font-sm) - 1px);line-height:1.8;margin-bottom:10px">「極北の氷原にあるヴィルガル砦が混沌の勢力に汚染された。正規軍は増援を募っている。凍死より恐ろしいものがあることを、覚悟して行け」</div>
+  <button onclick="acceptSpecialMissionValdheim()" style="width:100%;background:#080c18;border:1px solid #336688;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:9px;cursor:pointer;border-radius:3px"> 作戦に参加する</button>
+ </div>`;
+}
+
+function acceptSpecialMissionValdheim(){
+ if(!PC.quests) PC.quests=[];
+ const q = {
+  id: Date.now()+Math.random(),
+  type:'special_mission',
+  status:'active',
+  fromTownId:'valdheim',
+  title:'氷原の砦　掃討作戦',
+  issuedDay: GAME_TIME.totalDays,
+ };
+ PC.quests.push(q);
+ showSaveToast(' 特命依頼を引き受けた：氷原の砦　掃討作戦');
+ _refreshTavernBoard('valdheim');
+}
+
+function startSpecialMissionValdheim(){
+ const q = (PC.quests||[]).find(q=>q.type==='special_mission' && q.status==='active' && q.fromTownId==='valdheim');
+ if(!q) return;
+ _runSpecialMissionVNode(q, 0);
+}
+
+const _SPECIAL_V_FLAVOR = {
+ march:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">正規軍の縦列に加わり、氷原の奥へ向かう。吹雪が横から叩きつけ、視界は数歩先で白く消える。<br><br>
+「おかしい」と若い兵士が言った。「俺の足跡が——前にある」<br>「俺は逆だ」と古参が答えた。「踏んだ雪の感触が、まだ来ていない」<br><br>
+隊長が低く言う。「砦が近い。気を確かに持て。ここから先は時間が信用できない」<br><br>
+氷原の果てに、ヴィルガル砦の黒い影が見えた。壁は無傷に見えた。旗はなかった。代わりに、砦の輪郭が——息をするように、わずかに動いていた。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">雪中行軍が続くにつれ、隊の空気が変わった。<br><br>
+先頭の斥候が振り返った。「……俺たち、今どこを歩いている？」<br>足跡が消えていた。吹雪が消したのではない——最初からなかったように、雪面は平らだった。<br><br>
+「俺の剣が重い」と一人が言った。「振ったのか？」と別の男が聞いた。「振っていない」「振ったように見えた」<br><br>
+因果の歪みが氷点下の大気に溶け込んでいた。砦はすでに彼らを認識していた。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">氷原は静かだった。吹雪の音しかしなかった。だからこそ、異変は分かった。<br><br>
+「俺の息が——後から出てくる」と兵士が白い吐息を見つめた。口を閉じているのに、空気中に息が漏れ続けていた。<br>「俺は昨日の寒さを、今感じている」と古参が言った。「昨日より今日の方が暖かいのに」<br><br>
+隊長が剣に手をかけたまま前を見た。「あれが砦だ。中に何がいるかは分かっている。分かっていない者に説明する言葉が、まだ人間にはない」</div>`,
+ ],
+ breach:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">重装の盾兵が氷に削られた正門へ前進する。<br><br>
+最初の「凍着した徴用兵」が現れたとき、誰もが足を止めた。<br><br>
+人の形をしていた。していた——が、皮膚のあちこちから氷の結晶が内側から突き出ており、その下の肉は半ば透明だった。凍っているのではない。生きている——その生命そのものが、氷と融合して結晶化していた。歩くたびに、体の内部でかちりと音がした。それは骨ではなく、氷の音だった。<br><br>
+敵は雪壁をそのまま通り抜け、隊列の後ろに出た。振り返る前に、刃が来た——</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">正門を突破した瞬間、白い靄が噴き出した。<br><br>
+敵が立っていた。鎧を着た人間——だが鎧の継ぎ目から、冷気と一緒に何かが滲み出ていた。肌色ではない、青みがかった何かが。表面を見ると、皮膚が鱗のように剥がれかけており、その一枚一枚の縁が薄い氷で縁取られていた。触れれば切れそうで、触れれば溶けそうな——生と氷の間で固定された、あり得ない質感だった。<br><br>
+「どこを斬ればいい」と兵士が呟いた。答える者はいなかった——</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">突入直後、足元の氷から腕が伸びた。<br><br>
+氷の下に埋まっているのではなかった。氷そのものから生えていた——肉が、そのまま氷の結晶構造に変換されながら伸びてくるような、ぬめりとした移行だった。完全に固体でも液体でもない何かが、床面から立ち上がり、人の形を取った。皮膚はあった。皮膚の下に、小さな気泡がいくつもあった。それが動いていた。<br><br>
+「感じろ！奴らは今の場所にいない！」古参兵が叫んだ——</div>`,
+ ],
+ inside:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">第一区画を突破し、砦の内部へ入る。<br><br>
+そこで見たものが、兵士たちの口を塞いだ。<br><br>
+守備兵の生存者が数人、壁に凭れていた——だが彼らは、体の半分が壁の石に融合していた。石になっているのではない。まだ生きていた。息をしていた。目が動いた。しかし腰から下は石灰岩と区別がつかなかった。「数時間後の化石」と「今この瞬間の生身」が同じ体に共存していた。<br><br>
+一人が言った。「……俺、まだ生きてますか」声は正常だった。<br>誰も答えられなかった。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">中庭を抜けると、守備兵たちが「固定」されていた。<br><br>
+一人の女性兵士が立っていた。立ったまま——凍っていた。しかし目が動いた。手が、一センチだけ動いた。「ゆっくりすぎて見えない速さ」で動いていた。彼女の時間が、外の世界と切り離されていた。<br><br>
+その隣で、同じ女性が倒れていた。完全に死んでいた。凍りついていた。まったく同じ顔をしていた。<br><br>
+若い兵士が後退しようとして、古参に肩を掴まれた。「俺の父親がいた……十五年前に戦死した父親が、向こうに立っていた……」</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">砦の廊下は暗かった。松明が燃えているのに、光が届かなかった。<br><br>
+壁際に、男が一人立っていた。守備兵の格好をしている。生きているように見えた——だがその輪郭が、二重だった。「今立っている男」と「ここに来る前の男」が透けて重なり、像が少しずれていた。<br><br>
+「助けてくれ」と言った。「助けてくれ」と先に言っていた——口が動く前に、言葉が来た。<br><br>
+「俺には、もう時間がどっちに流れているか分からない」男は続けた。「死んだのか生きているのか。順番が、分からなくなった」</div>`,
+ ],
+ panic:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">第二区画で、視界が白く染まった。吹雪ではない——因果の歪みが可視化された白い霧だった。<br><br>
+隊長が叫んだ。「後退しろ！」<br>直後に——同じ声で「前進！」という命令が重なって聞こえた。<br><br>
+過去の命令と未来の命令が凍った空気の中を伝わる。兵士が散らばった。<br>隊列が崩れたその瞬間、氷の床から敵が這い出してきた——両手の指の数が違った。片手は五本、もう片手は七本あった。それぞれが独立して動いていた。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">白い霧が廊下に満ちた。氷点下の霧——吐く息が霧に溶け込み、戻ってこなかった。<br><br>
+その中で、全員が別々の命令を聞いた。「伏せろ」「立て」「左へ」「止まれ」——すべて隊長の声だった。どれが「今」の命令か判断できなかった。<br><br>
+隊が動きを止めた。その静止を待っていたように——壁の氷から、ぬらりと体が押し出された。石を割るのではなく、まるで氷が生き物を産み落とすように、しっとりとした質感で現れた。首が、通常の位置にはなかった。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">突然、時間の圧力が変わった。<br><br>
+「退け！」と「来い！」が同時に聞こえた。足が両方向に引っ張られた。兵士の何人かが倒れた——どちらへ動けばいいか、体が判断できなかったのだ。<br><br>
+「どっちだ！」と誰かが叫んだ。その声がすぐ後ろから聞こえた。叫んだ本人は前にいた。<br><br>
+そこへ敵が来た。氷の天井から、重力を無視して「降りてきた」のではなく「降りていった」——見ていた者全員が、その軌跡が逆向きに感じられたと言った。</div>`,
+ ],
+ boss:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">砦の最奥、氷に封じられた大広間で、それは待っていた。<br><br>
+三つの時間軸の姿が同時に重なって見える騎士。「盾を構えている姿」と「剣を振り下ろしている姿」と「すでに立ち去った後の空気」が、同じ場所に存在している。<br><br>
+どれが「今」なのか——氷の壁に映る反射が、三つの方向を向いていた。<br><br>
+通常の知覚では対処できない。このような存在に刃を届かせるには、時間の歪みを読む感覚が必要だ。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">最奥の広間に入ると、冷気が急に止まった。<br><br>
+中央に立つ騎士は——三人いた。いや、一人だった。過去の姿と現在と未来が重なり合い、それぞれが別々の動作をしていた。一つの体が、同時に異なる時間を生きていた。<br><br>
+「来るか」声が言った。「来た」同じ声が言った。「来ない方がよかった」また言った。<br><br>
+すべて同時に、すべて本当のことだった。広間の氷は指揮官の時間軸をすべて映し、互いに矛盾したまま存在し続けていた。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">指揮官はすでにこちらを見ていた。<br><br>
+鎧は凍っていた。しかし動いていた。鎧の内側から氷の結晶が外へ向かって育っており、動くたびにその結晶が折れ、また育った。剥離した皮膚の断面が——鎧の縁から覗いており、その断面は美しく規則的な氷の構造をしていた。<br><br>
+古参兵の一人が呟いた。「俺が十年前に戦った男に……似ている」<br>別の兵士が続けた。「俺には……まだ会っていない誰かに見える」<br><br>
+多重存在は、見る者の時間によって別の顔を見せる。この極北に根を張る混沌の指揮官——これが敵だ。</div>`,
+ ],
+};
+
+const _SPECIAL_V_NODES = [
+ { flavorKey:'march',  title:' ヴィルガル砦への進軍', sr:null },
+ { flavorKey:'breach', title:' 砦への突入',
+   sr:{ level:2, failDmg:3, failAttr:'con', failTxt:'凍着した敵の動きを読めず、攻撃をまともに受けた。' },
+   combat:{ mr_min:100, mr_max:200, name:'凍着した徴用兵（先遣隊）' } },
+ { flavorKey:'inside', title:' 砦内部の光景', sr:null },
+ { flavorKey:'panic',  title:' 因果の歪み',
+   sr:{ level:3, failDmg:4, failAttr:'con', failTxt:'命令の混濁と時間の逆流に翻弄され、無防備な瞬間を狙われた。' },
+   combat:{ mr_min:100, mr_max:200, name:'凍着した徴用兵（精鋭）' } },
+ { flavorKey:'boss',   title:' 多重存在の指揮官', isBoss:true },
+];
+
+function _runSpecialMissionVNode(q, nodeIdx){
+ const node = _SPECIAL_V_NODES[nodeIdx];
+ const story = document.getElementById('story');
+ const isBoss = node.isBoss;
+ const border = isBoss ? '#336688' : '#224466';
+ const bg = isBoss ? '#080c18' : '#060a12';
+ const flavors = _SPECIAL_V_FLAVOR[node.flavorKey] || [];
+ const bodyHtml = flavors[Math.floor(Math.random()*flavors.length)] || '';
+ story.innerHTML = `<div style="border:1px solid ${border};border-radius:4px;padding:12px;background:${bg}">
+  <div style="color:#88aacc;font-size:var(--font-sm);margin-bottom:8px">${node.title}</div>
+  ${bodyHtml}
+ </div>`;
+
+ if(node.isBoss){
+  renderChoices([{label:' 指揮官に立ち向かう', fn:()=>_startSpecialMissionVBoss(q)}]);
+  return;
+ }
+
+ if(node.sr){
+  const sr = node.sr;
+  const attr = _chaosSR(sr.level);
+  const attrNames = {dex:'DEX 器用',lk:'LK 運',iq:'IQ 知力'};
+  story.innerHTML += `<div style="color:#667788;font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:#060a12;border-left:2px solid #224466;line-height:1.9">時間の歪みに対応するための判定が必要だ。<br><span style="color:#88aacc"> ${attrNames[attr]} Lv${sr.level} セービングロール</span></div>`;
+  renderChoices([{label:` ダイスを振る（${attrNames[attr]} Lv${sr.level} SR）`, fn:()=>{
+   document.getElementById('dice-area').classList.remove('hidden');
+   setupSavingRoll({
+    attr, level:sr.level, label:'特命依頼',
+    onSuccess(){
+     document.getElementById('dice-area').classList.add('hidden');
+     story.innerHTML += `<div style="color:#6aaa60;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#081200;border-left:2px solid #336622;line-height:1.9"> 歪みを読んだ。体が正しく動いた。</div>`;
+     _startSpecialMissionVCombat(q, node, nodeIdx, false);
+    },
+    onFail(){
+     document.getElementById('dice-area').classList.add('hidden');
+     PC[sr.failAttr] = Math.max(0, (PC[sr.failAttr]||0) - sr.failDmg);
+     updateHUD();
+     story.innerHTML += `<div style="color:#c05040;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#120800;border-left:2px solid #663322;line-height:1.9"> ${sr.failTxt}（${sr.failAttr.toUpperCase()} -${sr.failDmg}）</div>`;
+     if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 1000); return; }
+     _startSpecialMissionVCombat(q, node, nodeIdx, true);
+    },
+   });
+  }}]);
+  return;
+ }
+
+ renderChoices([{label:'▶ 進む', fn:()=>_runSpecialMissionVNode(q, nodeIdx+1)}]);
+}
+
+function _startSpecialMissionVCombat(q, node, nodeIdx){
+ const mr = node.combat.mr_min + Math.floor(Math.random()*(node.combat.mr_max - node.combat.mr_min + 1));
+ renderChoices([]);
+ drawScene('combat');
+ document.getElementById('dice-area').classList.add('hidden');
+ startCombat({
+  name: node.combat.name, mr, armor: Math.floor(mr/25),
+  canFlee:false, win:'__noop__', lose:'DEAD',
+  onWin(){
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display='';
+   cbtState=null;
+   _runSpecialMissionVNode(q, nodeIdx+1);
+  },
+ });
+}
+
+function _startSpecialMissionVBoss(q){
+ renderChoices([]);
+ drawScene('combat');
+ document.getElementById('dice-area').classList.add('hidden');
+ document.getElementById('text-win').style.display='none';
+
+ const baseLv = 5 + Math.floor(Math.random()*4);
+ const bossLv = Math.round(baseLv * 1.5);
+ const boss = generateNPC(bossLv);
+ boss.name = '多重存在の指揮官';
+ boss.curCon = boss.con;
+
+ const MINION_TYPES = ['warrior','warrior','rogue'];
+ const minions = [0,1].map(()=>{
+  const m = generateNPC(bossLv);
+  m.type = MINION_TYPES[Math.floor(Math.random()*MINION_TYPES.length)];
+  m.name = '凍着した護衛';
+  m.curCon = m.con;
+  return m;
+ });
+
+ startCombatNPC({
+  enemies:[boss,...minions], canFlee:false,
+  win:'__noop__', lose:'DEAD', chaosMode:true,
+  onWin:()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display='';
+   cbtState=null;
+   PC.quests=(PC.quests||[]).filter(qq=>qq.id!==q.id);
+   const reward = Math.floor(bossLv*(75+Math.floor(Math.random()*38)));
+   gainGPAll(reward);
+   changeTrust('valdheim',10);
+   PC._specialMissionVCooldown = GAME_TIME.totalDays+(720+Math.floor(Math.random()*361));
+   updateHUD();
+   addLifeEvent('','氷原の砦掃討作戦を生き延びた。');
+   showSaveToast(` 特命依頼完了！ +${reward}GP`);
+   const story=document.getElementById('story');
+   story.innerHTML=`<div style="border:1px solid #4a7020;border-radius:4px;padding:12px;background:#081200">
+    <div style="color:#6aaa60;font-size:var(--font-sm);margin-bottom:8px"> 作戦完了</div>
+    <div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">指揮官が崩れ落ちると、砦に満ちていた歪みが急速に薄れた。<br><br>
+氷がゆっくりと元の色に戻っていった。静寂が、本来の静寂として戻ってきた。<br><br>
+隊長が近づいて言った。「よくやってくれた。この件は——記録には残らない」</div>
+    <div style="color:#aaccee;font-size:calc(var(--font-sm) - 1px);margin-top:8px">報酬: ${reward}GP　信頼度+10</div>
+   </div>`;
+   renderChoices([{label:'← ヴァルドヘイムへ戻る', go:'TOWN_VALDHEIM'}]);
+  },
+ });
+}
+
+function checkSpecialMissionValdheimBoard(){
+ const q=(PC.quests||[]).find(q=>q.type==='special_mission' && q.status==='active' && q.fromTownId==='valdheim');
+ if(q) return renderSpecialMissionActive(q);
+ if(checkSpecialMissionValdheim('valdheim')) return renderSpecialMissionValdheimBoard();
+ return '';
+}
+
+function checkHeroQuest(townId){
+ if(!PC._heroTowns || !PC._heroTowns[townId]) return null; // 英雄でない
+ if(!PC._heroQuestCooldown) PC._heroQuestCooldown = {};
+ const now = GAME_TIME.totalDays;
+ const cooldown = PC._heroQuestCooldown[townId] || 0;
+ if(now < cooldown) return null; // クールダウン中
+ if(Math.random() > 0.18) return null; // 18%の確率
+
+ // 受注済みの英雄依頼がまだあれば出さない
+ if((PC.quests||[]).some(q=>q.type==='heroquest' && q.status==='active' && q.fromTownId===townId)) return null;
+
+ // テンプレートをランダムに選ぶ（最近やったものを避ける）
+ const recent = PC._lastHeroQuestId;
+ const pool = HERO_QUEST_TEMPLATES.filter(t=>t.id !== recent);
+ const tmpl = pool[Math.floor(Math.random() * pool.length)];
+ const client = HERO_QUEST_CLIENTS[Math.floor(Math.random() * HERO_QUEST_CLIENTS.length)];
+ return { tmpl, client };
+}
+
+function renderHeroQuestOffer(townId, offer){
+ if(!offer) return '';
+ const { tmpl, client } = offer;
+ const townName = (TOWNS[townId]||{}).name || townId;
+ return `<div style="background:#0d0a00;border:2px solid #a07020;border-radius:4px;padding:12px;margin-bottom:10px">
+  <div style="color:#c8a44a;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px"> ${client.icon} ${client.name}からの依頼</div>
+  <div style="color:#888;font-size:calc(var(--font-sm) - 2px);margin-bottom:8px">${client.intro}</div>
+  <div style="color:#c8a44a;font-size:var(--font-sm);margin-bottom:6px"> ${tmpl.title}</div>
+  <div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.8;margin-bottom:10px">${tmpl.clientLine(townName)}</div>
+  <button onclick="acceptHeroQuest('${townId}','${tmpl.id}')" style="width:100%;background:#1a0f00;border:1px solid #a07020;color:#c8a44a;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:9px;cursor:pointer;border-radius:3px"> 引き受ける</button>
+ </div>`;
+}
+
+function acceptHeroQuest(townId, tmplId){
+ const tmpl = HERO_QUEST_TEMPLATES.find(t=>t.id===tmplId);
+ if(!tmpl) return;
+ const client = HERO_QUEST_CLIENTS[Math.floor(Math.random()*HERO_QUEST_CLIENTS.length)];
+
+ // ボスレベル決定
+ const r = Math.random();
+ const bossLv = r < 0.10 ? 3+Math.floor(Math.random()*3)
+              : r < 0.80 ? 6+Math.floor(Math.random()*5)
+              :             11+Math.floor(Math.random()*10);
+
+ // 手下数・レベル
+ let minionCount, minionLvRange;
+ if(bossLv <= 5)      { minionCount=1; minionLvRange=[1,2]; }
+ else if(bossLv <= 10){ minionCount=1+Math.floor(Math.random()*2); minionLvRange=[2,4]; }
+ else                  { minionCount=2+Math.floor(Math.random()*2); minionLvRange=[4,6]; }
+
+ // 報酬（賞金首相当）
+ const reward = bossLv * (50 + Math.floor(Math.random()*51));
+
+ const quest = {
+  id: Date.now() + Math.random(),
+  type: 'heroquest',
+  status: 'active',
+  fromTownId: townId,
+  tmplId,
+  clientName: client.name,
+  title: tmpl.title,
+  bossLv,
+  minionCount,
+  minionLvRange,
+  reward,
+  issuedDay: GAME_TIME.totalDays,
+ };
+ if(!PC.quests) PC.quests=[];
+ PC.quests.push(quest);
+ PC._lastHeroQuestId = tmplId;
+ showSaveToast(` 英雄依頼を引き受けた：${tmpl.title}`);
+ _refreshTavernBoard(townId);
+}
+
+function startHeroQuest(questId){
+ const q = (PC.quests||[]).find(q=>q.id===questId && q.type==='heroquest' && q.status==='active');
+ if(!q) return;
+ const tmpl = HERO_QUEST_TEMPLATES.find(t=>t.id===q.tmplId);
+ if(!tmpl) return;
+ _runHeroQuestNode(q, tmpl, 0);
+}
+
+function _runHeroQuestNode(q, tmpl, nodeIdx){
+ const node = tmpl.nodes[nodeIdx];
+ const story = document.getElementById('story');
+ const isLast = nodeIdx >= tmpl.nodes.length - 1;
+
+ story.innerHTML = `<div style="border:1px solid #554400;border-radius:4px;padding:12px;background:#0c0900">
+  <div style="color:#c8a44a;font-size:var(--font-sm);margin-bottom:8px"> ${tmpl.title}</div>
+  <div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">${node.txt}</div>
+ </div>`;
+
+ if(node.sr){
+  const sr = node.sr;
+  const attrNames = {st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+
+  // SR前フレーバー（属性別）
+  const srPreFlavor = {
+   st: '力尽くで突破するしかない。全身に力を込めた。',
+   iq: '状況を素早く分析する。頭を働かせる時だ。',
+   lk: '運を天に任せる。これがうまくいけばいいが——。',
+   con: '体を張るしかない。痛みは後回しだ。',
+   dex: '素早く、正確に動く必要がある。息を整えた。',
+   chr: '言葉と態度で乗り切る。英雄の名がここで試される。',
+   spd: '瞬時の判断が全てを決める。体が動くことを信じた。',
+  };
+
+  // SR成功フレーバー（属性別）
+  const srSuccessFlavor = {
+   st: '渾身の力で押し切った。体中に血が巡る感覚がした。',
+   iq: '冷静な判断が功を奏した。考えた通りに事が運んだ。',
+   lk: '間一髪だった。何かが味方してくれたのかもしれない。',
+   con: '傷みを堪えて前に進んだ。体が悲鳴を上げているが、まだ動ける。',
+   dex: '無駄のない動きで切り抜けた。体が自然に反応した。',
+   chr: '言葉が効いた。英雄の威圧感は思った以上だったようだ。',
+   spd: '目にも留まらぬ速さで躱した。後から心臓が跳ね上がった。',
+  };
+
+  story.innerHTML += `<div style="color:#88aacc;font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:#080c18;border-left:2px solid #335566;line-height:1.9">${sr.reason ? `<span style="color:#aabbcc">${sr.reason}</span><br>` : ''}${srPreFlavor[sr.attr]||''}<br><span style="color:#6688aa"> ${attrNames[sr.attr]} Lv${sr.level} セービングロール</span></div>`;
+
+  renderChoices([{
+   label:` ダイスを振る（${attrNames[sr.attr]} Lv${sr.level} SR）`,
+   fn:()=>{
+    document.getElementById('dice-area').classList.remove('hidden');
+    setupSavingRoll({
+     attr: sr.attr,
+     level: sr.level,
+     label: tmpl.title,
+     onSuccess(){ 
+      document.getElementById('dice-area').classList.add('hidden');
+      story.innerHTML += `<div style="color:#6aaa60;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#081200;border-left:2px solid #336622;line-height:1.9"> ${srSuccessFlavor[sr.attr]||'うまくいった。'}</div>`;
+      renderChoices([{label:'▶ 進む', fn:()=>{
+       if(isLast){ _startHeroQuestBattle(q, tmpl); }
+       else { _runHeroQuestNode(q, tmpl, nodeIdx+1); }
+      }}]);
+     },
+     onFail(){
+      document.getElementById('dice-area').classList.add('hidden');
+      const fail = sr.fail;
+      PC[fail.attr] = Math.max(0, (PC[fail.attr]||0) - fail.dmg);
+      updateHUD();
+      story.innerHTML += `<div style="color:#c05040;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#120800;border-left:2px solid #663322;line-height:1.9"> ${sr.failTxt}</div>`;
+      if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 1000); return; }
+      renderChoices([{label:'▶ それでも進む', fn:()=>{
+       if(isLast){ _startHeroQuestBattle(q, tmpl); }
+       else { _runHeroQuestNode(q, tmpl, nodeIdx+1); }
+      }}]);
+     },
+    });
+   },
+  }]);
+ } else {
+  // SR なし → 直接次へ or 戦闘/ダンジョン
+  const nextLabel = isLast
+   ? (tmpl.ydType ? ' ダンジョンに潜入する' : ` ${tmpl.bossDesc}と戦う`)
+   : '▶ 進む';
+  renderChoices([{label:nextLabel, fn:()=>{
+   if(isLast){ _startHeroQuestBattle(q, tmpl); }
+   else { _runHeroQuestNode(q, tmpl, nodeIdx+1); }
+  }}]);
+ }
+}
+
+function _startHeroQuestBattle(q, tmpl){
+ renderChoices([]);
+ drawScene('combat');
+ document.getElementById('dice-area').classList.add('hidden');
+ document.getElementById('text-win').style.display = 'none';
+
+ const backNode = 'TOWN_' + q.fromTownId.toUpperCase();
+
+ const onWin = ()=>{
+  document.getElementById('cbt-area').classList.add('hidden');
+  document.getElementById('scroll-area').classList.remove('in-combat');
+  document.getElementById('text-win').style.display = '';
+  cbtState = null;
+  PC.quests = (PC.quests||[]).filter(qq=>qq.id!==q.id);
+  gainGPAll(q.reward);
+  changeTrust(q.fromTownId, 8);
+  if(!PC._heroQuestCooldown) PC._heroQuestCooldown = {};
+  PC._heroQuestCooldown[q.fromTownId] = GAME_TIME.totalDays + (360 + Math.floor(Math.random()*361));
+  updateHUD();
+  addLifeEvent('',`英雄依頼「${tmpl.title}」を達成した。`);
+  showSaveToast(` 英雄依頼完了！ +${q.reward}GP`);
+  const story = document.getElementById('story');
+  story.innerHTML = `<div style="border:1px solid #4a7020;border-radius:4px;padding:12px;background:#081200">
+   <div style="color:#6aaa60;font-size:var(--font-sm);margin-bottom:8px"> 英雄依頼完了</div>
+   <div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">${tmpl.winTxt}</div>
+   <div style="color:#c8a44a;font-size:calc(var(--font-sm) - 1px);margin-top:8px">報酬: ${q.reward}GP　信頼度+8</div>
+  </div>`;
+  renderChoices([{label:'← 街に戻る', go: backNode}]);
+ };
+
+ // YD型（ダンジョン探索→ボス戦）
+ if(tmpl.ydType){
+  _startHeroQuestDungeon(q, tmpl, onWin);
+  return;
+ }
+
+ // MR型（獰猛なモンスター）
+ if(tmpl.mrType){
+  const mrMonsters = ['ドラゴン','ワイバーン','キメラ'];
+  const monsterName = mrMonsters[Math.floor(Math.random()*mrMonsters.length)];
+  const mr = 200 + Math.floor(Math.random()*201); // 200〜400
+  startCombat({
+   name: monsterName,
+   mr,
+   armor: Math.floor(mr/40),
+   isWarrior: false,
+   canFlee: false,
+   win: '__noop__',
+   lose: 'DEAD',
+   onWin,
+  });
+  return;
+ }
+
+ // NPC型（人間・知性ある敵）
+ const boss = generateNPC(q.bossLv);
+ const bossPersonalName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+ boss.name = `${tmpl.bossDesc}「${bossPersonalName}」`;
+ boss.curCon = boss.con;
+
+ const [minLv, maxLv] = q.minionLvRange;
+ const minions = Array(q.minionCount).fill(null).map(()=>{
+  const lv = minLv + Math.floor(Math.random()*(maxLv-minLv+1));
+  const m = generateNPC(lv);
+  m.curCon = m.con;
+  return m;
+ });
+
+ startCombatNPC({
+  enemies: [boss, ...minions],
+  canFlee: false,
+  win: '__noop__',
+  lose: 'DEAD',
+  onWin,
+ });
+}
+
+// 英雄依頼用ダンジョン初期化・進行
+function _startHeroQuestDungeon(q, tmpl, onWin){
+ // ダンジョン初期化（指定スタイルで）
+ const dung = ydInitDungeon();
+ if(tmpl.ydStyle) dung.design.dungeonStyle = tmpl.ydStyle;
+
+ // ボス情報をダンジョンに保存
+ const bossNpc = generateNPC(q.bossLv);
+ const bossName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+ bossNpc.name = `${tmpl.bossDesc}「${bossName}」`;
+ bossNpc.curCon = bossNpc.con;
+
+ const [minLv, maxLv] = q.minionLvRange;
+ const minions = Array(q.minionCount).fill(null).map(()=>{
+  const lv = minLv + Math.floor(Math.random()*(maxLv-minLv+1));
+  const m = generateNPC(lv);
+  m.curCon = m.con;
+  return m;
+ });
+
+ dung.isHeroQuestDungeon = true;
+ dung.heroQuestId = q.id;
+ dung.heroQuestBoss = bossNpc;
+ dung.heroQuestMinions = minions;
+ dung.heroQuestOnWin = onWin;
+ dung.heroQuestTmpl = tmpl;
+ dung.heroQuestBackNode = 'TOWN_' + q.fromTownId.toUpperCase();
+ // ノード上限を少し絞って短めのダンジョンに
+ dung.floors[1].nodeLimit = 4 + Math.floor(Math.random()*4);
+
+ // PCのダンジョン状態にセット
+ Object.keys(PC).filter(k=>k.startsWith('yd_')).forEach(k=>delete PC[k]);
+ PC._yeldunDungeon = dung;
+ initTorch();
+
+ // 入口ノードへ
+ document.getElementById('cbt-area').classList.add('hidden');
+ document.getElementById('scroll-area').classList.remove('in-combat');
+ document.getElementById('text-win').style.display = '';
+ ydGoNode(dung.floors[1].entryNodeId, 1);
+}
+
+// 英雄依頼ダンジョンでボスノードを出現させるかチェック（ydActionChoicesから呼ぶ）
+function checkHeroQuestBossAppear(node, floor){
+ const dung = PC._yeldunDungeon;
+ if(!dung?.isHeroQuestDungeon) return false;
+ if(dung._heroQuestBossDefeated) return false;
+ // 3ノード以上探索 かつ ランダムで出現（最深部感）
+ const explored = Object.keys(dung.floors[floor]?.nodeMap||{}).length;
+ if(explored < 3) return false;
+ if(node.type !== 'room') return false;
+ // 未出現なら50%で出現、またはノード上限近くなら強制
+ const limit = dung.floors[floor]?.nodeLimit || 8;
+ const forceAppear = explored >= limit - 1;
+ return forceAppear || (!dung._heroQuestBossAppeared && Math.random() < 0.4);
+}
 
 const CHAOS_WIZARD_TITLES = [
  '変転の術師','無秩序の司祭','虚無の学士','極彩色の導師','変転の学徒',
@@ -2746,6 +3711,30 @@ function generateJewel(){
   let sr2 = d6(); if(sr2===6) sr2=d6();
   const gemCount = sr2<=1?5 : sr2<=2?4 : sr2<=3?3 : sr2<=4?2 : 1;
   const priceGP = gem.base * 10 * gemCount;
+
+  if(itemType === 'Weapon'){
+   // カザン装備屋のテーブルからランダムに武器を選ぶ
+   const baseWeapon = WEAPONS_TABLE_KHAZAN[Math.floor(Math.random()*WEAPONS_TABLE_KHAZAN.length)];
+   // 売値の1/10を攻撃修整として加算（切り捨て）
+   const magicBonus = Math.floor(priceGP / 10);
+   const newAdds = baseWeapon.adds + magicBonus;
+   const magicName = gem.name+'x'+gemCount+' '+setting+' '+baseWeapon.name;
+   const magicWeapon = {
+    name: magicName,
+    dice: baseWeapon.dice,
+    adds: newAdds,
+    twoHand: baseWeapon.twoHand,
+    stReq: baseWeapon.stReq,
+    dexReq: baseWeapon.dexReq || 0,
+    _isMagic: true,
+    _priceGP: priceGP,
+   };
+   PC.invWeapons = PC.invWeapons || [];
+   PC.invWeapons.push(magicWeapon);
+   const desc = `${magicName}（${baseWeapon.dice}D${newAdds>=0?'+':''}${newAdds}）`;
+   return `⚔ ${desc}（売値${Math.floor(priceGP*0.5)}GP）`;
+  }
+
   const name = gem.name+'x'+gemCount+' '+setting+' '+itemType;
   PC.invJewels.push({name, priceGP});
   return '\u{1F48E} '+name+'(売値'+Math.floor(priceGP*0.5)+'GP)';
@@ -4147,6 +5136,246 @@ const extra = {
  nebra:[
   {icon:'', name:'灯台守', intro:'顔中に霧の水滴をつけた老人が静かに話す。',
    type:'rumor', lines:['「灯台の炎は誰も点けていない。気がついたら燃えていた、というのが何百年も続いている」','「霧が晴れた夜、沖合に光る何かが見えることがある。船でも魚でもない」','「この島の薬草は本土では手に入らないものがある。特に霧草は万能薬だ」']},
+  {icon:'', name:'島の漁師ペドゥ', intro:'腕に縄の傷跡がある男がゆっくり飲んでいる。',
+   type:'drink', line:'「今日は大漁だった。ま、一杯やれ」豪快に笑いながら酒を奢ってくれた。潮の香りが漂う。', gp_delta:0, free_drink:true },
+  {icon:'', name:'怪しげな商人', intro:'フードを深く被った人物がひっそりと隅で飲んでいる。',
+   type:'brawl', intro_sr:'「お前、俺の取引を見ただろ。口封じが必要だな」突然立ち上がった。',
+   attr:'dex', level:2, win_line:'「…運がいいな」男は舌打ちして出ていった。懐にコインが残っていた。', lose_line:'「余計なことを見るな」脇腹を殴られた。', win_gp:15, lose_con:2 },
+  {icon:'', name:'遭難から戻った船乗り', intro:'ボロボロの服を着た男がぼんやり飲んでいる。',
+   type:'rumor', lines:['「無人島に流れ着いた。三日いたが、誰かの足跡があった」','「霧の中に声があった。人の言葉に聞こえたが、意味が分からなかった」','「島の東に沈んだ船がある。荷が残っているかもしれない」']},
+ ],
+ khazan: [
+  {icon:'', name:'賭場帰りの博徒', intro:'金の指輪をじゃらじゃらさせた男がご機嫌で飲んでいる。',
+   type:'luck', line_good:'「今日は大勝ちだ！お前も飲め！」男は気前よくコインを放ってきた。', line_bad:'「一緒に飲んだら運が逃げた…」男はぶつぶつ言いながら去った。', lk_thresh:11, good_gp:20, bad_lk:-1 },
+  {icon:'', name:'密偵風の女', intro:'背の高い女が柱の陰で周囲を観察しながら飲んでいる。',
+   type:'rumor', lines:['「最近カザンに流れ込む銀貨に偽物が混じっている。形が少し違う」','「王城の北棟に三日前から明かりがついていない。使用人が怯えている」','「市場の薬屋が突然店を畳んだ。在庫ごと消えた」']},
+  {icon:'', name:'引退した傭兵隊長', intro:'古傷の多い男が静かに強い酒を飲んでいる。',
+   type:'brawl', intro_sr:'「若いころを思い出させてくれ。本気でかかってきていい」穏やかに言った。',
+   attr:'st', level:3, win_line:'「久しぶりに本気が出せた。これを持っていけ」男は革袋を渡してきた。', lose_line:'「まだ甘い。もっと場数を踏め」男は短く言った。', win_gp:25, lose_con:3 },
+  {icon:'', name:'迷子の行商人', intro:'地図を逆さに持った男が困り顔で飲んでいる。',
+   type:'drink', line:'「道を教えてもらえますか…カザンの南市場がどうしても見つからなくて」話を聞いてあげると礼として一杯奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'武具磨きの職人', intro:'指先が鉄錆で赤い老人が隅で飲んでいる。',
+   type:'tip', line:'「装備は使ったらすぐ手入れすること。特に雨の日の後はな。さびは刃こぼれより怖い」' },
+ ],
+ port_argon: [
+  {icon:'', name:'賭けに勝った水夫', intro:'コインを何度もテーブルに叩きつけて喜んでいる男がいる。',
+   type:'luck', line_good:'「お前、運がよさそうな顔してるな！一枚やる！」水夫はコインを放ってきた。', line_bad:'「お前を見てたら俺の運が逃げた気がする」水夫は顔をしかめて去った。', lk_thresh:11, good_gp:15, bad_lk:-1 },
+  {icon:'', name:'漁師のガロン', intro:'網を直しながら酒を飲んでいる男がいる。',
+   type:'rumor', lines:['「最近港の外海にでかい影が出る。船より大きい。近づかないようにしてる」','「波止場の倉庫の裏で夜中に荷物のやり取りがある。誰も見て見ぬふりだ」','「隣町の漁師が新しい漁場を見つけたらしいが、そこに近づくと魚が逃げるという」']},
+  {icon:'', name:'酔った水兵', intro:'千鳥足で壁に寄りかかっている若い水兵がいる。',
+   type:'brawl', intro_sr:'「お前が俺の酒をこぼしたんじゃないのか！」絡んできた。',
+   attr:'chr', level:1, win_line:'「あ、ごめん、俺が悪かった」水兵はしょんぼりして謝りのコインを置いた。', lose_line:'「どうせ俺が悪いんだろ！」水兵は泣きながら出ていった。財布が少し軽くなった。', win_gp:8, lose_con:1 },
+  {icon:'', name:'難破船から生き残った商人', intro:'顔色の悪い男が震えながら酒を飲んでいる。',
+   type:'drink', line:'「生きてて良かった…難破して三日間流された」話を聞いてあげると礼として一杯奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'港の伝言屋', intro:'羊皮紙を山ほど持った若者が忙しそうに飲んでいる。',
+   type:'rumor', lines:['「エルマリアから急ぎの書状が来た。内容は知らないが、受け取った役人が真っ青になっていた」','「最近、南の島からの船が一週間遅れている。嵐はなかったはずなのに」','「港に来る船の積み荷に最近、検査できない箱が増えている」']},
+ ],
+ stonehiem: [
+  {icon:'', name:'鉱山の検査員', intro:'安全帽をかぶったままの男が飲んでいる。',
+   type:'rumor', lines:['「旧坑道D区で壁が振動している。採掘は止めたが原因が分からない」','「先週、深部から持ち帰った鉱石が翌朝に消えていた。倉庫には鍵がかかっていたのに」','「坑道の底に水が出始めた。地底湖があるのかもしれない」']},
+  {icon:'', name:'地質学者のフィン', intro:'岩のサンプルを並べた男が熱心に飲んでいる。',
+   type:'tip', line:'「ストーンヘイムの岩盤は三層構造だ。一番下の層に金鉱脈がある可能性が高い。が、たどり着いた者はまだいない」' },
+  {icon:'', name:'坑道の古参夫のグルーク', intro:'ずんぐりした男が何かを考えながらゆっくり飲んでいる。',
+   type:'brawl', intro_sr:'「お前、坑道仕事したことあるか？根性試してやろうか」',
+   attr:'st', level:2, win_line:'「なかなかやる。坑夫の友達になれそうだ」男はにやりとして工賃代わりのコインをくれた。', lose_line:'「やっぱり坑夫にはなれんな」男は笑いながら立ち去った。', win_gp:10, lose_con:2 },
+  {icon:'', name:'遠方から来た鉱石商', intro:'上等な服を着た男がじっくり石を品定めしながら飲んでいる。',
+   type:'luck', line_good:'「これは！珍しい石を持っているな。少し見せてもらえるか」男はコインを弾んでくれた。', line_bad:'「残念な目利きだ」男はため息をついた。なんとなく気分が落ち込んだ。', lk_thresh:12, good_gp:18, bad_lk:-1 },
+ ],
+ elsia: [
+  {icon:'', name:'森の偵察者サエラ', intro:'緑の外套をまとったエルフが静かに飲んでいる。',
+   type:'rumor', lines:['「エルマリアの北の森に最近、人の手によるものではない道ができている」','「古いエルフ語で書かれた道標が森の奥に現れた。数百年前のものらしい」','「森の鳥が急に南へ移動した。何かを察知した可能性がある」']},
+  {icon:'', name:'魔法研究者ヴァル', intro:'手に魔法の痕跡がある人物がノートを開きながら飲んでいる。',
+   type:'drink', line:'「魔法式を解いていたら時間を忘れた。あなたも一杯どうぞ、私のおごりで」静かな笑顔で酒を奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'迷い込んだ行商人', intro:'困り顔の人間の男が地図と格闘しながら飲んでいる。',
+   type:'luck', line_good:'「エルマリアに来たのは初めてで…道を教えてもらえますか？」助けてあげると礼として財布を渡してきた。', line_bad:'「森の中で迷子になりまして…」男はため息をついた。なんとなく引きずられた気分になった。', lk_thresh:10, good_gp:12, bad_lk:-1 },
+  {icon:'', name:'古代語の翻訳者', intro:'羊皮紙だらけの机でひとり飲んでいる老人がいる。',
+   type:'tip', line:'「古代エルフ語は現代語と七割方違う。遺跡の碑文を正確に読むには、まず数字から覚えると良い。数字は変わらないから」' },
+ ],
+ verda: [
+  {icon:'', name:'猟師のケン', intro:'毛皮のベストを着た男がどっかりと座って飲んでいる。',
+   type:'rumor', lines:['「最近、森の深部で見慣れない足跡を見た。熊でも狼でもない」','「ヴェルダの南の川で魚が大量に死んでいた。上流に何かあるのかもしれない」','「今年の猟は外れ年だ。獲物が森の奥に引っ込んでいる」']},
+  {icon:'', name:'村の産婆オリン', intro:'人の良さそうな老婆がのんびり飲んでいる。',
+   type:'drink', line:'「今日、赤ちゃんが生まれたんだよ！嬉しくてね。一杯つきあっておくれ」老婆は酒を奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'よそ者の賭博師', intro:'巧みな手つきでコインを弄んでいる男がいる。',
+   type:'brawl', intro_sr:'「一発当ててみるか。俺に勝てたら賞金をやろう」挑発的な笑みを向けてきた。',
+   attr:'lk', level:2, win_line:'「やるじゃないか。約束通り」男は渋い顔でコインを差し出した。', lose_line:'「ありがとよ」男は軽やかに立ち去った。財布が軽くなった。', win_gp:15, lose_con:0 },
+  {icon:'', name:'旅人を迎えた農夫', intro:'日焼けした男が仕事終わりに一杯やっている。',
+   type:'luck', line_good:'「今年の収穫は最高だ！飲んでけ！」農夫は豪快に奢ってくれた。', line_bad:'「今年は不作でな…」農夫はため息をついた。なんとなく気が沈んだ。', lk_thresh:10, good_gp:10, bad_lk:-1 },
+ ],
+ rimholm: [
+  {icon:'', name:'遺跡発掘団のメンバー', intro:'土だらけの服の男が興奮した様子で飲んでいる。',
+   type:'rumor', lines:['「今日、地下三層で碑文の入った石板を見つけた。読めないが複雑な模様だ」','「遺跡の第二区画から奇妙な空気が漏れてくる。息苦しいほどではないが独特の臭いがする」','「発掘品の中に、明らかに現代の工具が混じっていた。誰かが先に入っていた」']},
+  {icon:'', name:'遺跡警備の元兵士', intro:'古傷のある男が壁際で周囲を気にしながら飲んでいる。',
+   type:'brawl', intro_sr:'「昔の感覚を取り戻したい。付き合ってくれ」静かに立ち上がった。',
+   attr:'dex', level:2, win_line:'「速いな。護衛の仕事を探しているなら声をかけてくれ」男はコインをテーブルに置いた。', lose_line:'「まだまだだが、筋はいい」男は淡々と言った。', win_gp:12, lose_con:2 },
+  {icon:'', name:'薬草採集家のミュー', intro:'草の香りがする女性がゆっくりと飲んでいる。',
+   type:'drink', line:'「今日、珍しい薬草が採れたの。良かったら一杯どうぞ」穏やかな笑顔で酒を奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'古銭収集家', intro:'小さな袋から次々とコインを取り出して比べている老人がいる。',
+   type:'luck', line_good:'「これは珍しい！君の財布に古い硬貨が混じっている。買い取りましょう」老人は相場より高く買い取ってくれた。', line_bad:'「君の財布のコインは全部最近のものだね。つまらない」老人はそっぽを向いた。', lk_thresh:12, good_gp:20, bad_lk:0 },
+ ],
+ marakai: [
+  {icon:'', name:'傭兵のロカ', intro:'無愛想な男が強い酒をあおっている。',
+   type:'rumor', lines:['「マラカイの港に停まっている船の一隻、積み荷の重さがおかしい。荷降ろしのとき気づいた」','「最近、街の外で夜に火が見える。野盗のたき火にしては整然としすぎている」','「傭兵ギルドに変な依頼が来た。内容を見た受付が青ざめてすぐ断った」']},
+  {icon:'', name:'酔いつぶれた商人', intro:'テーブルに突っ伏した男がかろうじて目を開けている。',
+   type:'brawl', intro_sr:'「うるさい…静かにしろよ…」突然怒鳴りかけてきた。',
+   attr:'chr', level:1, win_line:'「ああ、すまなかった…これで許してくれ」男はポケットからコインを出した。', lose_line:'「うるさいって言ってるのに！」男は立ち上がって怒鳴った。脇に痛みが走った。', win_gp:6, lose_con:1 },
+  {icon:'', name:'港の女将', intro:'たくましい腕をした女性が帳簿を見ながら飲んでいる。',
+   type:'tip', line:'「マラカイでいい情報が欲しければ船乗りに酒をおごれ。それが一番早い。あと夜の港には近づくな」' },
+  {icon:'', name:'新米冒険者の一団', intro:'若者たちが地図を広げて議論しながら飲んでいる。',
+   type:'drink', line:'「あなたみたいな冒険者に会いたかった！話を聞かせてください！」若者たちが目を輝かせて一杯奢ってくれた。', gp_delta:0, free_drink:true },
+ ],
+ al_rashid: [
+  {icon:'', name:'砂漠の水売り', intro:'革袋を大事そうに持った男が少しだけ飲んでいる。',
+   type:'luck', line_good:'「今日は特別な場所で湧き水を見つけた。余っているからどうぞ」男は清潔な水を分けてくれた。気力が戻る感覚があった。', line_bad:'「水が少ない…あなたの分はない」男は申し訳なさそうに言った。喉が渇いた気がした。', lk_thresh:11, good_gp:8, bad_lk:-1 },
+  {icon:'', name:'砂漠の密偵', intro:'砂色の服を着た細身の人物が素早く飲んでいる。',
+   type:'rumor', lines:['「アル・ラシードの南に動く砂丘がある。普通の砂丘は動かない」','「隊商の護衛を三人やとったが、三人とも翌朝消えていた。荷物はそのまま残っていた」','「砂漠の深部に城壁の跡がある。地図には載っていない」']},
+  {icon:'', name:'隊商の護衛兵', intro:'武装した男が疲れた顔で酒を飲んでいる。',
+   type:'brawl', intro_sr:'「砂漠越えで体がなまった。一手合わせてくれ」',
+   attr:'st', level:2, win_line:'「強いな。次の護衛仕事を紹介してやろう」男は礼のコインを渡してくれた。', lose_line:'「まだ甘い。砂漠ではそれでは死ぬ」男は真顔で言った。', win_gp:14, lose_con:3 },
+  {icon:'', name:'香辛料問屋の番頭', intro:'帳面を片手に忙しそうに飲んでいる男がいる。',
+   type:'drink', line:'「今日は大口の取引がまとまった。祝い酒だ、一杯つきあえ」番頭は気前よく奢ってくれた。', gp_delta:0, free_drink:true },
+ ],
+ oasis_fort: [
+  {icon:'', name:'砦の整備兵', intro:'工具を腰にぶら下げたままの男が飲んでいる。',
+   type:'rumor', lines:['「砦の西壁に亀裂が入っている。補修はしているが根本の問題が解決していない」','「深夜に砦の外で松明の光が動いていた。敵の偵察か、野盗か」','「井戸の水に最近砂が混じるようになった。上流で何かあったのかもしれない」']},
+  {icon:'', name:'旅を終えた隊商主', intro:'ほっとした表情の男が久しぶりの酒を楽しんでいる。',
+   type:'drink', line:'「無事についた！砂漠越えは毎回命がけだ。一杯おごらせてくれ」男は豪快に酒を注いでくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'砂漠の老案内人', intro:'深い皺の老人が黙って酒を飲んでいる。',
+   type:'tip', line:'「砂漠で道に迷ったら星を見ろ。砂嵐のときは布を口に当てて低く伏せろ。焦らず動かないのが一番大事だ」' },
+  {icon:'', name:'賭け好きの衛兵', intro:'サイコロを弄びながら飲んでいる若い衛兵がいる。',
+   type:'brawl', intro_sr:'「お前、運試しするか？賭けで一本勝負だ」',
+   attr:'lk', level:2, win_line:'「…運のいい奴だ。持っていけ」衛兵は渋々コインを渡した。', lose_line:'「ついてないな！」衛兵は大笑いした。財布が痛い。', win_gp:12, lose_con:0 },
+ ],
+ saroon: [
+  {icon:'', name:'鉱山の帳簿係', intro:'細かい字の帳面を持った男が目を細めながら飲んでいる。',
+   type:'rumor', lines:['「サルーンの第七鉱区で今月だけで三人の事故があった。偶然にしては多すぎる」','「最近持ち込まれる鉱石に混じり物が増えている。産地が変わったのか、それとも誰かが意図しているのか」','「廃坑になった第三区画から夜中に音がする。閉めたはずの区画なのに」']},
+  {icon:'', name:'よそから来た職人', intro:'手に複雑な職人仕事の痕がある男がゆっくり飲んでいる。',
+   type:'drink', line:'「故郷を出て十年、久しぶりに美味い酒を飲んだ。一杯つきあってくれないか」男は酒を奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'鉱石の運搬人', intro:'どっしりした体つきの男が疲れた顔で飲んでいる。',
+   type:'brawl', intro_sr:'「ぶつかっただろ。謝れよ」いきなり肩を掴まれた。',
+   attr:'chr', level:1, win_line:'「…悪かった」男はバツの悪い顔でコインを置いた。', lose_line:'「そうだよ、謝れ！」男に怒鳴られ脇を突かれた。', win_gp:7, lose_con:1 },
+  {icon:'', name:'砂漠育ちの薬師', intro:'乾燥した薬草を袋から取り出しながら飲んでいる人物がいる。',
+   type:'luck', line_good:'「あなたの顔色は良いですね。お守りにどうぞ」薬師は小さな護符を渡してくれた。気分が上向く感じがした。', line_bad:'「少し疲れが見えますね。無理は禁物ですよ」薬師に言われ、なんとなく気力が削がれた。', lk_thresh:11, good_gp:5, bad_lk:-1 },
+ ],
+ duna: [
+  {icon:'', name:'遊牧民の長老', intro:'深い皺の老人が焚き火の香りをまとって飲んでいる。',
+   type:'rumor', lines:['「砂漠の星が先月から少しずれている。我々の暦と合わなくなった」','「デュナの南の砂丘に入った若者が戻らなかった。足跡は砂丘の途中で消えていた」','「砂の中に眠る古い神がいると言い伝えがある。夢の中でその声を聞いた者がいる」']},
+  {icon:'', name:'天幕の芸人', intro:'布地の派手な服を着た男が一人で踊りの練習をしながら飲んでいる。',
+   type:'drink', line:'「今日の公演はうまくいった！奢らせてくれ！」男は陽気に酒を注いでくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'砂漠の賭博師', intro:'カードを切りながら対戦相手を探している男がいる。',
+   type:'brawl', intro_sr:'「一勝負しないか。砂漠式のルールで」',
+   attr:'lk', level:2, win_line:'「砂漠の神が味方したか。持っていけ」男は潔くコインを渡した。', lose_line:'「残念。砂漠では運も実力のうちだ」男は静かに言った。', win_gp:18, lose_con:0 },
+  {icon:'', name:'旅の星読み師', intro:'星座の図を広げた人物が静かに飲んでいる。',
+   type:'luck', line_good:'「今宵、あなたの星は良い位置にある。旅の安全を祝して」星読み師は小さなコインを握らせた。', line_bad:'「今夜の星配置は…少し気になる配置だ。慎重に」星読み師の言葉が頭に残り、なんとなく不安になった。', lk_thresh:12, good_gp:10, bad_lk:-1 },
+ ],
+ yeldun: [
+  {icon:'', name:'山の狩人', intro:'熊の毛皮を纏った巨体の男が豪快に飲んでいる。',
+   type:'luck', line_good:'「今日、山で金貨入りの古い袋を見つけた！お前にも一枚やる！」男は豪快にコインを投げてきた。', line_bad:'「山が荒れた日は運が悪い。お前もそんな顔してるな」男に言われ気分が沈んだ。', lk_thresh:11, good_gp:15, bad_lk:-1 },
+  {icon:'', name:'山越え帰りの商人', intro:'雪焼けした顔の男が暖を取りながら飲んでいる。',
+   type:'drink', line:'「山を越えてきた！凍えた体に酒が染みる…一杯つきあってくれ！」男は嬉しそうに奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'廃城址の探検家', intro:'ロープを肩にかけた男が地図を睨んでいる。',
+   type:'rumor', lines:['「ドラクリムの北の廃城に入った。半分崩れているが、地下が手つかずで残っていた」','「山の頂上に巨大な岩でできた鳥の像がある。何百年前のものか誰も知らない」','「山岳部族の古老が死んだ。彼だけが知っていた古い山道の地図が失われた」']},
+  {icon:'', name:'山岳警備隊の隊員', intro:'防寒具をつけたままの男が温かい酒を飲んでいる。',
+   type:'brawl', intro_sr:'「山の男の強さを見せてやろうか」男はにやりとした。',
+   attr:'st', level:3, win_line:'「山を越える力がある。尊重しよう」男は山岳民の敬礼をしてコインを置いた。', lose_line:'「山はもっと厳しい」男は静かに言った。', win_gp:20, lose_con:3 },
+ ],
+ frostpeak: [
+  {icon:'', name:'雪崩から逃げた旅人', intro:'霜焼けした手の男が震えながら飲んでいる。',
+   type:'rumor', lines:['「山の北斜面で雪崩が起きた。あと少しで飲み込まれるところだった」','「フロストピークの外れに黒い石でできた柱がある。真冬でも雪が積もらない」','「山の奥に明かりが見えた。あの標高に住める者はいないはずなのに」']},
+  {icon:'', name:'毛皮商人のウルフ', intro:'高品質な毛皮を並べた男が商談後の一杯を楽しんでいる。',
+   type:'drink', line:'「今日は良い取引ができた！奢るから話し相手になってくれ」男は豪快に酒を注いでくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'氷の宝石師', intro:'透明な石を光にかざして品定めしている老人が飲んでいる。',
+   type:'luck', line_good:'「あなたの目が石を正しく見ている。これを持っていきなさい」老人は磨いた小石を握らせた。それが思いのほか高値で売れた。', line_bad:'「あなたには石の価値が分からない」老人は失望した目で言った。なんとなく自信をなくした。', lk_thresh:12, good_gp:20, bad_lk:-1 },
+  {icon:'', name:'凍死しかけた探検家', intro:'全身包帯だらけの男が暖炉の前でぼんやり飲んでいる。',
+   type:'tip', line:'「山では必ず火打ち石と防寒着の予備を持て。俺は片方しか持っていなかった。二度と山へは行かない」' },
+ ],
+ ashveil: [
+  {icon:'', name:'廃坑の記録係', intro:'古い台帳を持った男が目を細めながら飲んでいる。',
+   type:'rumor', lines:['「廃坑の第十二区画は三十年前に封鎖された。理由は台帳に「発見物」とだけある」','「アッシュヴェイルの地下に火山の熱が通っている。特定の場所で地面が温かい」','「廃坑に入った者が全員、同じ夢を見たという。真っ暗な場所に立っている夢だ」']},
+  {icon:'', name:'溶岩職人のノーラ', intro:'火に強い手袋をしたままの女性が飲んでいる。',
+   type:'drink', line:'「今日、新しい技法を完成させた！祝い酒だ、一杯つきあって！」女性は嬉しそうに奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'火山の警戒員', intro:'煤けた顔の男が疲れた目で飲んでいる。',
+   type:'luck', line_good:'「今日は異常なし。久しぶりに平和な一日だった」男は安堵してコインを落とした。拾ってあげると礼にくれた。', line_bad:'「今日は小さな噴気が三か所で確認された。嫌な予感がする」男の言葉が頭に残り、なんとなく落ち着かなくなった。', lk_thresh:10, good_gp:8, bad_lk:-1 },
+  {icon:'', name:'黒曜石の運び屋', intro:'重い荷を降ろしてほっとした顔の男が飲んでいる。',
+   type:'brawl', intro_sr:'「お前、俺の荷に触っただろ」いきなり掴みかかってきた。',
+   attr:'dex', level:2, win_line:'「…見間違いだったか」男はぶすっとしながらコインを渡した。', lose_line:'「触るな！」男に突き飛ばされた。', win_gp:9, lose_con:2 },
+ ],
+ valdheim: [
+  {icon:'', name:'古代史の研究者', intro:'分厚い書物を持った人物が静かに飲んでいる。',
+   type:'rumor', lines:['「ヴァルドヘイムには地下に古代の王の墓がある。まだ一度も発掘されていない」','「北の氷原に沈んだ都市があると古文書に記されている。春の融雪期に建物の一部が顔を出すという」','「ヴァルドヘイムの開拓者たちは何かに追われてここに来た。何に追われたかは記録が残っていない」']},
+  {icon:'', name:'北の交易商', intro:'分厚い毛皮を着た男が商談後の一杯を楽しんでいる。',
+   type:'luck', line_good:'「今日は良い儲けが出た！お前も運をもらえ！」男は豪快にコインをくれた。', line_bad:'「今日は取引が全部外れた。お前を見たら余計に気分が沈んだ」男はぼやいた。', lk_thresh:11, good_gp:18, bad_lk:-1 },
+  {icon:'', name:'北の剣士', intro:'細身の剣を腰にした無表情な男が飲んでいる。',
+   type:'brawl', intro_sr:'「腕試しがしたい。遠慮なくかかってきていい」',
+   attr:'dex', level:3, win_line:'「良い剣捌きだ。北の流儀を教えてやろう」男はコインを置いた。', lose_line:'「まだ北の風を知らない」男は淡々と言った。', win_gp:22, lose_con:3 },
+  {icon:'', name:'凍原の薬草師', intro:'珍しい草を乾燥させながら飲んでいる人物がいる。',
+   type:'drink', line:'「この草はここでしか採れない。良かったら一緒に飲みましょう」穏やかに酒を奢ってくれた。', gp_delta:0, free_drink:true },
+ ],
+ nifurvik: [
+  {icon:'', name:'氷漁の漁師', intro:'氷の上で穴を開けて魚を獲った道具を持った男が飲んでいる。',
+   type:'rumor', lines:['「氷の下に大きな影が動いていた。魚ではない。黒くて大きすぎる」','「ニフルヴィクの東の氷壁に何かが彫られている。風が彫ったにしては複雑すぎる形だ」','「先週から氷の音が変わった。割れる前の音に似ている」']},
+  {icon:'', name:'北の行商人', intro:'重い荷を持ち込んだ男がやっと座って飲んでいる。',
+   type:'drink', line:'「ここまで来るのに三日かかった。温かい場所で一杯飲めるのが一番の幸せだ」男は嬉しそうに奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'凍原の見張り', intro:'防寒具を着込んだ男が雪かきの疲れを癒しながら飲んでいる。',
+   type:'brawl', intro_sr:'「北では弱いと生き残れない。実力を見せてみろ」',
+   attr:'st', level:2, win_line:'「北に来る価値がある。これを持っていけ」男はコインを渡した。', lose_line:'「もっと鍛えろ。北の冬は容赦しない」', win_gp:14, lose_con:2 },
+  {icon:'', name:'北の老翁', intro:'真っ白な髪の老人が暖炉のそばで静かに飲んでいる。',
+   type:'luck', line_good:'「長生きしてきたが、お前のような目をした者はたまに大物になる」老翁はコインを握らせた。', line_bad:'「ここの冬は長い。覚悟はあるか」老翁の言葉が重くのしかかった。', lk_thresh:10, good_gp:10, bad_lk:-1 },
+ ],
+ iskald: [
+  {icon:'', name:'氷の採掘師', intro:'氷の粒を体についたまま飲んでいる男がいる。',
+   type:'rumor', lines:['「氷を掘っていたら、中から古い木製の箱が出てきた。中身は黒ずんだ金属の欠片だった」','「イスカルドの北の氷壁が少しずつ動いている。数年前より確実に南に来ている」','「氷の中に閉じ込められた虫を見た。生きているように見えた」']},
+  {icon:'', name:'北の若い冒険者', intro:'新しすぎる装備を身に着けた若者が意気込んで飲んでいる。',
+   type:'drink', line:'「先輩の冒険者に会えた！話を聞かせてください！奢ります！」若者は目を輝かせて一杯ご馳走してくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'廃村調査員', intro:'分厚い外套を着た人物が報告書を書きながら飲んでいる。',
+   type:'luck', line_good:'「今日、廃村の調査で思わぬ発見があった。報告の前に一杯付き合ってくれ」調査員は奮発してコインを弾んでくれた。', line_bad:'「今日の調査結果は最悪だった…気が滅入る」調査員の沈んだ空気に引きずられた。', lk_thresh:11, good_gp:16, bad_lk:-1 },
+  {icon:'', name:'北の傭兵', intro:'黒ずんだ鎧をつけたままの男が黙って飲んでいる。',
+   type:'brawl', intro_sr:'「腕試しをしたい。軽く一本やろう」男が静かに立った。',
+   attr:'st', level:2, win_line:'「なかなかだ」男は簡潔にコインを置いた。', lose_line:'「足元を見ろ」男は一言言って座った。', win_gp:13, lose_con:2 },
+ ],
+ neria: [
+  {icon:'', name:'島の漁師組合の親方', intro:'日焼けした大きな男が今日の漁の話をしている。',
+   type:'rumor', lines:['「ネリア港の沖に最近、岩が一つ増えた。昨日まで何もなかった場所に」','「島の古老が言うには、満潮の夜に港で笛の音が聞こえるという。誰も吹いていないのに」','「沖の漁場が突然枯れた。魚が全部どこかへ行った」']},
+  {icon:'', name:'離島から来た商人', intro:'塩焼けした服の男がのんびり飲んでいる。',
+   type:'drink', line:'「島から初めて本土に来た！感動して一杯余分に頼んでしまった。あなたも飲んでくれ！」男は嬉しそうに奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'港の賭け好きの水夫', intro:'コインを弄びながら飲んでいる男がいる。',
+   type:'brawl', intro_sr:'「一本勝負しないか。負けた方が次の酒代を払う」',
+   attr:'lk', level:2, win_line:'「ついてるな。持っていけ」水夫は素直にコインを差し出した。', lose_line:'「ついてないな！次は勝てよ」水夫は笑いながら立ち去った。', win_gp:12, lose_con:0 },
+  {icon:'', name:'島の老漁師', intro:'網の修繕をしながら飲んでいる老人がいる。',
+   type:'luck', line_good:'「今日は大漁だった。お前にも福を分けてやろう」老漁師はコインを握らせた。', line_bad:'「今日は不漁だった。お前の顔を見たら余計悲しくなった」老漁師はぼやいた。', lk_thresh:10, good_gp:10, bad_lk:-1 },
+ ],
+ dorua: [
+  {icon:'', name:'遺跡守りの老人', intro:'遺跡の守護者を名乗る老人が飲んでいる。',
+   type:'rumor', lines:['「ドルアの遺跡の最奥に入った者が戻ったことがない。入り口は今も閉じている」','「遺跡の壁の文字が先月から増えている。何者かが書き加えている」','「遺跡の近くで夜中に光が見える。炎のようだが熱くない青白い光だ」']},
+  {icon:'', name:'島の若い漁師', intro:'明るい顔の若者が今日の漁の話を誰かれ構わずしている。',
+   type:'drink', line:'「今日、初めて大きな魚を釣り上げた！嬉しくて一杯奢らせてくれ！」若者は元気よく酒を奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'島のならず者', intro:'鋭い目をした男が隅でひっそり飲んでいる。',
+   type:'brawl', intro_sr:'「お前、こっちを見ていたな。気に入らない」',
+   attr:'dex', level:2, win_line:'「…やるじゃないか」男は舌打ちしてコインを置いた。', lose_line:'「二度と見るな」脇腹に一撃を受けた。', win_gp:11, lose_con:2 },
+  {icon:'', name:'本土からの調査者', intro:'大きなノートを持った若い人物が熱心に書きながら飲んでいる。',
+   type:'luck', line_good:'「島の情報を持っている方はいますか？報酬を出します」調査者はコインを弾んでくれた。', line_bad:'「島の人は皆、遺跡のことを話したがらない」調査者はため息をついた。なんとなく重い空気になった。', lk_thresh:10, good_gp:12, bad_lk:-1 },
+ ],
+ sarpe: [
+  {icon:'', name:'海辺の行商人', intro:'貝細工のアクセサリーを並べた女性が飲んでいる。',
+   type:'rumor', lines:['「サルペの浜に先週、見慣れない漂着物があった。どの国の言葉も書いていない」','「島の南の海が最近、少し赤くなっている。赤潮か、それとも別の何かか」','「サルペに住み着いた老魔法使いが最近、外に出なくなった。何かあったのかもしれない」']},
+  {icon:'', name:'島の漁師', intro:'塩辛い風をまとった男がのんびり飲んでいる。',
+   type:'drink', line:'「珍しい魚が獲れた日は気分がいい！一杯おごるよ」漁師は笑いながら奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'密輸業者風の男', intro:'辺りをちらちら見ながら飲んでいる男がいる。',
+   type:'brawl', intro_sr:'「お前、俺の荷を見ただろ。困ったことになった」男が静かに立ち上がった。',
+   attr:'chr', level:2, win_line:'「…話の分かる奴だ」男は緊張を解いてコインを置いた。', lose_line:'「余計なことを知るな」脇腹を突かれた。', win_gp:14, lose_con:2 },
+  {icon:'', name:'島育ちの船乗り', intro:'焼けた肌の若い船乗りが酒を楽しんでいる。',
+   type:'luck', line_good:'「今日、嵐をギリギリで避けられた！運があったな！お前にもその運を分けてやる！」船乗りはコインをくれた。', line_bad:'「最近ついてない。お前を見てたら余計にな」船乗りはぶつぶつ言った。', lk_thresh:11, good_gp:12, bad_lk:-1 },
+ ],
+ nebra: [
+  {icon:'', name:'霧の中の老漁師', intro:'霧に濡れた服のままの老人が飲んでいる。',
+   type:'rumor', lines:['「ネブラの霧は他の島と違う。晴れた日でも港の奥に霧が残ることがある」','「霧の中で船の幽霊を見た者がいる。ネブラ沖では有名な話だ」','「霧が出た夜に漁に出た若者が消えた。三日後に無傷で戻ったが、何も覚えていないという」']},
+  {icon:'', name:'霧の島の薬師', intro:'煙の臭いがする老人が薬草を並べながら飲んでいる。',
+   type:'drink', line:'「霧草のエキスは体を温める。一緒に飲みませんか」老人は穏やかに酒を奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'ネブラの荒くれ者', intro:'大柄な男が不機嫌そうに飲んでいる。',
+   type:'brawl', intro_sr:'「ここは俺の席だ。そこをどけ」言いがかりをつけてきた。',
+   attr:'st', level:2, win_line:'「ちっ、強いじゃないか」男はコインを渡して席を譲った。', lose_line:'「言った通りだろ」男は勝ち誇った顔をした。', win_gp:10, lose_con:2 },
+  {icon:'', name:'霧の島を旅した商人', intro:'どこか遠い目をした男が静かに飲んでいる。',
+   type:'luck', line_good:'「霧の中を歩いていたら道に迷い、気づいたら金貨の入った袋を握っていた。不思議な島だ」男はその一枚をくれた。', line_bad:'「この島の霧は人の気を滅入らせる。あなたも注意した方がいい」男の言葉が頭に残り、なんとなく気が重くなった。', lk_thresh:11, good_gp:14, bad_lk:-1 },
  ],
 };
 
@@ -4928,7 +6157,7 @@ function startVaineEncounter(ts){
   `道の前方、陽炎のように揺れながら、それは現れた。\n人の形をしているが、人ではない。黒光りする全身鎧——傷ひとつない漆黒の甲冑が、ひとりでに立っている。兜の開口部の奥に目を凝らすと、そこには何もない。光さえ吸い込まれていく、深い虚無だけがある。\n鎧は音もなく${PC.name}の方を向いた。`,
   `影が濃くなったと思った次の瞬間、それは存在していた。\n完全な板金鎧。しかし着用者の重みがない——足跡が地面に刻まれず、草が踏みつぶされず、風が鎧の隙間を素通りしている。\nどこからともなく声が響いた。鎧の内側から、あるいは空気そのものから。`,
   `街道の脇に立つ古い石碑の影から、それは静かに歩み出てきた。\n黒鋼の全身鎧。装飾のない、禁欲的なほど無骨な造り。しかし兜の面頬の奥——そこに当然あるべき眼が、ない。顔が、ない。ただ暗闇が詰まっている。\n止まった。${PC.name}を見ている——何かで見ている。`,
-  `${PC.name}が気づいた時、ヴェインはすでにそこにいた。\nいつから立っていたのか分からない。まるで最初からその場所の一部であったかのように、黒い鎧姿が街道の真ん中に佇んでいる。\n人間の体格に近いが、それ以上の何かを内包しているような圧迫感がある。兜の奥には何もない——あるとすれば、無限に続く暗闇だけだ。`,
+  `${PC.name}が気づいた時、それはすでにそこにいた。\nいつから立っていたのか分からない。まるで最初からその場所の一部であったかのように、黒い鎧姿が街道の真ん中に佇んでいる。\n人間の体格に近いが、それ以上の何かを内包しているような圧迫感がある。兜の奥には何もない——あるとすれば、無限に続く暗闇だけだ。`,
  ];
 
  // 台詞（多元宇宙・混沌の示唆）
@@ -4949,7 +6178,7 @@ function startVaineEncounter(ts){
  travelLog(`<div style="border:1px solid #443300;border-radius:4px;padding:12px;background:#0a0800;margin:4px 0">
   <div style="color:#887744;font-size:calc(var(--font-sm) - 1px);margin-bottom:10px"> ${ts.daysDone}日目　旅の途中</div>
   <div style="color:#888877;font-size:var(--font-sm);line-height:1.9;white-space:pre-wrap;margin-bottom:12px">${appear}</div>
-  <div style="color:#c8a44a;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">── 空虚な鎧　ヴェイン ──</div>
+  <div style="color:#c8a44a;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">── 空虚な鎧 ──</div>
   <div style="color:#aaaaaa;font-size:var(--font-sm);line-height:1.9;white-space:pre-wrap">${talk.line}</div>
   <div style="color:#776644;font-size:calc(var(--font-sm) - 1px);margin-top:10px;line-height:1.8;font-style:italic">${talk.sub}</div>
  </div>`);
@@ -4960,11 +6189,11 @@ function startVaineEncounter(ts){
  // 返答選択肢
  const replies = [
   { label:'「位相とは何だ」',
-    res: `「位相」\nヴェインは言葉を選ぶように間を置いた。\n「お前たちの言語で近い概念は——世界、か。あるいは可能性、か。ひとつの選択が行われるたびに、別の選択をした世界が枝分かれして生まれる。私はその枝を渡り歩いてきた。何千、何万の枝を」\n「この世界は、その枝のひとつに過ぎない」` },
+    res: `「位相」\n間を置いた。\n「お前たちの言語で近い概念は——世界、か。あるいは可能性、か。ひとつの選択が行われるたびに、別の選択をした世界が枝分かれして生まれる。私はその枝を渡り歩いてきた。何千、何万の枝を」\n「この世界は、その枝のひとつに過ぎない」` },
   { label:'「混沌に仕えるのか」',
     res: `「仕える、という言葉は正確ではない」\n鎧の奥の暗闘が、わずかに揺れた。\n「私は混沌の方向性を——正しいと判断した。それだけだ。主従関係ではない。ただ、この宇宙が向かうべき場所を、私は知っている。そしてその方向に立っている」\n「お前たちが秩序と呼ぶものは、流れに逆らうことだ」` },
   { label:'「なぜ私に話しかける」',
-    res: `長い沈黙があった。\n「……それは私にも分からない」\nヴェインは認めた。珍しいことのように、その声には微かな困惑があった。\n「無数の位相で、無数の者と会ってきた。だが、同じ者に何度も出会う位相というものが、存在する。お前は——その類の者かもしれない」\n「あるいは、ただの誤差かもしれない」` },
+    res: `長い沈黙があった。\n「……それは私にも分からない」\n珍しいことのように、その声には微かな困惑があった。\n「無数の位相で、無数の者と会ってきた。だが、同じ者に何度も出会う位相というものが、存在する。お前は——その類の者かもしれない」\n「あるいは、ただの誤差かもしれない」` },
  ];
 
  replies.forEach(r => {
@@ -4989,8 +6218,8 @@ function _showVaineActionChoices(ts, initial=false){
  leave.textContent = '背を向けて立ち去る';
  leave.onclick = () => {
   choices.innerHTML = '';
-  addLifeEvent('', '旅の途中で空虚な鎧ヴェインと出会った。');
-  travelLog(`<span style="color:#887744"> ${ts.daysDone}日目：空虚な鎧ヴェインと別れ、旅を続けた。</span>`);
+  addLifeEvent('', '旅の途中で、名を明かさぬ空虚な鎧と出会った。');
+  travelLog(`<span style="color:#887744"> ${ts.daysDone}日目：空虚な鎧と別れ、旅を続けた。</span>`);
   setTimeout(()=>travelTick(), ts.interval);
  };
  choices.appendChild(leave);
@@ -5159,6 +6388,8 @@ function gainAPCombat(totalMR){
 // ── LEVEL UP UI ────────────────────────
 // NPCレベルアップキュー（複数NPCが同時にレベルアップした場合に順番に処理）
 let _npcLevelUpQueue = [];
+// レベルアップ後に再開すべき戦闘継続関数（カオスSR中のNPCフェーズ再開用）
+let _pendingCombatResume = null;
 function _processNpcLevelUpQueue(){
  if(_npcLevelUpQueue.length === 0) return;
  const {lv, pc} = _npcLevelUpQueue.shift();
@@ -5204,6 +6435,22 @@ function showLevelUpPanel(lv, pc){
    story.appendChild(notice);
    // キューに次のNPCが待機していれば処理
    _processNpcLevelUpQueue();
+   // 戦闘継続関数があればそちらを優先（カオスSR中のNPCフェーズ再開）
+   if(_npcLevelUpQueue.length === 0){
+    if(_pendingCombatResume){
+     const fn = _pendingCombatResume;
+     _pendingCombatResume = null;
+     setTimeout(fn, 50);
+    } else if(cbtState){
+     // OKボタンが既に表示中なら干渉しない
+     const okArea = document.getElementById('cbt-ok-area');
+     const hasOkBtn = okArea && okArea.style.display !== 'none' && okArea.innerHTML.trim() !== '';
+     if(!hasOkBtn){
+      if(cbtState.isNPC){ updateCombatUINPC(); _showPCActionChoices(); }
+      else { updateCombatUI(); _showPCActionChoices(); }
+     }
+    }
+   }
   };
   el.appendChild(btn);
  });
@@ -11217,6 +12464,32 @@ function ydActionChoices(node, floor){
    break;
 
   case 'room':
+   // 英雄依頼ボスの出現チェック
+   if(checkHeroQuestBossAppear(node, floor)){
+    const dung = PC._yeldunDungeon;
+    dung._heroQuestBossAppeared = true;
+    const boss = dung.heroQuestBoss;
+    const minions = dung.heroQuestMinions;
+    const tmpl = dung.heroQuestTmpl;
+    ch.push({label:` ${tmpl.bossDesc}と戦う`, fn:()=>{
+     renderChoices([]); scrollToTop();
+     drawScene('combat');
+     document.getElementById('dice-area').classList.add('hidden');
+     document.getElementById('magic-area').classList.add('hidden');
+     startCombatNPC({
+      enemies: [boss, ...minions],
+      canFlee: false,
+      win: '__noop__',
+      lose: 'DEAD',
+      onWin:()=>{
+       dung._heroQuestBossDefeated = true;
+       PC._yeldunDungeon = null;
+       dung.heroQuestOnWin();
+      },
+     });
+    }});
+    break;
+   }
    if(node.monster && !PC[node.monsterKey]){
     const m = node.monster;
     const enemies = Array.from({length:m.count},(_,i)=>({
@@ -11577,6 +12850,13 @@ function ydMoveChoices(node, floor){
      renderChoices([{label:'← 街に戻る', go: backNode}]);
     }});
    }
+  } else if(exitDung?.isHeroQuestDungeon){
+   const backNode = exitDung.heroQuestBackNode || 'TOWN_KHAZAN';
+   ch.push({label:' 引き返して街に戻る（依頼継続）', fn:()=>{
+    PC._yeldunDungeon = null;
+    hideDungeonImage();
+    go(backNode);
+   }});
   } else {
    ch.push({label:' ダンジョンを出る', fn:()=>go('TOWN_YELDUN')});
   }
@@ -12389,11 +13669,10 @@ function startHuntQuest(questId){
 
  storyEl.innerHTML = `
   <div style="border:1px solid #554400;border-radius:4px;padding:12px;background:#0c0900">
-   <div style="color:var(--amber);font-size:var(--font-base);margin-bottom:8px"> 討伐出撃：${q.caveName}${q.ydDungeon?` （${YD_STYLE_DATA[q.ydDungeon.design?.dungeonStyle]?.name||'ダンジョン'}）`:''}</div>
+   <div style="color:var(--amber);font-size:var(--font-base);margin-bottom:8px"> 討伐出撃：${q.caveName}</div>
    <div style="color:#aaaaaa;font-size:var(--font-sm);margin-bottom:4px">依頼主：<span style="color:#ffee88">${q.clientName}</span></div>
    <div style="color:#888888;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">目標：<span style="color:var(--torch)">${q.monsterName}</span>
     　討伐：<span style="color:${killed>=total?'#6aaa60':'var(--amber)'}">${killed}/${total}体</span></div>
-   <div style="color:var(--dim2);font-size:calc(var(--font-sm) - 2px);margin-bottom:8px">${q.ydDungeon.design.constructionLabel} / ${q.ydDungeon.design.lightingLabel}</div>
    <div style="font-size:var(--font-sm)">${torchMsg}</div>
   </div>`;
 
@@ -12632,6 +13911,42 @@ function calcQuestReward(fromId, toId){
  return Math.floor((33 + Math.floor(Math.random()*34)));                // 33〜66GP（地方またぎ遠距離）
 }
 
+// 護衛クエスト報酬：日数×15〜25GP
+function calcEscortReward(fromId, toId){
+ const walk = calcMinTravelDays(fromId, toId) || 5;
+ const perDay = 15 + Math.floor(Math.random()*11); // 15〜25GP/日
+ return walk * perDay;
+}
+
+const ESCORT_TYPES = [
+ { type:'merchant',  label:'商人',       titleFn:(name)=>`商人の${name}` },
+ { type:'trader',    label:'行商人',     titleFn:(name)=>`行商人の${name}` },
+ { type:'official',  label:'役人',       titleFn:(name)=>`${name}書記官` },
+ { type:'messenger', label:'神殿の使者', titleFn:(name)=>`神殿使者の${name}` },
+];
+
+function generateEscortQuest(fromTownId){
+ const regionTowns = getRegionTowns(fromTownId);
+ const otherTowns = regionTowns.filter(id=>id!==fromTownId);
+ const reachable = otherTowns.filter(id=>calcMinTravelDays(fromTownId,id)!=null);
+ if(!reachable.length) return null;
+ const toTownId = reachable[Math.floor(Math.random()*reachable.length)];
+ const etype = ESCORT_TYPES[Math.floor(Math.random()*ESCORT_TYPES.length)];
+ const clientName = pickNPC();
+ const escort = { id: Date.now()+Math.random(), type:'escort', status:'active',
+  fromTownId, toTownId,
+  escortType: etype.type,
+  escortLabel: etype.label,
+  escortName: etype.titleFn(clientName),
+  clientName,
+  reward: calcEscortReward(fromTownId, toTownId),
+  deadlineDays: calcQuestDeadline(fromTownId, toTownId),
+  issuedDay: GAME_TIME.totalDays,
+  crossRegion: false,
+ };
+ return escort;
+}
+
 // 期限計算：徒歩日数×往復×余裕係数
 function calcQuestDeadline(fromId, toId){
  const walk = calcMinTravelDays(fromId, toId) || 12;
@@ -12747,6 +14062,8 @@ function checkQuestDeadlines(){
    showQuestFailToast(` 討伐期限切れ：${q.caveName||'洞穴'}（${q.clientName}から）`);
   } else if(q.type === 'purchase'){
    showQuestFailToast(` 期限切れ：${q.specName}の買い付け（${q.clientName}から）`);
+  } else if(q.type === 'escort'){
+   showQuestFailToast(` 護衛失敗：${q.escortName}の護衛（期限切れ）`);
   } else {
    changeTrust(q.toTownId||PC.town, -2);
    showQuestFailToast(` 期限切れ：${q.item||'荷物'}（${(TOWNS[q.toTownId]||{name:q.toTownId||'?'}).name}宛）`);
@@ -12784,6 +14101,12 @@ function checkAllDeliveries(townId){
      completed.push(q);
     }
    }
+  } else if(q.type === 'escort'){
+   // 護衛：目的地に到着で完了
+   if(q.toTownId === townId){
+    q.status = 'completed';
+    completed.push(q);
+   }
   } else {
    // 宅配：目的地の町に着いた
    if(q.toTownId === townId){
@@ -12801,6 +14124,10 @@ function checkAllDeliveries(townId){
    q._deliveryPrice = deliveryPrice; // popDeliveryMsg用に保存
    gainGPAll(total);
    gainAPAll(10);
+  } else if(q.type === 'escort'){
+   gainGPAll(q.reward);
+   changeTrust(q.toTownId||PC.town, 1, 'delivery');
+   gainAPAll(8);
   } else {
    gainGPAll(q.reward);
    changeTrust(q.toTownId||PC.town, 0.5, 'delivery'); // 宅配依頼完了で信頼度+0.5（上限49）
@@ -12822,6 +14149,9 @@ function popDeliveryMsg(){
    const delPrice = q._deliveryPrice || q.deliveryPrice || q.specBaseCost;
    const total = delPrice + q.reward;
    return `<span class="grn"> ${q.clientName}に「${q.specName}」を納品した！<br>　持ち込み価格${delPrice}GP + 手数料${q.reward}GP = <b>${total}GP</b>　AP+10</span>`;
+  }
+  if(q.type === 'escort'){
+   return `<span class="grn"> ${q.escortName}を${(TOWNS[q.toTownId]||{name:q.toTownId}).name}へ無事に護衛した！<br>　報酬: ${q.reward}GP　AP+8</span>`;
   }
   return `<span class="grn"> ${q.receiverName}に「${q.item}」を届けた！<br>　報酬: ${q.reward}GP　AP+5</span>`;
  }).join('<br>');
@@ -12865,7 +14195,21 @@ function renderQuestBoard(townId, board){
    const remain = q.deadlineDays - (GAME_TIME.totalDays - q.issuedDay);
    const urgColor = remain<=5?'var(--red)':remain<=15?'var(--ora)':'var(--grn)';
    const crossBadge = q.crossRegion ? `<span style="font-size:calc(var(--font-sm) - 2px);color:var(--leather);margin-left:4px"> 地方またぎ</span>` : '';
-   if(q.type === 'hunt'){
+   if(q.type === 'escort'){
+    const toName = (TOWNS[q.toTownId]||{name:q.toTownId}).name;
+    html += `<div style="background:#0a0d18;border:1px solid #334488;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
+     <span style="color:#88aadd"> 護衛依頼</span>　${q.escortName}（${q.escortLabel}）<br>
+    護衛先：<span style="color:var(--cyn)">${toName}</span>　報酬: <span class="gold">${q.reward}GP</span>　残り<span style="color:${urgColor}">${remain}日</span>
+    <div style="font-size:calc(var(--font-sm) - 2px);color:var(--dim);margin-top:4px">→ <b>${toName}</b>へ移動することで完了</div>
+    </div>`;
+   } else if(q.type === 'heroquest'){
+    const isHere = q.fromTownId === townId;
+    html += `<div style="background:#0d0a00;border:1px solid #8a6010;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
+     <span style="color:#c8a44a"> 英雄依頼</span>　${q.title}<br>
+    依頼主：${q.clientName}　報酬: <span class="gold">${q.reward}GP</span>
+    ${isHere ? `<button onclick="startHeroQuest(${JSON.stringify(q.id)})" style="margin-top:5px;width:100%;background:#150f06;border:1px solid #a07020;color:#c8a44a;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 出発する</button>` : `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--dim);margin-top:4px">（依頼元：${(TOWNS[q.fromTownId]||{name:q.fromTownId}).name}で出発）</div>`}
+    </div>`;
+   } else if(q.type === 'hunt'){
     const totalCount = q.rooms.reduce((s,r)=>s+r.count,0);
     const isHere = q.fromTownId === townId;
     html += `<div style="background:#0a1008;border:1px solid #334422;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
@@ -12887,7 +14231,7 @@ function renderQuestBoard(townId, board){
     ${isHere ? `<div style="font-size:calc(var(--font-sm)-1px);color:var(--dim);margin-top:4px">（その他の行動 → 賞金首を探す）</div>` : `<div style="font-size:calc(var(--font-sm)-1px);color:var(--dim);margin-top:4px">→ <b>${targetTownName}</b>へ移動して「賞金首を探す」</div>`}
     </div>`;
    } else if(q.type === 'purchase'){
-    const regionName = {khazan_region:'カザン地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方'}[q.targetRegion]||q.targetRegion;
+    const regionName = {khazan_region:'カザン地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方',marea_region:'マレア諸島'}[q.targetRegion]||q.targetRegion;
     html += `<div style="background:#0a1020;border:1px solid #334422;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
     ${q.specIcon} <span style="color:#88dd44">${regionName}</span>の特産品買い付け${crossBadge}<br>
     「${q.specName}」を購入して${(TOWNS[q.fromTownId]||{name:q.fromTownId}).name}に持ち帰る<br>
@@ -12925,6 +14269,23 @@ function renderQuestBoard(townId, board){
   });
  }
 
+ // 護衛依頼
+ const escortQuests = board.filter(q=>q.type==='escort');
+ if(escortQuests.length){
+  html += `<span style="color:#88aadd;font-size:calc(var(--font-sm) - 1px)">▸ 護衛依頼</span><br>`;
+  escortQuests.forEach(q=>{
+   const btn = canTake
+    ? `<button onclick="acceptQuestById(${JSON.stringify(q.id)})" style="margin-top:5px;width:100%;background:#080e18;border:1px solid #334488;color:#88aadd;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 護衛を引き受ける</button>`
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:var(--dim)">（受注上限${LIMIT}件）</div>`;
+   const toName = (TOWNS[q.toTownId]||{name:q.toTownId}).name;
+   const walk = calcMinTravelDays(townId, q.toTownId) || '?';
+   html += `<div style="background:#080d18;border:1px solid #2a3a6a;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
+   <span style="color:#88aadd"> ${q.escortLabel}の護衛</span>　${q.escortName}<br>
+   目的地：<span class="cyn">${toName}</span>　徒歩約${walk}日　報酬: <span class="gold">${q.reward}GP</span>　期限: ${q.deadlineDays}日以内
+   ${btn}</div>`;
+  });
+ }
+
  if(crossQuests.length){
   html += `<span style="color:var(--leather);font-size:calc(var(--font-sm) - 1px)">▸ 他地方への依頼</span><br>`;
   crossQuests.forEach((q,_)=>{
@@ -12933,7 +14294,7 @@ function renderQuestBoard(townId, board){
     ? `<button onclick="acceptQuest(${i})" style="margin-top:5px;width:100%;background:#110022;border:1px solid #5500aa;color:var(--gold3);font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px">${q.type==='purchase'?' 買い付けを引き受ける':' 受ける'}</button>`
     : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:var(--dim)">（受注上限${LIMIT}件）</div>`;
    if(q.type === 'purchase'){
-    const regionName = {khazan_region:'カザン地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方'}[q.targetRegion]||q.targetRegion;
+    const regionName = {khazan_region:'カザン地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方',marea_region:'マレア諸島'}[q.targetRegion]||q.targetRegion;
     html += `<div style="background:#130e08;border:1px solid #6b4c2a;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
     <span style="color:var(--leather)"> 買い付け依頼</span>　<span class="yel">${q.clientName}</span>から<br>
     ${q.specIcon} <span style="color:#88dd44">${regionName}</span>の「<b>${q.specName}</b>」を買ってきてほしい<br>
@@ -13011,6 +14372,12 @@ function getTavernBoard(townId){
  const board = [];
  // 同地方内宅配 3件
  for(let i=0;i<3;i++) board.push(generateQuest(townId));
+ // 護衛依頼 1件（受注済みがなければ）
+ const hasActiveEscort = (PC.quests||[]).some(q=>q.type==='escort' && q.status==='active');
+ if(!hasActiveEscort){
+  const eq = generateEscortQuest(townId);
+  if(eq) board.push(eq);
+ }
  // 地方またぎ 2件（宅配か買い付けをランダムに）
  for(let i=0;i<2;i++){
   const q = Math.random()<0.5
@@ -13042,6 +14409,24 @@ function clearTavernBoard(townId){
  delete _tavernBoard[townId];
 }
 
+function acceptQuestById(qid){
+ if(!PC.quests) PC.quests=[];
+ if(PC.quests.filter(q=>q.status==='active').length>=5){
+  alert('依頼は同時に5件までです！'); return;
+ }
+ const board = _tavernBoard[PC.town];
+ if(!board) return;
+ const idx = board.findIndex(q=>q.id===qid);
+ if(idx<0){ alert('依頼データが見つかりません'); return; }
+ const q = board[idx];
+ PC.quests.push(q);
+ board.splice(idx, 1);
+ // 護衛依頼は補充しない（受注済み含め1件まで）
+ const toName = (TOWNS[q.toTownId]||{name:q.toTownId}).name;
+ showSaveToast(` 護衛依頼を受けました：${q.escortName}（${toName}まで）`);
+ _refreshTavernBoard(PC.town);
+}
+
 function acceptQuest(i){
  if(!PC.quests) PC.quests=[];
  if(PC.quests.filter(q=>q.status==='active').length>=5){
@@ -13054,12 +14439,19 @@ function acceptQuest(i){
  if(q.type==='hunt'){ acceptHuntQuest(i); return; }
  PC.quests.push(q);
  board.splice(i, 1);
- // 補充：地方またぎかどうかに応じて補充
- const replacement = q.crossRegion
-  ? (Math.random()<0.5 ? generateCrossRegionDeliveryQuest(PC.town) : generatePurchaseQuest(PC.town))
-  : generateQuest(PC.town);
+ // 補充
+ let replacement = null;
+ if(q.type === 'escort'){
+  replacement = generateEscortQuest(PC.town);
+ } else if(q.crossRegion){
+  replacement = Math.random()<0.5 ? generateCrossRegionDeliveryQuest(PC.town) : generatePurchaseQuest(PC.town);
+ } else {
+  replacement = generateQuest(PC.town);
+ }
  if(replacement) board.push(replacement);
- const label = q.type==='purchase' ? `「${q.specName}」買い付け` : `「${q.item}」配達`;
+ const label = q.type==='purchase' ? `「${q.specName}」買い付け`
+             : q.type==='escort'   ? `${q.escortName}の護衛（${(TOWNS[q.toTownId]||{name:q.toTownId}).name}まで）`
+             : `「${q.item}」配達`;
  showSaveToast(` 依頼を受けました：${label}`);
  _refreshTavernBoard(PC.town);
 }
@@ -14281,7 +15673,69 @@ const WEAPONS_TABLE_ELSIA = [
  {name:'Stone Spear', dice:4,adds:0, stReq:9, dexReq:7, cost:80, weight:90, twoHand:true },
  {name:'Short Sword', dice:3,adds:0, stReq:7, dexReq:3, cost:35, weight:30, twoHand:false},
  {name:'Dirk', dice:2,adds:1, stReq:1, dexReq:4, cost:18, weight:16, twoHand:false},
+ // エルマリア地方 Dagger全種
+ {name:'Sax (Dagger)', dice:2,adds:5, stReq:7, dexReq:10,cost:30, weight:25, twoHand:false},
+ {name:'Kukri',        dice:2,adds:5, stReq:6, dexReq:6, cost:30, weight:20, twoHand:false},
+ {name:'Katar',        dice:2,adds:4, stReq:2, dexReq:8, cost:18, weight:22, twoHand:false},
+ {name:'Haladie',      dice:2,adds:4, stReq:2, dexReq:4, cost:25, weight:15, twoHand:false},
+ {name:'Jambiya',      dice:2,adds:2, stReq:2, dexReq:8, cost:21, weight:12, twoHand:false},
+ {name:'Stiletto',     dice:2,adds:-2,stReq:1, dexReq:1, cost:5,  weight:10, twoHand:false},
+ // エルマリア限定マスターピース
+ {name:'Masterpiece Sax', dice:2,adds:10, stReq:5, dexReq:8, cost:300, weight:20, twoHand:false, _masterpiece:true},
 ];
+
+// ── アル・ラシード専用テーブル（Curved Swords全種＋限定品） ──
+const WEAPONS_TABLE_AL_RASHID = [
+ {name:'Grand Shamsheer†',  dice:6,adds:2, stReq:22,dexReq:18,cost:135,weight:150,twoHand:true },
+ {name:'Great Shamsheer†',  dice:5,adds:0, stReq:15,dexReq:15,cost:100,weight:130,twoHand:true },
+ {name:'Falchion',          dice:4,adds:4, stReq:12,dexReq:13,cost:75, weight:110,twoHand:false},
+ {name:'Scimitar',          dice:4,adds:0, stReq:10,dexReq:11,cost:60, weight:100,twoHand:false},
+ {name:'Sabre',             dice:3,adds:4, stReq:9, dexReq:10,cost:55, weight:60, twoHand:false},
+ {name:'Short Sabre',       dice:3,adds:1, stReq:7, dexReq:5, cost:40, weight:30, twoHand:false},
+ // アル・ラシード限定マスターピース
+ {name:'Masterpiece Grand Shamsheer', dice:6,adds:6, stReq:18,dexReq:16,cost:1350,weight:145,twoHand:true, _masterpiece:true},
+];
+const ARMOR_TABLE_AL_RASHID = ARMOR_TABLE;
+
+// ── イェルドゥン専用テーブル（Axe全種＋限定品） ──
+const WEAPONS_TABLE_YELDUN = [
+ {name:'Double-bladed Broadaxe†',dice:6,adds:3,stReq:21,dexReq:10,cost:140,weight:220,twoHand:true },
+ {name:'Great Axe†',             dice:5,adds:3,stReq:20,dexReq:10,cost:110,weight:190,twoHand:true },
+ {name:'Bullova†',               dice:4,adds:3,stReq:16,dexReq:9, cost:100,weight:200,twoHand:true },
+ {name:'Broadaxe',               dice:4,adds:0,stReq:17,dexReq:8, cost:100,weight:150,twoHand:false},
+ {name:'Sickle',                 dice:4,adds:1,stReq:11,dexReq:7, cost:110,weight:130,twoHand:false},
+ {name:'Bhuj',                   dice:3,adds:4,stReq:15,dexReq:7, cost:100,weight:160,twoHand:false},
+ {name:'Francisca',              dice:3,adds:2,stReq:9, dexReq:5, cost:70, weight:60, twoHand:false},
+ {name:'Taper Axe',              dice:3,adds:0,stReq:8, dexReq:4, cost:50, weight:70, twoHand:false},
+ // イェルドゥン限定マスターピース
+ {name:'Masterpiece Double-bladed broad axe', dice:6,adds:7, stReq:18,dexReq:9,cost:1400,weight:210,twoHand:true, _masterpiece:true},
+];
+const ARMOR_TABLE_YELDUN = ARMOR_TABLE;
+
+// ── ヴァルドヘイム専用テーブル（Straight Swords全種＋限定品） ──
+const WEAPONS_TABLE_VALDHEIM = [
+ {name:'Great Sword†',           dice:6,adds:0, stReq:21,dexReq:18,cost:120,weight:170,twoHand:true },
+ {name:'Two-handed Broadsword†', dice:5,adds:2, stReq:17,dexReq:14,cost:110,weight:160,twoHand:true },
+ {name:'Hand-and-a-half Sword',  dice:5,adds:0, stReq:16,dexReq:12,cost:90, weight:150,twoHand:false},
+ {name:'Broadsword',             dice:3,adds:4, stReq:15,dexReq:10,cost:70, weight:120,twoHand:false},
+ {name:'Gladius',                dice:3,adds:2, stReq:10,dexReq:7, cost:50, weight:70, twoHand:false},
+ {name:'Short Sword',            dice:3,adds:0, stReq:7, dexReq:3, cost:35, weight:30, twoHand:false},
+ // ヴァルドヘイム限定マスターピース
+ {name:'Masterpiece Great sword', dice:6,adds:5, stReq:18,dexReq:16,cost:1200,weight:165,twoHand:true, _masterpiece:true},
+];
+const ARMOR_TABLE_VALDHEIM = ARMOR_TABLE;
+
+// ── ネリア港専用テーブル（Spears全種＋限定品） ──
+const WEAPONS_TABLE_NERIA = [
+ {name:'Bec de Corbin†',dice:6,adds:0, stReq:18,dexReq:10,cost:125,weight:175,twoHand:true },
+ {name:'Zaghnal',       dice:3,adds:4, stReq:10,dexReq:8, cost:85, weight:170,twoHand:false},
+ {name:'Adze',          dice:3,adds:0, stReq:9, dexReq:5, cost:50, weight:100,twoHand:false},
+ {name:'Stone Spear',   dice:4,adds:0, stReq:9, dexReq:7, cost:80, weight:90, twoHand:true },
+ {name:'Quarterstaff†', dice:2,adds:0, stReq:2, dexReq:8, cost:10, weight:50, twoHand:true },
+ // ネリア港限定マスターピース
+ {name:'Masterpiece Pilum', dice:5,adds:5, stReq:14,dexReq:10,cost:1000,weight:160,twoHand:true, _masterpiece:true},
+];
+const ARMOR_TABLE_NERIA = ARMOR_TABLE;
 const ARMOR_TABLE_ELSIA = [
  {name:'Elven Leather', hits:7, stReq:2, cost:250,weight:120,isShield:false},
  {name:'Bark Armor', hits:5, stReq:1, cost:130,weight:180,isShield:false},
@@ -15211,13 +16665,14 @@ function generateShopJewel(){
   // Jeweled item
   const itemType = TREASURE_ITEM_TYPES[d6()-1];
   let setting = TREASURE_SETTINGS[d6()-1];
-  if(itemType==='Weapon' && setting==='Leather') setting='Steel';
+  // 店では武器は出さない（装身具のみ）
+  const shopItemType = itemType === 'Weapon' ? 'Necklace' : itemType;
   let sr2 = d6(); if(sr2===6) sr2=d6();
   const gemCount = sr2<=1?5 : sr2<=2?4 : sr2<=3?3 : sr2<=4?2 : 1;
   const priceGP = gem.base * 10 * gemCount;
   return {
-   name: gem.name+'x'+gemCount+' '+setting+' '+itemType,
-   desc: setting+' '+itemType+' / '+gem.name+' x'+gemCount,
+   name: gem.name+'x'+gemCount+' '+setting+' '+shopItemType,
+   desc: setting+' '+shopItemType+' / '+gem.name+' x'+gemCount,
    priceGP,
    icon: ''
   };
@@ -15241,11 +16696,19 @@ function igsBuyJewel(townId, idx){
  if(!stock || !stock[idx]) return;
  const it = stock[idx];
  if(!payPrice(it.priceGP)){ showSaveToast('所持金が足りない'); return; }
- PC.invJewels = PC.invJewels || [];
- PC.invJewels.push({name: it.name, priceGP: it.priceGP});
- stock.splice(idx, 1);
- updateHUD(); renderIngameShop(townId);
- showSaveToast(' '+it.name+'を購入した（売却タブから売れます）');
+ if(it._isMagicWeapon && it._weaponData){
+  PC.invWeapons = PC.invWeapons || [];
+  PC.invWeapons.push({...it._weaponData});
+  stock.splice(idx, 1);
+  updateHUD(); renderIngameShop(townId);
+  showSaveToast(`⚔ ${it.name}を入手した（ステータスから装備できます）`);
+ } else {
+  PC.invJewels = PC.invJewels || [];
+  PC.invJewels.push({name: it.name, priceGP: it.priceGP});
+  stock.splice(idx, 1);
+  updateHUD(); renderIngameShop(townId);
+  showSaveToast(' '+it.name+'を購入した（売却タブから売れます）');
+ }
 }
 
 function sellJewel(idx){
@@ -15348,7 +16811,15 @@ function sellWeapon(idx){
  if(!w) return;
  _sa.equippedWeapons = (_sa.equippedWeapons||[]).filter(e=>e.name!==w.name);
  _sa.invWeapons.splice(idx,1);
- const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA].find(t=>t.name===w.name);
+ // 魔法武器は_priceGPの半額
+ if(w._isMagic && w._priceGP){
+  const price = Math.floor(w._priceGP * 0.5 * 100);
+  if(price>0) gainPriceCP(price, _sa);
+  updateHUD(); checkWeightPenalty(); renderIngameShop();
+  showSaveToast(` ${w.name}を売った（${Math.floor(w._priceGP*0.5)}GP）`);
+  return;
+ }
+ const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===w.name);
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(); renderIngameShop();
@@ -15435,11 +16906,50 @@ function igsSetTab(tab){
 }
 
 function renderIgsList(townId){
- const isKhazan = (townId||'') === 'khazan';
- const isElsia = (townId||'') === 'elsia';
- const isVillage = ['verda','rimholm','marakai'].includes(townId||'');
- const wTable = isKhazan ? WEAPONS_TABLE_KHAZAN : isElsia ? WEAPONS_TABLE_ELSIA : WEAPONS_TABLE;
- const aTable = isKhazan ? ARMOR_TABLE_KHAZAN : isElsia ? ARMOR_TABLE_ELSIA : ARMOR_TABLE;
+ const isKhazan    = (townId||'') === 'khazan';
+ const isElsia     = (townId||'') === 'elsia';
+ const isAlRashid  = (townId||'') === 'al_rashid';
+ const isYeldun    = (townId||'') === 'yeldun';
+ const isValdheim  = (townId||'') === 'valdheim';
+ const isNeria     = (townId||'') === 'neria';
+ const isVillage   = ['verda','rimholm','marakai'].includes(townId||'');
+ const wTable = isKhazan   ? WEAPONS_TABLE_KHAZAN
+              : isElsia    ? WEAPONS_TABLE_ELSIA
+              : isAlRashid ? WEAPONS_TABLE_AL_RASHID
+              : isYeldun   ? WEAPONS_TABLE_YELDUN
+              : isValdheim ? WEAPONS_TABLE_VALDHEIM
+              : isNeria    ? WEAPONS_TABLE_NERIA
+              : (()=>{
+                 // 旅商人：10%で他地方の傑作品を1つ追加
+                 if(townId === '__merchant__' && Math.random() < 0.10){
+                  const allMasterpieces = [
+                   ...WEAPONS_TABLE_ELSIA,
+                   ...WEAPONS_TABLE_AL_RASHID,
+                   ...WEAPONS_TABLE_YELDUN,
+                   ...WEAPONS_TABLE_VALDHEIM,
+                   ...WEAPONS_TABLE_NERIA,
+                  ].filter(w=>w._masterpiece);
+                  // 現在地の地方と違うものを選ぶ
+                  const curRegion = getRegionKey(PC.town);
+                  const regionMpMap = {
+                   elmaria_region: 'Masterpiece Sax',
+                   zahara_region: 'Masterpiece Grand Shamsheer',
+                   draklim_region: 'Masterpiece Double-bladed broad axe',
+                   valdheim_region: 'Masterpiece Great sword',
+                   marea_region: 'Masterpiece Pilum',
+                  };
+                  const localMp = regionMpMap[curRegion];
+                  const candidates = allMasterpieces.filter(w=>w.name !== localMp);
+                  if(candidates.length){
+                   const pick = candidates[Math.floor(Math.random()*candidates.length)];
+                   return [...WEAPONS_TABLE, pick];
+                  }
+                 }
+                 return WEAPONS_TABLE;
+                })();
+ const aTable = isKhazan   ? ARMOR_TABLE_KHAZAN
+              : isElsia    ? ARMOR_TABLE_ELSIA
+              : ARMOR_TABLE;
  const el = document.getElementById('igs-list');
  el.innerHTML = '';
 
@@ -15473,9 +16983,10 @@ function renderIgsList(townId){
  if(uninvW.length){
   sec(' 武器');
   uninvW.forEach(w=>{
-   const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA].find(t=>t.name===w.name);
+   const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===w.name);
+   const priceCP = w._isMagic && w._priceGP ? Math.floor(w._priceGP * 0.5 * 100) : (def ? sellPriceCP(def.cost) : 0);
    const _w = w;
-   row('', w.name, def ? sellPriceCP(def.cost) : 0, ()=>{ const _idx=(_shopActor||PC).invWeapons.indexOf(_w); if(_idx>=0) sellWeapon(_idx); });
+   row(w._isMagic ? '⚔' : '', w.name, priceCP, ()=>{ const _idx=(_shopActor||PC).invWeapons.indexOf(_w); if(_idx>=0) sellWeapon(_idx); });
   });
  }
 
@@ -15711,7 +17222,7 @@ function exchangeSPtoGP(){
 
 function igsBuyWeapon(i, townId){
  const _sa = _shopActor || PC;
- const _t1=townId||PC.town; const tbl = _t1==='khazan' ? WEAPONS_TABLE_KHAZAN : _t1==='elsia' ? WEAPONS_TABLE_ELSIA : WEAPONS_TABLE;
+ const _t1=townId||PC.town; const tbl = _t1==='khazan'?WEAPONS_TABLE_KHAZAN:_t1==='elsia'?WEAPONS_TABLE_ELSIA:_t1==='al_rashid'?WEAPONS_TABLE_AL_RASHID:_t1==='yeldun'?WEAPONS_TABLE_YELDUN:_t1==='valdheim'?WEAPONS_TABLE_VALDHEIM:_t1==='neria'?WEAPONS_TABLE_NERIA:WEAPONS_TABLE;
  const it=tbl[i];
  if(!it||totalCP(_sa)<it.cost*100)return;
  payPrice(it.cost, _sa);
@@ -16442,9 +17953,11 @@ function renderStatusPanel(){
  uninvW.forEach(w=>{
  const idx = PC.invWeapons.indexOf(w);
  const check = canEquipWeapon(w);
- const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA].find(t=>t.name===w.name);
- const sellBtn = isShopOpen() && def
- ? `<button onclick="sellWeapon(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(def.cost)}</button>`
+ const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===w.name);
+ const sellBtn = isShopOpen() && (def || w._isMagic)
+ ? (w._isMagic && w._priceGP
+   ? `<button onclick="sellWeapon(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${Math.floor(w._priceGP*0.5)}GP</button>`
+   : def ? `<button onclick="sellWeapon(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(def.cost)}</button>` : '')
  : '';
  wpHtml += `<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
@@ -16668,6 +18181,13 @@ function renderStatusPanel(){
   </div>`;
  }
  const destTown = TOWNS[q.toTownId]||{name:q.toTownId||'?'};
+ if(q.type === 'escort'){
+  return `<div style="background:#080d18;border:1px solid #2a3a6a;border-radius:3px;padding:9px;margin-bottom:6px">
+  <div style="font-size:var(--font-sm);color:#88aadd;margin-bottom:4px"> 護衛依頼</div>
+  <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:2px">${q.escortName}を${destTown.name}へ護衛する</div>
+  <div style="font-size:calc(var(--font-sm) - 1px)">報酬: <span style="color:var(--gold)">${q.reward}GP</span>　残り: <span style="color:${urgColor}">${remain}日</span></div>
+  </div>`;
+ }
  return `<div style="background:#0a1020;border:1px solid #223344;border-radius:3px;padding:9px;margin-bottom:6px">
  <div style="font-size:var(--font-sm);color:var(--yel);margin-bottom:4px">${q.destIcon||''} ${destTown.name}の${q.destLabel||'配達'}</div>
  <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:2px">${q.receiverName||'?'}に「${q.item||'荷物'}」</div>
@@ -18619,14 +20139,15 @@ function doRoll(){
  const success=rolledTotal>=5&&grandTotal>=target;
  const ap=rolledTotal*sr.level; // 成否問わずAP加算（T&T5版ルール）
 
- // APはアクターに加算
- if(ap>0){
+ // APはアクターに加算（noAPフラグがある場合はスキップ）
+ if(ap>0 && !sr.noAP){
   if(isPC){ gainAPAll(ap); }
   else { actor.ap=(actor.ap||0)+ap; }
  }
 
  const actorTag = isPC ? '' : `<span style="color:#88aaff">${actor.name}</span>　`;
- const resHtml = ` ${actorTag}<span style="color:#cccccc;font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=${rolledTotal}${doublesStr}　合計: ${rolledTotal}+${attrVal}=<span style="color:${success?'#6aaa60':'#ff4444'}">${grandTotal}</span>　${success?`<span class="grn"> 成功 AP+${ap}</span>`:`<span class="red"> 失敗 AP+${ap}</span>`}`;
+ const apStr = sr.noAP ? '' : `　${success?`<span class="grn"> 成功 AP+${ap}</span>`:`<span class="red"> 失敗 AP+${ap}</span>`}`;
+ const resHtml = ` ${actorTag}<span style="color:#cccccc;font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=${rolledTotal}${doublesStr}　合計: ${rolledTotal}+${attrVal}=<span style="color:${success?'#6aaa60':'#ff4444'}">${grandTotal}</span>　${success?'<span class="grn"> 成功</span>':'<span class="red"> 失敗</span>'}${apStr}`;
  document.getElementById('dres').innerHTML = resHtml;
  document.getElementById('rl-btn').disabled=true;
  document.getElementById('rl-btn').textContent=' DONE';
@@ -18804,6 +20325,7 @@ function startCombatNPC(en){
   onWin:  en.onWin  || null,
   isHunt: false,
   isYD:   en.isYD   || false,
+  chaosMode: en.chaosMode || false,  // カオスSR必須フラグ
   turn:   0,
   vorpalActive:      false,
   whammyActive:      false,
@@ -18870,6 +20392,48 @@ function updateCombatUINPC(){
 function doFightNPC(){
  const cs=cbtState; cs.turn++;
  cs._pcDefending=false;
+
+ // カオスモード：攻撃前にDEX/LK/IQランダムSR
+ if(cs.chaosMode && !cs._spellCaster){
+  const attrs = ['dex','lk','iq'];
+  const attr = attrs[Math.floor(Math.random()*attrs.length)];
+  const attrNames = {dex:'DEX',lk:'LK',iq:'IQ'};
+  const cl = document.getElementById('clog');
+  cl.innerHTML += `<span style="color:#997744"> 時間の歪みを読む（${attrNames[attr]} SR）——</span><br>`;
+  _hidePCActionChoices();
+  document.getElementById('dice-area').classList.remove('hidden');
+  document.getElementById('text-win').style.display='';
+  setupSavingRoll({
+   attr, level:2, label:'カオス攻撃判定', noAP:true,
+   onSuccess(){
+    document.getElementById('dice-area').classList.add('hidden');
+    document.getElementById('text-win').style.display='none';
+    cl.innerHTML += `<span style="color:#6aaa60"> 歪みを見切った！攻撃が届く——</span><br>`;
+    _pendingCombatResume = ()=>_doFightNPCCore(cs);
+    _doFightNPCCore(cs);
+   },
+   onFail(){
+    document.getElementById('dice-area').classList.add('hidden');
+    document.getElementById('text-win').style.display='none';
+    cl.innerHTML += `<span style="color:#cc6600"> 歪みに惑わされ、攻撃が空を切った。</span><br>`;
+    cs._pDiceThisTurn=[]; cs._pRollThisTurn=0;
+    const aliveParty=(PC.party||[]).filter(n=>n.con>0);
+    if(aliveParty.length>0){
+     _pendingCombatResume = ()=>{ _cbtNPCActions=[]; showNPCActionPhase(0,aliveParty); };
+     _cbtNPCActions=[]; showNPCActionPhase(0,aliveParty);
+    } else {
+     _pendingCombatResume = null;
+     resolveRoundNPC(0,[]);
+    }
+   },
+  });
+  return;
+ }
+
+ _doFightNPCCore(cs);
+}
+
+function _doFightNPCCore(cs){
  const adds=calcAdds();
  const cl=document.getElementById('clog');
  if(cs._spellCaster){
@@ -18928,6 +20492,7 @@ function resolveRoundNPC(pRoll, npcActions){
  const partyRolls = npcActions.map(({npc, action, spell, bonus})=>{
   let r = 0; let npcDice = [];
   if(action==='attack'){ const rv=calcNPCRoll(npc); r=rv.total; npcDice=rv.dice; }
+  else if(action==='chaos_miss'){ r=0; } // カオスSR失敗による空振り
   else if(action==='spell' && bonus){
    if(bonus.type==='ttyf') r=bonus.value;
    else if(bonus.type==='vorpal'){ npc._vorpalNext=true; r=0; }
@@ -18980,6 +20545,7 @@ function resolveRoundNPC(pRoll, npcActions){
  partyRolls.forEach(({npc,action,r,npcDice,spell})=>{
   if(action==='attack') detail += `+${npc.name}<span style="color:#999;font-size:calc(var(--font-sm) - 2px)">${diceStr(npcDice)}</span>=<span style="color:#8899ff">${r}</span>`;
   else if(action==='defend') detail += `+${npc.name}<span style="color:#a09060"></span>`;
+  else if(action==='chaos_miss') detail += `+${npc.name}<span style="color:#cc6600"> 空振り</span>`;
   else if(action==='spell') detail += `+${npc.name}<span style="color:#c89aff">${spell?.name}=${r}</span>`;
   else detail += `+${npc.name}<span style="color:#ffcc00"></span>`;
  });
@@ -19521,6 +21087,37 @@ function showNPCActionPhase(idx, aliveParty){
   b.className = 'choice-btn';
   b.textContent = act.label;
   b.onclick = ()=>{
+   // カオスモード：「戦う」選択時のみSR判定
+   if(cbtState?.chaosMode && act.key === 'attack'){
+    const attrs = ['dex','lk','iq'];
+    const attr = attrs[Math.floor(Math.random()*attrs.length)];
+    const attrNames = {dex:'DEX',lk:'LK',iq:'IQ'};
+    const cl = document.getElementById('clog');
+    cl.innerHTML += `<span style="color:#997744"> ${npc.name}：時間の歪みを読む（${attrNames[attr]} SR）——</span><br>`;
+    panel.style.display = 'none';
+    document.getElementById('dice-area').classList.remove('hidden');
+    document.getElementById('text-win').style.display = '';
+    setupSavingRoll({
+     attr, level:2, label:`${npc.name}カオス判定`, noAP:true,
+     onSuccess(){
+      document.getElementById('dice-area').classList.add('hidden');
+      document.getElementById('text-win').style.display = 'none';
+      cl.innerHTML += `<span style="color:#6aaa60"> 歪みを見切った！</span><br>`;
+      _cbtNPCActions.push({npc, action:'fight'});
+      if(idx+1 < aliveParty.length) _pendingCombatResume = ()=>showNPCActionPhase(idx+1, aliveParty);
+      showNPCActionPhase(idx+1, aliveParty);
+     },
+     onFail(){
+      document.getElementById('dice-area').classList.add('hidden');
+      document.getElementById('text-win').style.display = 'none';
+      cl.innerHTML += `<span style="color:#cc6600"> 歪みに惑わされ、${npc.name}の攻撃は空を切った。</span><br>`;
+      _cbtNPCActions.push({npc, action:'chaos_miss'}); // 空振り専用アクション
+      if(idx+1 < aliveParty.length) _pendingCombatResume = ()=>showNPCActionPhase(idx+1, aliveParty);
+      showNPCActionPhase(idx+1, aliveParty);
+     },
+    });
+    return;
+   }
    _cbtNPCActions.push({npc, action: act.key});
    showNPCActionPhase(idx+1, aliveParty);
   };
@@ -19660,6 +21257,8 @@ function resolveRound(pRoll, npcActions){
   const rv = calcNPCRoll(npc); r = rv.total; npcDice = rv.dice;
  } else if(action === 'defend'){
   r = 0;
+ } else if(action === 'chaos_miss'){
+  r = 0; // カオスSR失敗による空振り
  } else if(action === 'spell' && bonus){
   if(bonus.type==='ttyf'){
    r = bonus.value; // TTYFは直接ヒット値として加算
@@ -19712,6 +21311,7 @@ function resolveRound(pRoll, npcActions){
  partyRolls.forEach(({npc,action,r,npcDice,spell})=>{
   if(action==='attack') detail += `+${npc.name}<span style="color:#999;font-size:calc(var(--font-sm) - 2px)">${diceStr(npcDice)}</span>=<span style="color:#8899ff">${r}</span>`;
   else if(action==='defend') detail += `+${npc.name}<span style="color:#a09060"></span>`;
+  else if(action==='chaos_miss') detail += `+${npc.name}<span style="color:#cc6600"> 空振り</span>`;
   else if(action==='spell') detail += `+${npc.name}<span style="color:#c89aff">${spell?.name}=${r}</span>`;
   else detail += `+${npc.name}<span style="color:#ffcc00"></span>`;
  });
@@ -20519,6 +22119,31 @@ function dbgSR(){
  gainAPAll(res.ap); updateHUD();
 }
 
+function dbgHeroQuest(tmplIdx){
+ 
+ if(!PC._heroTowns) PC._heroTowns = {};
+ PC._heroTowns[PC.town] = true;
+ if(!PC._heroQuestCooldown) PC._heroQuestCooldown = {};
+ PC._heroQuestCooldown[PC.town] = 0;
+ const tmpl = HERO_QUEST_TEMPLATES[tmplIdx];
+ if(!tmpl){ showSaveToast('テンプレート不明'); return; }
+ const client = HERO_QUEST_CLIENTS[Math.floor(Math.random()*HERO_QUEST_CLIENTS.length)];
+ const bossLv = 6 + Math.floor(Math.random()*5);
+ const q = {
+  id: Date.now()+Math.random(),
+  type:'heroquest', status:'active',
+  fromTownId: PC.town, tmplId: tmpl.id,
+  clientName: client.name, title: tmpl.title,
+  bossLv, minionCount: 1+Math.floor(Math.random()*2),
+  minionLvRange:[2,4],
+  reward: bossLv*(50+Math.floor(Math.random()*51)),
+  issuedDay: GAME_TIME.totalDays,
+ };
+ if(!PC.quests) PC.quests=[];
+ PC.quests.push(q);
+ startHeroQuest(q.id);
+}
+
 function dbgStartCombat(){
  const name  = document.getElementById('dbg-enemy-name').value || 'テスト敵';
  const mr    = parseInt(document.getElementById('dbg-enemy-mr').value) || 30;
@@ -20767,9 +22392,11 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const board=getTavernBoard('verda');
+ const _hqOffer = checkHeroQuest('verda');
+ const _hqHtml = renderHeroQuestOffer('verda', _hqOffer);
  const html=renderQuestBoard('verda',board);
  const partyHtml=renderPartyStatus();
- return ` <span style="color:#88cc44">ヴェルダの酒場</span><br><br><span class="dim">煙でくすんだ小さな酒場。狩人たちが獲物自慢に花を咲かせている。</span><br><br>${partyHtml}${html}`;
+ return ` <span style="color:#88cc44">ヴェルダの酒場</span><br><br><span class="dim">煙でくすんだ小さな酒場。狩人たちが獲物自慢に花を咲かせている。</span><br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_VERDA'), {label:' 客に話しかける', fn:()=>talkToPatron('verda')}, {label:' 仲間を探す',go:'RECRUIT_VERDA'}],
  },
@@ -20810,9 +22437,11 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const board=getTavernBoard('rimholm');
+ const _hqOffer = checkHeroQuest('rimholm');
+ const _hqHtml = renderHeroQuestOffer('rimholm', _hqOffer);
  const html=renderQuestBoard('rimholm',board);
  const partyHtml=renderPartyStatus();
- return ` <span style="color:#ccaa44">リムホルムの宿場酒場</span><br><br><span class="dim">遺跡から戻った探索者たちが泥を落としながら飲んでいる。</span><br><br>${partyHtml}${html}`;
+ return ` <span style="color:#ccaa44">リムホルムの宿場酒場</span><br><br><span class="dim">遺跡から戻った探索者たちが泥を落としながら飲んでいる。</span><br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_RIMHOLM'), {label:' 客に話しかける', fn:()=>talkToPatron('rimholm')}, {label:' 仲間を探す',go:'RECRUIT_RIMHOLM'}],
  },
@@ -20853,9 +22482,11 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const board=getTavernBoard('marakai');
+ const _hqOffer = checkHeroQuest('marakai');
+ const _hqHtml = renderHeroQuestOffer('marakai', _hqOffer);
  const html=renderQuestBoard('marakai',board);
  const partyHtml=renderPartyStatus();
- return ` <span style="color:#ddaa66">マラカイの傭兵亭</span><br><br><span class="dim">荒くれ傭兵と商人が入り混じる賑やかな酒場。依頼の掲示板は常に埋まっている。</span><br><br>${partyHtml}${html}`;
+ return ` <span style="color:#ddaa66">マラカイの傭兵亭</span><br><br><span class="dim">荒くれ傭兵と商人が入り混じる賑やかな酒場。依頼の掲示板は常に埋まっている。</span><br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_MARAKAI'), {label:' 客に話しかける', fn:()=>talkToPatron('marakai')}, {label:' 仲間を探す',go:'RECRUIT_MARAKAI'}],
  },
@@ -20899,9 +22530,12 @@ const NODES = {
  scene:'town_desert_city',
  txt:()=>{
  const board=getTavernBoard('al_rashid');
+ const _hqOffer = checkHeroQuest('al_rashid');
+ const _hqHtml = renderHeroQuestOffer('al_rashid', _hqOffer);
+ const _smHtml = checkSpecialMissionBoard();
  const html=renderQuestBoard('al_rashid',board);
  const partyHtml=renderPartyStatus();
- return ` <span style="color:#c8a44a">隊商宿の酒場</span><br><br><span class="dim">砂漠を渡ってきた商人や傭兵が羊乳の酒を飲みながら情報を交換している。</span><br><br>${partyHtml}${html}`;
+ return ` <span style="color:#c8a44a">隊商宿の酒場</span><br><br><span class="dim">砂漠を渡ってきた商人や傭兵が羊乳の酒を飲みながら情報を交換している。</span><br><br>${partyHtml}${_smHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_AL_RASHID'), {label:' 客に話しかける', fn:()=>talkToPatron('al_rashid')}, {label:' 仲間を探す',go:'RECRUIT_AL_RASHID'}],
  },
@@ -20942,9 +22576,11 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const board=getTavernBoard('oasis_fort');
+ const _hqOffer = checkHeroQuest('oasis_fort');
+ const _hqHtml = renderHeroQuestOffer('oasis_fort', _hqOffer);
  const html=renderQuestBoard('oasis_fort',board);
  const partyHtml=renderPartyStatus();
- return ` <span style="color:#88ddaa">砦の休憩所</span><br><br><span class="dim">砂漠の旅人たちが水を飲みながら憩う場所。傭兵と商人が混在している。</span><br><br>${partyHtml}${html}`;
+ return ` <span style="color:#88ddaa">砦の休憩所</span><br><br><span class="dim">砂漠の旅人たちが水を飲みながら憩う場所。傭兵と商人が混在している。</span><br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_OASIS_FORT'), {label:' 客に話しかける', fn:()=>talkToPatron('oasis_fort')}, {label:' 仲間を探す',go:'RECRUIT_OASIS'}],
  },
@@ -20985,9 +22621,11 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const board=getTavernBoard('saroon');
+ const _hqOffer = checkHeroQuest('saroon');
+ const _hqHtml = renderHeroQuestOffer('saroon', _hqOffer);
  const html=renderQuestBoard('saroon',board);
  const partyHtml=renderPartyStatus();
- return ` <span style="color:#cc9955">鉱夫の酒場</span><br><br><span class="dim">砂と岩塩で白くなった鉱夫たちが一日の疲れを癒している。</span><br><br>${partyHtml}${html}`;
+ return ` <span style="color:#cc9955">鉱夫の酒場</span><br><br><span class="dim">砂と岩塩で白くなった鉱夫たちが一日の疲れを癒している。</span><br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_SAROON'), {label:' 客に話しかける', fn:()=>talkToPatron('saroon')}, {label:' 仲間を探す',go:'RECRUIT_SAROON'}],
  },
@@ -21788,9 +23426,11 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const board=getTavernBoard('duna');
+ const _hqOffer = checkHeroQuest('duna');
+ const _hqHtml = renderHeroQuestOffer('duna', _hqOffer);
  const html=renderQuestBoard('duna',board);
  const partyHtml=renderPartyStatus();
- return ` <span style="color:#ddaa44">デュナの天幕酒場</span><br><br><span class="dim">星空の下、大きな天幕の中で遊牧民が独特の音楽を奏でている。</span><br><br>${partyHtml}${html}`;
+ return ` <span style="color:#ddaa44">デュナの天幕酒場</span><br><br><span class="dim">星空の下、大きな天幕の中で遊牧民が独特の音楽を奏でている。</span><br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_DUNA'), {label:' 客に話しかける', fn:()=>talkToPatron('duna')}, {label:' 仲間を探す',go:'RECRUIT_DUNA'}],
  },
@@ -22492,9 +24132,12 @@ const NODES = {
  scene:'town_stone',
  txt:()=>{
   const board=getTavernBoard('valdheim');
+ const _hqOffer = checkHeroQuest('valdheim');
+ const _hqHtml = renderHeroQuestOffer('valdheim', _hqOffer);
+ const _smHtml = checkSpecialMissionValdheimBoard();
   const html=renderQuestBoard('valdheim',board);
   const partyHtml=renderPartyStatus();
-  return ` <span style="color:#88ccff">氷壁の砦酒場</span><br><br>鎧姿の兵士たちが酒を酌み交わす。討伐依頼の報酬は高いが、それだけ危険だ。<br><br>${partyHtml}${html}`;
+  return ` <span style="color:#88ccff">氷壁の砦酒場</span><br><br>鎧姿の兵士たちが酒を酌み交わす。討伐依頼の報酬は高いが、それだけ危険だ。<br><br>${partyHtml}${_smHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_VALDHEIM'), {label:' 客に話しかける', fn:()=>talkToPatron('valdheim')}, {label:' 仲間を探す', go:'RECRUIT_VALDHEIM'}],
  },
@@ -22502,9 +24145,11 @@ const NODES = {
  scene:'town_port',
  txt:()=>{
   const board=getTavernBoard('nifurvik');
+ const _hqOffer = checkHeroQuest('nifurvik');
+ const _hqHtml = renderHeroQuestOffer('nifurvik', _hqOffer);
   const html=renderQuestBoard('nifurvik',board);
   const partyHtml=renderPartyStatus();
-  return ` <span style="color:#aaddff">凍海の船乗り酒場</span><br><br>荒くれた漁師と傭兵が混在する酒場。北の海の話が聞けるかもしれない。<br><br>${partyHtml}${html}`;
+  return ` <span style="color:#aaddff">凍海の船乗り酒場</span><br><br>荒くれた漁師と傭兵が混在する酒場。北の海の話が聞けるかもしれない。<br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_NIFURVIK'), {label:' 客に話しかける', fn:()=>talkToPatron('nifurvik')}, {label:' 仲間を探す', go:'RECRUIT_NIFURVIK'}],
  },
@@ -22512,9 +24157,11 @@ const NODES = {
  scene:'town_mountain_village',
  txt:()=>{
   const board=getTavernBoard('iskald');
+ const _hqOffer = checkHeroQuest('iskald');
+ const _hqHtml = renderHeroQuestOffer('iskald', _hqOffer);
   const html=renderQuestBoard('iskald',board);
   const partyHtml=renderPartyStatus();
-  return ` <span style="color:#99bbdd">坑夫の溜まり場</span><br><br>煤で汚れた坑夫たちが体を温めている。坑道の奥に何かがいるという噂が絶えない。<br><br>${partyHtml}${html}`;
+  return ` <span style="color:#99bbdd">坑夫の溜まり場</span><br><br>煤で汚れた坑夫たちが体を温めている。坑道の奥に何かがいるという噂が絶えない。<br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_ISKALD'), {label:' 客に話しかける', fn:()=>talkToPatron('iskald')}, {label:' 仲間を探す', go:'RECRUIT_ISKALD'}],
  },
@@ -22550,9 +24197,11 @@ const NODES = {
  scene:'town_mountain_city',
  txt:()=>{
   const board=getTavernBoard('yeldun');
+ const _hqOffer = checkHeroQuest('yeldun');
+ const _hqHtml = renderHeroQuestOffer('yeldun', _hqOffer);
   const html=renderQuestBoard('yeldun',board);
   const partyHtml=renderPartyStatus();
-  return ` <span style="color:#aabbcc">岩場酒場</span><br><br>鉱夫と行商人が肩を並べている。<br><br>${partyHtml}${html}`;
+  return ` <span style="color:#aabbcc">岩場酒場</span><br><br>鉱夫と行商人が肩を並べている。<br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_YELDUN'), {label:' 客に話しかける', fn:()=>talkToPatron('yeldun')}, {label:' 仲間を探す', go:'RECRUIT_YELDUN'}],
  },
@@ -22561,9 +24210,11 @@ const NODES = {
  scene:'town_mountain_village',
  txt:()=>{
   const board=getTavernBoard('frostpeak');
+ const _hqOffer = checkHeroQuest('frostpeak');
+ const _hqHtml = renderHeroQuestOffer('frostpeak', _hqOffer);
   const html=renderQuestBoard('frostpeak',board);
   const partyHtml=renderPartyStatus();
-  return ` <span style="color:#88ccee">霜峰の宿屋酒場</span><br><br>吹雪の夜、暖炉を囲んで訳ありの客が集まる。<br><br>${partyHtml}${html}`;
+  return ` <span style="color:#88ccee">霜峰の宿屋酒場</span><br><br>吹雪の夜、暖炉を囲んで訳ありの客が集まる。<br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_FROSTPEAK'), {label:' 客に話しかける', fn:()=>talkToPatron('frostpeak')}, {label:' 仲間を探す', go:'RECRUIT_FROSTPEAK'}],
  },
@@ -22572,9 +24223,11 @@ const NODES = {
  scene:'town_mountain_village',
  txt:()=>{
   const board=getTavernBoard('ashveil');
+ const _hqOffer = checkHeroQuest('ashveil');
+ const _hqHtml = renderHeroQuestOffer('ashveil', _hqOffer);
   const html=renderQuestBoard('ashveil',board);
   const partyHtml=renderPartyStatus();
-  return ` <span style="color:#cc8844">灰の村の鍛冶場酒場</span><br><br>灰くさい空気の中、無口な村人たちが飲んでいる。<br><br>${partyHtml}${html}`;
+  return ` <span style="color:#cc8844">灰の村の鍛冶場酒場</span><br><br>灰くさい空気の中、無口な村人たちが飲んでいる。<br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_ASHVEIL'), {label:' 客に話しかける', fn:()=>talkToPatron('ashveil')}, {label:' 仲間を探す', go:'RECRUIT_ASHVEIL'}],
  },
@@ -22609,9 +24262,11 @@ const NODES = {
  scene:'town_khazan',
  txt:()=>{
  const board = getTavernBoard('khazan');
+ const _hqOffer = checkHeroQuest('khazan');
+ const _hqHtml = renderHeroQuestOffer('khazan', _hqOffer);
  const html = renderQuestBoard('khazan', board);
  const partyHtml = renderPartyStatus();
- return ` <span class="gold">カザンの大酒場</span><br><br>冒険者たちが賑わっている。<br><br>${partyHtml}${html}`;
+ return ` <span class="gold">カザンの大酒場</span><br><br>冒険者たちが賑わっている。<br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_KHAZAN'), {label:' 客に話しかける', fn:()=>talkToPatron('khazan')}, {label:' 仲間を探す', go:'RECRUIT_KHAZAN'}],
  },
@@ -22620,9 +24275,11 @@ const NODES = {
  scene:'town_port',
  txt:()=>{
  const board = getTavernBoard('port_argon');
+ const _hqOffer = checkHeroQuest('port_argon');
+ const _hqHtml = renderHeroQuestOffer('port_argon', _hqOffer);
  const html = renderQuestBoard('port_argon', board);
  const partyHtml = renderPartyStatus();
- return ` <span class="cyn">波止場の酒場</span><br><br>潮の香りがする賑やかな店だ。<br><br>${partyHtml}${html}`;
+ return ` <span class="cyn">波止場の酒場</span><br><br>潮の香りがする賑やかな店だ。<br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_PORT_ARGON'), {label:' 客に話しかける', fn:()=>talkToPatron('port_argon')}, {label:' 仲間を探す', go:'RECRUIT_PORT'}],
  },
@@ -22631,9 +24288,11 @@ const NODES = {
  scene:'town_stone',
  txt:()=>{
  const board = getTavernBoard('stonehiem');
+ const _hqOffer = checkHeroQuest('stonehiem');
+ const _hqHtml = renderHeroQuestOffer('stonehiem', _hqOffer);
  const html = renderQuestBoard('stonehiem', board);
  const partyHtml = renderPartyStatus();
- return ` <span style="color:#aa8866">鉱夫の飲み屋</span><br><br>むさくるしい男たちが酒を飲んでいる。<br><br>${partyHtml}${html}`;
+ return ` <span style="color:#aa8866">鉱夫の飲み屋</span><br><br>むさくるしい男たちが酒を飲んでいる。<br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_STONEHIEM'), {label:' 客に話しかける', fn:()=>talkToPatron('stonehiem')}, {label:' 仲間を探す', go:'RECRUIT_STONE'}],
  },
@@ -22678,9 +24337,11 @@ const NODES = {
  scene:'town_elsia',
  txt:()=>{
  const board = getTavernBoard('elsia');
+ const _hqOffer = checkHeroQuest('elsia');
+ const _hqHtml = renderHeroQuestOffer('elsia', _hqOffer);
  const html = renderQuestBoard('elsia', board);
  const partyHtml = renderPartyStatus();
- return ` <span style="color:#44dd66">密林の番人亭</span><br><br><span class="dim">エルフの弓士や遺跡探索者でにぎわう酒場。木の実の蒸留酒が名物だ。</span><br><br>${partyHtml}${html}`;
+ return ` <span style="color:#44dd66">密林の番人亭</span><br><br><span class="dim">エルフの弓士や遺跡探索者でにぎわう酒場。木の実の蒸留酒が名物だ。</span><br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_ELSIA'), {label:' 客に話しかける', fn:()=>talkToPatron('elsia')}, {label:' 仲間を探す', go:'RECRUIT_ELSIA'}],
  },
@@ -25371,9 +27032,11 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC
   scene:'town_port',
   txt:()=>{
    const board=getTavernBoard('neria');
+ const _hqOffer = checkHeroQuest('neria');
+ const _hqHtml = renderHeroQuestOffer('neria', _hqOffer);
    const html=renderQuestBoard('neria',board);
    const partyHtml=renderPartyStatus();
-   return ` <span style="color:#44ccaa">珊瑚亭</span><br><br><span class="dim">大陸の船乗りと島の漁師が入り混じる賑やかな酒場。珊瑚礁から採れた魚介料理が名物だ。</span><br><br>${partyHtml}${html}`;
+   return ` <span style="color:#44ccaa">珊瑚亭</span><br><br><span class="dim">大陸の船乗りと島の漁師が入り混じる賑やかな酒場。珊瑚礁から採れた魚介料理が名物だ。</span><br><br>${partyHtml}${_hqHtml}${html}`;
   },
   choices:()=>[...getQuestBoardChoices('TOWN_NERIA'), {label:' 客に話しかける', fn:()=>talkToPatron('neria')}, {label:' 仲間を探す', go:'RECRUIT_NERIA'}],
  },
@@ -25429,9 +27092,11 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC
   scene:'town_village',
   txt:()=>{
    const board=getTavernBoard('dorua');
+ const _hqOffer = checkHeroQuest('dorua');
+ const _hqHtml = renderHeroQuestOffer('dorua', _hqOffer);
    const html=renderQuestBoard('dorua',board);
    const partyHtml=renderPartyStatus();
-   return ` <span style="color:#88ddbb">ドルアの酒場</span><br><br><span class="dim">農漁民が夕暮れ後に集まる静かな酒場。島の古い言い伝えを話してくれる老人がいる。</span><br><br>${partyHtml}${html}`;
+   return ` <span style="color:#88ddbb">ドルアの酒場</span><br><br><span class="dim">農漁民が夕暮れ後に集まる静かな酒場。島の古い言い伝えを話してくれる老人がいる。</span><br><br>${partyHtml}${_hqHtml}${html}`;
   },
   choices:()=>[...getQuestBoardChoices('TOWN_DORUA'), {label:' 客に話しかける', fn:()=>talkToPatron('dorua')}, {label:' 仲間を探す', go:'RECRUIT_DORUA'}],
  },
@@ -25460,9 +27125,11 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC
   scene:'town_village',
   txt:()=>{
    const board=getTavernBoard('sarpe');
+ const _hqOffer = checkHeroQuest('sarpe');
+ const _hqHtml = renderHeroQuestOffer('sarpe', _hqOffer);
    const html=renderQuestBoard('sarpe',board);
    const partyHtml=renderPartyStatus();
-   return ` <span style="color:#aaddcc">サルペの漁師宿</span><br><br><span class="dim">酒場と宿屋を兼ねた素朴な建物。塩辛い魚料理と地酒が出る。石碑の話を聞けることもある。</span><br><br>${partyHtml}${html}`;
+   return ` <span style="color:#aaddcc">サルペの漁師宿</span><br><br><span class="dim">酒場と宿屋を兼ねた素朴な建物。塩辛い魚料理と地酒が出る。石碑の話を聞けることもある。</span><br><br>${partyHtml}${_hqHtml}${html}`;
   },
   choices:()=>[
    {label:' 宿に泊まる（3GP・1日休む）', fn:()=>{ innRest(300); }, go:'TOWN_SARPE'},
@@ -25496,9 +27163,11 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC
   scene:'town_village',
   txt:()=>{
    const board=getTavernBoard('nebra');
+ const _hqOffer = checkHeroQuest('nebra');
+ const _hqHtml = renderHeroQuestOffer('nebra', _hqOffer);
    const html=renderQuestBoard('nebra',board);
    const partyHtml=renderPartyStatus();
-   return ` <span style="color:#99bbcc">ネブラの民宿</span><br><br><span class="dim">霧の中にぼんやり灯りが見える小さな宿。薄暗い室内で島民が静かに酒を飲んでいる。灯台の話を聞けるかもしれない。</span><br><br>${partyHtml}${html}`;
+   return ` <span style="color:#99bbcc">ネブラの民宿</span><br><br><span class="dim">霧の中にぼんやり灯りが見える小さな宿。薄暗い室内で島民が静かに酒を飲んでいる。灯台の話を聞けるかもしれない。</span><br><br>${partyHtml}${_hqHtml}${html}`;
   },
   choices:()=>[
    {label:' 宿に泊まる（3GP・1日休む）', fn:()=>{ innRest(300); }, go:'TOWN_NEBRA'},
