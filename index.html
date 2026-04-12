@@ -13911,11 +13911,9 @@ function calcQuestReward(fromId, toId){
  return Math.floor((33 + Math.floor(Math.random()*34)));                // 33〜66GP（地方またぎ遠距離）
 }
 
-// 護衛クエスト報酬：日数×15〜25GP
+// 護衛クエスト報酬：配達報酬の1.15倍
 function calcEscortReward(fromId, toId){
- const walk = calcMinTravelDays(fromId, toId) || 5;
- const perDay = 15 + Math.floor(Math.random()*11); // 15〜25GP/日
- return walk * perDay;
+ return 5 + Math.floor(Math.random()*11); // 5〜15GP固定
 }
 
 const ESCORT_TYPES = [
