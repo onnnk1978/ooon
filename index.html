@@ -592,7 +592,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  </div>
  <canvas id="ooon-ascii" width="360" height="108" style="display:block;margin:0 auto 16px;width:min(360px,90vw);height:auto"></canvas>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041201</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041202</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -949,6 +949,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <button class="igs-tab" data-tab="exchange" onclick="igsSetTab('exchange')" style="flex:1;font-size:calc(var(--font-sm) - 2px);padding:6px 2px;background:#0a0a20;border:1px solid var(--steel);color:var(--slate);border-radius:3px;cursor:pointer"> 両替</button>
  <button class="igs-tab" data-tab="jewel" onclick="igsSetTab('jewel')" style="flex:1;font-size:calc(var(--font-sm) - 2px);padding:6px 2px;background:#0a0a20;border:1px solid var(--steel);color:var(--slate);border-radius:3px;cursor:pointer"> 宝飾</button>
  <button class="igs-tab" data-tab="sell" onclick="igsSetTab('sell')" style="flex:1;font-size:calc(var(--font-sm) - 2px);padding:6px 2px;background:#0a0a20;border:1px solid var(--steel);color:var(--slate);border-radius:3px;cursor:pointer"> 売却</button>
+ <button class="igs-tab" data-tab="forge" onclick="igsSetTab('forge')" style="flex:1;font-size:calc(var(--font-sm) - 2px);padding:6px 2px;background:#0a0a20;border:1px solid var(--steel);color:var(--slate);border-radius:3px;cursor:pointer"> 鍛錬</button>
  <button onclick="closeIngameShop()" style="flex-shrink:0;background:#0a0a0a;border:1px solid #554433;color:#887755;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px 10px;cursor:pointer;border-radius:3px" title="閉じる">✕</button>
  </div>
  <div id="igs-list" style="max-height:380px;overflow-y:auto"></div>
@@ -1675,6 +1676,7 @@ function _startSpecialMissionBoss(q){
   PC._specialMissionCooldown = GAME_TIME.totalDays + (720 + Math.floor(Math.random()*361));
   updateHUD();
   addLifeEvent('', '砂漠の砦掃討作戦を生き延びた。');
+  _checkSpecialMissionCount();
   showSaveToast(` 特命依頼完了！ +${reward}GP`);
   const story = document.getElementById('story');
   story.innerHTML = `<div style="border:1px solid #4a7020;border-radius:4px;padding:12px;background:#081200">
@@ -1941,6 +1943,7 @@ function _startSpecialMissionVBoss(q){
    PC._specialMissionVCooldown = GAME_TIME.totalDays+(720+Math.floor(Math.random()*361));
    updateHUD();
    addLifeEvent('','氷原の砦掃討作戦を生き延びた。');
+   _checkSpecialMissionCount();
    showSaveToast(` 特命依頼完了！ +${reward}GP`);
    const story=document.getElementById('story');
    story.innerHTML=`<div style="border:1px solid #4a7020;border-radius:4px;padding:12px;background:#081200">
@@ -1959,6 +1962,267 @@ function checkSpecialMissionValdheimBoard(){
  const q=(PC.quests||[]).find(q=>q.type==='special_mission' && q.status==='active' && q.fromTownId==='valdheim');
  if(q) return renderSpecialMissionActive(q);
  if(checkSpecialMissionValdheim('valdheim')) return renderSpecialMissionValdheimBoard();
+ return '';
+}
+
+
+function _checkSpecialMissionCount(){
+ PC._specialMissionCount = (PC._specialMissionCount || 0) + 1;
+ const count = PC._specialMissionCount;
+ if(count >= 5 && !PC._isRaidUnit){
+  PC._isRaidUnit = true;
+  const msg = '混沌との戦いに5度生き残った。上層部から正式に「独立遊撃小隊」の名が与えられた。';
+  addLifeEvent('', msg);
+  // 到着時に表示するメッセージをキューに積む
+  PC._pendingRaidUnitMsg = true;
+  showSaveToast(' 称号獲得：独立遊撃小隊');
+ }
+}
+
+
+// ══════════════════════════════════════════════════════
+// 特命依頼：島の神殿掃討作戦（マレア諸島限定）
+// ══════════════════════════════════════════════════════
+
+function checkSpecialMissionMarea(townId){
+ if(townId !== 'neria') return false;
+ if(!PC._specialMissionMCooldown) PC._specialMissionMCooldown = 0;
+ if(GAME_TIME.totalDays < PC._specialMissionMCooldown) return false;
+ if((PC.quests||[]).some(q=>q.type==='special_mission' && q.status==='active')) return false;
+ return true;
+}
+
+function renderSpecialMissionMareaBoard(){
+ if(!checkSpecialMissionMarea('neria')) return '';
+ return `<div style="background:#060d0a;border:2px solid #226644;border-radius:4px;padding:12px;margin-bottom:10px">
+  <div style="color:#44cc88;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px"> 特命依頼</div>
+  <div style="color:#88ddbb;font-size:var(--font-sm);margin-bottom:6px"> 島の神殿　浄化作戦</div>
+  <div style="color:#336655;font-size:calc(var(--font-sm) - 1px);line-height:1.8;margin-bottom:10px">「島の奥地にある古代神殿が混沌に汚染された。遺跡調査隊が全滅、正規軍も足止めされている。浄化できる者を募っている」</div>
+  <button onclick="acceptSpecialMissionMarea()" style="width:100%;background:#060d0a;border:1px solid #226644;color:#44cc88;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:9px;cursor:pointer;border-radius:3px"> 作戦に参加する</button>
+ </div>`;
+}
+
+function acceptSpecialMissionMarea(){
+ if(!PC.quests) PC.quests=[];
+ const q = {id:Date.now()+Math.random(), type:'special_mission', status:'active',
+  fromTownId:'neria', title:'島の神殿　浄化作戦', issuedDay:GAME_TIME.totalDays};
+ PC.quests.push(q);
+ showSaveToast(' 特命依頼を引き受けた：島の神殿　浄化作戦');
+ _refreshTavernBoard('neria');
+}
+
+function startSpecialMissionMarea(){
+ const q = (PC.quests||[]).find(q=>q.type==='special_mission' && q.status==='active' && q.fromTownId==='neria');
+ if(!q) return;
+ _runSpecialMissionMNode(q, 0);
+}
+
+const _SPECIAL_M_FLAVOR = {
+ march:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">船が島の内陸川を遡っていくにつれ、隊の空気が変わった。<br><br>
+「川が……逆流している」と舵手が呟いた。しかし水面は静かで、流れの向きは変わっていない。「俺には順流に見える」と別の男が答えた。「俺にも逆流だ」と三人目が言った。<br><br>
+同じ川面を見ながら、全員が別々の流れを見ていた。<br><br>
+上陸した頃には、鳥の声が聞こえなくなっていた。正規軍の隊長が静かに言った。「神殿が近い。島の時間が、もう乱れ始めている」</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">密林の中を進みながら、兵士たちが奇妙なことを口にし始めた。<br><br>
+「この道、昨日も歩いた気がする」と若い兵が言った。「俺たちは今日初めてここに来た」と古参が答えた。「でも俺の足は覚えている」<br><br>
+「匂いが……前後逆だ」と斥候が言った。「前から潮の匂い、後ろから密林の匂いがする。なぜ来た道から海の匂いがしない」<br><br>
+誰も答えられなかった。木々の向こうに神殿の尖塔が見えた。尖塔の先端が——水面のように揺れていた。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">島の密林は湿度が高く、体にまとわりついた。それとは別の湿り気が、空気そのものに滲んでいた。<br><br>
+「俺の影が……遅れている」と兵士が足を止めた。地面を見ると、確かに影の動きが一拍遅れていた。「俺は逆だ」と別の者が言った。「俺の影は先に動く」<br><br>
+混沌の汚染が島の因果に染み込んでいた。影さえも、それぞれ別の時間を生きていた。<br><br>
+「神殿に着いたら、自分の感覚を信じるな」隊長が言った。「信じていいのは、隣の仲間だけだ」</div>`,
+ ],
+ breach:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">神殿の入口で最初の「溶融した守護者」が現れた。<br><br>
+人の形をしていた。しかし足元の石板と、境界線がなかった。石が皮膚に連続し、皮膚が石に連続していた——どこからが生き物でどこからが遺跡なのか判断できなかった。それでも動いていた。口があった。目があった。ぬめりとした光沢があった。<br><br>
+「斬れるか」と兵士が呟いた。「斬れた場合、石を斬ったのか肉を斬ったのか分からない」と斥候が答えた。<br><br>
+答えを探す間もなく、敵は水のように隊列の中に入り込んだ——</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">神殿の回廊に踏み込んだ瞬間、壁の壁画が動いた。<br><br>
+動いたのではない。壁画の「描かれた人物」が剥がれてきた——二次元だったものが、徐々に厚みを持ち、奥行きを持ち、床に降り立った。その体は石板と同じ色をしており、表面は乾いているように見えた。しかし近づくと、生温かい湿気を帯びていた。触れれば手形がつきそうな、過剰な柔らかさが。<br><br>
+「ここを守るものが、場所そのものになってしまっている」古参兵が言った——</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">入口を突破すると、神殿の床が——呼吸していた。<br><br>
+石が、一定のリズムで上下していた。ごくわずかに、しかし確かに。踏むたびに石が沈み、離すと戻った。まるで巨大な生き物の胴体の上を歩いているようだった。<br><br>
+壁際に倒れた守護者の遺体があった。腕の形が、石と一体化していた——いや、腕そのものが石になりかけており、その移行はまだ途中だった。指先はまだ肉で、肘は岩だった。体の各部分が別々の時間を生きていた。<br><br>
+「ここでは死も生も、順番に起きない」斥候が声を落として言った——</div>`,
+ ],
+ inside:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">回廊の奥に、神殿の生存者がいた。<br><br>
+遺跡調査隊の三人が、壁に寄りかかっていた。生きていた——確かに生きていた。しかし三人とも、同じ一点を見つめたまま動かなかった。目が開いていた。瞬きをしていた。でも何も見ていなかった。<br><br>
+「何があったんだ」と隊長が問いかけた。<br>「時間が」と一人が答えた。声は正常だった。「時間が来なくなったんです」<br>「どういう意味だ」「次の瞬間が、来ない。ここでは今がずっと続いている。俺たちは同じ一秒の中に、もう何日もいる」<br><br>
+誰も返す言葉を持たなかった。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">祭壇の間に入ると、水が流れていた。<br><br>
+天井から、床へ。通常の滝と同じ方向に流れていた。しかし水面が上にあり、底が下にあるにもかかわらず、水は濡れた音もなく、石に当たる音もなく、ただ静かに流れ続けていた。<br><br>
+その水の中に、人影があった。遺跡調査隊の一員だろう——水の中に立ったまま、動かずにいた。溺れていなかった。息をしていた。水が体を素通りしていた。<br><br>
+「助けてくれ」男は言った。「俺はここにいる。でも、ここにいる俺の時間が止まってしまった。体だけがここにある」<br><br>
+古参兵が小声で言った。「触るな。引っ張ったら、どちらかが壊れる」</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">神殿の中庭に出た。空が見えた——しかし空の色が、一か所だけ違った。<br><br>
+円形の空域が、夜の色をしていた。昼間なのに、その一か所だけ夜だった。星さえ見えた。そしてその円の真下の石畳に、複数の人影が倒れていた。<br><br>
+近づくと、全員が生きていた。しかし体の各部が、別々の時間の状態にあった。傷が「癒えている状態」と「負った直後」が同じ体に共存していた。うめき声と「まだ痛みを感じていない沈黙」が交互に出た。<br><br>
+「この人たちをどうすれば」若い兵士が言った。<br>「俺たちは先に行くしかない」隊長が答えた。表情は動かなかった。</div>`,
+ ],
+ panic:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">神殿の核心部に近づいたとき、床が鳴った。<br><br>
+石の共鳴ではなかった。声だった——いくつもの声が石に染み込み、それが一斉に滲み出してきた。命令の断片だった。「前進」「退却」「左」「止まれ」「武器を捨てろ」——すべて隊長の声だった。過去の命令と未来の命令が石から吐き出された。<br><br>
+隊が止まった。足元の石が、別々の命令を伝えてきた。どれが「今」の命令なのか判断できなかった。<br><br>
+そのとき、天井から何かが降ってきた——いや、上昇した。ぬらりとした体が重力を忘れ、逆向きに「落ちた」——</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">廊下が突然、海の音で満たされた。<br><br>
+波音。潮騒。嵐の轟音。それが時系列を無視して押し寄せた——静かな凪の音の後に嵐が来て、嵐の後に凪が来るのではなく、すべてが同時に重なって聞こえた。<br><br>
+「退け！」と隊長が叫んだ。「いや、突撃だ！」と同じ声が続いた。「待機せよ」とも聞こえた。三つの命令が一つの喉から同時に出た。<br><br>
+波音の中から、湿った体が現れた。海の匂いをまとっていた。腕の継ぎ目から、水が染み出していた——</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">照明の魔法陣が点滅した。光と闇が交互に来るのではなく——点滅のたびに、「別の場所」が見えた。<br><br>
+光のとき：廊下は空だった。<br>闇のとき：廊下に敵がいた。<br>光のとき：また空だった。<br>闇のとき：敵がいた。さっきより近かった。<br><br>
+「どっちが今だ！」と誰かが叫んだ。「光のときか、闇のときか！」<br><br>
+返答の代わりに、光のときに敵が現れた。混沌はもう、そのルールさえも壊していた——</div>`,
+ ],
+ boss:[
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">神殿の最奥、水没した祭壇の前に、それはいた。<br><br>
+三つの時間軸の姿が重なった存在。「生贄を捧げている姿」と「儀式を終えた後の姿」と「まだここに来ていない姿」が、同じ場所に存在していた。<br><br>
+体の表面は珊瑚礁のような質感をしていた——硬く、しかし生きており、小さな穴から何かが出入りしていた。それは体そのものが島の一部になっていることを意味していた。<br><br>
+時間の歪みを読まなければ、この存在には届かない。</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">祭壇の間の中心で、指揮官は三重に存在していた。<br><br>
+「来るのが遅い」と声が言った。「まだ来ていない」と同じ声が言った。「もうここを去った」とも言った。<br><br>
+体の一部が水だった——液体のまま体の中を循環していたが、それは血ではなかった。潮水でもなかった。時間が液状になったものが、体の中で流れていた。<br><br>
+古参兵が呟いた。「俺は……この顔を知っている。まだ会ったことはないのに、知っている」</div>`,
+  `<div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">最奥で待っていた存在は、島そのものの一部だった。<br><br>
+背後の壁と指揮官の背中の境界線が、なかった。根が生えているのではなく、存在が連続していた。しかし動いた。壁から剥がれるように前に出た——その動作で、壁に手形のような凹みが残った。<br><br>
+過去の姿と現在と未来が三重に重なり、どの輪郭が「今」の攻撃かが分からない。<br><br>
+「歪みを読め」と古参兵が言った。「目を閉じて感じろ。ここでは見えるものを信じるな」</div>`,
+ ],
+};
+
+const _SPECIAL_M_NODES = [
+ { flavorKey:'march',  title:' マレア奥地の神殿へ', sr:null },
+ { flavorKey:'breach', title:' 神殿への突入',
+   sr:{ level:2, failDmg:3, failAttr:'con', failTxt:'溶融した守護者の動きを読めず、攻撃をまともに受けた。' },
+   combat:{ mr_min:100, mr_max:200, name:'溶融した守護者（先遣）' } },
+ { flavorKey:'inside', title:' 神殿内部の光景', sr:null },
+ { flavorKey:'panic',  title:' 因果の崩壊',
+   sr:{ level:3, failDmg:4, failAttr:'con', failTxt:'命令と時間の混濁に翻弄され、無防備な瞬間を狙われた。' },
+   combat:{ mr_min:100, mr_max:200, name:'溶融した守護者（精鋭）' } },
+ { flavorKey:'boss',   title:' 多重存在の指揮官', isBoss:true },
+];
+
+function _runSpecialMissionMNode(q, nodeIdx){
+ const node = _SPECIAL_M_NODES[nodeIdx];
+ const story = document.getElementById('story');
+ const isBoss = node.isBoss;
+ const border = isBoss ? '#226644' : '#1a4433';
+ const bg = isBoss ? '#060d0a' : '#040c08';
+ const flavors = _SPECIAL_M_FLAVOR[node.flavorKey] || [];
+ const bodyHtml = flavors[Math.floor(Math.random()*flavors.length)] || '';
+ story.innerHTML = `<div style="border:1px solid ${border};border-radius:4px;padding:12px;background:${bg}">
+  <div style="color:#44cc88;font-size:var(--font-sm);margin-bottom:8px">${node.title}</div>
+  ${bodyHtml}
+ </div>`;
+
+ if(node.isBoss){
+  renderChoices([{label:' 指揮官に立ち向かう', fn:()=>_startSpecialMissionMBoss(q)}]);
+  return;
+ }
+
+ if(node.sr){
+  const sr = node.sr;
+  const attr = _chaosSR(sr.level);
+  const attrNames = {dex:'DEX 器用',lk:'LK 運',iq:'IQ 知力'};
+  story.innerHTML += `<div style="color:#336655;font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:#040c08;border-left:2px solid #1a4433;line-height:1.9">時間の歪みに対応するための判定が必要だ。<br><span style="color:#44cc88"> ${attrNames[attr]} Lv${sr.level} セービングロール</span></div>`;
+  renderChoices([{label:` ダイスを振る（${attrNames[attr]} Lv${sr.level} SR）`, fn:()=>{
+   document.getElementById('dice-area').classList.remove('hidden');
+   setupSavingRoll({
+    attr, level:sr.level, label:'特命依頼', noAP:true,
+    onSuccess(){
+     document.getElementById('dice-area').classList.add('hidden');
+     story.innerHTML += `<div style="color:#6aaa60;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#081200;border-left:2px solid #336622;line-height:1.9"> 歪みを読んだ。体が正しく動いた。</div>`;
+     _startSpecialMissionMCombat(q, node, nodeIdx, false);
+    },
+    onFail(){
+     document.getElementById('dice-area').classList.add('hidden');
+     PC[sr.failAttr] = Math.max(0, (PC[sr.failAttr]||0) - sr.failDmg);
+     updateHUD();
+     story.innerHTML += `<div style="color:#c05040;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#120800;border-left:2px solid #663322;line-height:1.9"> ${sr.failTxt}（${sr.failAttr.toUpperCase()} -${sr.failDmg}）</div>`;
+     if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 1000); return; }
+     _startSpecialMissionMCombat(q, node, nodeIdx, true);
+    },
+   });
+  }}]);
+  return;
+ }
+
+ renderChoices([{label:'▶ 進む', fn:()=>_runSpecialMissionMNode(q, nodeIdx+1)}]);
+}
+
+function _startSpecialMissionMCombat(q, node, nodeIdx){
+ const mr = node.combat.mr_min + Math.floor(Math.random()*(node.combat.mr_max - node.combat.mr_min + 1));
+ renderChoices([]);
+ drawScene('combat');
+ document.getElementById('dice-area').classList.add('hidden');
+ startCombat({
+  name: node.combat.name, mr, armor: Math.floor(mr/25),
+  canFlee:false, win:'__noop__', lose:'DEAD',
+  onWin(){
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display='';
+   cbtState=null;
+   _runSpecialMissionMNode(q, nodeIdx+1);
+  },
+ });
+}
+
+function _startSpecialMissionMBoss(q){
+ renderChoices([]);
+ drawScene('combat');
+ document.getElementById('dice-area').classList.add('hidden');
+ document.getElementById('text-win').style.display='none';
+
+ const baseLv = 5 + Math.floor(Math.random()*4);
+ const bossLv = Math.round(baseLv * 1.5);
+ const boss = generateNPC(bossLv);
+ boss.name = '多重存在の指揮官';
+ boss.curCon = boss.con;
+
+ const MINION_TYPES = ['warrior','warrior','rogue'];
+ const minions = [0,1].map(()=>{
+  const m = generateNPC(bossLv);
+  m.type = MINION_TYPES[Math.floor(Math.random()*MINION_TYPES.length)];
+  m.name = '溶融した護衛';
+  m.curCon = m.con;
+  return m;
+ });
+
+ startCombatNPC({
+  enemies:[boss,...minions], canFlee:false,
+  win:'__noop__', lose:'DEAD', chaosMode:true,
+  onWin:()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display='';
+   cbtState=null;
+   PC.quests=(PC.quests||[]).filter(qq=>qq.id!==q.id);
+   const reward = Math.floor(bossLv*(75+Math.floor(Math.random()*38)));
+   gainGPAll(reward);
+   changeTrust('neria',10);
+   PC._specialMissionMCooldown = GAME_TIME.totalDays+(720+Math.floor(Math.random()*361));
+   updateHUD();
+   addLifeEvent('','島の神殿浄化作戦を生き延びた。');
+   _checkSpecialMissionCount();
+   showSaveToast(` 特命依頼完了！ +${reward}GP`);
+   const story=document.getElementById('story');
+   story.innerHTML=`<div style="border:1px solid #4a7020;border-radius:4px;padding:12px;background:#081200">
+    <div style="color:#6aaa60;font-size:var(--font-sm);margin-bottom:8px"> 作戦完了</div>
+    <div style="color:#aaa;font-size:calc(var(--font-sm) - 1px);line-height:1.9">指揮官が崩れ落ちると、神殿から歪みが急速に薄れた。<br><br>
+石の呼吸が止まり、壁画が壁に戻り、流れていた水が音を取り戻した。<br><br>
+「島に、時間が戻ってきた」生存者の一人が呟いた。</div>
+    <div style="color:#88ddbb;font-size:calc(var(--font-sm) - 1px);margin-top:8px">報酬: ${reward}GP　信頼度+10</div>
+   </div>`;
+   renderChoices([{label:'← ネリア港へ戻る', go:'TOWN_NERIA'}]);
+  },
+ });
+}
+
+function checkSpecialMissionMareaBoard(){
+ const q=(PC.quests||[]).find(q=>q.type==='special_mission' && q.status==='active' && q.fromTownId==='neria');
+ if(q) return renderSpecialMissionActive(q);
+ if(checkSpecialMissionMarea('neria')) return renderSpecialMissionMareaBoard();
  return '';
 }
 
@@ -7786,7 +8050,7 @@ function getRegionKey(townId){
 // 地方間距離（BFS、将来の拡張に対応）
 // 隣接地方ルートの定義（地方キー同士）
 const REGION_ADJACENCY = {
- khazan_region:   ['elmaria_region','zahara_region','draklim_region'],
+ khazan_region:   ['elmaria_region','zahara_region','draklim_region','marea_region'],
  elmaria_region:  ['khazan_region','valdheim_region'],
  zahara_region:   ['khazan_region'],
  draklim_region:  ['khazan_region'],
@@ -7846,11 +8110,11 @@ const REGION_SPECIALTIES = {
  {name:'鍛冶師の業物', icon:'', baseCost:160, weight:120, desc:'ヴァルドヘイムの軍属鍛冶師が打った逸品'},
  ],
  marea_region: [
-  {icon:'', name:'珊瑚細工', desc:'マレア諸島産の珊瑚を使った装飾品。大陸では希少品として高値で取引される。', weight:1, baseCost:80},
-  {icon:'', name:'真珠', desc:'諸島の海で採れる天然真珠。品質は高く、宝飾品として珍重される。', weight:1, baseCost:120},
-  {icon:'', name:'島の香辛料', desc:'マレア諸島特産の香辛料。料理に使われるほか、薬効もあるとされる。', weight:1, baseCost:60},
-  {icon:'', name:'染料草', desc:'鮮やかな色の染料が取れる植物。島民が布の染色に使う。', weight:1, baseCost:50},
-  {icon:'', name:'古代石碑の拓本', desc:'ザール・カノン文明と同系統の文字が刻まれた石碑の写し。学者や冒険者に需要がある。', weight:1, baseCost:100},
+  {icon:'', name:'珊瑚細工', desc:'マレア諸島産の珊瑚を使った装飾品。大陸では希少品として高値で取引される。', weight:15, baseCost:80},
+  {icon:'', name:'真珠', desc:'諸島の海で採れる天然真珠。品質は高く、宝飾品として珍重される。', weight:5, baseCost:120},
+  {icon:'', name:'島の香辛料', desc:'マレア諸島特産の香辛料。料理に使われるほか、薬効もあるとされる。', weight:15, baseCost:60},
+  {icon:'', name:'染料草', desc:'鮮やかな色の染料が取れる植物。島民が布の染色に使う。', weight:20, baseCost:50},
+  {icon:'', name:'古代石碑の拓本', desc:'ザール・カノン文明と同系統の文字が刻まれた石碑の写し。学者や冒険者に需要がある。', weight:40, baseCost:100},
  ],
 };
 
@@ -11251,10 +11515,10 @@ const YD_T2_LIGHTING = {
 
 // テーブルI-3: 通路幅
 const YD_T3_WIDTH = [
- {r:[1,20],  w:5,  label:'1.5m（1人）'},
- {r:[21,80], w:10, label:'3m（2人）'},
- {r:[81,90], w:20, label:'6m（4人）'},
- {r:[91,100],w:30, label:'9m（6人）'},
+ {r:[1,20],  w:'1.5m',label:'1.5m（1人）'},
+ {r:[21,80], w:'3m',  label:'3m（2人）'},
+ {r:[81,90], w:'6m',  label:'6m（4人）'},
+ {r:[91,100],w:'9m',  label:'9m（6人）'},
 ];
 
 // テーブルII: 通路内容
@@ -11741,7 +12005,7 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
    break;
   }
   case 'room':{
-   const rw  = ydRoll100([{r:[1,50],w:'20-30'},{r:[51,70],w:'30-40'},{r:[71,80],w:'40-50'},{r:[81,90],w:'50-70'},{r:[91,95],w:'60-100'},{r:[96,100],w:'unusual'}]);
+   const rw  = ydRoll100([{r:[1,50],w:'6-9m'},{r:[51,70],w:'9-12m'},{r:[71,80],w:'12-15m'},{r:[81,90],w:'15-21m'},{r:[91,95],w:'18-30m'},{r:[96,100],w:'unusual'}]);
    const rexits = ydRoll100(YD_T_ROOM_EXITS);
    const rcont  = ydRoll100(YD_T_ROOM_CONTENTS);
    node.type = 'room';
@@ -11990,7 +12254,13 @@ const YD_STYLE_ATM = {
   '崩れかけた兵舎の跡を通り過ぎる。朽ちた寝台に錆びた食器——最後の食事が、そのまま放置されていた。',
  ],
  forest: [
-  /* 画像はリリース版に挿入 */
+  '木の根が頭上を渡る薄暗い洞道を進む。足元は腐葉土と岩が入り混じり、一歩ごとに湿った音がする。',
+  '苔の匂いと土の冷気が混じり合う通路だ。松明の光が根の影を揺らし、何かが動いたような錯覚を繰り返す。',
+  '木の根が壁から侵食し、通路を狭めている。かき分けながら進むと、根の先端が指のように動いた気がした。',
+  '天井の根の間から、かすかな外の光が差し込んでいる。しかしそこへ戻る道は、もう分からない。',
+  '発光する苔が足元を薄く照らしている。踏むたびに光が一瞬強くなり、何かに気づかれているような感覚がある。',
+  '腐った木の臭いと新鮮な土の臭いが奇妙に混じっている。生と死の境目を歩いているような感覚だ。',
+  '根の隙間から冷たい風が吹いている。どこかに外に繋がる穴があるのか——それとも別の空洞があるのか。',
  ],
  swamp: [
   '一歩踏み出すたびに泥が靴を飲み込もうとする。前に進むためだけに、相当な力が必要だ。',
@@ -12070,7 +12340,7 @@ function ydNodeTxt(node, floor){
   }
   case 'room':{
    const monsterCleared = !node.monster || PC[node.monsterKey];
-   const roomWidthLabel = node.roomWidth === 'unusual' ? '広大な' : `${node.roomWidth}フィートの`;
+   const roomWidthLabel = node.roomWidth === 'unusual' ? '広大な' : `${node.roomWidth}mの`;
    return `${tBar}${fLabel}<br><br>
     <span style="color:#88aacc"> ${roomWidthLabel}部屋</span><br><br>
     ${ydRoomContentTxt(node)}
@@ -12185,10 +12455,10 @@ const YD_STYLE_DATA = {
    luminous:'岩壁そのものが青白く発光している。鉱脈に含まれる魔法鉱石の光だろうか、松明いらずのその輝きは美しくも不気味だ。',
   },
   width:{
-   5:'一人が体を斜めにしてやっと通れる細い坑道が続く。前後の仲間とは声でしか連絡が取れない。',
-   10:'坑夫二人が肩を並べて歩ける幅の通路だ。採掘車の轍が床に深く刻まれている。',
-   20:'広めに掘り抜かれた坑道で、大型の運搬車でも余裕を持って通れる。これほどの規模の採掘場があったとは。',
-   30:'驚くほど広大な通路だ。声が反響し、自分の足音が遠くから返ってくる。鉱石の運搬だけが目的ではなかったのかもしれない。',
+   '1.5m':'一人が体を斜めにしてやっと通れる細い坑道が続く。前後の仲間とは声でしか連絡が取れない。',
+   '3m':'坑夫二人が肩を並べて歩ける幅の通路だ。採掘車の轍が床に深く刻まれている。',
+   '6m':'広めに掘り抜かれた坑道で、大型の運搬車でも余裕を持って通れる。これほどの規模の採掘場があったとは。',
+   '9m':'驚くほど広大な通路だ。声が反響し、自分の足音が遠くから返ってくる。鉱石の運搬だけが目的ではなかったのかもしれない。',
   },
  },
  cave: {
@@ -12217,10 +12487,10 @@ const YD_STYLE_DATA = {
    luminous:'天井に埋まった輝石が青白い光を放ち、洞窟全体を神秘的に照らしている。松明が不要なほど明るいが、その光は生き物の光ではなく、どこか不気味だ。',
   },
   width:{
-   5:'体を斜めにして岩肌に擦りながら進む、息苦しいほど狭い隙間だ。鎧を着ていては通れないかもしれない。',
-   10:'鍾乳石が頭上に垂れ下がり、ときに体をかがめながら進む通路だ。横には余裕があるが、上には注意が必要だ。',
-   20:'天井が高く開けた広い空洞が続いている。声を出せば反響し、自分の言葉が遅れて返ってくる。',
-   30:'巨大な地下空洞が広がり、天井は松明の光が届かない高さにある。足音が何重にも反響し、自分以外の何かがいるような錯覚を覚える。',
+   '1.5m':'体を斜めにして岩肌に擦りながら進む、息苦しいほど狭い隙間だ。鎧を着ていては通れないかもしれない。',
+   '3m':'鍾乳石が頭上に垂れ下がり、ときに体をかがめながら進む通路だ。横には余裕があるが、上には注意が必要だ。',
+   '6m':'天井が高く開けた広い空洞が続いている。声を出せば反響し、自分の言葉が遅れて返ってくる。',
+   '9m':'巨大な地下空洞が広がり、天井は松明の光が届かない高さにある。足音が何重にも反響し、自分以外の何かがいるような錯覚を覚える。',
   },
  },
  ruin: {
@@ -12249,10 +12519,10 @@ const YD_STYLE_DATA = {
    luminous:'壁に刻まれた魔法陣が今も発光し、遺跡全体を柔らかく照らしている。その光の中で、壁の文様がまるで生きているように見える。',
   },
   width:{
-   5:'儀式のためだろうか、一人しか通れない極めて狭い通路が続く。両側の壁が迫り、圧迫感がある。',
-   10:'かつて衛兵が二列で歩いた廊下だろう。壁の石は今も整然とし、往時の規律を感じさせる。',
-   20:'列柱の残骸が並ぶ広大な回廊。かつてここを歩いた者たちの姿が目に浮かぶようだ。',
-   30:'天井が闇に消える巨大な列柱廊。自分の足音だけが遠く反響し、この空間の主であった者への畏敬が自然と湧いてくる。',
+   '1.5m':'儀式のためだろうか、一人しか通れない極めて狭い通路が続く。両側の壁が迫り、圧迫感がある。',
+   '3m':'かつて衛兵が二列で歩いた廊下だろう。壁の石は今も整然とし、往時の規律を感じさせる。',
+   '6m':'列柱の残骸が並ぶ広大な回廊。かつてここを歩いた者たちの姿が目に浮かぶようだ。',
+   '9m':'天井が闇に消える巨大な列柱廊。自分の足音だけが遠く反響し、この空間の主であった者への畏敬が自然と湧いてくる。',
   },
  },
  tomb: {
@@ -12281,10 +12551,10 @@ const YD_STYLE_DATA = {
    luminous:'骨に宿った死者の魂が青白い光となって滲み出し、通路を照らしている。美しいとすら言えるが、それが死の光だと気づいたとき、足がすくんだ。',
   },
   width:{
-   5:'棺ひとつを運ぶためだけに作られた、人ひとりがやっと通れる通路だ。壁が近く、息が詰まる。',
-   10:'葬列がゆっくりと歩いた回廊。壁には参列者の名が刻まれており、長い死者の行列を想像させる。',
-   20:'貴人の棺を幾つも並べた広い霊廟の廊下。静寂が重く、自分の存在が場違いに感じられる。',
-   30:'王族の眠りに相応しい壮大な回廊。天井は高く、両脇の石棺の数は数え切れない。ここに眠る者たちの数だけ、物語がある。',
+   '1.5m':'棺ひとつを運ぶためだけに作られた、人ひとりがやっと通れる通路だ。壁が近く、息が詰まる。',
+   '3m':'葬列がゆっくりと歩いた回廊。壁には参列者の名が刻まれており、長い死者の行列を想像させる。',
+   '6m':'貴人の棺を幾つも並べた広い霊廟の廊下。静寂が重く、自分の存在が場違いに感じられる。',
+   '9m':'王族の眠りに相応しい壮大な回廊。天井は高く、両脇の石棺の数は数え切れない。ここに眠る者たちの数だけ、物語がある。',
   },
  },
  fortress: {
@@ -12313,10 +12583,10 @@ const YD_STYLE_DATA = {
    luminous:'要塞に仕込まれた魔法の照明が今も機能している。これを維持できる者が、まだこの場所に関わっているということだ。',
   },
   width:{
-   5:'脱出用に設けられたのか、一人がやっと通れる秘密の抜け道が延々と続く。地図なしでは方向を見失う。',
-   10:'兵が一列で行軍する地下通路。両側の壁に武器掛けの跡が残り、最後の戦いへ向かった兵士たちの面影を残している。',
-   20:'部隊が移動できる幅の地下廊下。床に残った複数の足跡が、最後にここを歩いた多くの者たちの存在を示している。',
-   30:'騎馬でも通れる規模の巨大な地下道だ。これほどの規模の要塞を、誰がなぜ造り、そしてなぜ捨てたのか。',
+   '1.5m':'脱出用に設けられたのか、一人がやっと通れる秘密の抜け道が延々と続く。地図なしでは方向を見失う。',
+   '3m':'兵が一列で行軍する地下通路。両側の壁に武器掛けの跡が残り、最後の戦いへ向かった兵士たちの面影を残している。',
+   '6m':'部隊が移動できる幅の地下廊下。床に残った複数の足跡が、最後にここを歩いた多くの者たちの存在を示している。',
+   '9m':'騎馬でも通れる規模の巨大な地下道だ。これほどの規模の要塞を、誰がなぜ造り、そしてなぜ捨てたのか。',
   },
  },
  forest: {
@@ -12345,10 +12615,10 @@ const YD_STYLE_DATA = {
    luminous:'発光する苔が洞窟全体を覆い、青緑色の幻想的な光を放っている。松明を消せばより美しいかもしれないが、それをする勇気は出ない。',
   },
   width:{
-   5:'木の根をかき分け、岩をくぐり抜けながら進む極めて狭い通路だ。体中に根が絡みつき、前へ進むのに相当な力がいる。',
-   10:'大型の獣でも通れる程度の広さがある。床の泥に残された足跡の大きさが、この洞穴の先住者の体格を示している。',
-   20:'大木の根が拱門のように頭上を渡る広い洞道だ。まるで生きた大聖堂の中にいるようだが、ここに安らぎはない。',
-   30:'地下に広がる巨大な空洞は、天井が見えないほど高い。根の間から差し込む細い光が、空間の広さを際立たせている。',
+   '1.5m':'木の根をかき分け、岩をくぐり抜けながら進む極めて狭い通路だ。体中に根が絡みつき、前へ進むのに相当な力がいる。',
+   '3m':'大型の獣でも通れる程度の広さがある。床の泥に残された足跡の大きさが、この洞穴の先住者の体格を示している。',
+   '6m':'大木の根が拱門のように頭上を渡る広い洞道だ。まるで生きた大聖堂の中にいるようだが、ここに安らぎはない。',
+   '9m':'地下に広がる巨大な空洞は、天井が見えないほど高い。根の間から差し込む細い光が、空間の広さを際立たせている。',
   },
  },
  swamp: {
@@ -12377,10 +12647,10 @@ const YD_STYLE_DATA = {
    luminous:'沼から滲み出た何かが発光し、不気味な緑色の光を放っている。生き物の光なのか、毒素の光なのか——近づかないに越したことはない。',
   },
   width:{
-   5:'泥の中を這うように進む極めて狭い通路だ。鎧が壁に擦れるたびにぬかるみが広がり、どこまでが壁でどこからが床なのか分からなくなる。',
-   10:'腰まで水が来る箇所もある通路だ。水面下に何があるか見えないまま進む緊張感は、ここを歩いた者にしか分からない。',
-   20:'沼底に掘られた広い通路が続く。底がぬかるんでおり、一歩ごとに足が沈む。急いで逃げることはできない場所だ。',
-   30:'水が満ちた広大な地下空洞が広がっている。水面はどこまでも続き、向こう岸すら見えない。この水の中に何が潜んでいるのか、想像したくない。',
+   '1.5m':'泥の中を這うように進む極めて狭い通路だ。鎧が壁に擦れるたびにぬかるみが広がり、どこまでが壁でどこからが床なのか分からなくなる。',
+   '3m':'腰まで水が来る箇所もある通路だ。水面下に何があるか見えないまま進む緊張感は、ここを歩いた者にしか分からない。',
+   '6m':'沼底に掘られた広い通路が続く。底がぬかるんでおり、一歩ごとに足が沈む。急いで逃げることはできない場所だ。',
+   '9m':'水が満ちた広大な地下空洞が広がっている。水面はどこまでも続き、向こう岸すら見えない。この水の中に何が潜んでいるのか、想像したくない。',
   },
  },
 };
@@ -14177,6 +14447,16 @@ function popRegionHeroMsg(){
  </div>`;
 }
 
+function popRaidUnitMsg(){
+ if(!PC._pendingRaidUnitMsg) return '';
+ PC._pendingRaidUnitMsg = false;
+ return `<br><br><div style="background:#060a12;border:2px solid #4488aa;border-radius:4px;padding:12px;margin-top:6px">
+  <div style="color:#88ccee;font-size:var(--font-base);margin-bottom:8px"> 称号授与：独立遊撃小隊</div>
+  <div style="color:#aaccdd;font-size:var(--font-sm);line-height:1.8">混沌との戦いに5度生き残った。上層部からパーティーに正式な名が与えられた。<br><br>「独立遊撃小隊」——特定の指揮系統に属さず、混沌の脅威に単独で対処することを許された少数精鋭。これはその証だ。</div>
+  <div style="color:#667788;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
+ </div>`;
+}
+
 // 酒場のクエスト掲示板HTML生成
 function renderQuestBoard(townId, board){
  if(!PC.quests) PC.quests=[];
@@ -15564,7 +15844,7 @@ const EQUIP_TABLE = [
  {name:'Provisions (10 days)',cost:9, weight:0, _isFood:true, _foodAmt:10},
  {name:'Provisions (30 days)',cost:25, weight:0, _isFood:true, _foodAmt:30},
  {name:'Torch',cost:0.1,weight:10},
- {name:'Hemp Rope (10ft)',cost:10,weight:50},
+ {name:'Hemp Rope (3m)',cost:10,weight:50},
  {name:'Boots',cost:10,weight:40},
  {name:'Warm dry clothing & pack',cost:5,weight:10},
  {name:'Sandals',cost:2,weight:2},
@@ -16803,6 +17083,22 @@ function sellPriceLabel(costGP){
 }
 
 // 武器を売る
+function renameWeapon(idx){
+ const w = (PC.invWeapons||[])[idx];
+ if(!w) return;
+ const current = w.name;
+ const newName = prompt(`武器の名前を変更します。\n現在の名前：${current}\n\n新しい名前を入力してください：`, current);
+ if(!newName || newName.trim() === '' || newName === current) return;
+ // 初回リネーム時に元の名前を保存
+ if(!w._baseName) w._baseName = current;
+ w.name = newName.trim();
+ // 装備中の同名武器も更新
+ PC.equippedWeapons = (PC.equippedWeapons||[]).map(e=>e.name===current ? {...e, name:w.name, _baseName:w._baseName} : e);
+ saveGame();
+ renderStatusPanel();
+ showSaveToast(` 武器名を「${w.name}」に変更した`);
+}
+
 function sellWeapon(idx){
  const _sa = _shopActor||PC;
  const w = (_sa.invWeapons||[])[idx];
@@ -16817,7 +17113,7 @@ function sellWeapon(idx){
   showSaveToast(` ${w.name}を売った（${Math.floor(w._priceGP*0.5)}GP）`);
   return;
  }
- const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===w.name);
+ const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(w._baseName||w.name));
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(); renderIngameShop();
@@ -16981,7 +17277,7 @@ function renderIgsList(townId){
  if(uninvW.length){
   sec(' 武器');
   uninvW.forEach(w=>{
-   const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===w.name);
+   const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(w._baseName||w.name));
    const priceCP = w._isMagic && w._priceGP ? Math.floor(w._priceGP * 0.5 * 100) : (def ? sellPriceCP(def.cost) : 0);
    const _w = w;
    row(w._isMagic ? '⚔' : '', w.name, priceCP, ()=>{ const _idx=(_shopActor||PC).invWeapons.indexOf(_w); if(_idx>=0) sellWeapon(_idx); });
@@ -17163,6 +17459,8 @@ function renderIgsList(townId){
    el.appendChild(div);
   });
  }
+ } else if(_igsTab === 'forge'){
+ renderForgeTab(el, townId);
  } else {
  EQUIP_TABLE.forEach(it=>{
  if(it.wizard && PC.type!=='wizard') return;
@@ -17175,6 +17473,63 @@ function renderIgsList(townId){
  el.appendChild(div);
  });
  }
+}
+
+
+// ── 鍛錬タブ ──────────────────────────────────────────
+const FORGE_TOWNS = {
+ elsia:     { label:'エルマリアの名匠', table: WEAPONS_TABLE_ELSIA },
+ al_rashid: { label:'アル・ラシードの名匠', table: WEAPONS_TABLE_AL_RASHID },
+ yeldun:    { label:'イェルドゥンの名匠', table: WEAPONS_TABLE_YELDUN },
+ valdheim:  { label:'ヴァルドヘイムの名匠', table: WEAPONS_TABLE_VALDHEIM },
+ neria:     { label:'ネリア港の名匠', table: WEAPONS_TABLE_NERIA },
+};
+const FORGE_COSTS = [100, 200, 400, 800, 1600, 3200];
+function _getForgeLevel(w){ const base = w._baseAdds != null ? w._baseAdds : w.adds; return w.adds - base; }
+
+function renderForgeTab(el, townId){
+ const forge = FORGE_TOWNS[townId];
+ if(!forge){ el.innerHTML = '<div style="font-size:var(--font-sm);color:var(--dim);padding:12px 0;text-align:center">この店では鍛錬サービスを行っていない。</div>'; return; }
+ const tableNames = new Set(forge.table.map(t=>t.name));
+ const targets = (PC.invWeapons||[]).filter(w=>{ if(w._isMagic) return false; const lookupName = w._baseName||w.name; return tableNames.has(lookupName); });
+ if(targets.length === 0){
+  el.innerHTML = `<div style="font-size:var(--font-sm);color:var(--dim);padding:12px 0;text-align:center">${forge.label}が言う。<br>「この店で扱う武器を持ってきな。鍛え直してやろう」</div>`;
+  return;
+ }
+ const header = document.createElement('div');
+ header.style.cssText = 'font-size:calc(var(--font-sm) - 1px);color:#aa8844;margin-bottom:10px;line-height:1.8';
+ header.innerHTML = ` ${forge.label}<br><span style="color:var(--dim)">修正値を+1するごとに費用が倍増。最大+6まで。</span>`;
+ el.appendChild(header);
+ targets.forEach(w=>{
+  const idx = PC.invWeapons.indexOf(w);
+  const level = _getForgeLevel(w);
+  const maxed = level >= 6;
+  const cost = maxed ? null : FORGE_COSTS[level];
+  const canAfford = cost != null && totalCP() >= cost * 100;
+  const baseAdds = w._baseAdds != null ? w._baseAdds : w.adds;
+  const div = document.createElement('div'); div.className='shop-item';
+  div.innerHTML = `<h4> ${w.name}</h4>
+   <p>${w.dice}D${w.adds>=0?'+':''}${w.adds}　（元: ${w.dice}D${baseAdds>=0?'+':''}${baseAdds}　強化: +${level}/+6）</p>
+   <span class="price">${maxed ? '最大強化済み' : cost+'GP'}</span>
+   ${maxed ? '' : `<button class="buy-btn" ${canAfford?'':'disabled'} onclick="igsForgeWeapon(${idx})">鍛錬</button>`}`;
+  el.appendChild(div);
+ });
+}
+
+function igsForgeWeapon(idx){
+ const w = (PC.invWeapons||[])[idx];
+ if(!w || w._isMagic) return;
+ if(w._baseAdds == null) w._baseAdds = w.adds;
+ const level = _getForgeLevel(w);
+ if(level >= 6){ showSaveToast('これ以上強化できない'); return; }
+ const cost = FORGE_COSTS[level];
+ if(totalCP() < cost * 100){ showSaveToast('所持金が足りない'); return; }
+ payPrice(cost);
+ w.adds += 1;
+ PC.equippedWeapons = (PC.equippedWeapons||[]).map(e=>{ if((e._baseName||e.name)===(w._baseName||w.name)) return {...e, adds:w.adds, _baseAdds:w._baseAdds}; return e; });
+ updateHUD();
+ renderIgsList(_igsTownId);
+ showSaveToast(` 鍛錬完了！${w.name} → ${w.dice}D+${w.adds}（+${_getForgeLevel(w)}/+6）`);
 }
 
 function renderIngameShop(townId){
@@ -17809,7 +18164,7 @@ function renderStatusPanel(){
 
  // ── ステータスタブ ──
  document.getElementById('sp-name').textContent = PC.name;
- document.getElementById('sp-epithet').textContent = '';
+ document.getElementById('sp-epithet').textContent = PC._isRaidUnit ? ' 独立遊撃小隊' : '';
  document.getElementById('sp-subtitle').textContent =
  `${PC.race.toUpperCase()} ${PC.type==='warrior'?' WARRIOR':PC.type==='rogue'?' ROGUE':' WIZARD'} Lv${PC.level}`;
 
@@ -17951,21 +18306,27 @@ function renderStatusPanel(){
  uninvW.forEach(w=>{
  const idx = PC.invWeapons.indexOf(w);
  const check = canEquipWeapon(w);
- const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===w.name);
+ const lookupName = w._baseName || w.name;
+ const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===lookupName);
  const sellBtn = isShopOpen() && (def || w._isMagic)
  ? (w._isMagic && w._priceGP
    ? `<button onclick="sellWeapon(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${Math.floor(w._priceGP*0.5)}GP</button>`
    : def ? `<button onclick="sellWeapon(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(def.cost)}</button>` : '')
  : '';
- wpHtml += `<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+ const displayName = w.name;
+ const baseLabel = w._baseName ? `<span style="font-size:calc(var(--font-sm) - 3px);color:#444466">（${w._baseName}）</span>` : '';
+ wpHtml += `<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:5px">
+ <div style="display:flex;justify-content:space-between;align-items:center">
  <div>
- <div style="font-size:var(--font-sm);color:var(--dim)"> ${w.name}</div>
+ <div style="font-size:var(--font-sm);color:var(--dim)"> ${displayName} ${baseLabel}</div>
  <div style="font-size:calc(var(--font-sm) - 2px);color:#444466">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}</div>
  </div>
  <div style="display:flex;gap:4px">
  <button onclick="equipWeapon(${idx})" ${check.ok?btnStyle('#6aaa60','#0e1006','var(--rust)'):`disabled ${btnStyle('#444','#111','#333')}`}>${check.ok?'装備':'不可'}</button>
  ${sellBtn}
  </div>
+ </div>
+ <button onclick="renameWeapon(${idx})" style="margin-top:6px;width:100%;background:none;border:1px solid #334;color:#667;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:4px;cursor:pointer;border-radius:3px"> 名前を変更</button>
  </div>`;
  });
  }
@@ -21874,9 +22235,7 @@ function showCharGen(){
 // DEAD NODE
 // ──────────────────────────────────────
 function dbg(fn){
- try{ fn(); } catch(e){ showSaveToast('ERR:'+e.message); }
- 
-}
+ try{ fn(); } catch(e){ showSaveToast('ERR:'+e.message); } }
 
 function dbgFireEvent(ev){
  const story = document.getElementById('story');
@@ -21912,9 +22271,7 @@ function dbgSR(){
 function dbgStartCombat(){
  const name  = document.getElementById('dbg-enemy-name').value || 'テスト敵';
  const mr    = parseInt(document.getElementById('dbg-enemy-mr').value) || 30;
- const armor = parseInt(document.getElementById('dbg-enemy-armor').value) || 0;
- 
- startCombat({ name, mr, armor, isHuman:false, canFlee:true,
+ const armor = parseInt(document.getElementById('dbg-enemy-armor').value) || 0; startCombat({ name, mr, armor, isHuman:false, canFlee:true,
   win:'__noop__', lose:'DEAD',
   onWin:()=>{
    document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
@@ -22060,9 +22417,7 @@ const ENTRY_NODE = 'TOWN_KHAZAN';
 // DEBUG PANEL
 // ══════════════════════════════════════
 function dbg(fn){
- try{ fn(); } catch(e){ showSaveToast('ERR:'+e.message); }
- 
-}
+ try{ fn(); } catch(e){ showSaveToast('ERR:'+e.message); } }
 
 function showDebugPanel(){
  // イベントリスト生成
@@ -22079,12 +22434,10 @@ function showDebugPanel(){
    const b = document.createElement('button');
    b.className = 'dbg-btn';
    b.textContent = (ev.icon||'') + ' ' + (names[ev.id]||ev.id);
-   b.onclick = ()=>{  dbgFireEvent(ev); };
+   b.onclick = ()=>{ dbgFireEvent(ev); };
    list.appendChild(b);
   });
- }
- 
-}
+ } }
 
 function dbgFireEvent(ev){
  const story = document.getElementById('story');
@@ -22117,9 +22470,7 @@ function dbgSR(){
  gainAPAll(res.ap); updateHUD();
 }
 
-function dbgHeroQuest(tmplIdx){
- 
- if(!PC._heroTowns) PC._heroTowns = {};
+function dbgHeroQuest(tmplIdx){ if(!PC._heroTowns) PC._heroTowns = {};
  PC._heroTowns[PC.town] = true;
  if(!PC._heroQuestCooldown) PC._heroQuestCooldown = {};
  PC._heroQuestCooldown[PC.town] = 0;
@@ -22145,9 +22496,7 @@ function dbgHeroQuest(tmplIdx){
 function dbgStartCombat(){
  const name  = document.getElementById('dbg-enemy-name').value || 'テスト敵';
  const mr    = parseInt(document.getElementById('dbg-enemy-mr').value) || 30;
- const armor = parseInt(document.getElementById('dbg-enemy-armor').value) || 0;
- 
- startCombat({ name, mr, armor, isHuman:false, canFlee:true,
+ const armor = parseInt(document.getElementById('dbg-enemy-armor').value) || 0; startCombat({ name, mr, armor, isHuman:false, canFlee:true,
   win:'__noop__', lose:'DEAD',
   onWin:()=>{
    document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
@@ -22285,7 +22634,7 @@ const NODES = {
  const t=TOWNS.khazan;
  return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_KHAZAN'},
@@ -22312,7 +22661,7 @@ const NODES = {
  const t=TOWNS.port_argon;
  return `<span class="cyn" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 武器屋・装備屋', go:'SHOP_PORT'},
@@ -22338,7 +22687,7 @@ const NODES = {
  const t=TOWNS.stonehiem;
  return `<span style="color:#aa8866;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_STONE'},
@@ -22360,7 +22709,7 @@ const NODES = {
  const t=TOWNS.verda;
  return `<span style="color:#88cc44;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_VERDA'},
@@ -22405,7 +22754,7 @@ const NODES = {
  const t=TOWNS.rimholm;
  return `<span style="color:#ccaa44;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武具屋', go:'SHOP_RIMHOLM'},
@@ -22450,7 +22799,7 @@ const NODES = {
  const t=TOWNS.marakai;
  return `<span style="color:#ddaa66;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器商', go:'SHOP_MARAKAI'},
@@ -22498,7 +22847,7 @@ const NODES = {
  const t=TOWNS.al_rashid;
  return `<span style="color:#c8a44a;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_AL_RASHID'},
@@ -22544,7 +22893,7 @@ const NODES = {
  const t=TOWNS.oasis_fort;
  return `<span style="color:#88ddaa;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_OASIS'},
@@ -22589,7 +22938,7 @@ const NODES = {
  const t=TOWNS.saroon;
  return `<span style="color:#cc9955;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_SAROON'},
@@ -23394,7 +23743,7 @@ const NODES = {
  const t=TOWNS.duna;
  return `<span style="color:#ddaa44;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_DUNA'},
@@ -23966,7 +24315,7 @@ const NODES = {
   const t=TOWNS.yeldun;
   return `<span style="color:#aabbcc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span class="dim">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 武器屋・装備店', go:'SHOP_YELDUN'},
@@ -23991,7 +24340,7 @@ const NODES = {
   const t=TOWNS.frostpeak;
   return `<span style="color:#88ccee;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span class="dim">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 道具屋（毛皮・山岳装備）', go:'SHOP_FROSTPEAK'},
@@ -24016,7 +24365,7 @@ const NODES = {
   const t=TOWNS.ashveil;
   return `<span style="color:#cc8844;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span class="dim">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 鍛冶屋（黒曜石・鉄製品）', go:'SHOP_ASHVEIL'},
@@ -24045,7 +24394,7 @@ const NODES = {
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'#88ccff'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
   return `<span style="color:#88ccff;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span class="dim">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}${winterWarn}${frostWarn}`;
+  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}${winterWarn}${frostWarn}`;
  },
  choices:[
   {label:' 武具店（高品質武器・防寒装備）', go:'SHOP_VALDHEIM'},
@@ -24063,7 +24412,7 @@ const NODES = {
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'#88ccff'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
   return `<span style="color:#aaddff;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span class="dim">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}${frostWarn}`;
+  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}${frostWarn}`;
  },
  choices:[
   {label:' 交易所（毛皮・魚油）', go:'SHOP_NIFURVIK'},
@@ -24081,7 +24430,7 @@ const NODES = {
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'#88ccff'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
   return `<span style="color:#99bbdd;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span class="dim">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}${frostWarn}`;
+  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}${frostWarn}`;
  },
  choices:[
   {label:' 鉱山道具屋（希少鉱石・採掘具）', go:'SHOP_ISKALD'},
@@ -24236,7 +24585,7 @@ const NODES = {
  const t=TOWNS.elsia;
  return `<span style="color:#44dd66;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span class="dim">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋（エルフ製品・遺物）', go:'SHOP_ELSIA'},
@@ -26997,7 +27346,7 @@ const NODES = {
    const t=TOWNS.neria;
    return `<span style="color:#44ccaa;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
 <span class="dim">${t.desc}</span><br><br>
-${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}`;
+${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 武器屋・装備屋', go:'SHOP_NERIA'},
@@ -27032,9 +27381,10 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC
    const board=getTavernBoard('neria');
  const _hqOffer = checkHeroQuest('neria');
  const _hqHtml = renderHeroQuestOffer('neria', _hqOffer);
+ const _smHtml = checkSpecialMissionMareaBoard();
    const html=renderQuestBoard('neria',board);
    const partyHtml=renderPartyStatus();
-   return ` <span style="color:#44ccaa">珊瑚亭</span><br><br><span class="dim">大陸の船乗りと島の漁師が入り混じる賑やかな酒場。珊瑚礁から採れた魚介料理が名物だ。</span><br><br>${partyHtml}${_hqHtml}${html}`;
+   return ` <span style="color:#44ccaa">珊瑚亭</span><br><br><span class="dim">大陸の船乗りと島の漁師が入り混じる賑やかな酒場。珊瑚礁から採れた魚介料理が名物だ。</span><br><br>${partyHtml}${_smHtml}${_hqHtml}${html}`;
   },
   choices:()=>[...getQuestBoardChoices('TOWN_NERIA'), {label:' 客に話しかける', fn:()=>talkToPatron('neria')}, {label:' 仲間を探す', go:'RECRUIT_NERIA'}],
  },
@@ -27046,7 +27396,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC
    const t=TOWNS.dorua;
    return `<span style="color:#88ddbb;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
 <span class="dim">${t.desc}</span><br><br>
-${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}`;
+${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 道具屋', go:'SHOP_DORUA'},
@@ -27106,7 +27456,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC
    const t=TOWNS.sarpe;
    return `<span style="color:#aaddcc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
 <span class="dim">${t.desc}</span><br><br>
-${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}`;
+${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 酒場兼宿屋', go:'TAVERN_SARPE'},
@@ -27144,7 +27494,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC
    const t=TOWNS.nebra;
    return `<span style="color:#99bbcc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
 <span class="dim">${t.desc}</span><br><br>
-${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}`;
+${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#88ff88"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 民宿（酒場兼）', go:'TAVERN_NEBRA'},
