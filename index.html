@@ -592,7 +592,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  </div>
  <canvas id="ooon-ascii" width="360" height="108" style="display:block;margin:0 auto 16px;width:min(360px,90vw);height:auto"></canvas>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041203</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041204</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -4148,14 +4148,20 @@ function npcRecruitDesc(npc){
 
 // 酒場で出会えるNPCプール（町ごとに毎回生成）
 function getTavernNPCs(townId){
- const seed = townId + Math.floor(Date.now()/86400000);
+ const today = GAME_TIME.totalDays;
+ if(!PC._tavernNPCCache) PC._tavernNPCCache = {};
+ const cacheKey = townId + '_' + today;
+ if(PC._tavernNPCCache[cacheKey]) return PC._tavernNPCCache[cacheKey];
+ const seed = townId + today;
  const rng = (()=>{ let s=seed.split('').reduce((a,c)=>a+c.charCodeAt(0),0); return ()=>(s=s*16807%2147483647)/2147483647; })();
- const count = 2 + Math.floor(rng()*3);
  const result = [];
- for(let i=0;i<count;i++){
- const lv = rng()<0.7?1:2;
- result.push(generateNPC(lv));
+ for(let i=0;i<3;i++){
+  const lv = rng()<0.7?1:2;
+  const npc = generateNPC(lv);
+  npc._tavernSlot = `${townId}_${today}_${i}`;
+  result.push(npc);
  }
+ PC._tavernNPCCache[cacheKey] = result;
  return result;
 }
 
@@ -6360,47 +6366,57 @@ function makeRecruitNodes(){
  const npcs = getTavernNPCs(town);
  nodes[key]._npcs = npcs;
  const party = PC.party||[];
+ if(!PC._recruitedSlots) PC._recruitedSlots = {};
  let html = ` <span class="gold">${label} — 仲間を探す</span><br><br>`;
  html += renderPartyStatus();
  if(party.length>=3){
- html += `<span class="dim">パーティは3人まで。誰かを外してから誘おう。</span>`;
- return html;
+  html += `<span class="dim">パーティは3人まで。誰かを外してから誘おう。</span>`;
+  return html;
  }
- html += `<span class="dim">今日のお客たちだ。誰かを誘ってみよう。</span><br><br>`;
+ html += `<span class="dim">今日の酒場には3人の冒険者がいる。それぞれ一度だけ声をかけられる。</span><br><br>`;
  npcs.forEach((n,i)=>{
- const already = party.find(p=>p._npcId===n._npcId);
- if(already) return;
- html += `<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:6px">
- <span style="color:var(--gold3);font-size:var(--font-sm)"> ${n.name}</span>
- <span style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;margin-left:6px">${npcRecruitDesc(n)}</span>
- </div>`;
+  const already = party.find(p=>p._npcId===n._npcId);
+  const invited = PC._recruitedSlots[n._tavernSlot];
+  const badge = already
+   ? `<span style="color:#6aaa60;font-size:calc(var(--font-sm) - 3px)"> パーティ中</span>`
+   : invited
+   ? `<span style="color:var(--dim2);font-size:calc(var(--font-sm) - 3px)"> 声をかけた</span>`
+   : '';
+  html += `<div style="background:var(--panel);border:1px solid ${already?'#336633':invited?'#333':'var(--void)'};border-radius:3px;padding:8px;margin-bottom:6px">
+  <span style="color:${already?'#6aaa60':invited?'var(--dim2)':'var(--gold3)'};font-size:var(--font-sm)"> ${n.name}</span>${badge}
+  <span style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;margin-left:6px">${npcRecruitDesc(n)}</span>
+  </div>`;
  });
  return html;
  },
  choices:()=>{
+ if(!PC._recruitedSlots) PC._recruitedSlots = {};
  const npcs = nodes[key]._npcs || getTavernNPCs(town);
  const party = PC.party||[];
  const choices = [];
  if(party.length<3){
- npcs.forEach((n,i)=>{
- const already = party.find(p=>p._npcId===n._npcId);
- if(!already){
- const nLv = n.level||1;
- choices.push({
- label:` ${n.epithet?n.epithet+' ':''}${n.name}を誘う（CHR Lv${nLv} SR）`,
- fn:()=>{ startRecruitSR(n, key, nLv); },
- go:'__travel__',
- });
- }
- });
+  npcs.forEach((n,i)=>{
+   const already = party.find(p=>p._npcId===n._npcId);
+   const invited = PC._recruitedSlots[n._tavernSlot];
+   if(!already && !invited){
+    const nLv = n.level||1;
+    choices.push({
+     label:` ${n.epithet?n.epithet+' ':''}${n.name}を誘う（CHR Lv${nLv} SR）`,
+     fn:()=>{
+      PC._recruitedSlots[n._tavernSlot] = true;
+      startRecruitSR(n, key, nLv);
+     },
+    });
+   }
+  });
  }
  // 現在のパーティメンバーを解散
  (PC.party||[]).forEach((n,i)=>{
- choices.push({
- label:` ${n.name}を解散させる`,
- fn:()=>{ addLifeEvent('', `${n.name}がパーティを離れた。`); PC.party.splice(i,1); showSaveToast(`${n.name}が去った。`); },
- go: key,
- });
+  choices.push({
+   label:` ${n.name}を解散させる`,
+   fn:()=>{ addLifeEvent('', `${n.name}がパーティを離れた。`); PC.party.splice(i,1); showSaveToast(`${n.name}が去った。`); },
+   go: key,
+  });
  });
  choices.push({label:'← 酒場に戻る', go: back});
  return choices;
