@@ -592,7 +592,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  </div>
  <canvas id="ooon-ascii" width="360" height="108" style="display:block;margin:0 auto 16px;width:min(360px,90vw);height:auto"></canvas>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041204</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041401</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -3773,6 +3773,7 @@ function goOtherActions(townId){
   stonehiem: {label:' 郊外の古代遺跡へ',       go:'RUIN_ENTRANCE'},
   rimholm:   {label:' 郊外の封じられた神殿へ', go:'SHRINE_ENTRANCE'},
   duna:      {label:' 郊外の封印廟へ',         go:'TOMB_ENTRANCE'},
+  al_rashid: {label:' 東方の地下迷宮へ',       go:'AL_DNG_ENTRANCE'},
  };
  if(dungeonMap[townId]){
   const d = dungeonMap[townId];
@@ -22795,6 +22796,96 @@ function dbgStartCombat(){
  });
 }
 
+
+// ── ザールカノン墓所 B2F ランダムエンカウント ──
+const SHM2_MONSTER_TABLE = [
+ {name:'墓所の番人骸骨',  mr:35, minApp:2, maxApp:5, armor:2},
+ {name:'呪われた衛兵',    mr:50, minApp:2, maxApp:4, armor:3},
+ {name:'古代の死霊',      mr:65, minApp:1, maxApp:3, armor:2},
+ {name:'石化した守護者',  mr:90, minApp:1, maxApp:2, armor:5},
+ {name:'墓守の亡霊',      mr:80, minApp:1, maxApp:2, armor:1},
+ {name:'深層の魔獣',      mr:120,minApp:1, maxApp:1, armor:6},
+];
+
+function _consumeDungeonTorch(){
+ if((PC._torchTurns||0) > 0){
+  PC._torchTurns--;
+  if(PC._torchTurns <= 0 && (PC._torchStock||0) > 0){
+   PC._torchStock--;
+   PC._torchTurns = 10;
+  }
+  updateHUD();
+ }
+}
+function shm2Move(dest){
+ _consumeDungeonTorch();
+ if(!shm2CheckEncounter(dest)) go(dest);
+}
+function shm3Move(dest){
+ _consumeDungeonTorch();
+ if(!shm3CheckEncounter(dest)) go(dest);
+}
+
+function shm2CheckEncounter(returnNode){
+ if(Math.random() >= 0.16) return false;
+ const m = SHM2_MONSTER_TABLE[Math.floor(Math.random()*SHM2_MONSTER_TABLE.length)];
+ const count = m.minApp + Math.floor(Math.random()*(m.maxApp - m.minApp + 1));
+ const totalMR = m.mr * count;
+ const s = document.getElementById('story');
+ s.innerHTML += `<br><br><span style="color:var(--slash)"> ${m.name}が${count}体、暗闇から現れた！</span>`;
+ renderChoices([]);
+ drawScene('combat');
+ startCombat({
+  name: m.name, mr: totalMR, armor: m.armor,
+  canFlee: true,
+  win:'__noop__', lose:'DEAD',
+  onWin(){
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   go(returnNode);
+  },
+ });
+ return true;
+}
+
+// ── ザールカノン墓所 B3F ランダムエンカウント ──────────────
+const SHM3_MONSTER_TABLE = [
+ {name:'死霊の騎士',      mr:100, minApp:2, maxApp:4, armor:4},
+ {name:'古代の番人',      mr:150, minApp:1, maxApp:3, armor:5},
+ {name:'石棺の死者',      mr:200, minApp:1, maxApp:2, armor:4},
+ {name:'呪縛の精霊',      mr:250, minApp:1, maxApp:2, armor:3},
+ {name:'墓所の支配者',    mr:300, minApp:1, maxApp:1, armor:7},
+ {name:'ザール・カノンの守護者', mr:400, minApp:1, maxApp:1, armor:10},
+];
+
+function shm3CheckEncounter(returnNode){
+ if(Math.random() >= 0.16) return false;
+ const m = SHM3_MONSTER_TABLE[Math.floor(Math.random()*SHM3_MONSTER_TABLE.length)];
+ const count = m.minApp + Math.floor(Math.random()*(m.maxApp - m.minApp + 1));
+ const totalMR = m.mr * count;
+ const s = document.getElementById('story');
+ s.innerHTML += `<br><br><span style="color:var(--slash)"> ${m.name}が${count}体、暗闇から現れた！</span>`;
+ renderChoices([]);
+ drawScene('combat');
+ startCombat({
+  name: m.name, mr: totalMR, armor: m.armor,
+  canFlee: true,
+  win:'__noop__', lose:'DEAD',
+  onWin(){
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   go(returnNode);
+  },
+ });
+ return true;
+}
+
+
+
 </script>
 
 <script id="tt5-nodes">
@@ -22802,6 +22893,34 @@ function dbgStartCombat(){
 
 
 
+
+
+
+// ── アル・ラシード東方の地下迷宮 モンスターテーブル ──────────────
+const AL_DNG_MONSTER_TABLE = [
+ {name:'砂漠の亡者',    mr:15, minApp:3, maxApp:8, armor:1},
+ {name:'盗賊の亡霊',    mr:20, minApp:2, maxApp:6, armor:1},
+ {name:'遺跡の番人',    mr:30, minApp:2, maxApp:5, armor:3},
+ {name:'砂の精霊',      mr:25, minApp:2, maxApp:4, armor:2},
+ {name:'呪われた衛兵',  mr:45, minApp:1, maxApp:3, armor:3},
+ {name:'古代の守護者',  mr:70, minApp:1, maxApp:2, armor:4},
+];
+function alCheckEncounter(returnNode){
+ if(Math.random() >= 0.16) return false;
+ const m = AL_DNG_MONSTER_TABLE[Math.floor(Math.random()*AL_DNG_MONSTER_TABLE.length)];
+ const count = m.minApp + Math.floor(Math.random()*(m.maxApp-m.minApp+1));
+ const s = document.getElementById('story');
+ s.innerHTML += `<br><br><span style="color:var(--slash)"> ${m.name}が${count}体、暗闇から現れた！</span>`;
+ renderChoices([]);
+ drawScene('combat');
+ startCombat({
+  name:m.name, mr:m.mr*count, armor:m.armor,
+  canFlee:true, win:'__noop__', lose:'DEAD',
+  onWin(){ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; go(returnNode); },
+ });
+ return true;
+}
+function alMove(dest){ _consumeDungeonTorch(); if(!alCheckEncounter(dest)) go(dest); }
 
 const NODES = {
  DEAD: DEAD_NODE,
@@ -22978,9 +23097,7 @@ const NODES = {
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_STONE'},
  {label:' 酒場', go:'TAVERN_STONE'},
- {label:' 宿屋（3GP・1日休む）', fn:()=>{
- innRest(300);
- }, go:'TOWN_STONEHIEM'},
+ {label:' 宿屋（3GP・1日休む）', fn:()=>{ innRest(300); }, go:'TOWN_STONEHIEM'},
  {label:' 旅に出る（移動）', go:'TRAVEL_FROM_STONE'},
  {label:' その他の行動', fn:()=>goOtherActions('stonehiem')},
  ]
@@ -24572,12 +24689,30 @@ const NODES = {
 
  RUIN_F_SOUTH_ROOM:{
  scene:'dungeon',
- txt:`<span class="gold"></span><br><br>
- 奥行きのある細長い石室だ。最奥の壁に紋章が刻まれている。盾を持つ騎士の図で、この遺跡を建てた一族のものだろうか。床の中央には大きな石棺が置かれており、蓋はずれて中は空だ。出口はここまでだ。<br><br>
- <span class="dim">━ 行き止まり ━</span>`,
- choices:[
- {label:'⬆ 北の鉄格子へ', go:'RUIN_F_SOUTH_GATE'},
- ],
+ txt:()=>`<span class="gold">石棺の間</span><br><br>
+  奥行きのある細長い石室だ。最奥の壁に紋章が刻まれている。盾を持つ騎士の図で、この遺跡を建てた一族のものだろうか。<br>
+  床の中央には大きな石棺が置かれており、蓋はずれて中は空だ。<br>
+  よく見ると、石棺の脇の床石が他と微妙に色が違う。踏み込むと、かすかに沈む感触がある。<br><br>
+  ${PC._shm2_b2_found ? '<span style="color:#aabbcc"> 地下2Fへ続く石段が口を開けている。</span>' : '<span class="dim">━ 出口: 北（鉄格子）━</span>'}`,
+ choices:()=>{
+  const ch = [];
+  if(!PC._shm2_b2_found){
+   ch.push({label:' 怪しい床石を踏み込む', fn:()=>{
+    PC._shm2_b2_found = true;
+    const s = document.getElementById('story');
+    s.innerHTML = `<span class="gold">石棺の間 — 隠し階段</span><br><br>
+     床石が音を立てて沈み込み、石棺が横にスライドした。その下に、下層へ続く急な石段が現れた。<br>
+     冷たい空気が一気に吹き上がってくる。<br>
+     <span style="color:#aabbcc"> 地下2Fへの通路を発見した。</span>`;
+    renderChoices([{label:'↓ 地下2Fへ', fn:()=>initTorch(), go:'SHM2_STAIRS'}, {label:'⬆ 北（鉄格子）へ戻る', go:'RUIN_F_SOUTH_GATE'}]);
+    scrollToTop();
+   }});
+  } else {
+   ch.push({label:'↓ 地下2Fへ', fn:()=>initTorch(), go:'SHM2_STAIRS'});
+  }
+  ch.push({label:'⬆ 北（鉄格子）へ戻る', go:'RUIN_F_SOUTH_GATE'});
+  return ch;
+ },
  },
 
 
@@ -25130,7 +25265,7 @@ const NODES = {
   重い石造りの扉。蔦で縁取られているが、押すと石を引きずるような音とともに開いた。`,
  choices:[
   {label:' 東（部屋1）へ進む', go:'SHRINE_1'},
-  {label:'⬅ 西（部屋4）へ進む', go:'SHRINE_4'},
+  {label:'⬅ 西へ進む', go:'SHRINE_4'},
  ],
  },
 
@@ -25148,7 +25283,7 @@ const NODES = {
  choices:[
   {label:' 東の壁を調べる（隠し部屋を探す）', fn:()=>dungeonTrySR({ attr:'iq', level:2, flagKey:'_shrine_secret_a', successTxt:()=>` <b>東の壁を調べた</b><br>石の継ぎ目をなぞると、壁の一部がゆっくり回転した。隠し部屋への通路だ！`, failTxt:()=>` <b>東の壁を調べた</b><br>壁を叩き回ってみたが、何も見つからなかった。`, choicesFn:(ok)=>ok?[{label:' 隠し扉をくぐって部屋Aへ',go:'SHRINE_A'},{label:'⬅ 西（部屋1）へ進む',go:'SHRINE_1'}]:[{label:'⬅ 西（部屋1）へ進む',go:'SHRINE_1'}] })},
   {label:' 南西の鍵扉を試みる（部屋2へ）', go:'SHRINE_LOCK_12'},
-  {label:'⬅ 西（部屋4）へ進む', go:'SHRINE_DOOR_14'},
+  {label:'⬅ 西へ進む', go:'SHRINE_DOOR_14'},
  ],
  },
 
@@ -25393,11 +25528,11 @@ const NODES = {
  spellEffects:{
   knockKnock:{ desc:'魔法で錠前を開錠する',
    fn:()=>{ PC._shrine_lock57=true; return ' Knock Knock！古い錠前が砕けた。扉が開く！'; },
-   afterChoices:[{label:'⬇ 南（部屋7）へ進む',go:'SHRINE_7'},{label:'⬆ 北（部屋5）へ進む',go:'SHRINE_5'}]},
+   afterChoices:[{label:'⬇ 南（部屋7）へ進む',go:'SHRINE_7'},{label:'⬆ 北へ進む',go:'SHRINE_5'}]},
  },
  choices:[
-  {label:' 錠前を壊す（ST Lv2 SR）', fn:()=>dungeonTrySR({ attr:'st', level:2, flagKey:'_shrine_lock57', successTxt:()=>` <b>錠前を叩き壊した</b><br>石造りの鍵穴に剣の柄を叩き込むと、錠前が砕けた。扉が開く！`, failTxt:()=>` <b>錠前は壊れない</b><br>何度叩いても扉は開かない。別の方法が必要かもしれない。`, choicesFn:(ok)=>ok?[{label:'⬇ 南（部屋7）へ進む',go:'SHRINE_7'},{label:'⬆ 北（部屋5）へ進む',go:'SHRINE_5'}]:[{label:'⬆ 北（部屋5）へ進む',go:'SHRINE_5'}] })},
-  {label:'⬆ 北（部屋5）へ進む', go:'SHRINE_5'},
+  {label:' 錠前を壊す（ST Lv2 SR）', fn:()=>dungeonTrySR({ attr:'st', level:2, flagKey:'_shrine_lock57', successTxt:()=>` <b>錠前を叩き壊した</b><br>石造りの鍵穴に剣の柄を叩き込むと、錠前が砕けた。扉が開く！`, failTxt:()=>` <b>錠前は壊れない</b><br>何度叩いても扉は開かない。別の方法が必要かもしれない。`, choicesFn:(ok)=>ok?[{label:'⬇ 南（部屋7）へ進む',go:'SHRINE_7'},{label:'⬆ 北へ進む',go:'SHRINE_5'}]:[{label:'⬆ 北へ進む',go:'SHRINE_5'}] })},
+  {label:'⬆ 北へ進む', go:'SHRINE_5'},
  ],
  },
 
@@ -25409,13 +25544,13 @@ const NODES = {
    successTxt:()=>` <span class="gold">錠前を叩き壊した</span><br><br>石造りの鍵穴に剣の柄を叩き込むと、錠前が砕けた。扉が開く！`,
    failTxt:()=>` <span class="gold">錠前は壊れない</span><br><br>何度叩いても扉は開かない。別の方法が必要かもしれない。`,
    choicesFn:(ok)=> ok
-    ? [{label:'⬇ 南（部屋7）へ進む', go:'SHRINE_7'},{label:'⬆ 北（部屋5）へ進む', go:'SHRINE_5'}]
-    : [{label:'⬆ 北（部屋5）へ進む', go:'SHRINE_5'}],
+    ? [{label:'⬇ 南（部屋7）へ進む', go:'SHRINE_7'},{label:'⬆ 北へ進む', go:'SHRINE_5'}]
+    : [{label:'⬆ 北へ進む', go:'SHRINE_5'}],
   }); return '';
  },
  choices:()=>{
-  if(PC._shrine_lock57) return [{label:'⬇ 南（部屋7）へ進む', go:'SHRINE_7'},{label:'⬆ 北（部屋5）へ進む', go:'SHRINE_5'}];
-  return [{label:'⬆ 北（部屋5）へ進む', go:'SHRINE_5'}];
+  if(PC._shrine_lock57) return [{label:'⬇ 南（部屋7）へ進む', go:'SHRINE_7'},{label:'⬆ 北へ進む', go:'SHRINE_5'}];
+  return [{label:'⬆ 北へ進む', go:'SHRINE_5'}];
  },
  },
 
@@ -25711,7 +25846,7 @@ const NODES = {
  choices:[
   {label:'⬆ 北（部屋7）へ進む', go:'SHRINE_7'},
   {label:' 東（部屋10）へ進む', go:'SHRINE_10'},
-  {label:'⬇ 南（部屋3）へ進む', go:'SHRINE_3'},
+  {label:'⬇ 南へ進む', go:'SHRINE_3'},
  ],
  },
 
@@ -26010,7 +26145,7 @@ const NODES = {
     successFn:()=>{ if(!PC._crypt7_searched){ const gp=10+Math.floor(Math.random()*21); gainGPAll(gp); updateHUD(); PC._crypt7_gp=gp; PC._crypt7_searched=true; } },
     successTxt:()=>PC._crypt7_searched&&PC._crypt7_gp?`拷問具の下の石板に隠し棚を発見。古い金貨が入っていた。+${PC._crypt7_gp}GP`:`すでに探索済みだ。`,
     failTxt:()=>`隅々を調べたが何も見つからなかった。`,
-    choicesFn:()=>[{label:'⬆ 北（部屋2）へ進む',go:'CRYPT_2'},{label:'⬅ 西（部屋4）へ進む',go:'CRYPT_4'},{label:'⬇ 南（部屋1）へ進む',go:'CRYPT_1'}]
+    choicesFn:()=>[{label:'⬆ 北（部屋2）へ進む',go:'CRYPT_2'},{label:'⬅ 西へ進む',go:'CRYPT_4'},{label:'⬇ 南へ進む',go:'CRYPT_1'}]
    })});
   }
   ch.push({label:'⬆ 北（部屋2）へ進む', go:'CRYPT_2'});
@@ -26079,7 +26214,7 @@ const NODES = {
   隅に下へ続く石段がある——さらに深い層へ繋がっているようだ。<br><br>
   <span class="dim">━ 出口: 北（→部屋4）/ 東（→部屋1）/ 南（→部屋5）/ 西（→部屋9）/ 下（B2F） ━</span>`,
  choices:[
-  {label:'⬆ 北（部屋4）へ進む', go:'CRYPT_4'},
+  {label:'⬆ 北へ進む', go:'CRYPT_4'},
   {label:' 東（部屋1）へ進む', go:'CRYPT_1'},
   {label:'⬇ 南（部屋5）へ進む', go:'CRYPT_5'},
   {label:'⬅ 西（部屋9）へ進む', go:'CRYPT_9'},
@@ -26222,7 +26357,7 @@ const NODES = {
   <span class="dim">━ 出口: 北（a通路・入口）/ 西（Door→部屋8）/ 南（→部屋3） ━</span>`,
  choices:[
   {label:'⬅ 西（部屋8・Door）へ進む', go:'CRYPT2_DOOR_18'},
-  {label:'⬇ 南（部屋3）へ進む', go:'CRYPT2_3'},
+  {label:'⬇ 南へ進む', go:'CRYPT2_3'},
   {label:'⬆ 北（入口）へ戻る', go:'CRYPT2_ENTRANCE'},
  ],
  },
@@ -26466,7 +26601,7 @@ const NODES = {
     }, 'CRYPT2_2');
    }, go:'__travel__'});
   }
-  ch.push({label:'⬆ 北（部屋5）へ進む', go:'CRYPT2_5'});
+  ch.push({label:'⬆ 北へ進む', go:'CRYPT2_5'});
   ch.push({label:'⬇ 南（Arch→部屋4）へ進む', go:'CRYPT2_4'});
   return ch;
  },
@@ -26631,7 +26766,7 @@ const NODES = {
   <span class="dim">━ 出口: 北（入口・Portcullis）/ 西（Door→部屋9）/ 南（→部屋3） ━</span>`,
  choices:[
   {label:'⬅ 西（部屋9・Door）へ進む', go:'CRYPT3_DOOR_19'},
-  {label:'⬇ 南（部屋3）へ進む', go:'CRYPT3_3'},
+  {label:'⬇ 南へ進む', go:'CRYPT3_3'},
   {label:'⬆ 北（入口）へ戻る', go:'CRYPT3_ENTRANCE'},
  ],
  },
@@ -27349,7 +27484,7 @@ const NODES = {
  txt:` <span class="gold">扉（部屋4 — 部屋5）</span><br><br>古い木製の扉。腐りかけているがまだ開く。`,
  choices:[
   {label:'⬇ 南（部屋5）へ進む',go:'SHR2_5'},
-  {label:'⬆ 北（部屋4）へ進む',go:'SHR2_4'},
+  {label:'⬆ 北へ進む',go:'SHR2_4'},
  ],
  },
 
@@ -27811,6 +27946,861 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
   ],
  },
 
+
+
+ // ══════════════════════════════════════════════════════
+ // ザールカノンの墓所 B2F
+ // ══════════════════════════════════════════════════════
+
+ // ── B1F階段〜通路1 ──
+ SHM2_STAIRS:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F — 石段の踊り場</span><br><br>
+  急な石段を降りた踊り場だ。B1Fよりも壁の石組みが古く、装飾のない素朴な造りになっている。<br>
+  冷たく澱んだ空気が西の通路から流れてくる。<br><br>
+  <span class="dim">━ 東（B1F）/ 西へ続く ━</span>`,
+ choices:[
+  {label:'↑ 上層へ', go:'RUIN_F_SOUTH_ROOM'},
+  {label:'← 西へ', fn:()=>shm2Move('SHM2_PASSAGE1_A')},
+ ],
+ },
+
+ // 通路1 ─ 西15m→南折れ
+ SHM2_PASSAGE1_A:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  石段から西へ15m、石造りの通路が続く。<br>
+  壁面には精緻な装飾の痕跡があるが、長い年月で剥落している。<br>
+  足元の石畳は磨り減っており、かつて多くの者がここを通った証だ。<br>
+  通路は南へ折れている。<br><br>
+  <span class="dim">━ 東（階段）/ 南へ続く ━</span>`,
+ choices:[
+  {label:'→ 東へ', fn:()=>shm2Move('SHM2_STAIRS')},
+  {label:'↓ 南へ', fn:()=>shm2Move('SHM2_PASSAGE1_B')},
+ ],
+ },
+
+ // 通路1 ─ 南25m→東折れ
+ SHM2_PASSAGE1_B:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  南へ25m続く石造りの廊下。天井から地下水が染み出し、床に薄く広がっている。<br>
+  壁には規則的に燭台の跡があり、かつては明かりが灯っていたと分かる。<br>
+  通路は東へ折れている。<br><br>
+  <span class="dim">━ 北（西通路）/ 東へ続く ━</span>`,
+ choices:[
+  {label:'↑ 北へ', fn:()=>shm2Move('SHM2_PASSAGE1_A')},
+  {label:'→ 東へ', fn:()=>shm2Move('SHM2_PASSAGE1_C')},
+ ],
+ },
+
+ // 通路1 ─ 東25m→北折れ（感圧板の罠）
+ SHM2_PASSAGE1_C:{
+ scene:'dungeon',
+ txt:()=>{
+  const done = PC._shm2_axe_done;
+  if(done){
+   return `${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+    東へ25m続く通路。北へ折れる角の壁に、深い切り込みが残っている。<br>
+    何かが激しく壁に当たった跡だ。`;
+  }
+  return `${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+   東へ25m続く通路の先で、通路が北に折れようとしている。<br>
+   通路の突き当たり、北へ折れる手前の石畳が続いている。`;
+ },
+ choices:()=>{
+  const ch = [];
+  if(PC.con <= 0){ return [{label:'…（力尽きた）', go:'DEAD'}]; }
+  if(!PC._shm2_axe_done){
+   ch.push({label:'↑ 北へ', fn:()=>{
+    PC._shm2_axe_done = true;
+    const s = document.getElementById('story');
+    s.innerHTML = `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+     北へ踏み込もうとしている——`;
+    document.getElementById('dice-area').classList.remove('hidden');
+    setupSavingRoll({
+     attr:'dex', level:2, label:'罠への反応',
+     onSuccess(){
+      document.getElementById('dice-area').classList.add('hidden');
+      s.innerHTML = `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+       北へ踏み込もうとした瞬間、足元の床がわずかに沈み込む感覚があった。<br>
+       反射的に身を屈めると——壁から巨大な斧が水平に飛び出し、頭上を切り裂いて止まった。<br>
+       <span class="grn"> 間一髪でかわした。</span>`;
+      renderChoices([{label:'↑ 北へ', fn:()=>shm2Move('SHM2_ROOM1')}]);
+      scrollToTop();
+     },
+     onFail(){
+      document.getElementById('dice-area').classList.add('hidden');
+      const dmg = rollNd6(6).total;
+      PC.con = Math.max(0, PC.con - dmg); updateHUD();
+      if(PC.con <= 0){
+       s.innerHTML = `<span class="red"> 北へ踏み出した瞬間、壁から巨大な斧が飛び出し、直撃した。CON -${dmg} → 死亡</span>`;
+       renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+      } else {
+       s.innerHTML = `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+        北へ踏み込んだ瞬間、壁から巨大な斧が飛び出した。<br>
+        <span class="red"> かわしきれず、脇腹に直撃を受けた。CON -${dmg}（残り${PC.con}）</span>`;
+       renderChoices([{label:'↑ 北へ', fn:()=>shm2Move('SHM2_ROOM1')}]);
+      }
+      scrollToTop();
+     },
+    });
+   }});
+  } else {
+   ch.push({label:'↑ 北へ', fn:()=>shm2Move('SHM2_ROOM1')});
+  }
+  ch.push({label:'← 西へ', fn:()=>shm2Move('SHM2_PASSAGE1_B')});
+  return ch;
+ },
+ },
+
+ // ── 部屋1（東西15m・南北25m）──
+ SHM2_ROOM1:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  東西15m、南北25mの石室。壁は荒削りだが天井は比較的高い。<br>
+  室内には崩れた石造りの棚と、砕けた祭具の残骸が散乱している。<br>
+  北の重厚な石扉には頑丈な閂がかかっており、${PC._shm2_winch_done ? '閂が外れ、開いている。' : '閂がかかって開かない。'}<br>
+  <span class="dim">━ 南 / 東の扉 / 北の扉（施錠中）━</span>`,
+ choices:()=>{
+  const ch = [];
+  if(PC._shm2_winch_done){
+   ch.push({label:'↑ 北へ', fn:()=>shm2Move('SHM2_ROOM4')});
+  } else {
+   ch.push({label:'↑ 北の扉', fn:()=>showSaveToast('閂がかかっている。どこかに開ける手段があるはずだ')});
+  }
+  ch.push({label:'↓ 南へ', fn:()=>shm2Move('SHM2_PASSAGE1_C')});
+  ch.push({label:'→ 東へ', fn:()=>shm2Move('SHM2_ROOM3')});
+  return ch;
+ },
+ },
+
+ // ── 部屋3（東西25m・南北15m）──
+ SHM2_ROOM3:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  東西25m、南北15mの石室。壁面に精巧な浮き彫りが残っており、行列の場面が描かれている。<br>
+  床の中央に低い石の台座がある。かつて何かが安置されていたと思われるが、今は空だ。<br><br>
+  <span class="dim">━ 西 / 南 / 北 ━</span>`,
+ choices:[
+  {label:'← 西へ', fn:()=>shm2Move('SHM2_ROOM1')},
+  {label:'↓ 南へ', fn:()=>shm2Move('SHM2_PASSAGE2_A')},
+  {label:'↑ 北へ', fn:()=>shm2Move('SHM2_ROOM5')},
+ ],
+ },
+
+ // ── 通路2 ─ 部屋3南→東25m→T字路 ──
+ SHM2_PASSAGE2_A:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  石室の南扉を出ると、通路が東へ25m続く。<br>
+  天井が低く、古い支柱の跡が一定間隔で残っている。<br>
+  突き当たりでT字路になっており、南北に分かれている。<br><br>
+  <span class="dim">━ 西の扉 / 南へ続く / 北へ続く ━</span>`,
+ choices:[
+  {label:'← 西へ', fn:()=>shm2Move('SHM2_ROOM3')},
+  {label:'↓ 南へ', fn:()=>shm2Move('SHM2_PASSAGE2_S')},
+  {label:'↑ 北へ', fn:()=>shm2Move('SHM2_PASSAGE2_N')},
+ ],
+ },
+
+ // 通路2 ─ 南20m→東折れ→25m→行き止まり（部屋6への扉）
+ SHM2_PASSAGE2_S:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  T字路から南へ20m進み、さらに東へ折れて25m続く石造りの通路だ。<br>
+  最奥は行き止まりになっており、北側の壁に扉がある。<br>
+<br>
+  <span class="dim">━ 北（T字路）/ 北の扉 ━</span>`,
+ choices:[
+  {label:'↑ 北の扉へ', fn:()=>shm2Move('SHM2_ROOM6')},
+  {label:'← 西へ', fn:()=>shm2Move('SHM2_PASSAGE2_A')},
+ ],
+ },
+
+ // 通路2 ─ 北30m行き止まり（部屋5への扉）
+ SHM2_PASSAGE2_N:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  T字路から北へ30m続く通路。最奥は行き止まりで、西側の壁に扉がある。<br>
+<br>
+  <span class="dim">━ 南（T字路）/ 西の扉 ━</span>`,
+ choices:[
+  {label:'← 西の扉へ', fn:()=>shm2Move('SHM2_ROOM5')},
+  {label:'↓ 南へ', fn:()=>shm2Move('SHM2_PASSAGE2_A')},
+ ],
+ },
+
+ // ── 部屋5（東西25m・南北35m）──
+ SHM2_ROOM5:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  東西25m、南北35mの広大な石室。天井が高く、声が反響する。<br>
+  中央に大型の石造りの祭壇の基部が残っており、かつては儀式に使われていたと思われる。<br>
+  各方向に扉や通路が続いており、このフロアの要衝だ。<br><br>
+  <span class="dim">━ 西 / 南 / 南東の扉 / 北東の扉 ━</span>`,
+ choices:[
+  {label:'← 西へ', fn:()=>shm2Move('SHM2_ROOM4')},
+  {label:'↓ 南へ', fn:()=>shm2Move('SHM2_ROOM3')},
+  {label:'↘ 南東の扉へ', fn:()=>shm2Move('SHM2_PASSAGE2_N')},
+  {label:'↗ 北東の扉へ', fn:()=>shm2Move('SHM2_PASSAGE4_A')},
+ ],
+ },
+
+ // ── 通路4 ─ 部屋5北東→東25m→北折れ→北15m行き止まり（部屋2の扉）──
+ SHM2_PASSAGE4_A:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  石室の北東の扉を出ると、通路が東へ25m続く。<br>
+  壁に黒い煤の跡が残っており、かつてここで火事があったことを示している。<br>
+  通路は北へ折れている。<br><br>
+  <span class="dim">━ 西 / 北へ続く ━</span>`,
+ choices:[
+  {label:'← 西へ', fn:()=>shm2Move('SHM2_ROOM5')},
+  {label:'↑ 北へ', fn:()=>shm2Move('SHM2_PASSAGE4_B')},
+ ],
+ },
+
+ SHM2_PASSAGE4_B:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  北へ15m続く短い通路。行き止まりになっており、西側の壁に扉がある。<br>
+<br>
+  <span class="dim">━ 南 / 西の扉 ━</span>`,
+ choices:[
+  {label:'← 西の扉へ', fn:()=>shm2Move('SHM2_ROOM2')},
+  {label:'↓ 南へ', fn:()=>shm2Move('SHM2_PASSAGE4_A')},
+ ],
+ },
+
+ // ── 部屋2（15m四方）──
+ SHM2_ROOM2:{
+ scene:'dungeon',
+ txt:()=>{
+  const w = PC._shm2_winch_count || 0;
+  const done = PC._shm2_winch_done;
+  return `${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+   15m四方の石室。中央に巨大な巻き上げ機が鎮座している。<br>
+   錆びた鉄製のドラムに太い鎖が巻かれており、どこかへ繋がっている。<br>
+   ${done
+    ? '<span class="grn"> 巻き上げ機は限界まで巻かれている。</span>'
+    : `回し続けると鎖がきつく張っていく。途中で力が尽きると鎖が戻ってしまいそうだ。<br>
+     <span style="color:var(--amber)"> 進捗: ${w}/3</span>`}
+   <br><br>
+   <span class="dim">━ 南の扉 ━</span>`;
+ },
+ choices:()=>{
+  const ch = [];
+  if(!PC._shm2_winch_done){
+   ch.push({label:` 巻き上げ機を回す（ST Lv2 SR）`, fn:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+     巻き上げ機に全力をかける——`;
+    document.getElementById('dice-area').classList.remove('hidden');
+    setupSavingRoll({
+     attr:'st', level:2, label:'巻き上げ機',
+     onSuccess(){
+      document.getElementById('dice-area').classList.add('hidden');
+      PC._shm2_winch_count = (PC._shm2_winch_count||0) + 1;
+      if(PC._shm2_winch_count >= 3){
+       PC._shm2_winch_done = true;
+       s.innerHTML = `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+        全体重をかけて巻き続けると、ついに鎖がピンと張った。遠くの石の向こうで、ズシンという重い音が響いた。`;
+      } else {
+       s.innerHTML = `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+        腕が震えながらも巻き続けた。鎖がまた少し巻き取られた。<br>
+        <span class="grn"> 進捗: ${PC._shm2_winch_count}/3</span>`;
+      }
+      renderChoices([{label:'▶ OK', fn:()=>shm2Move('SHM2_ROOM2')}]);
+      scrollToTop();
+     },
+     onFail(){
+      document.getElementById('dice-area').classList.add('hidden');
+      PC._shm2_winch_count = 0;
+      s.innerHTML = `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+       重さに負けて手が滑り、鎖が逆戻りしてしまった。騒音を聞きつけたのか、暗闇から何かが近づいてくる気配がする……<br>
+       <span class="red"> 進捗リセット</span>`;
+      renderChoices([{label:' ワンダリングモンスターと戦う', fn:()=>{
+       const m = HUNT_MONSTER_TABLE.khazan_region[Math.floor(Math.random()*HUNT_MONSTER_TABLE.khazan_region.length)];
+       const mr = Math.round(m.mr * 1.5);
+       drawScene('combat');
+       startCombat({name:m.name, mr, armor:Math.floor(mr/30), canFlee:true, win:'__noop__', lose:'DEAD',
+        onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); cbtState=null; go('SHM2_ROOM2'); }
+       });
+      }}]);
+      scrollToTop();
+     },
+    });
+   }});
+  }
+  ch.push({label:'↓ 南へ', fn:()=>shm2Move('SHM2_PASSAGE4_B')});
+  return ch;
+ },
+ },
+
+ // ── 部屋4（東西25m・南北35m）──
+ SHM2_ROOM4:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  東西25m、南北35mの石室。壁の一面に古代文字と方位を示す図が彫り込まれており、この層の構造が記録されている。<br>
+  南の重厚な石扉は${PC._shm2_winch_done ? '<span class="grn">閂が外れ、開いている。</span>' : '重厚な閂がかかって開かない。'}<br>
+  西の扉の先には通路がある。<br><br>
+  <span class="dim">━ 南の扉（施錠中）/ 東の扉 / 西の扉 ━</span>`,
+ choices:()=>{
+  const ch = [];
+  if(PC._shm2_winch_done){
+   ch.push({label:'↓ 南へ', fn:()=>shm2Move('SHM2_ROOM1')});
+  } else {
+   ch.push({label:'⬇ 南の扉（閂がかかって開かない）', fn:()=>showSaveToast('閂がかかっている。どこかに開ける手段があるはずだ')});
+  }
+  ch.push({label:'→ 東へ', fn:()=>shm2Move('SHM2_ROOM5')});
+  ch.push({label:'← 西へ', fn:()=>shm2Move('SHM2_PASSAGE3')});
+  return ch;
+ },
+ },
+
+ // ── 通路3 ─ 部屋4西→北25m→B3F階段 ──
+ SHM2_PASSAGE3:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  西の扉を開けると、通路が北へ25m続く。<br>
+  通路の終端に下り階段がある。地下3Fへ続く急な石段で、下から冷たい風が吹き上がってくる。<br>
+  まだ先は調査されていない……<br><br>
+  <span class="dim">━ 南 / 北（B3F・未踏）━</span>`,
+ choices:[
+  {label:'↓ 下層へ', fn:()=>{ _consumeDungeonTorch(); if(!shm2CheckEncounter('SHM3_STAIRS')) go('SHM3_STAIRS'); }},
+  {label:'→ 東へ', fn:()=>shm2Move('SHM2_ROOM4')},
+ ],
+ },
+
+ // ── 部屋6（15m四方）──
+ SHM2_ROOM6:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  15m四方の石室。かつて副葬品が収められていた部屋と思われ、台座の跡が規則正しく並んでいるが今は空だ。<br>
+  南の扉は通路2（南ルート）へ続く。<br>
+  東の扉は頑丈な鉄扉で、鍵穴がなく閂式になっている。ダンジョンの外に通じているようだ。<br><br>
+  <span class="dim">━ 南の扉 / 東（外への出口）━</span>`,
+ choices:[
+  {label:' 東の出口からダンジョンを出る', fn:()=>{ showSaveToast('ザールカノンの墓所B2Fを脱出した'); }, go:'TOWN_STONEHIEM'},
+  {label:'↓ 南の扉へ', fn:()=>shm2Move('SHM2_PASSAGE2_S')},
+ ],
+ },
+
+
+ // ══════════════════════════════════════════════════════
+ // ザールカノンの墓所 B3F
+ // ══════════════════════════════════════════════════════
+
+ SHM3_STAIRS:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  急な石段を降りた踊り場だ。B2Fよりさらに壁の石組みが古く、彫り込まれた文様が密になっている。<br>
+  空気はひどく冷たく、息が白くなる。かすかに香炉の残り香のようなものが漂っている。<br><br>
+  <span class="dim">━ ↑ 上層へ / ← 西へ続く ━</span>`,
+ choices:[
+  {label:'↑ 上層へ', go:'SHM2_PASSAGE3'},
+  {label:'← 西へ', fn:()=>shm3Move('SHM3_PASSAGE1_A')},
+ ],
+ },
+
+ // 通路1 ─ 西15m→南折れ
+ SHM3_PASSAGE1_A:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  石段から西へ15m、装飾が施された石造りの通路が続く。壁面に連続した浮き彫りがあり、葬列の場面が描かれている。<br>
+  通路は南へ折れている。`,
+ choices:[
+  {label:'→ 東へ', fn:()=>shm3Move('SHM3_STAIRS')},
+  {label:'↓ 南へ', fn:()=>shm3Move('SHM3_PASSAGE1_B')},
+ ],
+ },
+
+ // 通路1 ─ 南15m→行き止まり（南・東に扉）
+ SHM3_PASSAGE1_B:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  南へ15m続く通路。行き止まりの壁の前に立つと、南と東に扉がある。<br>
+  南の扉の前には灯明台の残骸が倒れており、東の扉の縁には古い血痕が残っている。`,
+ choices:[
+  {label:'↑ 北へ', fn:()=>shm3Move('SHM3_PASSAGE1_A')},
+  {label:'↓ 南の扉へ', fn:()=>shm3Move('SHM3_ROOM6')},
+  {label:'→ 東の扉へ', fn:()=>shm3Move('SHM3_ROOM2')},
+ ],
+ },
+
+ // 部屋2（15m四方）
+ SHM3_ROOM2:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  15m四方の石室。中央に低い石の台があり、台の上に陶器の破片が散乱している。<br>
+  壁の一面が他より新しい石積みで塞がれている。かつてはここに通路があったのかもしれない。`,
+ choices:[
+  {label:'← 西の扉へ', fn:()=>shm3Move('SHM3_PASSAGE1_B')},
+ ],
+ },
+
+ // 部屋6（25m四方）
+ SHM3_ROOM6:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  25m四方の石室。天井が高く、四隅に柱が立っている。柱の表面に古代文字が刻まれており、繰り返される文様は呪文か戒律のようだ。<br>
+  北西と南西の壁にそれぞれ扉がある。`,
+ choices:[
+  {label:'↑ 北の扉へ', fn:()=>shm3Move('SHM3_PASSAGE1_B')},
+  {label:'↖ 北西の扉へ', fn:()=>shm3Move('SHM3_PASSAGE2_A')},
+  {label:'↙ 南西の扉へ', fn:()=>shm3Move('SHM3_PASSAGE3')},
+ ],
+ },
+
+ // 通路2（東西30m、部屋6↔部屋3）
+ SHM3_PASSAGE2_A:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  東西に30m続く石造りの通路。天井が低く、壁の両側に等間隔で燭台の跡がある。<br>
+  西端の北側の壁に扉があり、東端には部屋への扉がある。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>shm3Move('SHM3_ROOM6')},
+  {label:'↑ 西端・北の扉へ', fn:()=>shm3Move('SHM3_ROOM3')},
+ ],
+ },
+
+ // 部屋3
+ SHM3_ROOM3:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  石室だ。床の中央に大きな排水溝の跡がある。かつて液体が大量に使われた場所であることを示している。<br>
+  壁の下部に暗赤色の染みが広がっており、長年にわたって何かが行われていたことが見て取れる。`,
+ choices:[
+  {label:'↓ 南の扉へ', fn:()=>shm3Move('SHM3_PASSAGE2_A')},
+ ],
+ },
+
+ // 通路3（5m、部屋6南西↔部屋1北東）
+ SHM3_PASSAGE3:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  わずか5mほどの短い通路だ。両端に扉があり、東端は部屋6へ、西端は広い石室へ続いている。<br>
+  通路の壁に手形が押されて残っている。複数の者が壁を伝いながら急いでここを通った跡だ。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>shm3Move('SHM3_ROOM6')},
+  {label:'← 西の扉へ', fn:()=>shm3Move('SHM3_ROOM1')},
+ ],
+ },
+
+ // 部屋1（南北35m・東西25m）
+ SHM3_ROOM1:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  南北35m、東西25mの広い石室。床の石畳に幾何学模様が刻まれており、中央に向かって収束している。<br>
+  北東の扉は短い通路へ、南東の扉は南の広間へ続いている。`,
+ choices:[
+  {label:'↗ 北東の扉へ', fn:()=>shm3Move('SHM3_PASSAGE3')},
+  {label:'↘ 南東の扉へ', fn:()=>shm3Move('SHM3_ROOM4')},
+ ],
+ },
+
+ // 部屋4（南北35m・東西25m）
+ SHM3_ROOM4:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  南北35m、東西25mの石室。北西の壁に扉があり、南東の壁は開口部（アーチ）になっている。<br>
+  石室の中央に大型の石棺が据えられており、蓋に紋章が刻まれている。蓋はずれており、中は空だ。`,
+ choices:[
+  {label:'← 西の扉へ', fn:()=>shm3Move('SHM3_ROOM1')},
+  {label:'↘ 南東のアーチへ', fn:()=>shm3Move('SHM3_ROOM5')},
+ ],
+ },
+
+ // 部屋5（南北25m・東西15m）
+ SHM3_ROOM5:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+  南北25m、東西15mの細長い石室。西側の壁にアーチ型の開口部がある。<br>
+  室内の壁三面に、人物像の浮き彫りが並んでいる。等身大の彫刻で、それぞれ異なる姿勢で何かを捧げ持っている。<br>
+  床の奥に石造りの祭壇がある。`,
+ choices:[
+  {label:'← 西のアーチへ', fn:()=>shm3Move('SHM3_ROOM4')},
+ ],
+ },
+
+
+ // ══════════════════════════════════════════════════════
+ // アル・ラシード東方の地下迷宮
+ // ══════════════════════════════════════════════════════
+
+ AL_DNG_ENTRANCE:{
+ scene:'dungeon',
+ txt:()=>{
+  const torches = countTorches();
+  const torchMsg = torches>0?`<span class="grn"> 松明を${torches}本持っている。</span>`:`<span class="red"> 松明を持っていない！暗闇の中を進むことになる。</span>`;
+  return ` <span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+   アル・ラシードの東郊、砂漠の岩盤に穿たれた石造りの入口だ。<br>
+   かつての文明が残した遺構で、その深さは誰も知らない。急な石段が地下へと続いている。<br><br>
+   ${torchMsg}`;
+ },
+ choices:[
+  {label:'↓ 地下へ降りる', fn:()=>initTorch(), go:'AL_PASSAGE1'},
+  {label:'← アル・ラシードへ戻る', go:'TOWN_AL_RASHID'},
+ ],
+ },
+
+ AL_PASSAGE1:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  石段を降りると南へ25mの通路が続く。壁は切り石で丁寧に積まれており、高い建築技術が感じられる。通路の終端に重い石扉がある。`,
+ choices:[
+  {label:'↑ 地上へ', go:'AL_DNG_ENTRANCE'},
+  {label:'↓ 南の石扉へ', fn:()=>alMove('AL_ROOM3')},
+ ],
+ },
+
+ AL_ROOM3:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  35m四方の広い石室。床の石畳に複雑な文様が刻まれており、中央に向かって収束している。<br>
+  北西に扉、北東に扉、南に扉、西にも扉があるがその先は不明だ。`,
+ choices:[
+  {label:'↖ 北西の扉', fn:()=>alMove('AL_PASSAGE1')},
+  {label:'↗ 北東の扉', fn:()=>alMove('AL_PASSAGE2')},
+  {label:'↓ 南の扉', fn:()=>alMove('AL_PASSAGE9')},
+  {label:'← 西の扉（先は不明）', fn:()=>showSaveToast('この先はまだ調査されていない')},
+ ],
+ },
+
+ AL_PASSAGE2:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  東西15mの通路。東端は南壁に扉と東壁に鍵のかかった扉。西端の北壁にアーチがある。通路の途中の北壁にもアーチが口を開けている。`,
+ choices:()=>{
+  const ch=[];
+  ch.push({label:'↙ 東端・南の扉', fn:()=>alMove('AL_ROOM3')});
+  if(PC._alDng_has_key) ch.push({label:'→ 東端・東の扉（鍵で開ける）', fn:()=>alMove('AL_ROOM2')});
+  else ch.push({label:'→ 東端・東の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
+  ch.push({label:'↖ 西端・北のアーチ', fn:()=>alMove('AL_ROOM1')});
+  ch.push({label:'↑ 途中・北のアーチ', fn:()=>alMove('AL_ROOM16')});
+  return ch;
+ },
+ },
+
+ AL_ROOM16:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  南北25m、東西15mの石室。南の壁にアーチがある。西の壁をよく見ると、他の石とわずかに色の違う箇所がある。<br>
+  ${PC._alDng_secret_found?'<span style="color:#aabbcc"> 隠し扉は開いている。</span>':''}`,
+ choices:()=>{
+  const ch=[];
+  ch.push({label:'↓ 南のアーチ', fn:()=>alMove('AL_PASSAGE2')});
+  if(!PC._alDng_secret_found){
+   ch.push({label:' 西の壁を調べる（IQ Lv1 SR）', fn:()=>{
+    const s=document.getElementById('story');
+    s.innerHTML=`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>西の壁を押し確かめていく——`;
+    document.getElementById('dice-area').classList.remove('hidden');
+    setupSavingRoll({attr:'iq',level:1,label:'隠し扉の発見',
+     onSuccess(){
+      document.getElementById('dice-area').classList.add('hidden');
+      PC._alDng_secret_found=true;
+      s.innerHTML=`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>特定の石を押すと、壁が音もなく内側へ滑った。<br><span class="grn"> 隠し扉を発見した！</span>`;
+      renderChoices([{label:'← 隠し扉の先へ',fn:()=>alMove('AL_ROOM16_SECRET')},{label:'↓ 南のアーチ',fn:()=>alMove('AL_PASSAGE2')}]);
+      scrollToTop();
+     },
+     onFail(){
+      document.getElementById('dice-area').classList.add('hidden');
+      s.innerHTML=`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>壁を丹念に調べたが、何も見つからなかった。`;
+      renderChoices([{label:'↓ 南のアーチ',fn:()=>alMove('AL_PASSAGE2')},{label:' もう一度調べる',go:'AL_ROOM16'}]);
+      scrollToTop();
+     },
+    });
+   }});
+  } else {
+   ch.push({label:'← 西の隠し扉', fn:()=>alMove('AL_ROOM16_SECRET')});
+  }
+  return ch;
+ },
+ },
+
+ AL_ROOM16_SECRET:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  5m四方の極めて小さな石室。壁面に象形文字が隙間なく刻まれている。石台の上に古い鍵束が置かれている。<br>
+  ${PC._alDng_has_key?'<span class="grn"> 鍵束は既に取った。</span>':''}`,
+ choices:()=>{
+  const ch=[];
+  if(!PC._alDng_has_key){
+   ch.push({label:' 鍵束を取る', fn:()=>{
+    PC._alDng_has_key=true;
+    showSaveToast(' 古い鍵束を入手した');
+    const s=document.getElementById('story');
+    s.innerHTML=`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>石台の鍵束を手に取った。複数の鍵が付いており、どこかの錠前を開けられるはずだ。<br><span class="grn"> 古い鍵束を入手した。</span>`;
+    renderChoices([{label:'→ 東（隠し扉）',fn:()=>alMove('AL_ROOM16')}]);
+    scrollToTop();
+   }});
+  }
+  ch.push({label:'→ 東（隠し扉）', fn:()=>alMove('AL_ROOM16')});
+  return ch;
+ },
+ },
+
+ AL_ROOM1:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  直径30mの円形の石室。ドーム型の天井の中央に天窓の跡があるが、今は石で塞がれている。壁に沿って等間隔に柱の跡がある。<br>
+  南に扉、東に扉、北にアーチがある。`,
+ choices:[
+  {label:'↓ 南の扉', fn:()=>alMove('AL_ROOM5')},
+  {label:'→ 東の扉', fn:()=>alMove('AL_ROOM4')},
+  {label:'↑ 北のアーチ', fn:()=>alMove('AL_ROOM2')},
+ ],
+ },
+
+ AL_ROOM2:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  35m四方の石室。天井が高く、壁の上部に細長い採光窓の跡が並んでいる。<br>
+  西に鍵のかかった扉、南にアーチ、東にアーチがある。`,
+ choices:()=>{
+  const ch=[];
+  if(PC._alDng_has_key) ch.push({label:'← 西の扉（鍵で開ける）', fn:()=>alMove('AL_PASSAGE2')});
+  else ch.push({label:'← 西の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
+  ch.push({label:'↓ 南のアーチ', fn:()=>alMove('AL_ROOM1')});
+  ch.push({label:'→ 東のアーチ', fn:()=>alMove('AL_PASSAGE3')});
+  return ch;
+ },
+ },
+
+ AL_PASSAGE3:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  L字型の通路。東西15m、南北35m。西端にアーチ、南端に鍵のかかった扉がある。`,
+ choices:()=>{
+  const ch=[];
+  ch.push({label:'← 西のアーチ', fn:()=>alMove('AL_ROOM2')});
+  if(PC._alDng_has_key) ch.push({label:'↓ 南の扉（鍵で開ける）', fn:()=>alMove('AL_ROOM4')});
+  else ch.push({label:'↓ 南の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
+  return ch;
+ },
+ },
+
+ AL_ROOM4:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  35m四方の大きな石室。床の中央に大きな排水溝の跡がある。<br>
+  北西に扉、西に扉、南東にアーチ、北東に鍵のかかった扉がある。`,
+ choices:()=>{
+  const ch=[];
+  ch.push({label:'↖ 北西の扉', fn:()=>alMove('AL_PASSAGE3')});
+  ch.push({label:'← 西の扉', fn:()=>alMove('AL_ROOM1')});
+  ch.push({label:'↘ 南東のアーチ', fn:()=>alMove('AL_ROOM11')});
+  if(PC._alDng_has_key) ch.push({label:'↗ 北東の扉（鍵で開ける）', fn:()=>alMove('AL_ROOM17')});
+  else ch.push({label:'↗ 北東の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
+  return ch;
+ },
+ },
+
+ AL_ROOM17:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  15m四方の石室。四方の壁に武器掛けの跡が残っているが、武器は全て失われている。<br>
+  南西に鍵のかかった扉、南東に鍵のかかった扉、北東に扉がある。`,
+ choices:()=>{
+  const ch=[];
+  if(PC._alDng_has_key){
+   ch.push({label:'↙ 南西の扉（鍵で開ける）', fn:()=>alMove('AL_ROOM4')});
+   ch.push({label:'↘ 南東の扉（鍵で開ける）', fn:()=>alMove('AL_ROOM11')});
+  } else {
+   ch.push({label:'↙ 南西の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
+   ch.push({label:'↘ 南東の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
+  }
+  ch.push({label:'↗ 北東の扉', fn:()=>alMove('AL_PASSAGE4')});
+  return ch;
+ },
+ },
+
+ AL_PASSAGE4:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  南北20mの通路。南端の西壁に扉、北端の西壁に扉がある。`,
+ choices:[
+  {label:'↙ 南端・西の扉', fn:()=>alMove('AL_ROOM17')},
+  {label:'↖ 北端・西の扉', fn:()=>alMove('AL_ROOM8')},
+ ],
+ },
+
+ AL_ROOM8:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  15m四方の石室。床の一角に古い焚き火の跡がある。壁に炭で何かが描かれているが、判読できない。<br>
+  東壁に扉がある。`,
+ choices:[
+  {label:'→ 東の扉', fn:()=>alMove('AL_PASSAGE4')},
+ ],
+ },
+
+ AL_ROOM11:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  南北35m、東西15mの細長い石室。壁に沿って石造りの棚の跡が並んでいる。<br>
+  北に扉、南西にアーチ、南東に扉がある。`,
+ choices:[
+  {label:'↑ 北の扉', fn:()=>alMove('AL_ROOM17')},
+  {label:'↙ 南西のアーチ', fn:()=>alMove('AL_ROOM4')},
+  {label:'↘ 南東の扉', fn:()=>alMove('AL_PASSAGE5')},
+ ],
+ },
+
+ AL_PASSAGE5:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  L字型の通路。東西40m、南北15m。東端の北壁に扉、東端の南壁に扉、南端に扉がある。`,
+ choices:[
+  {label:'↖ 東端・北の扉', fn:()=>alMove('AL_ROOM11')},
+  {label:'↙ 東端・南の扉', fn:()=>alMove('AL_ROOM9')},
+  {label:'↓ 南端の扉', fn:()=>alMove('AL_ROOM15')},
+ ],
+ },
+
+ AL_ROOM15:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  南北25m、東西15mの石室。壁に等間隔で燭台の跡が並んでいる。<br>
+  西に扉、北に扉がある。`,
+ choices:[
+  {label:'← 西の扉', fn:()=>alMove('AL_ROOM5')},
+  {label:'↑ 北の扉', fn:()=>alMove('AL_PASSAGE5')},
+ ],
+ },
+
+ AL_ROOM5:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  30m四方の石室。天井に装飾の跡が残っており、かつては色鮮やかだったと思われる。<br>
+  南に扉、東に扉、北に扉がある。`,
+ choices:[
+  {label:'↓ 南の扉', fn:()=>alMove('AL_ROOM12')},
+  {label:'→ 東の扉', fn:()=>alMove('AL_ROOM15')},
+  {label:'↑ 北の扉', fn:()=>alMove('AL_ROOM1')},
+ ],
+ },
+
+ AL_ROOM12:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  25m四方の石室。床に大型の台座の跡が四隅に残っている。<br>
+  南に扉、北西に扉、北東に扉がある。`,
+ choices:[
+  {label:'↓ 南の扉', fn:()=>alMove('AL_PASSAGE8')},
+  {label:'↖ 北西の扉', fn:()=>alMove('AL_ROOM7')},
+  {label:'↗ 北東の扉', fn:()=>alMove('AL_ROOM5')},
+ ],
+ },
+
+ AL_PASSAGE8:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  東西25mの通路。東端にアーチ、西端の北壁に扉がある。`,
+ choices:[
+  {label:'→ 東端のアーチ', fn:()=>alMove('AL_ROOM6')},
+  {label:'↖ 西端・北の扉', fn:()=>alMove('AL_ROOM12')},
+ ],
+ },
+
+ AL_ROOM6:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  15m四方の石室。交差点のような役割を持ち、複数の開口部がある。<br>
+  北西にアーチ、南西にアーチ、東に扉がある。`,
+ choices:[
+  {label:'↖ 北西のアーチ', fn:()=>alMove('AL_PASSAGE8')},
+  {label:'↙ 南西のアーチ', fn:()=>alMove('AL_PASSAGE7')},
+  {label:'→ 東の扉', fn:()=>alMove('AL_ROOM15B')},
+ ],
+ },
+
+ AL_ROOM15B:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  南北15m、東西25mの石室。北の壁に下り階段があるが、石材が崩落して完全に塞がれており降りることができない。<br>
+  西に扉がある。`,
+ choices:[
+  {label:'← 西の扉', fn:()=>alMove('AL_ROOM6')},
+  {label:'↑ 北の階段（崩れて通れない）', fn:()=>showSaveToast('石材が崩落して塞がれている')},
+ ],
+ },
+
+ AL_PASSAGE7:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  東西40mの長い通路。壁の両側に古い松明ホルダーが等間隔に並んでいる。西端に扉、東端にアーチがある。`,
+ choices:[
+  {label:'← 西端の扉', fn:()=>alMove('AL_ROOM14')},
+  {label:'→ 東端のアーチ', fn:()=>alMove('AL_ROOM6')},
+ ],
+ },
+
+ AL_ROOM14:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  南北25m、東西15mの石室。床の石畳が他より新しく、かつて修復が行われた形跡がある。<br>
+  南東に扉、北東に扉がある。`,
+ choices:[
+  {label:'↘ 南東の扉', fn:()=>alMove('AL_PASSAGE6')},
+  {label:'↗ 北東の扉', fn:()=>alMove('AL_PASSAGE7')},
+ ],
+ },
+
+ AL_PASSAGE6:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  L字型の大きな通路。南北40m、東西115mにわたる。この迷宮でも特に古い区画らしく、壁の石組みが異なる。<br>
+  北端に扉、西端に扉がある。`,
+ choices:[
+  {label:'↑ 北端の扉', fn:()=>alMove('AL_ROOM9')},
+  {label:'← 西端の扉', fn:()=>alMove('AL_ROOM14')},
+ ],
+ },
+
+ AL_ROOM9:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  直径30mの円形の石室。床の中央に放射状の紋様が刻まれており、その中心から幾何学的な線が広がっている。<br>
+  北に扉、南西にアーチ、南東に扉がある。`,
+ choices:[
+  {label:'↑ 北の扉', fn:()=>alMove('AL_PASSAGE5')},
+  {label:'↙ 南西のアーチ', fn:()=>alMove('AL_ROOM10')},
+  {label:'↘ 南東の扉', fn:()=>alMove('AL_PASSAGE6')},
+ ],
+ },
+
+ AL_ROOM10:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  南北15m、東西25mの石室。北壁の全面にアーチ状の装飾が施されており、かつては壮麗だったと思われる。<br>
+  北にアーチがある。`,
+ choices:[
+  {label:'↑ 北のアーチ', fn:()=>alMove('AL_ROOM9')},
+ ],
+ },
+
+ AL_PASSAGE9:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  南北20mの通路。壁面に細かい刻み文字が並んでおり、祈祷文のようだ。北端に扉、南端にアーチがある。`,
+ choices:[
+  {label:'↑ 北端の扉', fn:()=>alMove('AL_ROOM3')},
+  {label:'↓ 南端のアーチ', fn:()=>alMove('AL_ROOM7')},
+ ],
+ },
+
+ AL_ROOM7:{
+ scene:'dungeon',
+ txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+  南北15m、東西30mの横長の石室。東西の壁に古い壁画の跡があるが、ほとんど剥落している。<br>
+  南に扉、北にアーチがある。`,
+ choices:[
+  {label:'↓ 南の扉', fn:()=>alMove('AL_ROOM12')},
+  {label:'↑ 北のアーチ', fn:()=>alMove('AL_PASSAGE9')},
+ ],
+ },
 
 }; // NODES
 
