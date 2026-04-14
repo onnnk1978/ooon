@@ -592,7 +592,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  </div>
  <canvas id="ooon-ascii" width="360" height="108" style="display:block;margin:0 auto 16px;width:min(360px,90vw);height:auto"></canvas>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041401</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041501</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -28488,14 +28488,13 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  AL_PASSAGE2:{
  scene:'dungeon',
  txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
-  東西15mの通路。東端は南壁に扉と東壁に鍵のかかった扉。西端の北壁にアーチがある。通路の途中の北壁にもアーチが口を開けている。`,
+  東西15mの通路。東端は南壁に扉と東壁に鍵のかかった扉。西端の北壁にアーチがある。`,
  choices:()=>{
   const ch=[];
   ch.push({label:'↙ 東端・南の扉', fn:()=>alMove('AL_ROOM3')});
   if(PC._alDng_has_key) ch.push({label:'→ 東端・東の扉（鍵で開ける）', fn:()=>alMove('AL_ROOM2')});
   else ch.push({label:'→ 東端・東の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
-  ch.push({label:'↖ 西端・北のアーチ', fn:()=>alMove('AL_ROOM1')});
-  ch.push({label:'↑ 途中・北のアーチ', fn:()=>alMove('AL_ROOM16')});
+  ch.push({label:'↖ 西端・北のアーチ', fn:()=>alMove('AL_ROOM16')});
   return ch;
  },
  },
