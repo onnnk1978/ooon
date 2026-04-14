@@ -27972,7 +27972,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // ── B1F階段〜通路1 ──
  SHM2_STAIRS:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F — 石段の踊り場</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F — 石段の踊り場</span><br><br>
   急な石段を降りた踊り場だ。B1Fよりも壁の石組みが古く、装飾のない素朴な造りになっている。<br>
   冷たく澱んだ空気が西の通路から流れてくる。<br><br>
   <span class="dim">━ 東（B1F）/ 西へ続く ━</span>`,
@@ -27985,7 +27985,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 通路1 ─ 西15m→南折れ
  SHM2_PASSAGE1_A:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   石段から西へ15m、石造りの通路が続く。<br>
   壁面には精緻な装飾の痕跡があるが、長い年月で剥落している。<br>
   足元の石畳は磨り減っており、かつて多くの者がここを通った証だ。<br>
@@ -28000,7 +28000,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 通路1 ─ 南25m→東折れ
  SHM2_PASSAGE1_B:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   南へ25m続く石造りの廊下。天井から地下水が染み出し、床に薄く広がっている。<br>
   壁には規則的に燭台の跡があり、かつては明かりが灯っていたと分かる。<br>
   通路は東へ折れている。<br><br>
@@ -28017,11 +28017,11 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  txt:()=>{
   const done = PC._shm2_axe_done;
   if(done){
-   return `${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+   return `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
     東へ25m続く通路。北へ折れる角の壁に、深い切り込みが残っている。<br>
     何かが激しく壁に当たった跡だ。`;
   }
-  return `${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  return `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
    東へ25m続く通路の先で、通路が北に折れようとしている。<br>
    通路の突き当たり、北へ折れる手前の石畳が続いている。`;
  },
@@ -28074,7 +28074,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // ── 部屋1（東西15m・南北25m）──
  SHM2_ROOM1:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   東西15m、南北25mの石室。壁は荒削りだが天井は比較的高い。<br>
   室内には崩れた石造りの棚と、砕けた祭具の残骸が散乱している。<br>
   北の重厚な石扉には頑丈な閂がかかっており、${PC._shm2_winch_done ? '閂が外れ、開いている。' : '閂がかかって開かない。'}<br>
@@ -28095,7 +28095,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // ── 部屋3（東西25m・南北15m）──
  SHM2_ROOM3:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   東西25m、南北15mの石室。壁面に精巧な浮き彫りが残っており、行列の場面が描かれている。<br>
   床の中央に低い石の台座がある。かつて何かが安置されていたと思われるが、今は空だ。<br><br>
   <span class="dim">━ 西 / 南 / 北 ━</span>`,
@@ -28109,7 +28109,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // ── 通路2 ─ 部屋3南→東25m→T字路 ──
  SHM2_PASSAGE2_A:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   石室の南扉を出ると、通路が東へ25m続く。<br>
   天井が低く、古い支柱の跡が一定間隔で残っている。<br>
   突き当たりでT字路になっており、南北に分かれている。<br><br>
@@ -28124,7 +28124,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 通路2 ─ 南20m→東折れ→25m→行き止まり（部屋6への扉）
  SHM2_PASSAGE2_S:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   T字路から南へ20m進み、さらに東へ折れて25m続く石造りの通路だ。<br>
   最奥は行き止まりになっており、北側の壁に扉がある。<br>
 <br>
@@ -28138,7 +28138,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 通路2 ─ 北30m行き止まり（部屋5への扉）
  SHM2_PASSAGE2_N:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   T字路から北へ30m続く通路。最奥は行き止まりで、西側の壁に扉がある。<br>
 <br>
   <span class="dim">━ 南（T字路）/ 西の扉 ━</span>`,
@@ -28151,7 +28151,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // ── 部屋5（東西25m・南北35m）──
  SHM2_ROOM5:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   東西25m、南北35mの広大な石室。天井が高く、声が反響する。<br>
   中央に大型の石造りの祭壇の基部が残っており、かつては儀式に使われていたと思われる。<br>
   各方向に扉や通路が続いており、このフロアの要衝だ。<br><br>
@@ -28167,7 +28167,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // ── 通路4 ─ 部屋5北東→東25m→北折れ→北15m行き止まり（部屋2の扉）──
  SHM2_PASSAGE4_A:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   石室の北東の扉を出ると、通路が東へ25m続く。<br>
   壁に黒い煤の跡が残っており、かつてここで火事があったことを示している。<br>
   通路は北へ折れている。<br><br>
@@ -28180,7 +28180,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  SHM2_PASSAGE4_B:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   北へ15m続く短い通路。行き止まりになっており、西側の壁に扉がある。<br>
 <br>
   <span class="dim">━ 南 / 西の扉 ━</span>`,
@@ -28196,7 +28196,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  txt:()=>{
   const w = PC._shm2_winch_count || 0;
   const done = PC._shm2_winch_done;
-  return `${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+  return `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
    15m四方の石室。中央に巨大な巻き上げ機が鎮座している。<br>
    錆びた鉄製のドラムに太い鎖が巻かれており、どこかへ繋がっている。<br>
    ${done
@@ -28258,7 +28258,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // ── 部屋4（東西25m・南北35m）──
  SHM2_ROOM4:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   東西25m、南北35mの石室。壁の一面に古代文字と方位を示す図が彫り込まれており、この層の構造が記録されている。<br>
   南の重厚な石扉は${PC._shm2_winch_done ? '<span class="grn">閂が外れ、開いている。</span>' : '重厚な閂がかかって開かない。'}<br>
   西の扉の先には通路がある。<br><br>
@@ -28279,7 +28279,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // ── 通路3 ─ 部屋4西→北25m→B3F階段 ──
  SHM2_PASSAGE3:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   西の扉を開けると、通路が北へ25m続く。<br>
   通路の終端に下り階段がある。地下3Fへ続く急な石段で、下から冷たい風が吹き上がってくる。<br>
   まだ先は調査されていない……<br><br>
@@ -28293,7 +28293,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // ── 部屋6（15m四方）──
  SHM2_ROOM6:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B2F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B2F</span><br><br>
   15m四方の石室。かつて副葬品が収められていた部屋と思われ、台座の跡が規則正しく並んでいるが今は空だ。<br>
   南の扉は通路2（南ルート）へ続く。<br>
   東の扉は頑丈な鉄扉で、鍵穴がなく閂式になっている。ダンジョンの外に通じているようだ。<br><br>
@@ -28311,7 +28311,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  SHM3_STAIRS:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   急な石段を降りた踊り場だ。B2Fよりさらに壁の石組みが古く、彫り込まれた文様が密になっている。<br>
   空気はひどく冷たく、息が白くなる。かすかに香炉の残り香のようなものが漂っている。<br><br>
   <span class="dim">━ ↑ 上層へ / ← 西へ続く ━</span>`,
@@ -28324,7 +28324,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 通路1 ─ 西15m→南折れ
  SHM3_PASSAGE1_A:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   石段から西へ15m、装飾が施された石造りの通路が続く。壁面に連続した浮き彫りがあり、葬列の場面が描かれている。<br>
   通路は南へ折れている。`,
  choices:[
@@ -28336,7 +28336,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 通路1 ─ 南15m→行き止まり（南・東に扉）
  SHM3_PASSAGE1_B:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   南へ15m続く通路。行き止まりの壁の前に立つと、南と東に扉がある。<br>
   南の扉の前には灯明台の残骸が倒れており、東の扉の縁には古い血痕が残っている。`,
  choices:[
@@ -28349,7 +28349,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 部屋2（15m四方）
  SHM3_ROOM2:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   15m四方の石室。中央に低い石の台があり、台の上に陶器の破片が散乱している。<br>
   壁の一面が他より新しい石積みで塞がれている。かつてはここに通路があったのかもしれない。`,
  choices:[
@@ -28360,7 +28360,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 部屋6（25m四方）
  SHM3_ROOM6:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   25m四方の石室。天井が高く、四隅に柱が立っている。柱の表面に古代文字が刻まれており、繰り返される文様は呪文か戒律のようだ。<br>
   北西と南西の壁にそれぞれ扉がある。`,
  choices:[
@@ -28373,7 +28373,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 通路2（東西30m、部屋6↔部屋3）
  SHM3_PASSAGE2_A:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   東西に30m続く石造りの通路。天井が低く、壁の両側に等間隔で燭台の跡がある。<br>
   西端の北側の壁に扉があり、東端には部屋への扉がある。`,
  choices:[
@@ -28385,7 +28385,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 部屋3
  SHM3_ROOM3:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   石室だ。床の中央に大きな排水溝の跡がある。かつて液体が大量に使われた場所であることを示している。<br>
   壁の下部に暗赤色の染みが広がっており、長年にわたって何かが行われていたことが見て取れる。`,
  choices:[
@@ -28396,7 +28396,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 通路3（5m、部屋6南西↔部屋1北東）
  SHM3_PASSAGE3:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   わずか5mほどの短い通路だ。両端に扉があり、東端は部屋6へ、西端は広い石室へ続いている。<br>
   通路の壁に手形が押されて残っている。複数の者が壁を伝いながら急いでここを通った跡だ。`,
  choices:[
@@ -28408,7 +28408,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 部屋1（南北35m・東西25m）
  SHM3_ROOM1:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   南北35m、東西25mの広い石室。床の石畳に幾何学模様が刻まれており、中央に向かって収束している。<br>
   北東の扉は短い通路へ、南東の扉は南の広間へ続いている。`,
  choices:[
@@ -28420,7 +28420,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 部屋4（南北35m・東西25m）
  SHM3_ROOM4:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   南北35m、東西25mの石室。北西の壁に扉があり、南東の壁は開口部（アーチ）になっている。<br>
   石室の中央に大型の石棺が据えられており、蓋に紋章が刻まれている。蓋はずれており、中は空だ。`,
  choices:[
@@ -28432,7 +28432,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  // 部屋5（南北25m・東西15m）
  SHM3_ROOM5:{
  scene:'dungeon',
- txt:()=>`${torchIndicator ? torchIndicator() : ""}<span class="gold">ザールカノンの墓所 B3F</span><br><br>
+ txt:()=>`<span class="gold">ザールカノンの墓所 B3F</span><br><br>
   南北25m、東西15mの細長い石室。西側の壁にアーチ型の開口部がある。<br>
   室内の壁三面に、人物像の浮き彫りが並んでいる。等身大の彫刻で、それぞれ異なる姿勢で何かを捧げ持っている。<br>
   床の奥に石造りの祭壇がある。`,
@@ -28464,7 +28464,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_PASSAGE1:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   石段を降りると南へ25mの通路が続く。壁は切り石で丁寧に積まれており、高い建築技術が感じられる。通路の終端に重い石扉がある。`,
  choices:[
   {label:'↑ 地上へ', go:'AL_DNG_ENTRANCE'},
@@ -28474,7 +28474,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM3:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   35m四方の広い石室。床の石畳に複雑な文様が刻まれており、中央に向かって収束している。<br>
   北西に扉、北東に扉、南に扉、西にも扉があるがその先は不明だ。`,
  choices:[
@@ -28487,7 +28487,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_PASSAGE2:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   東西15mの通路。東端は南壁に扉と東壁に鍵のかかった扉。西端の北壁にアーチがある。通路の途中の北壁にもアーチが口を開けている。`,
  choices:()=>{
   const ch=[];
@@ -28502,7 +28502,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM16:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   南北25m、東西15mの石室。南の壁にアーチがある。西の壁をよく見ると、他の石とわずかに色の違う箇所がある。<br>
   ${PC._alDng_secret_found?'<span style="color:#aabbcc"> 隠し扉は開いている。</span>':''}`,
  choices:()=>{
@@ -28511,19 +28511,19 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
   if(!PC._alDng_secret_found){
    ch.push({label:' 西の壁を調べる（IQ Lv1 SR）', fn:()=>{
     const s=document.getElementById('story');
-    s.innerHTML=`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>西の壁を押し確かめていく——`;
+    s.innerHTML=`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>西の壁を押し確かめていく——`;
     document.getElementById('dice-area').classList.remove('hidden');
     setupSavingRoll({attr:'iq',level:1,label:'隠し扉の発見',
      onSuccess(){
       document.getElementById('dice-area').classList.add('hidden');
       PC._alDng_secret_found=true;
-      s.innerHTML=`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>特定の石を押すと、壁が音もなく内側へ滑った。<br><span class="grn"> 隠し扉を発見した！</span>`;
+      s.innerHTML=`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>特定の石を押すと、壁が音もなく内側へ滑った。<br><span class="grn"> 隠し扉を発見した！</span>`;
       renderChoices([{label:'← 隠し扉の先へ',fn:()=>alMove('AL_ROOM16_SECRET')},{label:'↓ 南のアーチ',fn:()=>alMove('AL_PASSAGE2')}]);
       scrollToTop();
      },
      onFail(){
       document.getElementById('dice-area').classList.add('hidden');
-      s.innerHTML=`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>壁を丹念に調べたが、何も見つからなかった。`;
+      s.innerHTML=`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>壁を丹念に調べたが、何も見つからなかった。`;
       renderChoices([{label:'↓ 南のアーチ',fn:()=>alMove('AL_PASSAGE2')},{label:' もう一度調べる',go:'AL_ROOM16'}]);
       scrollToTop();
      },
@@ -28538,7 +28538,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM16_SECRET:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   5m四方の極めて小さな石室。壁面に象形文字が隙間なく刻まれている。石台の上に古い鍵束が置かれている。<br>
   ${PC._alDng_has_key?'<span class="grn"> 鍵束は既に取った。</span>':''}`,
  choices:()=>{
@@ -28548,7 +28548,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
     PC._alDng_has_key=true;
     showSaveToast(' 古い鍵束を入手した');
     const s=document.getElementById('story');
-    s.innerHTML=`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>石台の鍵束を手に取った。複数の鍵が付いており、どこかの錠前を開けられるはずだ。<br><span class="grn"> 古い鍵束を入手した。</span>`;
+    s.innerHTML=`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>石台の鍵束を手に取った。複数の鍵が付いており、どこかの錠前を開けられるはずだ。<br><span class="grn"> 古い鍵束を入手した。</span>`;
     renderChoices([{label:'→ 東（隠し扉）',fn:()=>alMove('AL_ROOM16')}]);
     scrollToTop();
    }});
@@ -28560,7 +28560,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM1:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   直径30mの円形の石室。ドーム型の天井の中央に天窓の跡があるが、今は石で塞がれている。壁に沿って等間隔に柱の跡がある。<br>
   南に扉、東に扉、北にアーチがある。`,
  choices:[
@@ -28572,7 +28572,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM2:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   35m四方の石室。天井が高く、壁の上部に細長い採光窓の跡が並んでいる。<br>
   西に鍵のかかった扉、南にアーチ、東にアーチがある。`,
  choices:()=>{
@@ -28587,7 +28587,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_PASSAGE3:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   L字型の通路。東西15m、南北35m。西端にアーチ、南端に鍵のかかった扉がある。`,
  choices:()=>{
   const ch=[];
@@ -28600,7 +28600,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM4:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   35m四方の大きな石室。床の中央に大きな排水溝の跡がある。<br>
   北西に扉、西に扉、南東にアーチ、北東に鍵のかかった扉がある。`,
  choices:()=>{
@@ -28616,7 +28616,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM17:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   15m四方の石室。四方の壁に武器掛けの跡が残っているが、武器は全て失われている。<br>
   南西に鍵のかかった扉、南東に鍵のかかった扉、北東に扉がある。`,
  choices:()=>{
@@ -28635,7 +28635,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_PASSAGE4:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   南北20mの通路。南端の西壁に扉、北端の西壁に扉がある。`,
  choices:[
   {label:'↙ 南端・西の扉', fn:()=>alMove('AL_ROOM17')},
@@ -28645,7 +28645,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM8:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   15m四方の石室。床の一角に古い焚き火の跡がある。壁に炭で何かが描かれているが、判読できない。<br>
   東壁に扉がある。`,
  choices:[
@@ -28655,7 +28655,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM11:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   南北35m、東西15mの細長い石室。壁に沿って石造りの棚の跡が並んでいる。<br>
   北に扉、南西にアーチ、南東に扉がある。`,
  choices:[
@@ -28667,7 +28667,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_PASSAGE5:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   L字型の通路。東西40m、南北15m。東端の北壁に扉、東端の南壁に扉、南端に扉がある。`,
  choices:[
   {label:'↖ 東端・北の扉', fn:()=>alMove('AL_ROOM11')},
@@ -28678,7 +28678,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM15:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   南北25m、東西15mの石室。壁に等間隔で燭台の跡が並んでいる。<br>
   西に扉、北に扉がある。`,
  choices:[
@@ -28689,7 +28689,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM5:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   30m四方の石室。天井に装飾の跡が残っており、かつては色鮮やかだったと思われる。<br>
   南に扉、東に扉、北に扉がある。`,
  choices:[
@@ -28701,7 +28701,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM12:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   25m四方の石室。床に大型の台座の跡が四隅に残っている。<br>
   南に扉、北西に扉、北東に扉がある。`,
  choices:[
@@ -28713,7 +28713,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_PASSAGE8:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   東西25mの通路。東端にアーチ、西端の北壁に扉がある。`,
  choices:[
   {label:'→ 東端のアーチ', fn:()=>alMove('AL_ROOM6')},
@@ -28723,7 +28723,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM6:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   15m四方の石室。交差点のような役割を持ち、複数の開口部がある。<br>
   北西にアーチ、南西にアーチ、東に扉がある。`,
  choices:[
@@ -28735,7 +28735,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM15B:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   南北15m、東西25mの石室。北の壁に下り階段があるが、石材が崩落して完全に塞がれており降りることができない。<br>
   西に扉がある。`,
  choices:[
@@ -28746,7 +28746,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_PASSAGE7:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   東西40mの長い通路。壁の両側に古い松明ホルダーが等間隔に並んでいる。西端に扉、東端にアーチがある。`,
  choices:[
   {label:'← 西端の扉', fn:()=>alMove('AL_ROOM14')},
@@ -28756,7 +28756,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM14:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   南北25m、東西15mの石室。床の石畳が他より新しく、かつて修復が行われた形跡がある。<br>
   南東に扉、北東に扉がある。`,
  choices:[
@@ -28767,7 +28767,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_PASSAGE6:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   L字型の大きな通路。南北40m、東西115mにわたる。この迷宮でも特に古い区画らしく、壁の石組みが異なる。<br>
   北端に扉、西端に扉がある。`,
  choices:[
@@ -28778,7 +28778,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM9:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   直径30mの円形の石室。床の中央に放射状の紋様が刻まれており、その中心から幾何学的な線が広がっている。<br>
   北に扉、南西にアーチ、南東に扉がある。`,
  choices:[
@@ -28790,7 +28790,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM10:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   南北15m、東西25mの石室。北壁の全面にアーチ状の装飾が施されており、かつては壮麗だったと思われる。<br>
   北にアーチがある。`,
  choices:[
@@ -28800,7 +28800,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_PASSAGE9:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   南北20mの通路。壁面に細かい刻み文字が並んでおり、祈祷文のようだ。北端に扉、南端にアーチがある。`,
  choices:[
   {label:'↑ 北端の扉', fn:()=>alMove('AL_ROOM3')},
@@ -28810,7 +28810,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
 
  AL_ROOM7:{
  scene:'dungeon',
- txt:()=>`${torchIndicator?torchIndicator():""}<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   南北15m、東西30mの横長の石室。東西の壁に古い壁画の跡があるが、ほとんど剥落している。<br>
   南に扉、北にアーチがある。`,
  choices:[
