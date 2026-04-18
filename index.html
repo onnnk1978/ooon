@@ -590,9 +590,8 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div id="title-img-area" style="display:none;width:min(360px,90vw);margin:0 auto 12px;border-radius:4px;overflow:hidden">
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
- <canvas id="ooon-ascii" width="360" height="108" style="display:block;margin:0 auto 16px;width:min(360px,90vw);height:auto"></canvas>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041501</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041801</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -4639,6 +4638,178 @@ const PATRON_EVENTS = {
 };
 
 // ── 追加バリエーションを各町にマージ ──
+
+// ── 全酒場共通の客イベント ──────────────────────────────
+const PATRON_EVENTS_COMMON = [
+
+ { name:'旅慣れた行商人', icon:'',
+   intro:'荷物だらけの男が地図を眺めながら飲んでいる。話しかけると顔を上げた。',
+   type:'rumor',
+   lines:['「最近どの街道も盗賊が増えた。護衛なしで旅するのは命取りだよ」',
+          '「西のある村では夜になると火の玉が飛ぶらしい。地元の人間は近寄らないそうだ」',
+          '「石畳の道より砂利道のほうが足には優しい。それが長旅の知恵ってもんさ」'] },
+
+ { name:'退役した兵士', icon:'',
+   intro:'腕に古傷のある男がエールを静かに飲んでいる。こちらをちらりと見た。',
+   type:'rumor',
+   lines:['「戦争は終わったが傭兵は減らん。どこかで常に何かが燃えてるんだ」',
+          '「砦に封印された武器がある、って同期の奴が言ってた。死ぬ前に言い残した言葉だ」',
+          '「古い戦場跡には今でも亡霊が出る。俺は信じてなかったが…今は信じてる」'] },
+
+ { name:'酔った農夫', icon:'',
+   intro:'泥だらけの男が赤い顔でジョッキを傾けている。目が合うと手を振った。',
+   type:'rumor',
+   lines:['「今年の麦は不作だ。税だけは変わらんのに、まったく割に合わん」',
+          '「畑を耕してたら変な石が出てきた。ぴかぴか光っとったけど、怖くて触れなんだ」',
+          '「村の外れの森に子供たちが迷い込んで帰ってきたんだが、一人だけ何も覚えていなかった」'] },
+
+ { name:'若い見習い魔法使い', icon:'',
+   intro:'ローブを着た若者が分厚い本を読みながら飲んでいる。',
+   type:'rumor',
+   lines:['「古代の術式を解読したら、街が一つ消えたって記録があるんです。怖くないですか？」',
+          '「魔法の素質は血筋じゃなくて経験だって師匠が言ってました。信じてますよ」',
+          '「この辺りで魔法石が採れるって聞きましたが、具体的な場所を知りませんか？」'] },
+
+ { name:'物売りの老婆', icon:'',
+   intro:'小さな荷籠を抱えた老婆が隅の席でお茶を飲んでいる。話しかけると笑顔になった。',
+   type:'rumor',
+   lines:['「昔はもっと安全だったよ。旅人を一人で泊めてあげてたくらいさ」',
+          '「この街の地下には昔の街が埋まってるって、うちのばあさんが言ってたよ」',
+          '「薬草の煮汁は何にでも効く。それだけは覚えておきな」'] },
+
+ { name:'船乗り上がりの男', icon:'',
+   intro:'潮の香りがする男が遠い目で飲んでいる。',
+   type:'rumor',
+   lines:['「北の海には霧の壁がある。その向こうに行った船は戻ってこない」',
+          '「海の底には沈んだ街がある。嵐の夜には鐘の音が聞こえるらしい」',
+          '「羅針盤が狂う海域がある。方角を失ったら星を頼れ」'] },
+
+ { name:'旅芸人の女', icon:'',
+   intro:'派手な衣装の女がひとりで飲んでいる。話しかけると面白そうに笑った。',
+   type:'rumor',
+   lines:['「各地を回っているとね、どの街にも必ず「隠れた金持ち」がいるのよ」',
+          '「この前の街で、夢でお告げを受けたという男に会ったわ。次の日には消えてたけど」',
+          '「怪しい宿屋には泊まらないこと。壁に穴が開いてる宿は大抵ろくでもないわよ」'] },
+
+ { name:'山歩きの猟師', icon:'',
+   intro:'皮の外套を着た男が干し肉を齧りながら飲んでいる。',
+   type:'rumor',
+   lines:['「山の奥に誰かが住んでる形跡がある。人間じゃないかもしれんが」',
+          '「今年は獣の移動が例年と違う。何かが山の奥で起きてるんだと思う」',
+          '「古い罠が山に残ってる。足を踏み外す前に気づけるかどうかだ」'] },
+
+ { name:'旅の医者', icon:'',
+   intro:'道具袋を持った男が疲れた様子で飲んでいる。',
+   type:'rumor',
+   lines:['「この辺りで熱病が流行ってると聞きました。原因はまだ分かっていません」',
+          '「傷の治療費は払えない人が多い。でもそれが仕事だから断れないんですよ」',
+          '「不思議な病があってね、患者の記憶だけが消えるんです。体は멀쩡なのに」'] },
+
+ { name:'鍛冶師の弟子', icon:'',
+   intro:'手に火傷跡のある若者が疲れた様子で飲んでいる。',
+   type:'rumor',
+   lines:['「師匠が変な金属を持ってきた。溶かしても形が変わらないんです」',
+          '「良い武器は素材より打つ人間だって師匠は言う。でも素材も大事ですよ」',
+          '「古い武器を修理してたら、刀身に文字が浮かんできました。今でも夢に出てきます」'] },
+
+ { name:'逃げてきた使用人', icon:'',
+   intro:'ぼろぼろの服の若者が隅でうずくまるように飲んでいる。',
+   type:'rumor',
+   lines:['「あそこの屋敷には地下室があって、毎晩変な音がするんです。だから逃げてきました」',
+          '「お屋敷のご主人は夜中に庭を歩き回ってました。目が開いたまま眠ってるみたいに」',
+          '「書斎の本棚の裏に隠し扉があるって、他の使用人が言ってました」'] },
+
+ { name:'元盗賊の男', icon:'',
+   intro:'どこか油断できない目つきの男が静かに飲んでいる。こちらを試すように見た。',
+   type:'rumor',
+   lines:['「どの街にも抜け道がある。知ってるかどうかで生き死にが変わる」',
+          '「金庫を開けるより、鍵を持ってる人間を動かす方が楽さ」',
+          '「この店の主人、昔はもっとまずい酒を出してたぞ。懐かしいな」'] },
+
+ { name:'巡礼者の老人', icon:'',
+   intro:'杖をついた老人が水を一杯だけ頼んで座っている。話しかけると穏やかに笑った。',
+   type:'rumor',
+   lines:['「長い旅をしてきましたが、どの地でも人の業は変わりませんね」',
+          '「かつて聖地と呼ばれた場所に行きましたが、今は廃墟でした。時は容赦ない」',
+          '「本当の財宝は地面の下じゃなく、人の心の中にある…とは言いますが、金も大事ですな」'] },
+
+ { name:'夜警上がりの男', icon:'',
+   intro:'眠そうな目の男が昼間から飲んでいる。',
+   type:'rumor',
+   lines:['「夜中の街は別の顔がある。昼間は絶対に見せない顔がな」',
+          '「先週、路地裏で奇妙なものを見た。人の形をしてたが、影がなかった」',
+          '「毎晩巡回してると、絶対に明かりがついてる窓がある。誰も住んでないはずなのに」'] },
+
+ { name:'流れ者の剣士', icon:'',
+   intro:'腰に古い剣を佩いた男がひっそりと飲んでいる。',
+   type:'rumor',
+   lines:['「強くなりたいなら旅をしろ。道場の中じゃ本当の強さは分からない」',
+          '「この辺りで腕の立つ冒険者を探してると、妙な男に声をかけられた。断ったが」',
+          '「剣で全てを解決しようとする奴は長生きしない。それは保証する」'] },
+
+ { name:'大柄な荷運び人夫', icon:'',
+   intro:'筋肉質な男がこちらをじろじろ見ている。「おい、腕試しといこうじゃねえか」と言ってきた。',
+   type:'brawl', intro_sr:'「力で勝負だ。勝ったら一杯おごってやる」',
+   attr:'st', level:2,
+   win_line:'「うっ…なかなかやるじゃないか」男は舌を巻いた様子でコインを出した。',
+   lose_line:'「やっぱりな」男は笑い、お前の分まで飲み干した。',
+   win_ap:15, win_gp:8, lose_con:2 },
+
+ { name:'酔ったならず者', icon:'',
+   intro:'絡んでくる目つきの悪い男が近づいてきた。「財布を見せろ」と凄んでくる。',
+   type:'brawl', intro_sr:'「やってみろよ」こちらも構えを取った。',
+   attr:'st', level:2,
+   win_line:'「くっ…覚えてろよ」男はよろよろと退散した。財布は無事だ。',
+   lose_line:'財布の中身を少し取られた。腹が立つが後の祭りだ。',
+   win_ap:12, win_gp:5, lose_con:2 },
+
+ { name:'ダーツ好きの冒険者', icon:'',
+   intro:'壁のダーツ板に矢を投げていた男がこちらを振り返った。「一勝負どうだ？」',
+   type:'brawl', intro_sr:'「先攻はお前だ。外したら俺の勝ちだ」',
+   attr:'dex', level:1,
+   win_line:'「あんた筋がいいな」男は気前よくコインを払った。',
+   lose_line:'「惜しかったな」男はにやりと笑い、次の矢を投げた。',
+   win_ap:10, win_gp:6, lose_con:0 },
+
+ { name:'カード賭博師', icon:'',
+   intro:'手先の器用そうな男がカードを切っている。「一手だけどうだ」と誘ってきた。',
+   type:'brawl', intro_sr:'「カードを一枚引け。こっちより高ければお前の勝ちだ」',
+   attr:'lk', level:1,
+   win_line:'「今日はツイてるな」男は渋い顔でコインを渡した。',
+   lose_line:'「運がなかったな」男はさらりと言い、カードを片付けた。',
+   win_ap:10, win_gp:7, lose_con:0 },
+
+ { name:'腕相撲好きの鍛冶師', icon:'',
+   intro:'ごつい手の男がテーブルに肘をついてこちらを見ている。「腕相撲で一勝負どうだ」',
+   type:'brawl', intro_sr:'「本気でこい。加減したら負けだぞ」',
+   attr:'st', level:3,
+   win_line:'「こんな力がある奴は久しぶりだ」男は大笑いしてエールを奢ってくれた。',
+   lose_line:'「まあそんなもんだな」男はあっさり言い、また腕を組んだ。',
+   win_ap:20, win_gp:10, lose_con:1 },
+
+ { name:'旅の吟遊詩人', icon:'',
+   intro:'弦楽器を抱えた人物がこちらを見て微笑んだ。話しかけると興味深そうに目を細める。',
+   type:'charm', attr:'chr', level:1,
+   win_line:'「あなたみたいな人に出会えるから旅は止められない」詩人は短い曲を贈ってくれた。不思議と気持ちが軽くなった。',
+   lose_line:'「ごめんなさい、今夜はもう演奏は終わりなんです」穏やかに断られた。',
+   win_ap:20, trust_delta:3 },
+
+ { name:'遠い街から来た商人の娘', icon:'',
+   intro:'上等な服を着た若い女性が退屈そうに飲んでいる。目が合うと軽く会釈した。',
+   type:'charm', attr:'chr', level:2,
+   win_line:'「あなたの話、面白いわ。また会えるといいのだけど」女性は品よく微笑み、小さな護符を渡してくれた。',
+   lose_line:'「ごめんなさい、父が呼んでいるので」女性はそそくさと席を立った。',
+   win_ap:25, trust_delta:5 },
+
+ { name:'元騎士の老人', icon:'',
+   intro:'背筋の伸びた老人が一人で静かに飲んでいる。声をかけると、じっとこちらを見た。',
+   type:'charm', attr:'chr', level:2,
+   win_line:'「若い頃の自分を思い出すな。お前はいい目をしている」老人は昔話を聞かせてくれた。何か大切なことを学んだ気がした。',
+   lose_line:'「…昔を思い出したくなった。すまんが一人にしてくれ」老人は静かに目を伏せた。',
+   win_ap:25, trust_delta:4 },
+
+];
+
 (()=>{
 const extra = {
  khazan: [
@@ -5707,8 +5878,11 @@ function talkToPatron(townId){
   return;
  }
 
- const events = PATRON_EVENTS[townId];
- if(!events || !events.length) return;
+ const events = [
+  ...(PATRON_EVENTS[townId] || []),
+  ...PATRON_EVENTS_COMMON,
+ ];
+ if(!events.length) return;
  const ev = events[Math.floor(Math.random() * events.length)];
 
  // 共通ヘッダーHTML
@@ -6927,6 +7101,9 @@ const DUNGEON_NODES = new Set([
  'AL_ROOM14','AL_ROOM15','AL_ROOM15B','AL_ROOM16','AL_ROOM16_SECRET','AL_ROOM17',
  'AL_PASSAGE2','AL_PASSAGE3','AL_PASSAGE4','AL_PASSAGE5',
  'AL_PASSAGE6','AL_PASSAGE7','AL_PASSAGE8','AL_PASSAGE9',
+ 'AL_W_PASSAGE1','AL_W_PASSAGE2','AL_W_PASSAGE3','AL_W_PASSAGE4','AL_W_PASSAGE5',
+ 'AL_W_TJUNC1','AL_W_ROOM1','AL_W_ROOM3','AL_W_ROOM6','AL_W_ROOM8','AL_W_ROOM11','AL_W_PASSAGE6',
+ 'AL_W_ROOM2','AL_W_ROOM4','AL_W_ROOM5','AL_W_ROOM7','AL_W_ROOM9',
 ]);
 // 入口・出口など松明消費・暗闇判定を除外するノード
 const DUNGEON_SAFE_NODES = new Set([
@@ -12039,7 +12216,7 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
    break;
   }
   case 'room':{
-   const rw  = ydRoll100([{r:[1,50],w:'6-9m'},{r:[51,70],w:'9-12m'},{r:[71,80],w:'12-15m'},{r:[81,90],w:'15-21m'},{r:[91,95],w:'18-30m'},{r:[96,100],w:'unusual'}]);
+   const rw  = ydRoll100([{r:[1,50],w:'狭い'},{r:[51,70],w:'こぢんまりとした'},{r:[71,80],w:'広めの'},{r:[81,90],w:'広い'},{r:[91,95],w:'非常に広い'},{r:[96,100],w:'unusual'}]);
    const rexits = ydRoll100(YD_T_ROOM_EXITS);
    const rcont  = ydRoll100(YD_T_ROOM_CONTENTS);
    node.type = 'room';
@@ -12485,7 +12662,7 @@ function ydNodeTxt(node, floor){
 
   case 'room':{
    const monsterCleared = !node.monster || PC[node.monsterKey];
-   const roomWidthLabel = node.roomWidth === 'unusual' ? '広大な' : `${node.roomWidth}mの`;
+   const roomWidthLabel = node.roomWidth === 'unusual' ? '広大な' : node.roomWidth;
    const roomAtm = ydStyleAtm(design);
    return `${tBar}${fLabel}<br><br>
     <span style="color:#88aacc"> ${roomWidthLabel}部屋に出た</span><br><br>
@@ -16841,46 +17018,6 @@ function drawScene(name){
  SCENES.title(c);
 })();
 
-// ── OOON ASCII art (canvas) ──
-(function(){
- const cv = document.getElementById('ooon-ascii');
- if(!cv) return;
- const ctx = cv.getContext('2d');
- const W = cv.width, H = cv.height;
- ctx.clearRect(0,0,W,H);
-
- const lines = [" \u2588\u2588\u2588\u2588\u2588\u2588\u2557  \u2588\u2588\u2588\u2588\u2588\u2588\u2557  \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2557  \u2588\u2588\u2557", "\u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2551", "\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2554\u2588\u2588\u2557\u2588\u2588\u2551", "\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2551   \u2588\u2588\u2551\u2588\u2588\u2551\u255a\u2588\u2588\u2588\u2588\u2551", "\u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u2588\u2588\u2551 \u255a\u2588\u2588\u2588\u2551", " \u255a\u2550\u2550\u2550\u2550\u2550\u255d  \u255a\u2550\u2550\u2550\u2550\u2550\u255d  \u255a\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u255d  \u255a\u2550\u2550\u255d"];
-
- // フォントサイズを行数・列数に合わせて自動調整
- const cols = Math.max(...lines.map(l=>l.length));
- const rows = lines.length;
- // 幅優先でフォントサイズを決定
- let fs = Math.floor(W / (cols * 0.62));
- fs = Math.max(6, Math.min(fs, Math.floor(H / rows * 1.1)));
-
- ctx.font = `${fs}px "Courier New", Courier, monospace`;
- ctx.textBaseline = 'top';
-
- // 実際の文字幅を計測して中央寄せ
- const charW = ctx.measureText('█').width;
- const lineH = Math.floor(H / rows);
- const totalTextW = charW * cols;
- const ox = Math.max(0, (W - totalTextW) / 2);
-
- lines.forEach((line, ri) => {
-  const y = ri * lineH + (lineH - fs) / 2;
-  // グロー
-  ctx.shadowColor = 'var(--fire)';
-  ctx.shadowBlur = 10;
-  ctx.fillStyle = '#c8a44a';
-  ctx.fillText(line, ox, y);
-  // 2重描きで輝度アップ
-  ctx.shadowBlur = 4;
-  ctx.fillStyle = '#e8c060';
-  ctx.fillText(line, ox, y);
- });
- ctx.shadowBlur = 0;
-})();
 
 // ──────────────────────────────────────
 // CHAR GEN
@@ -20507,9 +20644,6 @@ function showTitleImage(){
  if(!wrap || !img || !TITLE_IMGS.length) return;
  img.src = TITLE_IMGS[Math.floor(Math.random() * TITLE_IMGS.length)];
  wrap.style.display = '';
- // 画像ありのときはcanvasを非表示
- const canvas = document.getElementById('ooon-ascii');
- if(canvas) canvas.style.display = 'none';
 }
 
 function showDungeonImage(nodeId){
@@ -28476,12 +28610,12 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  scene:'dungeon',
  txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>
   35m四方の広い石室。床の石畳に複雑な文様が刻まれており、中央に向かって収束している。<br>
-  北西に扉、北東に扉、南に扉、西にも扉があるがその先は不明だ。`,
+  北西に扉、北東に扉、南に扉、西に扉がある。`,
  choices:[
   {label:'↖ 北西の扉', fn:()=>alMove('AL_PASSAGE1')},
   {label:'↗ 北東の扉', fn:()=>alMove('AL_PASSAGE2')},
   {label:'↓ 南の扉', fn:()=>alMove('AL_PASSAGE9')},
-  {label:'← 西の扉（先は不明）', fn:()=>showSaveToast('この先はまだ調査されていない')},
+  {label:'← 西の扉', fn:()=>alMove('AL_W_PASSAGE1')},
  ],
  },
 
@@ -28815,6 +28949,210 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  choices:[
   {label:'↓ 南の扉', fn:()=>alMove('AL_ROOM12')},
   {label:'↑ 北のアーチ', fn:()=>alMove('AL_PASSAGE9')},
+ ],
+ },
+
+
+
+ // ── アル・ラシード東方の地下迷宮 西区画 ──────────────────────
+ AL_W_PASSAGE1:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  南北55m東西15mのL字型通路。壁に沿って古い彫刻が続いている。<br>
+  東端に扉（中央エリアへ）、北端に扉、通路の中ほどの壁に扉がある。`,
+ choices:[
+  {label:'→ 東端の扉（中央エリアへ）', fn:()=>alMove('AL_ROOM3')},
+  {label:'↑ 北端の扉', fn:()=>alMove('AL_W_ROOM2')},
+  {label:'← 中ほどの扉', fn:()=>alMove('AL_W_ROOM9')},
+ ],
+ },
+
+ AL_W_ROOM9:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  南北35m、東西15mの細長い石室。壁龕が等間隔で並んでいる。<br>
+  東に扉、北に扉、南西に扉がある。`,
+ choices:[
+  {label:'→ 東の扉', fn:()=>alMove('AL_W_PASSAGE1')},
+  {label:'↑ 北の扉', fn:()=>alMove('AL_W_ROOM8')},
+  {label:'↙ 南西の扉', fn:()=>alMove('AL_W_PASSAGE4')},
+ ],
+ },
+
+ AL_W_ROOM2:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  直径35mの円形の大石室。ドーム型の天井に星図が刻まれており、中央の床石が他と色が違う。<br>
+  南に扉、北東に扉、北西に扉、西に扉がある。`,
+ choices:[
+  {label:'↓ 南の扉', fn:()=>alMove('AL_W_PASSAGE1')},
+  {label:'↗ 北東の扉', fn:()=>alMove('AL_W_ROOM5')},
+  {label:'↖ 北西の扉', fn:()=>alMove('AL_W_ROOM4')},
+  {label:'← 西の扉', fn:()=>alMove('AL_W_PASSAGE2')},
+ ],
+ },
+
+ AL_W_ROOM5:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  15m四方の石室。床に古代語の銘文が刻まれている。読める者には何かの誓いの言葉と分かるだろう。<br>
+  南に扉がある。`,
+ choices:[
+  {label:'↓ 南の扉', fn:()=>alMove('AL_W_ROOM2')},
+ ],
+ },
+
+ AL_W_ROOM4:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  15m四方の石室。壁の角に古い燭台の残骸が倒れており、かつては照明が灯っていたことが分かる。<br>
+  南に扉、西に扉がある。`,
+ choices:[
+  {label:'↓ 南の扉', fn:()=>alMove('AL_W_ROOM2')},
+  {label:'← 西の扉', fn:()=>alMove('AL_W_ROOM7')},
+ ],
+ },
+
+ AL_W_ROOM7:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  南北15m、東西35mの横長の石室。東西の壁に古い壁画の跡が残っており、行列の場面が描かれている。<br>
+  東に扉がある。`,
+ choices:[
+  {label:'→ 東の扉', fn:()=>alMove('AL_W_ROOM4')},
+ ],
+ },
+
+ AL_W_PASSAGE2:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  東西50mに延びる通路。天井が低く、両側の壁に古い松明ホルダーが残っている。<br>
+  東端に扉、西端の南壁に扉がある。`,
+ choices:[
+  {label:'→ 東端の扉', fn:()=>alMove('AL_W_ROOM2')},
+  {label:'↙ 西端・南の扉', fn:()=>alMove('AL_W_ROOM10')},
+ ],
+ },
+
+ AL_W_ROOM10:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  南北15m、東西25mの石室。床に排水溝の跡がある。かつて液体を扱う作業が行われていたのかもしれない。<br>
+  北に扉、西に扉がある。`,
+ choices:[
+  {label:'↑ 北の扉', fn:()=>alMove('AL_W_PASSAGE2')},
+  {label:'← 西の扉', fn:()=>alMove('AL_W_PASSAGE3')},
+ ],
+ },
+
+ AL_W_PASSAGE3:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  南北65mに延びる通路。石の質が他と異なり、より古い時代に掘られたと思われる。<br>
+  南端の東壁に扉があり、北端は行き止まりになっている。`,
+ choices:[
+  {label:'↘ 南端・東の扉', fn:()=>alMove('AL_W_ROOM10')},
+ ],
+ },
+
+
+
+ AL_W_PASSAGE4:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  東西35m南北15mのL字型通路。曲がり角に古い标識の残骸がある。<br>
+  東端に扉、北端はT字路につながっている。`,
+ choices:[
+  {label:'→ 東端の扉', fn:()=>alMove('AL_W_ROOM9')},
+  {label:'↑ 北端（T字路）', fn:()=>alMove('AL_W_TJUNC1')},
+ ],
+ },
+
+ AL_W_TJUNC1:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  三方向に分かれるT字路。東西南の通路が延びており、足元の石畳に方位を示す刻み込みがある。`,
+ choices:[
+  {label:'↓ 南（通路4）', fn:()=>alMove('AL_W_PASSAGE4')},
+  {label:'→ 東（15m先・部屋1の扉）', fn:()=>alMove('AL_W_ROOM1')},
+  {label:'← 西（通路5）', fn:()=>alMove('AL_W_PASSAGE5')},
+ ],
+ },
+
+ AL_W_ROOM1:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  15m四方の石室。床の中央に石製の台座の跡がある。何かが長期間置かれていた痕跡だ。<br>
+  西に扉がある。`,
+ choices:[
+  {label:'← 西の扉（T字路へ）', fn:()=>alMove('AL_W_TJUNC1')},
+ ],
+ },
+
+ AL_W_PASSAGE5:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  東西30m南北35mのL字型通路。壁の石組みが入り組んでおり、この区画の構造の複雑さを物語っている。<br>
+  東はT字路へ続き、北端に扉がある。`,
+ choices:[
+  {label:'→ 東（T字路）', fn:()=>alMove('AL_W_TJUNC1')},
+  {label:'↑ 北端の扉', fn:()=>alMove('AL_W_ROOM3')},
+ ],
+ },
+
+ AL_W_ROOM3:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  南北15m、東西35mの横長の石室。天井が高く、壁の上部に細長い採光窓の跡が並んでいる。<br>
+  南西に扉、南東に扉、東に扉がある。`,
+ choices:[
+  {label:'↙ 南西の扉', fn:()=>alMove('AL_W_PASSAGE5')},
+  {label:'↘ 南東の扉', fn:()=>alMove('AL_W_ROOM11')},
+  {label:'→ 東の扉', fn:()=>alMove('AL_W_ROOM6')},
+ ],
+ },
+
+ AL_W_ROOM8:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  南北15m、東西25mの石室。床に砂が薄く積もっており、足跡がそのまま残る。<br>
+  北にアーチ、南に扉がある。`,
+ choices:[
+  {label:'↑ 北のアーチ', fn:()=>alMove('AL_W_PASSAGE6')},
+  {label:'↓ 南の扉', fn:()=>alMove('AL_W_ROOM9')},
+ ],
+ },
+
+
+ AL_W_PASSAGE6:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  南北25mに延びる通路。石の表面が滑らかに磨かれており、長年多くの者が行き来した証だ。<br>
+  北端の西壁に扉、南端にアーチがある。`,
+ choices:[
+  {label:'↖ 北端・西の扉', fn:()=>alMove('AL_W_ROOM6')},
+  {label:'↓ 南端のアーチ', fn:()=>alMove('AL_W_ROOM8')},
+ ],
+ },
+
+ AL_W_ROOM6:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  南北35m、東西15mの細長い石室。南北の壁に対称的な装飾が施されており、意図的に設計されたことが分かる。<br>
+  西に扉、東に扉がある。`,
+ choices:[
+  {label:'← 西の扉', fn:()=>alMove('AL_W_ROOM3')},
+  {label:'→ 東の扉', fn:()=>alMove('AL_W_PASSAGE6')},
+ ],
+ },
+
+ AL_W_ROOM11:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">アル・ラシード東方の地下迷宮 西区画</span><br><br>
+  25m四方の石室。中央に大きな石製の水盤がある。かつて液体が満たされていたと思われるが、今は干上がって久しい。<br>
+  北に扉がある。`,
+ choices:[
+  {label:'↑ 北の扉', fn:()=>alMove('AL_W_ROOM3')},
  ],
  },
 
