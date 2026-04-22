@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042201</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042202</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -865,7 +865,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div style="background:#130e08;border:2px solid #7a6040;border-radius:4px;padding:14px">
   <div id="patron-panel-content"></div>
   <button id="patron-panel-close" onclick="closePatronPanel()"
-   style="width:100%;margin-top:12px;font-size:calc(var(--font-sm) - 2px);padding:10px;background:var(--panel);border:1px solid #554433;color:#cc9966;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px">
+   style="display:none;width:100%;margin-top:12px;font-size:calc(var(--font-sm) - 2px);padding:10px;background:var(--panel);border:1px solid #554433;color:#cc9966;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px">
     閉じる
   </button>
  </div>
@@ -3158,7 +3158,7 @@ function goPropertyNode(townId){
       effect:()=>{
        const _taxRate = _trust >= 75 ? 0.30 : _trust >= 50 ? 0.20 : 0.10;
        const _taxGP = Math.max(1, Math.floor(totalCP()/100 * _taxRate));
-       PC.copper = Math.max(0, (PC.copper||0) - _taxGP*100);
+       payPrice(_taxGP);
        updateHUD();
        showSaveToast(` 税金 ${_taxGP}GP を徴収された`);
       }}] : []),
@@ -3239,6 +3239,8 @@ function _showPropertyMain(townId){
   }
   if(story) story.innerHTML = mhtml;
 
+  // 死亡した仲間（パーティにいるcon<=0）
+  const deadParty = (PC.party||[]).filter(n=>n.con<=0);
   // 既存の配偶者が生存しているか確認
   const hasLivingSpouse = (PC.spouse||[]).some(s=>{
    const npc = (PC.party||[]).find(n=>n.name===s.name) ||
@@ -3247,14 +3249,90 @@ function _showPropertyMain(townId){
   });
   const proposeTargets = !hasLivingSpouse ? (PC.party||[]).filter(n=>n.con>0 && !n.married) : [];
   const partyForCaretaker = (PC.party||[]).filter(n=>n.con>0);
+  const graves = (prop.graves||[]);
   renderChoices([
    {label:' 拠点で休養する',                    fn:()=>propertyRest(townId)},
    ...(proposeTargets.length ? [{label:' 結婚を申し込む', fn:()=>propertyPropose(townId)}] : []),
    {label:' 留守番を管理する', fn:()=>propertyManageCaretakers(townId)},
+   ...(deadParty.length ? [{label:` 仲間を埋葬する（${deadParty.length}人）`, fn:()=>propertyBury(townId)}] : []),
+   ...(graves.length || deadParty.length ? [{label:` 墓地を見る`, fn:()=>propertyViewGraves(townId)}] : []),
    {label:' 所持金を預ける／引き出す',           fn:()=>propertyStorageMoney(townId)},
    {label:' アイテムを預ける／引き出す',           fn:()=>propertyStorageItems(townId)},
    {label:'← 戻る', go:'TOWN_'+townId.toUpperCase()},
   ]);
+}
+
+// ── 墓地ノード ────────────────────────────────────────────
+function propertyViewGraves(townId){
+ const def = PROPERTY_DEFS[townId];
+ const prop = PC.properties[townId];
+ prop.graves = prop.graves || [];
+ const graves = prop.graves;
+ const dead = (PC.party||[]).filter(n=>n.con<=0);
+ const story = document.getElementById('story');
+
+ let html = ` <span style="color:#c8a44a">${def.name} — 墓地</span><br><br>`;
+ if(graves.length){
+  html += `<span class="dim">ここに眠る者たち：</span><br><br>`;
+  graves.forEach(g=>{
+   html += `<div style="border-left:2px solid #554433;padding:6px 10px;margin-bottom:8px">`
+    +`<span style="color:#ccbbaa"> <b>${g.name}</b></span>`
+    +`<span style="color:#776655;font-size:calc(var(--font-sm) - 1px)">　${g.date||'日付不明'}没</span><br>`
+    +(g.epitaph?`<span style="color:#776655;font-size:calc(var(--font-sm) - 1px)"><i>"${g.epitaph}"</i></span>`:'')
+    +`</div>`;
+  });
+ } else {
+  html += `<span class="dim">まだ誰も眠っていない。</span><br>`;
+ }
+ if(dead.length){
+  html += `<br><span style="color:var(--amber)"> 埋葬を待っている者：${dead.map(n=>n.name).join('、')}</span>`;
+ }
+ story.innerHTML = html;
+
+ const choices = [];
+ if(dead.length) choices.push({label:` 仲間を埋葬する`, fn:()=>propertyBury(townId)});
+ choices.push({label:'← 拠点に戻る', fn:()=>_showPropertyMain(townId)});
+ renderChoices(choices);
+}
+
+// ── 埋葬システム ──────────────────────────────────────────
+function propertyBury(townId){
+ const def = PROPERTY_DEFS[townId];
+ const prop = PC.properties[townId];
+ prop.graves = prop.graves || [];
+ const dead = (PC.party||[]).filter(n=>n.con<=0);
+ const story = document.getElementById('story');
+
+ story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+  +`<span class="dim">倒れた仲間を拠点の墓地に埋葬します。</span><br><br>`
+  +dead.map(n=>`<span style="color:#aaaaaa"> <b>${n.name}</b></span><br>`).join('');
+
+ const choices = dead.map(n=>({
+  label:` ${n.name}を埋葬する`,
+  fn:()=>{
+   const cur = getCurrentDate();
+   const epitaphCandidates = [
+    '安らかに眠れ',
+    'ここに英雄が眠る',
+    '共に旅した日々を忘れない',
+    '勇敢に戦った',
+    'また会う日まで',
+   ];
+   const epitaph = epitaphCandidates[Math.floor(Math.random()*epitaphCandidates.length)];
+   prop.graves.push({
+    name: n.name,
+    date: `${cur.year}年${cur.month}月${cur.day}日`,
+    epitaph,
+   });
+   PC.party = (PC.party||[]).filter(m=>m.name !== n.name);
+   addLifeEvent('', `${n.name}を${def.name}に埋葬した。`);
+   updateHUD();
+   showSaveToast(` ${n.name}を埋葬した`);
+   propertyViewGraves(townId);
+  },
+ }));
+ choices.push({label:'← 拠点に戻る', fn:()=>_showPropertyMain(townId)});
+ renderChoices(choices);
 }
 
 function propertyBuySR(townId){
@@ -6065,14 +6143,13 @@ function _showPatronPanel(html, onClose){
  const closeBtn = document.getElementById('patron-panel-close');
  content.innerHTML = html;
  panel.classList.remove('hidden');
- // 閉じるボタン
+ // 閉じるボタンでパネルを閉じてonCloseを実行
  closeBtn.onclick = ()=>{
   panel.classList.add('hidden');
   if(onClose) onClose();
  };
  scrollToTop();
- // 選択肢を隠す
- renderChoices([]);
+ // 選択肢は隠さない（戻るボタンをそのまま使えるように）
 }
 function _appendPatronPanel(html){
  const content = document.getElementById('patron-panel-content');
@@ -6115,7 +6192,7 @@ function talkToPatron(townId){
   const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#c8a44a;margin-bottom:8px"> 酒場の客</div>
    <div style="font-size:var(--font-sm);color:var(--dim);line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
   const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#aaaaaa;line-height:1.8;padding:8px;background:#06060f;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
-  _showPatronPanel(header + msgBox(chaosRumor), ()=>{ updateHUD(); _restoreNodeChoices(); });
+  _showPatronPanel(header + msgBox(chaosRumor), ()=>{ updateHUD(); });
   return;
  }
 
@@ -20490,8 +20567,11 @@ function setRegionTheme(nodeId){
 function go(nodeId){
  if(nodeId==='RESTART'){location.reload();return;}
  if(nodeId==='__travel__') return;
- if(nodeId==='__hunt_room__') return; // 討伐クエスト：onWinで処理済み
- if(nodeId==='__yd_win__') return; // 廃坑ダンジョン：onWinで処理済み
+ if(nodeId==='__hunt_room__') return;
+ if(nodeId==='__yd_win__') return;
+ // 酒場パネルが開いていれば閉じる
+ const _pp = document.getElementById('patron-panel');
+ if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
 
  if(nodeId==='__bounty_win__'){
  // 賞金首討伐勝利 → 衛兵に報告する画面
