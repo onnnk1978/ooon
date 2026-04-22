@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026041801</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042201</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -2546,6 +2546,160 @@ function initChaosNest(){
 }
 
 // 毎日チェック（travelTickやgo()から呼ぶ）
+
+// ══════════════════════════════════════════
+// 食料価格変動システム（収穫判定）
+// ══════════════════════════════════════════
+// PC._harvestYear    : 最後に判定した年
+// PC._harvestResult  : 'bumper'|'normal'|'poor'|'famine'
+// PC._harvestRumorShown : 噂を見せた回数
+// PC._foodPriceMult  : 現在の食料価格倍率（デフォルト1.0）
+
+function checkHarvestTick(){
+ if(!PC) return;
+ if(!PC._foodPriceMult) PC._foodPriceMult = 1.0;
+
+ const cur = getCurrentDate();
+ const lastYear = PC._harvestYear || -1;
+
+ // 10月1日以降：今年の判定がまだなら収穫判定を実行
+ if(cur.month >= 10 && cur.year !== lastYear){
+  PC._harvestYear = cur.year;
+
+  // 混沌の根城・砦占領による不作確率の加重
+  const hasNest = !!(PC._chaosNest?.nestTownId && !PC._chaosNest?.cleared);
+  const hasFort = (PC.quests||[]).some(q=>q.type==='special_mission' && q.status==='active');
+
+  // 基本確率：大豊作10% / 普通55% / 不作25% / 大不作10%
+  // 根城あり：大豊作5% / 普通35% / 不作35% / 大不作25%
+  // 根城+砦：大豊作0% / 普通20% / 不作40% / 大不作40%
+  let r = Math.random();
+  if(hasNest && hasFort){
+   if(r < 0.20)      PC._harvestResult = 'normal';
+   else if(r < 0.60) PC._harvestResult = 'poor';
+   else               PC._harvestResult = 'famine';
+  } else if(hasNest){
+   if(r < 0.05)      PC._harvestResult = 'bumper';
+   else if(r < 0.40) PC._harvestResult = 'normal';
+   else if(r < 0.75) PC._harvestResult = 'poor';
+   else               PC._harvestResult = 'famine';
+  } else {
+   if(r < 0.10)      PC._harvestResult = 'bumper';
+   else if(r < 0.65) PC._harvestResult = 'normal';
+   else if(r < 0.90) PC._harvestResult = 'poor';
+   else               PC._harvestResult = 'famine';
+  }
+
+  PC._harvestRumorShown = 0;
+  if(PC._harvestResult === 'famine'){ PC._famineYear = cur.year; addLifeEvent('', `${cur.year}年の大飢饉が発生した。`); } // 大飢饉の年を記録
+
+  // 11月末（月12開始時）に価格を反映
+  // →次のcheckで月12になったら適用するためフラグを立てる
+  PC._harvestPriceApplied = false;
+ }
+
+ // 12月1日以降（=11月末の翌日）：価格変動を適用
+ if(cur.month >= 12 && PC._harvestResult && !PC._harvestPriceApplied){
+  PC._harvestPriceApplied = true;
+  const prev = PC._foodPriceMult;
+  if(PC._harvestResult === 'bumper') PC._foodPriceMult = 0.7;
+  else if(PC._harvestResult === 'normal') PC._foodPriceMult = 1.0;
+  else if(PC._harvestResult === 'poor')   PC._foodPriceMult = 1.5;
+  else                                    PC._foodPriceMult = 2.0;
+  if(prev !== PC._foodPriceMult) updateHUD();
+ }
+
+ // 翌年1月になったら価格をリセット（新しい判定まで維持）
+ if(cur.month === 1 && PC._harvestPriceApplied){
+  // 前年の価格をそのまま継続（次の10月判定まで）
+ }
+}
+
+// 収穫結果の噂テキストを返す（酒場で使用）
+function getHarvestRumor(){
+ if(!PC._harvestResult) return null;
+ const cur2 = getCurrentDate();
+ // 大飢饉後の回顧噂（翌年以降もランダムで出る）
+ if(PC._famineYear && PC._famineYear < cur2.year){
+  if(Math.random() > 0.4) return null;
+  const fy = PC._famineYear;
+  const chaosCleared = PC._chaosNest?.cleared;
+  const heroName = PC.name;
+  const postFamineRumors = [
+   `「${fy}年の大飢饉は大変だったらしい。あの冬を越せなかった者も多かったという」`,
+   `「${fy}年の大飢饉……あれは自然の不作ではなかったと思っている。何者かが仕組んだとしか」`,
+   `「${fy}年の大飢饉のことは忘れられない。食料が底をつき、街中が静まり返っていた」`,
+   `「${fy}年の飢饉から立て直すのに何年もかかった村があるそうだ。今も爪痕が残っている」`,
+   ...(chaosCleared ? [
+    `「${fy}年の大飢饉、黒幕がいたという話は本当だったようだ。${heroName}という冒険者が根を断ったと聞いた」`,
+    `「あの大飢饉は混沌の者どもが仕組んだものだと今では言われている。${heroName}がそやつらを倒してから作物の育ちが戻ったらしい」`,
+    `「${fy}年の飢饉の後、${heroName}が混沌の根城を壊滅させたおかげで土地が回復したそうだ。英雄だな」`,
+   ] : [
+    `「${fy}年の大飢饉を起こした黒幕は、まだどこかに潜んでいるという噂がある。また同じことが起きるかもしれない」`,
+   ]),
+  ];
+  return postFamineRumors[Math.floor(Math.random()*postFamineRumors.length)];
+ }
+ if(PC._harvestResult === 'normal') return null; // 普通の年は噂にならない
+ if((PC._harvestRumorShown||0) >= 4) return null; // 4回まで
+
+ const cur = getCurrentDate();
+ // 10月〜翌2月の間だけ噂が出る
+ if(cur.month < 10 && cur.month > 2) return null;
+
+ const hasNestRumor = !!(PC._chaosNest?.nestTownId && !PC._chaosNest?.cleared);
+ const hasFortRumor = (PC.quests||[]).some(q=>q.type==='special_mission'&&q.status==='active');
+ const rumors = {
+  bumper: [
+   '「今年は記録的な豊作だそうだ。食料の値段が下がるといいんだが」',
+   '「麦の収穫が例年の倍近いらしい。倉庫が足りないと農家が笑っていた」',
+   '「今年は食料が余るほどとれたそうだ。街の市場でも値が下がり始めている」',
+   '「豊作の年は酒も安くなる。いい年だな」',
+  ],
+  poor: [
+   '「今年の収穫はよくなかったらしい。食料を早めに確保しておいた方がいいぞ」',
+   '「不作の噂が広まってから、街の食料が品薄になってきた。値も上がっている」',
+   '「天候が悪くて農作物が育たなかったそうだ。冬前に食料を蓄えておけ」',
+   '「食料の値が上がっている。遠征に出るなら今のうちに買っておいた方がいい」',
+   ...(hasNestRumor ? [
+    '「あの魔術師どもが現れてから、近くの農村が荒らされ始めた。作物の育ちも悪い」',
+    '「混沌の者どもの影響なのか、土地がおかしくなってきているという話を聞いた」',
+   ] : []),
+   ...(hasFortRumor ? [
+    '「砦が奴らに占拠されてから、街道の往来が減った。食料の輸送にも影響が出ているらしい」',
+    '「砦を押さえられると補給路が断たれる。食料が手に入りにくくなるのも時間の問題だ」',
+   ] : []),
+  ],
+  famine: [
+   `「${getCurrentDate().year}年は大飢饉の年だ。各地で食料が底をつきつつあるという話だ」`,
+   '「食料が極端に不足している。街によっては配給制になっているところもあるとか」',
+   '「大不作の年だ。食料を持っている者は手放すな。値がさらに上がるぞ」',
+   `「${getCurrentDate().year}年の大飢饉……今年の冬は生き延びることを考えろ。食料を最優先にしろ」`,
+   ...(hasNestRumor ? [
+    '「混沌の根城があの場所に構えられてから、周辺の土地が枯れ始めているという。呪いだという者もいる」',
+    '「農村の者が言うには、混沌の気配が広まると夜露すら降りなくなるそうだ。今年の不作はそのせいかもしれない」',
+   ] : []),
+   ...(hasFortRumor ? [
+    '「砦が占領されて補給路が完全に断たれた。このままでは年を越せない村が出るかもしれない」',
+    '「奴らが砦に居座る限り、物資が動かせない。飢饉が本格化する前に何とかしなければ」',
+   ] : []),
+  ],
+ };
+
+ const lines = rumors[PC._harvestResult];
+ if(!lines) return null;
+ PC._harvestRumorShown = (PC._harvestRumorShown||0) + 1;
+ return lines[Math.floor(Math.random()*lines.length)];
+}
+
+// 食料の実効価格を返す（コスト × 倍率、小数点切り上げ）
+function foodPrice(baseCost){
+ const mult = PC._foodPriceMult || 1.0;
+ if(mult >= 2.0) return baseCost * 3; // 大不作は3倍
+ if(mult >= 1.0) return Math.max(1, Math.ceil(baseCost * mult));
+ return baseCost; // 豊作でも値下げしない
+}
+
 function checkChaosNestTick(){
  if(!PC._chaosNest) initChaosNest();
  const nest = PC._chaosNest;
@@ -2985,6 +3139,106 @@ function goPropertyNode(townId){
   html += robberyMsg;
 
   if(story) story.innerHTML = html;
+  // ── 拠点帰還イベント判定 ──
+  const _trust = getTrust(townId);
+  const _eventChance = _trust >= 75 ? 0.50 : _trust >= 50 ? 0.30 : _trust >= 25 ? 0.15 : 0.05;
+  if(Math.random() < _eventChance){
+   const _evPool = [
+    { weight:3, title:' 玄関に奇妙な紋章が刻まれていた', color:'var(--amber)',
+      body:`扉の前に立つと、玄関の木材に何かが焼き付けられていた。よく見ると、目の空洞だけが残る兜の紋章だ。<br>
+       誰かがここに来たことへの脅しか、あるいは別の意味があるのか。見覚えのない紋章だが、妙に不安をかき立てる。`,
+      effect: null },
+    ...(_trust >= 25 ? [{ weight:3, title:' 役人が待ち構えていた', color:'var(--amber)',
+      body:(()=>{
+       const _taxRate = _trust >= 75 ? 0.30 : _trust >= 50 ? 0.20 : 0.10;
+       const _taxGP = Math.max(1, Math.floor(totalCP()/100 * _taxRate));
+       return `帰宅すると、地区担当の徴税官が玄関前に立っていた。「お帰りなさい。この地区の住民台帳に${_trust>=50?'あなたのようにご著名な方':'お名前'}が登録されております。この度、財産税として${_taxGP}GPを徴収させていただきます」<br>
+        断ることはできない。`;
+      })(),
+      effect:()=>{
+       const _taxRate = _trust >= 75 ? 0.30 : _trust >= 50 ? 0.20 : 0.10;
+       const _taxGP = Math.max(1, Math.floor(totalCP()/100 * _taxRate));
+       PC.copper = Math.max(0, (PC.copper||0) - _taxGP*100);
+       updateHUD();
+       showSaveToast(` 税金 ${_taxGP}GP を徴収された`);
+      }}] : []),
+    ...(_trust >= 75 ? [{ weight:4, title:' 武勇伝を聞きたがる若者が集まっていた', color:'var(--success)',
+      body:`拠点の前に若者たちが数人たむろしていた。「${PC.name}さんが帰ってきた！」「頼む、冒険の話を聞かせてくれ！」<br>
+       求められるままに話を聞かせると、彼らは目を輝かせて聞き入った。久しぶりに話した体験談が、自分の中でも新たな何かを蘇らせた気がした。`,
+      effect:()=>{ gainAPAll(30); updateHUD(); showSaveToast(' 武勇伝を語った　AP+30'); } }] : []),
+   ];
+   const _total = _evPool.reduce((s,e)=>s+e.weight, 0);
+   let _r = Math.random() * _total;
+   let _chosen = _evPool[0];
+   for(const _ev of _evPool){ _r -= _ev.weight; if(_r <= 0){ _chosen = _ev; break; } }
+
+   // イベント画面を表示してOKで拠点メイン画面へ
+   if(_chosen.effect) _chosen.effect();
+   story.innerHTML = `
+    <span style="color:#c8a44a">${def.name}</span><br>
+    <br>
+    <div style="border:1px solid #443322;border-radius:4px;padding:12px;background:#0f0a04">
+     <span style="color:${_chosen.color};font-weight:bold">${_chosen.title}</span><br><br>
+     <span style="color:var(--log)">${_chosen.body}</span>
+    </div>`;
+   renderChoices([{label:'▶ OK', fn:()=>_showPropertyMain(townId)}]);
+   return;
+  }
+  // ── 拠点メイン画面 ──
+  _showPropertyMain(townId);
+ }
+}
+
+// 拠点メイン画面（イベント後のOKまたは直接遷移で表示）
+function _showPropertyMain(townId){
+  const def = PROPERTY_DEFS[townId];
+  const prop = PC.properties[townId];
+  const story = document.getElementById('story');
+  prop.caretakers = prop.caretakers || [];
+  prop.children = prop.children || [];
+
+  const stor = _propStor(townId) || {};
+  const storSP = stor.sp||0, storCP = stor.cp||0;
+  const storW = (stor.weapons||[]).length, storA = (stor.armors||[]).length;
+  const storJ = (stor.jewels||[]).length, storT = stor.torches||0;
+  const _allRes2 = [
+   ...(prop.caretakers).map(n=>({name:n.name,isChild:false})),
+   ...(prop.children).map(c=>({name:c.name,isChild:true})),
+  ];
+  if(_allRes2.length){
+   const _sp2 = _allRes2[Math.floor(Math.random()*_allRes2.length)];
+   const _speeches2 = _sp2.isChild ? [
+    '「おかえり！ずっと待ってたよ！」','「どこ行ってたの？早く帰ってきてほしかった」',
+    '「ねえ、次はどんなところに行くの？」','「…おかえり。」',
+   ] : [
+    '「おかえり。無事で良かった」','「旅の話を聞かせてくれ」',
+    '「待っていたよ。疲れただろう、ゆっくりしていけ」','「また帰ってきてくれたな」',
+    '「外の世界はどうだった？」','「何か土産でも…というのは冗談だ。無事ならそれでいい」',
+   ];
+   const _s2 = _speeches2[Math.floor(Math.random()*_speeches2.length)];
+   if(story) story.innerHTML = story.innerHTML + `<br><span style="color:var(--dim3)">${_sp2.name}：${_s2}</span><br>`;
+  }
+
+  // ストレージ・メンバー表示
+  let mhtml = ` <span style="color:#c8a44a">${def.name}</span><br>`;
+  mhtml += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${def.desc}</span><br>`;
+  mhtml += `<span class="dim">保管中： ${stor.gold||0}GP ${storSP}SP ${storCP}CP　 武器${storW}　 防具${storA}　 宝石${storJ}　 松明${storT}本</span><br>`;
+  const allResidents2 = [
+   ...(prop.caretakers).map(n=>({name:n.name,tag:n.married?'配偶者':'留守番',npc:n,isChild:false})),
+   ...(prop.children).map(c=>{
+    const ageYears=Math.floor((GAME_TIME.totalDays-c.bornDay)/365);
+    const ready=ageYears>=15;
+    return {name:c.name,tag:`${ageYears}歳${ready?'・引き取り可':''}`,npc:c,isChild:true};
+   }),
+  ];
+  if(allResidents2.length){
+   mhtml += `<span class="dim">拠点のメンバー：</span><br>`;
+   allResidents2.forEach(r=>{ mhtml += `<span class="dim">　 <b>${r.name}</b>（${r.tag}）</span><br>`; });
+  } else {
+   mhtml += `<span class="dim">拠点のメンバー：なし（泥棒リスクあり）</span>`;
+  }
+  if(story) story.innerHTML = mhtml;
+
   // 既存の配偶者が生存しているか確認
   const hasLivingSpouse = (PC.spouse||[]).some(s=>{
    const npc = (PC.party||[]).find(n=>n.name===s.name) ||
@@ -3001,32 +3255,6 @@ function goPropertyNode(townId){
    {label:' アイテムを預ける／引き出す',           fn:()=>propertyStorageItems(townId)},
    {label:'← 戻る', go:'TOWN_'+townId.toUpperCase()},
   ]);
- } else {
-  if(info.srRequired){
-   html += `<span style="color:#ff8866"> 信頼度不足（${getTrust(townId)}/100）</span><br>`;
-   html += `<span class="dim">まだ信頼されていない。顔を売れば話は変わるかもしれない。</span><br>`;
-   html += `<span style="color:var(--amber)">CHR魅力 SRに成功すれば強引に話をまとめられるかもしれない…（${info.price}GP）</span>`;
-  } else {
-   html += `<span style="color:var(--reward)">提示価格: ${info.price}GP`;
-   if(rank.disc < 1.0) html += ` <span style="color:var(--success)">（顔なじみ割引あり）</span>`;
-   html += `</span>`;
-  }
-  if(story) story.innerHTML = html;
-  const choices = [];
-  if(info.srRequired){
-   choices.push({label:` CHR SRで強引に交渉（${info.price}GP）`, fn:()=>propertyBuySR(townId)});
-  } else {
-   const canAfford = totalCP() >= info.price*100;
-   choices.push({label:` 購入する（${info.price}GP）${canAfford?'':'［所持金不足］'}`,
-    fn: canAfford ? ()=>buyProperty(townId) : null,
-    go: canAfford ? '__travel__' : undefined});
-  }
-  choices.push({label:'← 戻る', go:'TOWN_'+townId.toUpperCase()});
-  if(story) story.innerHTML = html;
-  renderChoices(choices);
-  return;
- }
- if(story) story.innerHTML = html;
 }
 
 function propertyBuySR(townId){
@@ -3437,10 +3665,13 @@ function propertyRest(townId){
  const story = document.getElementById('story');
 
  const showUI = (msg='')=>{
-  const costPerDay = 1; // 食料代 1GP/日
-  const maxAfford = Math.floor(PC.gold||0); // GP単位で計算
+  const costPerDay = foodPrice(1); // 食料代 1GP/日（収穫判定で変動）
+  const maxAfford = Math.floor(PC.gold||0);
+  const priceLabel = costPerDay > 1
+   ? `<span style="color:var(--danger)">${costPerDay}GP／日</span>`
+   : `${costPerDay}GP／日`;
   story.innerHTML = ` <span style="color:#c8a44a">${def.name}で休養</span><br><br>`
-   +`<span class="dim">食料調達費：${costPerDay}GP／日</span><br>`
+   +`<span class="dim">生活費：${priceLabel}</span><br>`
    +`<span class="dim">所持金：${PC.gold||0}GP　現在CON：${PC.con}/${PC.maxCon}</span>`
    +(msg?`<br><br>${msg}`:'');
 
@@ -5869,7 +6100,17 @@ function talkToPatron(townId){
 
  // 混沌の根城の噂（10%で優先表示）
  checkChaosNestTick();
+ checkHarvestTick();
+ checkHarvestTick();
+ const harvestRumor = getHarvestRumor();
  const chaosRumor = getChaosNestRumor();
+ if(harvestRumor && Math.random() < 0.30){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#c8a44a;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:var(--dim);line-height:1.8;margin-bottom:10px">近くの席の客が食料事情について話している。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#aaaaaa;line-height:1.8;padding:8px;background:#06060f;border-radius:3px;border-left:2px solid #335500">${text}</div>`;
+  _showPatronPanel(header + msgBox(harvestRumor), ()=>{ updateHUD(); _restoreNodeChoices(); });
+  return;
+ }
  if(chaosRumor && Math.random() < 0.10){
   const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#c8a44a;margin-bottom:8px"> 酒場の客</div>
    <div style="font-size:var(--font-sm);color:var(--dim);line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
@@ -13239,6 +13480,7 @@ function ydActionChoices(node, floor){
          if(res.dmg){ PC.con=Math.max(0,PC.con-res.dmg); updateHUD(); }
          document.getElementById('story').innerHTML+=
           `<br><span style="color:var(--danger)">罠発動！${res.msg}</span>`;
+         if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
          renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
         },
        });
@@ -13262,6 +13504,7 @@ function ydActionChoices(node, floor){
          if(res.dmg){ PC.con=Math.max(0,PC.con-res.dmg); updateHUD(); }
          document.getElementById('story').innerHTML+=
           `<br><span style="color:var(--danger)">解除に失敗！罠が発動した。${res.msg}</span>`;
+         if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
          renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
         },
        });
@@ -13273,6 +13516,7 @@ function ydActionChoices(node, floor){
       if(res.dmg){ PC.con=Math.max(0,PC.con-res.dmg); updateHUD(); }
       document.getElementById('story').innerHTML+=
        `<br><span style="color:var(--danger)">罠発動！${res.msg}</span>`;
+      if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
       renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
      }});
     }
@@ -13306,6 +13550,7 @@ function ydActionChoices(node, floor){
      const d=dmgOnFail(); PC[_tk+'_dmg']=d;
      document.getElementById('story').innerHTML+=
       `<br><span style="color:var(--danger)">罠発動！【${node.trapName}】CON-${d}</span>`;
+     if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
      renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
     }});
    }
@@ -17220,11 +17465,15 @@ function renderShop(){
  if(it.wizard&&PC.type!=='wizard')return;
  const dispWeight = it._isFood ? (it._foodAmt||1)*5 : it.weight;
  const addWeight = it._isFood ? (it._foodAmt||1)*5 : it.weight;
+ const effectiveCost = it._isFood ? foodPrice(it.cost) : it.cost;
  const div=document.createElement('div');div.className='shop-item';
+ const priceLabel = it._isFood && effectiveCost !== it.cost
+  ? `<span class="price" style="color:${effectiveCost>it.cost?'var(--danger)':'#6aaa60'}">${formatItemCost(effectiveCost)}</span>`
+  : `<span class="price">${formatItemCost(effectiveCost)}</span>`;
  div.innerHTML=`<h4>${it._isFood ? ' '+it.name : it.name}</h4>
  <p>${it._isFood ? `食料ポイント+${it._foodAmt||1}　Wgt:${(it._foodAmt||1)*5}` : `Wgt:${dispWeight}`}</p>
- <span class="price">${formatItemCost(it.cost)}</span>
- <button class="buy-btn" ${totalCP()<it.cost*100||cartWeight+addWeight>weightPossible()?'disabled':''} onclick="buyEquip(${EQUIP_TABLE.indexOf(it)})">BUY</button>`;
+ ${priceLabel}
+ <button class="buy-btn" ${totalCP()<effectiveCost*100||cartWeight+addWeight>weightPossible()?'disabled':''} onclick="buyEquip(${EQUIP_TABLE.indexOf(it)})">BUY</button>`;
  p.appendChild(div);
  });
 }
@@ -17245,8 +17494,9 @@ function buyArmor(i){
 }
 function buyEquip(i){
  const it=EQUIP_TABLE[i];
- if(totalCP()<it.cost*100)return;
- payPrice(it.cost);
+ const effectiveCost = it._isFood ? foodPrice(it.cost) : it.cost;
+ if(totalCP()<effectiveCost*100)return;
+ payPrice(effectiveCost);
  if(it._isFood){ const amt=it._foodAmt||1; PC._food=(PC._food||0)+amt; cartWeight+=amt*5; }
  else if(it.name==='Boots'||it.name==='Sandals'){ PC.invBoots=true; PC.invBootsName=it.name; cartWeight+=it.weight; }
  else if(it.name==='Torch'){ PC._torchStock=(PC._torchStock||0)+1; cartWeight+=it.weight; }
@@ -17836,7 +18086,7 @@ function renderIgsList(townId){
  // ヘッダー
  const hd = document.createElement('div');
  hd.style.cssText = 'font-size:calc(var(--font-sm) - 2px);color:var(--dim);margin-bottom:8px;padding:4px;border:1px solid #224422;border-radius:3px;background:#0a1408';
- hd.innerHTML = ` <b style="color:#88cc44">地元特産品</b>　地元では約100GP、他地方では距離に応じて高値で売れます`;
+ hd.innerHTML = ` <b style="color:#88cc44">地元特産品</b>`;
  el.appendChild(hd);
  items.forEach((it, idx)=>{
  const buyPrice = calcSpecialtyBuyPrice(it);
@@ -17906,11 +18156,15 @@ function renderIgsList(townId){
  EQUIP_TABLE.forEach(it=>{
  if(it.wizard && PC.type!=='wizard') return;
  const dispWeight = it._isFood ? (it._foodAmt||1)*5 : it.weight;
+ const effectiveCost = it._isFood ? foodPrice(it.cost) : it.cost;
  const div = document.createElement('div'); div.className='shop-item';
+ const priceLabel = it._isFood && effectiveCost !== it.cost
+  ? `<span class="price" style="color:${effectiveCost>it.cost?'var(--danger)':'#6aaa60'}">${formatItemCost(effectiveCost)}</span>`
+  : `<span class="price">${formatItemCost(effectiveCost)}</span>`;
  div.innerHTML = `<h4>${it._isFood ? ' '+it.name : it.name}</h4>
  <p>${it._isFood ? `食料ポイント+${it._foodAmt||1}　Wgt:${(it._foodAmt||1)*5}` : `Wgt:${dispWeight}`}</p>
- <span class="price">${formatItemCost(it.cost)}</span>
- <button class="buy-btn" ${totalCP()<it.cost*100?'disabled':''} onclick="igsBuyEquip(${EQUIP_TABLE.indexOf(it)})">BUY</button>`;
+ ${priceLabel}
+ <button class="buy-btn" ${totalCP()<effectiveCost*100?'disabled':''} onclick="igsBuyEquip(${EQUIP_TABLE.indexOf(it)})">BUY</button>`;
  el.appendChild(div);
  });
  }
@@ -18039,8 +18293,9 @@ function igsBuyArmor(i, townId){
 function igsBuyEquip(i){
  const _sa = _shopActor || PC;
  const it=EQUIP_TABLE[i];
- if(totalCP(_sa)<it.cost*100)return;
- payPrice(it.cost, _sa);
+ const effectiveCost = it._isFood ? foodPrice(it.cost) : it.cost;
+ if(totalCP(_sa)<effectiveCost*100)return;
+ payPrice(effectiveCost, _sa);
  // 消耗品はPC（パーティ共有）に加算
  if(it._isArrows){ PC.arrows=(PC.arrows||0)+it._arrowAmt; updateHUD(); showSaveToast(` 矢+${it._arrowAmt}（残り${PC.arrows}本）`); return; }
  if(it._isFood){ const amt=it._foodAmt||1; PC._food=(PC._food||0)+amt; showSaveToast(` 食料+${amt}（残り${PC._food}日分）`); }
@@ -22758,6 +23013,11 @@ function dungeonTrySR(cfg){
   if(handled) return; // 独自UI制御済みの場合はここで終了
   story.innerHTML = `<div style="padding:8px 0">${bodyHtml}</div><div style="margin-top:8px;padding:6px 8px;background:#080c18;border:1px solid #334;border-radius:3px;font-size:var(--font-sm)">${resultHdr}</div>`;
   updateHUD();
+  if(PC.con <= 0){
+   renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+   scrollToTop();
+   return;
+  }
   if(typeof cfg.choicesFn==='function'){
    renderChoices(cfg.choicesFn(success));
   } else {
@@ -28055,7 +28315,6 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
    {label:' 宿に泊まる（3GP・1日休む）', fn:()=>{ innRest(300); }, go:'TOWN_SARPE'},
    ...getQuestBoardChoices('TOWN_SARPE'),
    {label:' 客に話しかける', fn:()=>talkToPatron('sarpe')},
-   {label:'← 戻る', go:'TOWN_SARPE'},
   ],
  },
 
@@ -28093,7 +28352,6 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
    {label:' 宿に泊まる（3GP・1日休む）', fn:()=>{ innRest(300); }, go:'TOWN_NEBRA'},
    ...getQuestBoardChoices('TOWN_NEBRA'),
    {label:' 客に話しかける', fn:()=>talkToPatron('nebra')},
-   {label:'← 戻る', go:'TOWN_NEBRA'},
   ],
  },
 
