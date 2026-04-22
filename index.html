@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042301</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042302</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -3722,6 +3722,13 @@ function _recruitChild(child, prop, townId){
  child.invWeapons = t!=='wizard'?[]:[{name:'Short Sword',dice:3,adds:0,twoHand:false}];
  child.invArmors = [];
  child.spells = t==='wizard'?[{...SPELLS_L1[2]}]:[];
+ // bornDayをbirthDayとして引き継ぎ、個体寿命を設定
+ if(!child.birthDay) child.birthDay = child.bornDay;
+ if(!child.lifespan){
+  const ranges = { human:[60,100], elf:[600,1000], dwarf:[150,250], halfling:[80,120], fairy:[150,250], leprechaun:[250,350] };
+  const [min,max] = ranges[child.race||'human'] || ranges.human;
+  child.lifespan = min + Math.floor(Math.random()*(max-min+1));
+ }
  const idx = prop.children.indexOf(child);
  prop.children.splice(idx,1);
  PC.party = PC.party||[];
