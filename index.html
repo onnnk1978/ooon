@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042202</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042301</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -3205,6 +3205,9 @@ function _showPropertyMain(townId){
    ...(prop.caretakers).map(n=>({name:n.name,isChild:false})),
    ...(prop.children).map(c=>({name:c.name,isChild:true})),
   ];
+  // ストレージ・メンバー表示
+  let mhtml = ` <span style="color:#c8a44a">${def.name}</span><br>`;
+  mhtml += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${def.desc}</span><br>`;
   if(_allRes2.length){
    const _sp2 = _allRes2[Math.floor(Math.random()*_allRes2.length)];
    const _speeches2 = _sp2.isChild ? [
@@ -3216,12 +3219,8 @@ function _showPropertyMain(townId){
     '「外の世界はどうだった？」','「何か土産でも…というのは冗談だ。無事ならそれでいい」',
    ];
    const _s2 = _speeches2[Math.floor(Math.random()*_speeches2.length)];
-   if(story) story.innerHTML = story.innerHTML + `<br><span style="color:var(--dim3)">${_sp2.name}：${_s2}</span><br>`;
+   mhtml += `<span style="color:var(--dim3)">${_sp2.name}：${_s2}</span><br>`;
   }
-
-  // ストレージ・メンバー表示
-  let mhtml = ` <span style="color:#c8a44a">${def.name}</span><br>`;
-  mhtml += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${def.desc}</span><br>`;
   mhtml += `<span class="dim">保管中： ${stor.gold||0}GP ${storSP}SP ${storCP}CP　 武器${storW}　 防具${storA}　 宝石${storJ}　 松明${storT}本</span><br>`;
   const allResidents2 = [
    ...(prop.caretakers).map(n=>({name:n.name,tag:n.married?'配偶者':'留守番',npc:n,isChild:false})),
@@ -4415,6 +4414,19 @@ function generateNPC(level=1){
  spells: type==='wizard' ? [{...SPELLS_L1[2]}] : [],
  background: rollBackground(race, type),
  _npcId: Date.now() + Math.random(),
+ birthDay: GAME_TIME.totalDays - Math.floor((18 + Math.floor(Math.random()*30)) * 365), // 18〜47歳でスポーン
+ lifespan: (()=>{
+  const ranges = {
+   human:      [60, 100],
+   elf:        [600, 1000],
+   dwarf:      [150, 250],
+   halfling:   [80,  120],
+   fairy:      [150, 250],
+   leprechaun: [250, 350],
+  };
+  const [min, max] = ranges[race] || ranges.human;
+  return min + Math.floor(Math.random() * (max - min + 1));
+ })(),
  };
 }
 
@@ -8168,6 +8180,45 @@ function checkAging(){
  }
  }
  return { event:'birthday', age:newAge };
+}
+
+function checkNPCAging(){
+ const party = PC.party || [];
+ party.forEach(npc=>{
+  if(npc.con <= 0) return; // 既に死亡済み
+  if(!npc.birthDay) npc.birthDay = -(400 - 380) * 365; // birthDayなし→380年生まれに設定
+  const params = AGING_PARAMS[npc.race] || AGING_PARAMS.human;
+  const lifespan = npc.lifespan || params.lifespan;
+  const ageYears = (GAME_TIME.totalDays - npc.birthDay) / 365;
+  if(ageYears >= lifespan){
+   // 寿命死
+   npc.con = 0;
+   const msg = `${npc.name}は天寿を全うした。享年${Math.floor(ageYears)}歳。`;
+   addLifeEvent('', msg);
+   // 拠点の留守番にいる場合も同様に
+   Object.values(PC.properties||{}).forEach(prop=>{
+    (prop.caretakers||[]).forEach(c=>{
+     if(c._npcId === npc._npcId) c.con = 0;
+    });
+   });
+   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:var(--amber);border:1px solid #554433;border-radius:3px;padding:8px;margin-bottom:8px"> ${msg}</div>`;
+  }
+ });
+ // 留守番NPCの寿命チェック（パーティ外）
+ Object.values(PC.properties||{}).forEach(prop=>{
+  (prop.caretakers||[]).forEach(npc=>{
+   if(npc.con <= 0) return;
+   if(!npc.birthDay) npc.birthDay = -(400 - 380) * 365; // birthDayなし→380年生まれ
+   const params = AGING_PARAMS[npc.race] || AGING_PARAMS.human;
+   const lifespan = npc.lifespan || params.lifespan;
+   const ageYears = (GAME_TIME.totalDays - npc.birthDay) / 365;
+   if(ageYears >= lifespan){
+    npc.con = 0;
+    const msg = `${npc.name}は天寿を全うした。享年${Math.floor(ageYears)}歳。`;
+    addLifeEvent('', msg);
+   }
+  });
+ });
 }
 
 const TIME_COST = {
@@ -16076,6 +16127,9 @@ function travelTick(){
  updateTimebar();
  if(aged) ts.events.push(aged);
 
+ // パーティNPCの寿命チェック
+ checkNPCAging();
+
  // プログレスバーを毎ターン更新
  if(ts.totalDays > 0){
  const pct = Math.min(100, ts.daysDone / ts.totalDays * 100);
@@ -18657,7 +18711,7 @@ function renderPartyList(el, party){
  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
  <div>
  <span style="font-size:calc(var(--font-sm) + 1px);color:${alive?'var(--gold3)':'#555'}">${alive?'':''} ${n.epithet?'<span style="font-size:calc(var(--font-sm) - 2px);color:var(--reward)">'+n.epithet+'</span> ':''}${n.name}</span>${mb}
- <span style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;margin-left:6px">${raceJa(n.race)}の${typeJa(n.type)} Lv${n.level||1}</span>
+ <span style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;margin-left:6px">${raceJa(n.race)}の${typeJa(n.type)} Lv${n.level||1}　${Math.floor((GAME_TIME.totalDays-(n.birthDay||(-(400-380)*365)))/365)}歳</span>
  </div>
  <span style="font-size:calc(var(--font-sm) - 2px);color:#554466">詳細 ▶</span>
  </div>
@@ -18808,7 +18862,7 @@ function renderNPCDetail(el, n, idx){
  <!-- 名前・基本情報 -->
  <div style="text-align:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--earth)">
  <div style="font-size:calc(var(--font-lg) + 2px);color:var(--gold);margin-bottom:4px">${alive?'':' '}${n.name}</div>
- 
+ ${(()=>{ const birthDay=n.birthDay||(-(400-380)*365); const ageYears=Math.floor((GAME_TIME.totalDays-birthDay)/365); return `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--dim)">${ageYears}歳</div>`; })()}
  <div style="font-size:calc(var(--font-sm) - 2px);color:var(--dim)">${raceJa.toUpperCase()}　${typeJa.toUpperCase()}　Lv${n.level||1}</div>
  </div>
 
