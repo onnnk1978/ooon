@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042302</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042303</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -761,6 +761,10 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 
  <!-- 装備中アイテム -->
  <div id="sp-worn-items"></div>
+
+ <!-- 性格 -->
+ <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:6px;margin-top:10px">── 性格 ──</div>
+ <div id="sp-alignment" style="margin-bottom:10px"></div>
 
  <!-- 背景 -->
  <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:6px">── 背景 ──</div>
@@ -1014,6 +1018,8 @@ let PC = {
  equippedClothing:false,
  spells:[],
  kills:0,
+ alignment_ethics:0,  // -100(邪悪)〜+100(善良)
+ alignment_order:0,   // -100(混沌)〜+100(秩序)
  // 時間・年齢
  age:20,
  birthYear:0,
@@ -1276,6 +1282,7 @@ function changeTrust(townId, delta, type){
    ];
    const msg = heroMsgs[Math.floor(Math.random() * heroMsgs.length)];
    addLifeEvent('', `${townName}で英雄として祝福された。${msg}`);
+ changeAlignment(8, 5); // 英雄クエスト：善+8/秩序+5
    PC._pendingHeroMsg = { townName, msg };
 
    // ── 地方英雄チェック ──
@@ -1674,7 +1681,8 @@ function _startSpecialMissionBoss(q){
   changeTrust('al_rashid', 10);
   PC._specialMissionCooldown = GAME_TIME.totalDays + (720 + Math.floor(Math.random()*361));
   updateHUD();
-  addLifeEvent('', '砂漠の砦掃討作戦を生き延びた。');
+  changeAlignment(10, 10); // 砦掃討：善+10/秩序+10
+ addLifeEvent('', '砂漠の砦掃討作戦を生き延びた。');
   _checkSpecialMissionCount();
   showSaveToast(` 特命依頼完了！ +${reward}GP`);
   const story = document.getElementById('story');
@@ -1941,7 +1949,8 @@ function _startSpecialMissionVBoss(q){
    changeTrust('valdheim',10);
    PC._specialMissionVCooldown = GAME_TIME.totalDays+(720+Math.floor(Math.random()*361));
    updateHUD();
-   addLifeEvent('','氷原の砦掃討作戦を生き延びた。');
+   changeAlignment(10, 10); // 砦掃討：善+10/秩序+10
+  addLifeEvent('','氷原の砦掃討作戦を生き延びた。');
    _checkSpecialMissionCount();
    showSaveToast(` 特命依頼完了！ +${reward}GP`);
    const story=document.getElementById('story');
@@ -2740,6 +2749,7 @@ function spawnChaosNest(){
 
 function clearChaosNest(){
  const nest = PC._chaosNest;
+ changeAlignment(15, 10); // 根城攻略：善+15/秩序+10
  if(!nest) return;
  nest.nestTownId    = null;
  nest.wizardName    = null;
@@ -2939,7 +2949,8 @@ function trustRank(townId){
 
 // ── 物件定義 ──────────────────────────────
 // 購入可能な村落（大都市は除外）
-const PROPERTY_TOWNS = ['verda','rimholm','marakai','oasis_fort','saroon','duna','frostpeak','ashveil','port_argon','stonehiem','neria','dorua'];
+const PROPERTY_TOWNS = ['verda','rimholm','marakai','oasis_fort','saroon','duna','frostpeak','ashveil','port_argon','stonehiem','neria','dorua',
+ 'khazan','elsia','al_rashid','yeldun','valdheim','nifurvik','iskald','sarpe','nebra'];
 
 const PROPERTY_DEFS = {
  verda:     { name:'ヴェルダ村の廃小屋',    basePrice:1200, desc:'森の外れにある猟師の廃屋。雨漏りするが直せば住める。' },
@@ -2952,6 +2963,17 @@ const PROPERTY_DEFS = {
  ashveil:   { name:'アッシュヴェイルの廃坑舎',basePrice:1300, desc:'廃坑の坑夫小屋を転用。地下倉庫として使える空間がある。' },
  port_argon:{ name:'ポート・アルゴンの波止場小屋', basePrice:1600, desc:'港の船着き場脇に建つ古い小屋。潮風と波音が絶えないが、船乗りたちの往来が多く情報が集まりやすい。' },
  stonehiem: { name:'ストーンヘイムの鉱夫長屋',     basePrice:1400, desc:'鉱山街の外れにある石造りの長屋の一角。壁は厚く頑丈で、重い荷物の保管にも耐える。' },
+ neria:     { name:'ネリア港の借家',          basePrice:2200, desc:'港街の路地裏にある石造りの借家。海の風が通り抜ける。' },
+ dorua:     { name:'ドルアの村の民家',        basePrice:1000, desc:'島の漁村にある素朴な民家。潮騒と鳥の声が絶えない。' },
+ khazan:    { name:'カザンの市街地の住居',    basePrice:50000, desc:'王都の市街地に建つ石造りの住居。交通の便がよく、あらゆる情報が集まる。' },
+ elsia:     { name:'エルマリアの森辺の家',    basePrice:40000, desc:'エルフの都市の外縁に建つ優美な住居。木々に囲まれた静かな環境だ。' },
+ al_rashid: { name:'アル・ラシードの商人宅', basePrice:45000, desc:'交易都市の商人街にある堅牢な石造りの家。隊商の情報が自然と集まる立地にある。' },
+ yeldun:    { name:'イェルドゥンの山岳住居',  basePrice:35000, desc:'山岳都市の岩盤に掘り込まれた住居。頑丈な造りで冬の寒さをしのげる。' },
+ valdheim:  { name:'ヴァルドヘイムの石砦住居',basePrice:30000, desc:'極北の砦街にある石造りの居室。厚い壁が吹雪を遮る。' },
+ nifurvik:  { name:'ニフルヴィクの船乗り宿',  basePrice:1800, desc:'凍海の港町にある船乗り向けの粗末な宿。海の男たちの情報が集まる。' },
+ iskald:    { name:'イスカルドの坑夫小屋',    basePrice:1600, desc:'北方の鉱山街にある坑夫向けの小屋。地下への入口が近い。' },
+ sarpe:     { name:'サルペの漁師の家',        basePrice:1200, desc:'小島の漁村にある素朴な家。石碑の近くにある。' },
+ nebra:     { name:'ネブラの霧の中の家',      basePrice:1100, desc:'霧の島にひっそりと建つ小屋。静かで人目につかない。' },
 };
 
 // 購入価格を計算（信頼度で変動）
@@ -3186,6 +3208,30 @@ function goPropertyNode(townId){
   }
   // ── 拠点メイン画面 ──
   _showPropertyMain(townId);
+ } else {
+  // 未購入の場合：物件情報と購入ボタン
+  if(info.srRequired){
+   html += `<span style="color:#ff8866"> 信頼度不足（${getTrust(townId)}/100）</span><br>`;
+   html += `<span class="dim">まだ信頼されていない。顔を売れば話は変わるかもしれない。</span><br>`;
+   html += `<span style="color:var(--amber)">CHR魅力 SRに成功すれば強引に話をまとめられるかもしれない…（${info.price}GP）</span>`;
+  } else {
+   html += `<span style="color:var(--reward)">提示価格: ${info.price}GP`;
+   if(rank.disc < 1.0) html += ` <span style="color:var(--success)">（顔なじみ割引あり）</span>`;
+   html += `</span>`;
+  }
+  if(story) story.innerHTML = html;
+  const choices = [];
+  if(info.srRequired){
+   choices.push({label:` CHR SRで強引に交渉（${info.price}GP）`, fn:()=>propertyBuySR(townId)});
+  } else {
+   const canAfford = totalCP() >= info.price*100;
+   choices.push({label:` 購入する（${info.price}GP）${canAfford?'':'　［所持金不足］'}`,
+    fn: canAfford ? ()=>buyProperty(townId) : null,
+    go: canAfford ? '__travel__' : undefined});
+  }
+  choices.push({label:'← 戻る', go:'TOWN_'+townId.toUpperCase()});
+  if(story) story.innerHTML = html;
+  renderChoices(choices);
  }
 }
 
@@ -3388,8 +3434,105 @@ function propertyManageCaretakers(townId){
  if(partyAvailable.length) choices.push({label:' 留守番を置く',        fn:()=>propertySetCaretaker(townId)});
  if(caretakers.length)      choices.push({label:' 留守番を引き取る',    fn:()=>propertyPickupCaretaker(townId)});
  if(childReady)             choices.push({label:' 子どもを引き取る',    fn:()=>propertyPickupChild(townId)});
+ // 他拠点が存在すれば転居ボタンを表示
+ const otherProps = Object.keys(PC.properties||{}).filter(t=>t!==townId);
+ if((caretakers.length || children.length) && otherProps.length){
+  choices.push({label:' 別の拠点へ転居させる', fn:()=>propertyTransfer(townId)});
+ }
  choices.push({label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)});
  renderChoices(choices);
+}
+
+// ── 拠点間転居 ──────────────────────────────────────────
+function propertyTransfer(townId){
+ const def = PROPERTY_DEFS[townId];
+ const prop = PC.properties[townId];
+ const story = document.getElementById('story');
+ const otherProps = Object.keys(PC.properties||{}).filter(t=>t!==townId);
+
+ // 転居できる人物リスト（留守番＋子ども全員）
+ const members = [
+  ...(prop.caretakers||[]).map(n=>({...n, _isChild:false})),
+  ...(prop.children||[]).map(c=>({...c, _isChild:true})),
+ ];
+
+ story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+  +`<b> 別の拠点へ転居させる</b><br><br>`
+  +`<span class="dim">誰を転居させますか？</span>`;
+
+ renderChoices([
+  ...members.map(m=>{
+   const label = m._isChild
+    ? `${m.name}（${Math.floor((GAME_TIME.totalDays-m.bornDay)/365)}歳・子ども）`
+    : `${m.name}（留守番）`;
+   return {label:` ${label}`, fn:()=>propertyTransferDest(townId, m, otherProps)};
+  }),
+  {label:'← 留守番管理に戻る', fn:()=>propertyManageCaretakers(townId)},
+ ]);
+}
+
+function propertyTransferDest(fromTownId, member, destTownIds){
+ const fromDef = PROPERTY_DEFS[fromTownId];
+ const story = document.getElementById('story');
+
+ // 護送費計算：徒歩日数×2GP（最低10GP）、ルートなしは一律100GP
+ const calcCost = (destId)=>{
+  const route = getRoute(fromTownId, destId);
+  if(!route) return 100;
+  const days = route.days.walk || route.days.coach || 30;
+  return Math.max(10, days * 10);
+ };
+
+ story.innerHTML = ` <span style="color:#c8a44a">${fromDef.name}</span><br><br>`
+  +`<b> 転居先を選ぶ</b><br><br>`
+  +`<span class="dim">${member.name}をどの拠点へ転居させますか？</span><br>`
+  +`<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">護送費：徒歩日数×2GP（最低10GP）</span>`;
+
+ renderChoices([
+  ...destTownIds.map(destId=>{
+   const destDef = PROPERTY_DEFS[destId];
+   const cost = calcCost(destId);
+   const canAfford = (PC.gold||0) >= cost;
+   // 転居先の保管金チェック（30日分の生活費を目安に警告）
+   const destPropData = PC.properties[destId];
+   const destStorGP = (destPropData?.storage?.gold)||0;
+   const destCurrentMembers = (destPropData?.caretakers||[]).length + (destPropData?.children||[]).length;
+   const newMemberCount = destCurrentMembers + 1;
+   const warnDays = 30;
+   const needed = newMemberCount * warnDays * foodPrice(1);
+   const lowFunds = destStorGP < needed;
+   const warnLabel = lowFunds ? ` ⚠ 生活費不足の恐れあり（保管:${destStorGP}GP / 目安${needed}GP）` : '';
+   return {label:` ${destDef.name}へ（護送費 ${cost}GP）${canAfford?'':'　［所持金不足］'}${warnLabel}`, fn:()=>{
+    if(!canAfford){ showSaveToast('所持金が足りない'); return; }
+    const fromProp = PC.properties[fromTownId];
+    const destProp = PC.properties[destId];
+    destProp.caretakers = destProp.caretakers||[];
+    destProp.children = destProp.children||[];    console.log('移送メンバー:', member.name, 'isChild:', member._isChild, '_npcId:', member._npcId);
+
+    if(member._isChild){
+     const idx = (fromProp.children||[]).findIndex(c=>c.bornDay===member.bornDay&&c.name===member.name);
+     console.log('子どもidx:', idx);
+     if(idx>=0){
+      const [child] = fromProp.children.splice(idx,1);
+      destProp.children.push(child);
+     }
+    } else {
+     const idx = (fromProp.caretakers||[]).findIndex(n=>n._npcId===member._npcId);
+     console.log('留守番idx:', idx, 'from caretakers:', JSON.stringify((fromProp.caretakers||[]).map(n=>({name:n.name,id:n._npcId}))));
+     if(idx>=0){
+      const [npc] = fromProp.caretakers.splice(idx,1);
+      destProp.caretakers.push(npc);     }
+    }
+
+    payPrice(cost);
+    addLifeEvent('', `${member.name}を${fromDef.name}から${destDef.name}へ転居させた。（護送費${cost}GP）`);
+    updateHUD();
+    showSaveToast(` ${member.name}を${destDef.name}へ転居させた（${cost}GP）`);
+    propertyManageCaretakers(fromTownId);
+   }};
+  }),
+  {label:'← 戻る', fn:()=>propertyTransfer(fromTownId)},
+ ]);
 }
 
 // ── 留守番を置く ──
@@ -4047,7 +4190,7 @@ function goOtherActions(townId){
  }
  // アルバイト
  choices.push({label:' アルバイト（1週間・3GP）', fn:()=>doPartTimeJob(townId), go:'__travel__'});
- // 物件（村落のみ）
+ // 物件
  if(def){
   const owned = hasProp;
   choices.push({label: owned ? ' 拠点を確認する' : ' 物件を見る', fn:()=>goPropertyNode(townId)});
@@ -4420,6 +4563,8 @@ function generateNPC(level=1){
  invArmors: [],
  spells: type==='wizard' ? [{...SPELLS_L1[2]}] : [],
  background: rollBackground(race, type),
+ alignment_ethics: Math.floor((Math.random()-0.5)*60), // NPCはランダム初期値
+ alignment_order:  Math.floor((Math.random()-0.5)*60),
  _npcId: Date.now() + Math.random(),
  birthDay: GAME_TIME.totalDays - Math.floor((18 + Math.floor(Math.random()*30)) * 365), // 18〜47歳でスポーン
  lifespan: (()=>{
@@ -6261,6 +6406,7 @@ function talkToPatron(townId){
    attr: ev.attr, level: ev.level, label:'喧嘩',
    onSuccess:()=>{
     gainGPAll(win_gp); updateHUD();
+    changeAlignment(0, -2); // brawl勝ち：混沌+2
     _appendPatronPanel(
      msgBox(ev.win_line, '#6aaa60', '#224422') +
      (win_gp ? resultLine(`+${win_gp}GP`) : '')
@@ -6269,6 +6415,7 @@ function talkToPatron(townId){
    },
    onFail:()=>{
     PC.con = Math.max(1, PC.con - lose_con); updateHUD();
+    changeAlignment(0, -3); // brawl負け：混沌+3
     _appendPatronPanel(
      msgBox(ev.lose_line, '#ff8866', '#441111') +
      resultLine(`CON -${lose_con}`)
@@ -7489,6 +7636,23 @@ function loadGame(slot){
  }
  if(PC._torchStock == null) PC._torchStock = 0;
  if(PC._torchTurns == null) PC._torchTurns = 0;
+ // 旧データ移行：alignmentがなければランダム初期値を付与（保存データで判定）
+ if(!('alignment_ethics' in data.pc)) PC.alignment_ethics = Math.floor((Math.random()-0.5)*60);
+ if(!('alignment_order'  in data.pc)) PC.alignment_order  = Math.floor((Math.random()-0.5)*60);
+ // パーティNPCの旧データ移行
+ (PC.party||[]).forEach((npc,i)=>{
+  const saved = data.pc?.party?.[i];
+  if(!saved || !('alignment_ethics' in saved)) npc.alignment_ethics = Math.floor((Math.random()-0.5)*60);
+  if(!saved || !('alignment_order'  in saved)) npc.alignment_order  = Math.floor((Math.random()-0.5)*60);
+ });
+ // 拠点留守番NPCの旧データ移行
+ Object.entries(PC.properties||{}).forEach(([tid, prop])=>{
+  (prop.caretakers||[]).forEach((npc,i)=>{
+   const saved = data.pc?.properties?.[tid]?.caretakers?.[i];
+   if(!saved || !('alignment_ethics' in saved)) npc.alignment_ethics = Math.floor((Math.random()-0.5)*60);
+   if(!saved || !('alignment_order'  in saved)) npc.alignment_order  = Math.floor((Math.random()-0.5)*60);
+  });
+ });
  ['title-screen','chargen','shop-area'].forEach(id=>{
   document.getElementById(id)?.classList.add('hidden');
  });
@@ -8189,41 +8353,123 @@ function checkAging(){
  return { event:'birthday', age:newAge };
 }
 
+
+// ══════════════════════════════════════════
+// ALIGNMENT SYSTEM
+// ══════════════════════════════════════════
+function getAlignmentLabel(ethics, order){
+ const e = (ethics||0);
+ const o = (order||0);
+ const ethicsLabel = e >= 34 ? '善' : e <= -34 ? '悪' : '中立';
+ const orderLabel  = o >= 34 ? '秩序' : o <= -34 ? '混沌' : '中立';
+ if(ethicsLabel==='中立' && orderLabel==='中立') return '真の中立';
+ if(ethicsLabel==='中立') return `${orderLabel}・中立`;
+ if(orderLabel==='中立')  return `善悪${ethicsLabel}・中立`;
+ return `${orderLabel}にして${ethicsLabel}`;
+}
+
+function getAlignmentColor(ethics, order){
+ const e = (ethics||0), o = (order||0);
+ if(e>=34 && o>=34)  return '#88ccff'; // 秩序にして善：青白
+ if(e>=34 && o<=-34) return '#88ffcc'; // 混沌にして善：緑
+ if(e>=34)           return '#aaddff'; // 善良中立：薄青
+ if(e<=-34 && o>=34) return '#cc6644'; // 秩序にして悪：赤橙
+ if(e<=-34 && o<=-34)return '#aa44aa'; // 混沌にして悪：紫
+ if(e<=-34)          return '#ff8866'; // 邪悪中立：赤
+ if(o>=34)           return '#ccbbaa'; // 秩序中立：茶白
+ if(o<=-34)          return '#bb88ff'; // 混沌中立：紫
+ return '#888888';                     // 真の中立：灰
+}
+
+function changeAlignment(ethicsDelta, orderDelta, pc=PC){
+ if(ethicsDelta) pc.alignment_ethics = Math.max(-100, Math.min(100, (pc.alignment_ethics||0)+ethicsDelta));
+ if(orderDelta)  pc.alignment_order  = Math.max(-100, Math.min(100, (pc.alignment_order||0)+orderDelta));
+ updateHUD();
+}
+
+function renderAlignmentWidget(ethics, order){
+ const e = ethics||0, o = order||0;
+ const label = getAlignmentLabel(e, o);
+ const col   = getAlignmentColor(e, o);
+ // グリッド上の位置（0〜100%）
+ const px = Math.round((o + 100) / 2); // 秩序→右
+ const py = Math.round((100 - e - 100) / 2 + 100); // 善→上
+ // 実際は簡易バー表示にする
+ const ethicsBar = `<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
+  <span style="font-size:calc(var(--font-sm) - 3px);color:#776655;width:20px">悪</span>
+  <div style="flex:1;height:5px;background:#1a1a1a;border-radius:3px;position:relative">
+   <div style="position:absolute;left:50%;width:1px;height:100%;background:#333"></div>
+   <div style="position:absolute;left:${Math.round((e+100)/2)}%;width:6px;height:6px;border-radius:50%;background:${col};top:-0.5px;transform:translateX(-50%)"></div>
+  </div>
+  <span style="font-size:calc(var(--font-sm) - 3px);color:#88aacc;width:20px;text-align:right">善</span>
+ </div>`;
+ const orderBar = `<div style="display:flex;align-items:center;gap:4px">
+  <span style="font-size:calc(var(--font-sm) - 3px);color:#bb88ff;width:20px">混</span>
+  <div style="flex:1;height:5px;background:#1a1a1a;border-radius:3px;position:relative">
+   <div style="position:absolute;left:50%;width:1px;height:100%;background:#333"></div>
+   <div style="position:absolute;left:${Math.round((o+100)/2)}%;width:6px;height:6px;border-radius:50%;background:${col};top:-0.5px;transform:translateX(-50%)"></div>
+  </div>
+  <span style="font-size:calc(var(--font-sm) - 3px);color:#ccbbaa;width:20px;text-align:right">秩</span>
+ </div>`;
+ return `<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:8px;margin-bottom:12px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+   <span style="font-size:calc(var(--font-sm) - 1px);color:#776655"> 性格</span>
+   <span style="font-size:calc(var(--font-sm) + 1px);color:${col};font-weight:bold">${label}</span>
+  </div>
+  ${ethicsBar}${orderBar}
+ </div>`;
+}
+
 function checkNPCAging(){
- const party = PC.party || [];
- party.forEach(npc=>{
-  if(npc.con <= 0) return; // 既に死亡済み
-  if(!npc.birthDay) npc.birthDay = -(400 - 380) * 365; // birthDayなし→380年生まれに設定
+ const _applyDecline = (npc)=>{
+  if(npc.con <= 0) return;
+  if(!npc.birthDay) npc.birthDay = -(400 - 380) * 365;
   const params = AGING_PARAMS[npc.race] || AGING_PARAMS.human;
   const lifespan = npc.lifespan || params.lifespan;
   const ageYears = (GAME_TIME.totalDays - npc.birthDay) / 365;
   if(ageYears >= lifespan){
-   // 寿命死
    npc.con = 0;
-   const msg = `${npc.name}は天寿を全うした。享年${Math.floor(ageYears)}歳。`;
-   addLifeEvent('', msg);
-   // 拠点の留守番にいる場合も同様に
+   return `${npc.name}は天寿を全うした。享年${Math.floor(ageYears)}歳。`;
+  }
+  // 老衰による能力値低下（5年ごと）
+  if(ageYears > params.declineStart){
+   const yearsDeclined = Math.floor(ageYears - params.declineStart);
+   const expectedDeclines = Math.floor(yearsDeclined / 5);
+   const actualDeclines = npc._declineCount || 0;
+   if(expectedDeclines > actualDeclines){
+    const steps = expectedDeclines - actualDeclines;
+    for(let i=0;i<steps;i++){
+     npc.st  = Math.max(1, (npc.st||1)  - 1);
+     npc.iq  = Math.max(1, (npc.iq||1)  - 1);
+     npc.lk  = Math.max(1, (npc.lk||1)  - 1);
+     npc.chr = Math.max(1, (npc.chr||1) - 1);
+     npc.dex = Math.max(1, (npc.dex||1) - 1);
+     npc.spd = Math.max(1, (npc.spd||1) - 1);
+     npc.con = Math.max(1, (npc.con||1) - 1);
+     npc.maxCon = Math.max(1, (npc.maxCon||1) - 1);
+    }
+    npc._declineCount = expectedDeclines;
+    updateHUD();
+   }
+  }
+  return null;
+ };
+
+ const party = PC.party || [];
+ party.forEach(npc=>{
+  const deathMsg = _applyDecline(npc);
+  if(deathMsg){
+   addLifeEvent('', deathMsg);
    Object.values(PC.properties||{}).forEach(prop=>{
-    (prop.caretakers||[]).forEach(c=>{
-     if(c._npcId === npc._npcId) c.con = 0;
-    });
+    (prop.caretakers||[]).forEach(c=>{ if(c._npcId === npc._npcId) c.con = 0; });
    });
-   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:var(--amber);border:1px solid #554433;border-radius:3px;padding:8px;margin-bottom:8px"> ${msg}</div>`;
+   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:var(--amber);border:1px solid #554433;border-radius:3px;padding:8px;margin-bottom:8px"> ${deathMsg}</div>`;
   }
  });
- // 留守番NPCの寿命チェック（パーティ外）
  Object.values(PC.properties||{}).forEach(prop=>{
   (prop.caretakers||[]).forEach(npc=>{
-   if(npc.con <= 0) return;
-   if(!npc.birthDay) npc.birthDay = -(400 - 380) * 365; // birthDayなし→380年生まれ
-   const params = AGING_PARAMS[npc.race] || AGING_PARAMS.human;
-   const lifespan = npc.lifespan || params.lifespan;
-   const ageYears = (GAME_TIME.totalDays - npc.birthDay) / 365;
-   if(ageYears >= lifespan){
-    npc.con = 0;
-    const msg = `${npc.name}は天寿を全うした。享年${Math.floor(ageYears)}歳。`;
-    addLifeEvent('', msg);
-   }
+   const deathMsg = _applyDecline(npc);
+   if(deathMsg) addLifeEvent('', deathMsg);
   });
  });
 }
@@ -11399,7 +11645,7 @@ const PARTTIME_RETURN_NODE = {
  neria:'TOWN_NERIA', dorua:'TOWN_DORUA', sarpe:'TOWN_SARPE', nebra:'TOWN_NEBRA',
 };
 
-function doPartTimeJob(townId){
+function doPartTimeJob(townId){ changeAlignment(0, 2); // アルバイト：秩序+2
  const data = PARTTIME_JOBS[townId];
  if(!data){ return; }
  const job = data.jobs[Math.floor(Math.random()*data.jobs.length)];
@@ -14719,6 +14965,7 @@ function reportBountyQuest(townId){
         || allBounty.find(q=>q._defeated); // フォールバック：townId不問で討伐済みを検索
  if(!q){ return false; }
  q.status = 'completed';
+ changeAlignment(5, 5); // 賞金首討伐：善+5/秩序+5
  // PC.questsから除去
  const idx = PC.quests.indexOf(q);
  if(idx !== -1) PC.quests.splice(idx, 1);
@@ -14973,6 +15220,7 @@ function _huntShowRoom(){
 // 討伐完了処理
 function huntQuestComplete(q){
  q.status = 'completed';
+ changeAlignment(3, 3); // 討伐完了：善+3/秩序+3
  PC.quests = (PC.quests||[]).filter(qq=>qq.id !== q.id);
  hideDungeonImage();
  gainGPAll(q.reward);
@@ -15936,6 +16184,7 @@ function startSeaEncounter(enemy){
    const sr = savingRoll('spd', 2); gainAPAll(sr.ap); updateHUD();
    if(sr.success){
     travelLog(`<span style="color:#6aaa60"> 全速で逃げ切った！（SPD SR成功） AP+${sr.ap}</span>`);
+    changeAlignment(0, -0.5); // 逃亡：混沌+0.5
     setTimeout(()=>travelTick(), ts.interval);
    } else {
     travelLog(`<span style="color:var(--danger)"> 逃げ遅れた！（SPD SR失敗） AP+${sr.ap}</span>`);
@@ -15977,6 +16226,7 @@ function startSeaEncounter(enemy){
    const sr = savingRoll('spd', 2); gainAPAll(sr.ap); updateHUD();
    if(sr.success){
     travelLog(`<span style="color:#6aaa60"> 逃げ切った！（SPD SR成功） AP+${sr.ap}</span>`);
+    changeAlignment(0, -0.5); // 逃亡：混沌+0.5
     setTimeout(()=>travelTick(), ts.interval);
    } else {
     travelLog(`<span style="color:var(--danger)"> 逃げ遅れた！（SPD SR失敗） AP+${sr.ap}</span>`);
@@ -16255,6 +16505,7 @@ function travelTick(){
   ts._pendingNPC=null;
   choices.innerHTML='';
   travelLog(`<span class="red"> ${ts.daysDone}日目：${npc.name}に襲いかかった！</span>`);
+ changeAlignment(-10, -10); // NPC攻撃：悪+10/混沌+10
   startCombatNPC({
    enemies:[{
     name: npc.name,
@@ -16469,6 +16720,7 @@ function startTravelTalk(enemy, ts){
  PC.con = Math.max(0, PC.con - dmg);
  updateHUD();
  travelLog(`<span class="grn"> 逃走成功！（背中に攻撃 CON-${dmg}）</span>`);
+ changeAlignment(0, -0.5); // 逃亡：混沌+0.5
  if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 800); return; }
  renderChoices([{label:'▶ 旅を続ける', fn:()=>{
   document.getElementById('dice-area').classList.add('hidden');
@@ -17520,6 +17772,8 @@ function startGame(){
  // 年齢・誕生日の初期化（開始年齢20歳）
  PC.age = 15 + Math.floor(Math.random() * 16); // 15〜30歳
  PC.lifespan = rollLifespan(race);
+ PC.alignment_ethics = Math.floor((Math.random()-0.5)*60);
+ PC.alignment_order  = Math.floor((Math.random()-0.5)*60);
  // 暦の引き継ぎ：_inheritTimeフラグがあればリセットしない
  if(!PC._inheritTime){
  GAME_TIME.totalDays = 0;
@@ -18885,6 +19139,9 @@ function renderNPCDetail(el, n, idx){
  <div style="font-size:calc(var(--font-sm) - 2px);color:var(--arcane);margin-bottom:6px;border-bottom:1px solid var(--shadow);padding-bottom:3px"> 能力値</div>
  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px;margin-bottom:12px">${attrRows}</div>
 
+ <!-- 性格 -->
+ ${renderAlignmentWidget(n.alignment_ethics, n.alignment_order)}
+
  <!-- 戦闘値 -->
  <div style="font-size:calc(var(--font-sm) - 2px);color:var(--arcane);margin-bottom:6px;border-bottom:1px solid var(--shadow);padding-bottom:3px"> 戦闘値</div>
  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:8px">
@@ -19417,6 +19674,8 @@ function renderStatusPanel(){
  fairy: 'ST・CON ×1/4、LK・DEX ×3/2、CHR ×2。寿命200年前後。',
  leprechaun: 'ST ×1/2、IQ・LK・DEX ×3/2。寿命300年前後。',
  };
+ const alEl = document.getElementById('sp-alignment');
+ if(alEl) alEl.innerHTML = renderAlignmentWidget(PC.alignment_ethics, PC.alignment_order);
  document.getElementById('sp-race-info').innerHTML =
  `<div style="font-size:var(--font-sm);color:var(--text);line-height:2.2">${raceInfoMap[PC.race]||''}</div>
  <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-top:6px">衰え開始: ${params.declineStart}歳〜（5年毎に全能力値-1）</div>`;
