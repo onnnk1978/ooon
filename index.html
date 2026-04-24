@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042303</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042401</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -2953,27 +2953,132 @@ const PROPERTY_TOWNS = ['verda','rimholm','marakai','oasis_fort','saroon','duna'
  'khazan','elsia','al_rashid','yeldun','valdheim','nifurvik','iskald','sarpe','nebra'];
 
 const PROPERTY_DEFS = {
- verda:     { name:'ヴェルダ村の廃小屋',    basePrice:1200, desc:'森の外れにある猟師の廃屋。雨漏りするが直せば住める。' },
- rimholm:   { name:'リムホルムの石造り小屋', basePrice:1500, desc:'遺跡の石材で建てた頑丈な小屋。埃っぽいが倉庫に向く。' },
- marakai:   { name:'マラカイの掘っ建て小屋', basePrice:1000, desc:'港の外れの粗末な小屋。潮風が強いが海が見える。' },
- oasis_fort:{ name:'砦外縁の仮設住居',       basePrice:1800, desc:'砦の壁に寄りかかるように建てられた小屋。砂が入り込む。' },
- saroon:    { name:'サルーンの岩穴住居',      basePrice:900,  desc:'岩盤を掘った住居。夏は涼しく冬は凍える。' },
- duna:      { name:'デュナの天幕付き小屋',    basePrice:1100, desc:'遊牧民式の骨組みに固定の壁をつけた家。砂漠の風に強い。' },
- frostpeak: { name:'フロストピークの山小屋',  basePrice:2000, desc:'山腹に建つ石の小屋。嵐をしのげる厚い壁がある。' },
- ashveil:   { name:'アッシュヴェイルの廃坑舎',basePrice:1300, desc:'廃坑の坑夫小屋を転用。地下倉庫として使える空間がある。' },
- port_argon:{ name:'ポート・アルゴンの波止場小屋', basePrice:1600, desc:'港の船着き場脇に建つ古い小屋。潮風と波音が絶えないが、船乗りたちの往来が多く情報が集まりやすい。' },
- stonehiem: { name:'ストーンヘイムの鉱夫長屋',     basePrice:1400, desc:'鉱山街の外れにある石造りの長屋の一角。壁は厚く頑丈で、重い荷物の保管にも耐える。' },
- neria:     { name:'ネリア港の借家',          basePrice:2200, desc:'港街の路地裏にある石造りの借家。海の風が通り抜ける。' },
- dorua:     { name:'ドルアの村の民家',        basePrice:1000, desc:'島の漁村にある素朴な民家。潮騒と鳥の声が絶えない。' },
- khazan:    { name:'カザンの市街地の住居',    basePrice:50000, desc:'王都の市街地に建つ石造りの住居。交通の便がよく、あらゆる情報が集まる。' },
- elsia:     { name:'エルマリアの森辺の家',    basePrice:40000, desc:'エルフの都市の外縁に建つ優美な住居。木々に囲まれた静かな環境だ。' },
- al_rashid: { name:'アル・ラシードの商人宅', basePrice:45000, desc:'交易都市の商人街にある堅牢な石造りの家。隊商の情報が自然と集まる立地にある。' },
- yeldun:    { name:'イェルドゥンの山岳住居',  basePrice:35000, desc:'山岳都市の岩盤に掘り込まれた住居。頑丈な造りで冬の寒さをしのげる。' },
- valdheim:  { name:'ヴァルドヘイムの石砦住居',basePrice:30000, desc:'極北の砦街にある石造りの居室。厚い壁が吹雪を遮る。' },
- nifurvik:  { name:'ニフルヴィクの船乗り宿',  basePrice:1800, desc:'凍海の港町にある船乗り向けの粗末な宿。海の男たちの情報が集まる。' },
- iskald:    { name:'イスカルドの坑夫小屋',    basePrice:1600, desc:'北方の鉱山街にある坑夫向けの小屋。地下への入口が近い。' },
- sarpe:     { name:'サルペの漁師の家',        basePrice:1200, desc:'小島の漁村にある素朴な家。石碑の近くにある。' },
- nebra:     { name:'ネブラの霧の中の家',      basePrice:1100, desc:'霧の島にひっそりと建つ小屋。静かで人目につかない。' },
+ verda:     { basePrice:1200,
+  tiers:[
+   { name:'ヴェルダ村の廃小屋',      desc:'森の外れにある猟師の廃屋。雨漏りするが直せば住める。' },
+   { name:'ヴェルダ村の修繕済み小屋', desc:'修繕を施した小屋。薪ストーブが暖かく、雨もしのげる。' },
+   { name:'ヴェルダの森の番人の館',   desc:'庭と物置を備えた館。森の番人と呼ばれるにふさわしい。' },
+  ]},
+ rimholm:   { basePrice:1500,
+  tiers:[
+   { name:'リムホルムの石造り小屋',   desc:'遺跡の石材で建てた頑丈な小屋。隙間風が入り込む。' },
+   { name:'リムホルムの石造り住居',   desc:'整備された石の住居。複数の部屋が使い勝手よく区切られている。' },
+   { name:'リムホルムの遺跡石材居館', desc:'遺跡の石材で組み上げた堅牢な居館。倉庫も広く使いやすい。' },
+  ]},
+ marakai:   { basePrice:1000,
+  tiers:[
+   { name:'マラカイの掘っ建て小屋',   desc:'港の外れの粗末な小屋。潮風で柱が傾いている。' },
+   { name:'マラカイの板張り家屋',     desc:'しっかりした板張りの漁師家屋。海が見渡せる。' },
+   { name:'マラカイの港望む石造り邸', desc:'港を見渡す高台の石造り邸宅。船乗りの情報が自然と集まる。' },
+  ]},
+ oasis_fort:{ basePrice:1800,
+  tiers:[
+   { name:'砦外縁の仮設住居',         desc:'砦の壁に寄りかかるように建てられた小屋。砂が入り込む。' },
+   { name:'砦壁に組み込まれた居室',   desc:'砦の壁を利用した居室。砂嵐も完全にしのげる。' },
+   { name:'砦内区画の将校用住居',     desc:'砦内に設けられた広い将校用住居。防備は万全だ。' },
+  ]},
+ saroon:    { basePrice:900,
+  tiers:[
+   { name:'サルーンの岩穴住居',       desc:'岩盤を掘った住居。狭く暗いが夏は涼しい。' },
+   { name:'サルーンの拡張岩穴住居',   desc:'岩穴を拡張した住居。照明も整い快適になった。' },
+   { name:'サルーンの地下居館',       desc:'複数の室を持つ地下居館。岩盤が外の気候を完全に遮断する。' },
+  ]},
+ duna:      { basePrice:1100,
+  tiers:[
+   { name:'デュナの天幕付き小屋',     desc:'遊牧民式の骨組みに固定の壁をつけた家。砂漠の風に強い。' },
+   { name:'デュナの日干し煉瓦の家屋', desc:'日干し煉瓦で建てた家屋。断熱性が高く昼夜の寒暖差に強い。' },
+   { name:'デュナの中庭付き砂漠邸宅', desc:'中庭を持つ砂漠式の邸宅。来客を迎えるにも十分な広さだ。' },
+  ]},
+ frostpeak: { basePrice:2000,
+  tiers:[
+   { name:'フロストピークの山小屋',   desc:'山腹に建つ小屋。壁が薄く夜は厳しい寒さだ。' },
+   { name:'フロストピークの石造り住居',desc:'しっかりした石造りの山岳住居。嵐もしのげる。' },
+   { name:'フロストピークの岩盤館',   desc:'岩盤に刻んだ堅牢な館。極寒の山でも暖かく過ごせる。' },
+  ]},
+ ashveil:   { basePrice:1300,
+  tiers:[
+   { name:'アッシュヴェイルの廃坑舎', desc:'廃坑の坑夫小屋を転用。埃と湿気が漂う。' },
+   { name:'アッシュヴェイルの坑夫住居',desc:'補強を施した坑夫住居。地下倉庫として使える空間がある。' },
+   { name:'アッシュヴェイルの鉱山屋敷',desc:'地下倉庫付きの鉱山屋敷。採掘品の保管にも最適だ。' },
+  ]},
+ port_argon:{ basePrice:1600,
+  tiers:[
+   { name:'ポート・アルゴンの波止場小屋', desc:'港の船着き場脇に建つ古い小屋。潮風と波音が絶えない。' },
+   { name:'ポート・アルゴンの石造り借家', desc:'港町の石造り借家。船乗りたちの情報が集まりやすい。' },
+   { name:'ポート・アルゴンの商人邸',     desc:'波止場を見渡す商人邸。港の往来が一望できる。' },
+  ]},
+ stonehiem: { basePrice:1400,
+  tiers:[
+   { name:'ストーンヘイムの鉱夫長屋',     desc:'鉱山街の外れにある長屋の一角。壁は厚く頑丈だ。' },
+   { name:'ストーンヘイムの石造り家屋',   desc:'独立した石造りの家屋。採掘道具の保管にも向く。' },
+   { name:'ストーンヘイムの鉱山屋敷',     desc:'採掘権付きの鉱山屋敷。街の中でも一目置かれる存在だ。' },
+  ]},
+ neria:     { basePrice:2200,
+  tiers:[
+   { name:'ネリア港の借家',             desc:'港街の路地裏にある石造りの借家。海の風が通り抜ける。' },
+   { name:'ネリア港の石造り住居',       desc:'港に面した石造りの住居。荷揚げの様子が見える。' },
+   { name:'ネリア港の港湾商人宅',       desc:'倉庫付きの港湾商人宅。港全体を見渡せる好立地だ。' },
+  ]},
+ dorua:     { basePrice:1000,
+  tiers:[
+   { name:'ドルアの村の民家',           desc:'島の漁村にある素朴な民家。潮騒と鳥の声が絶えない。' },
+   { name:'ドルアの漁村家屋',           desc:'整った漁村の家屋。島の人々との交流が深まった。' },
+   { name:'ドルアの高台邸宅',           desc:'島を見渡す高台の邸宅。島全体が庭のようだ。' },
+  ]},
+ khazan:    { basePrice:50000,
+  tiers:[
+   { name:'カザンの市街地の住居',       desc:'王都の市街地に建つ石造りの住居。交通の便がよい。' },
+   { name:'カザンの中級市民宅',         desc:'王都の中級市民にふさわしい邸宅。あらゆる情報が集まる。' },
+   { name:'カザンの豪商邸宅',           desc:'王都に名を馳せる豪商の邸宅。訪問者が絶えない。' },
+  ]},
+ elsia:     { basePrice:40000,
+  tiers:[
+   { name:'エルマリアの森辺の家',       desc:'エルフの都市の外縁に建つ優美な住居。木々に囲まれた静かな環境だ。' },
+   { name:'エルマリアの職人造りの住居', desc:'エルフ職人の手による住居。木と石が美しく調和している。' },
+   { name:'エルマリアの森の館',         desc:'精霊樹に寄り添うように建つ森の館。自然との一体感が心を癒す。' },
+  ]},
+ al_rashid: { basePrice:45000,
+  tiers:[
+   { name:'アル・ラシードの商人宅',     desc:'交易都市の商人街にある堅牢な石造りの家。隊商の情報が集まる。' },
+   { name:'アル・ラシードの中級邸宅',   desc:'隊商宿区画の中級邸。商人たちとの繋がりが強まった。' },
+   { name:'アル・ラシードの豪奢な屋敷', desc:'商人区に名を馳せる豪奢な屋敷。交易の要衝として機能する。' },
+  ]},
+ yeldun:    { basePrice:35000,
+  tiers:[
+   { name:'イェルドゥンの山岳住居',     desc:'山岳都市の岩盤に掘り込まれた住居。頑丈な造りで冬の寒さをしのげる。' },
+   { name:'イェルドゥンの拡張居館',     desc:'岩盤を拡張した居館。複数の部屋が使いやすく配置されている。' },
+   { name:'イェルドゥンの山岳屋敷',     desc:'山岳都市の領主風屋敷。街を見下ろす絶好の立地にある。' },
+  ]},
+ valdheim:  { basePrice:30000,
+  tiers:[
+   { name:'ヴァルドヘイムの石砦住居',   desc:'極北の砦街にある石造りの居室。厚い壁が吹雪を遮る。' },
+   { name:'ヴァルドヘイムの将校用住居', desc:'砦内の将校用住居。防備は万全で暖房設備も整っている。' },
+   { name:'ヴァルドヘイムの要塞式邸宅', desc:'極北の要塞式大邸宅。この地の権力者として一目置かれる。' },
+  ]},
+ nifurvik:  { basePrice:1800,
+  tiers:[
+   { name:'ニフルヴィクの船乗り宿',     desc:'凍海の港町にある船乗り向けの粗末な宿。海の男たちの情報が集まる。' },
+   { name:'ニフルヴィクの港町家屋',     desc:'港町の堅牢な家屋。凍海の厳しい気候にも耐える造りだ。' },
+   { name:'ニフルヴィクの凍海望む邸宅', desc:'凍海を一望する邸宅。港を行き交う船の情報が手に入る。' },
+  ]},
+ iskald:    { basePrice:1600,
+  tiers:[
+   { name:'イスカルドの坑夫小屋',       desc:'北方の鉱山街にある坑夫向けの小屋。地下への入口が近い。' },
+   { name:'イスカルドの石造り住居',     desc:'鉱山街の石造り住居。採掘道具の保管にも便利な立地だ。' },
+   { name:'イスカルドの鉱山屋敷',       desc:'地下坑道付きの鉱山屋敷。鉱山街で確かな地位を築いた。' },
+  ]},
+ sarpe:     { basePrice:1200,
+  tiers:[
+   { name:'サルペの漁師の家',           desc:'小島の漁村にある素朴な家。石碑の近くにある。' },
+   { name:'サルペの整った島の民家',     desc:'整った造りの島の民家。島の人々から信頼される拠点だ。' },
+   { name:'サルペの高台邸宅',           desc:'石碑を見渡す高台の邸宅。島全体を見渡せる絶好の立地だ。' },
+  ]},
+ nebra:     { basePrice:1100,
+  tiers:[
+   { name:'ネブラの霧の中の小屋',       desc:'霧の島にひっそりと建つ小屋。静かで人目につかない。' },
+   { name:'ネブラの石造り住居',         desc:'霧の島の石造り住居。しっかりした造りで霧の湿気にも強い。' },
+   { name:'ネブラの神秘的な館',         desc:'霧に包まれた神秘的な館。この島を知る者だけが辿り着ける。' },
+  ]},
 };
 
 // 購入価格を計算（信頼度で変動）
@@ -2989,6 +3094,12 @@ function calcPropertyPrice(townId){
 }
 
 // 拠点を持っているか
+
+function propTier(townId){ return (PC.properties?.[townId]?.tier)||0; }
+function propName(townId){ const d=PROPERTY_DEFS[townId]; return d.tiers[propTier(townId)].name; }
+function propDesc(townId){ const d=PROPERTY_DEFS[townId]; return d.tiers[propTier(townId)].desc; }
+function propCaretakerLimit(townId){ const t=propTier(townId); return t>=2?20:t>=1?4:2; }
+
 function hasProperty(townId){ return !!(PC.properties||{})[townId]; }
 
 // 拠点購入
@@ -2997,7 +3108,7 @@ function buyProperty(townId){
  const info = calcPropertyPrice(townId);
  if(!info) return;
  if(!payPrice(info.price)){ showSaveToast('所持金が足りない'); return; }
- PC.properties[townId] = { boughtAt: info.price, day: GAME_TIME.totalDays, storage:{ gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 } };
+ PC.properties[townId] = { boughtAt: info.price, day: GAME_TIME.totalDays, tier:0, storage:{ gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 } };
  changeTrust(townId, 10);
  addLifeEvent('', `${PROPERTY_DEFS[townId].name}を購入した。`);
  updateHUD();
@@ -3020,8 +3131,8 @@ function goPropertyNode(townId){
  const info = calcPropertyPrice(townId);
  const rank = trustRank(townId);
  const story = document.getElementById('story');
- let html = ` <span style="color:#c8a44a">${def.name}</span><br>`;
- html += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${def.desc}</span><br>`;
+ let html = ` <span style="color:#c8a44a">${owned?propName(townId):def.tiers[0].name}</span><br>`;
+ html += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${owned?propDesc(townId):def.tiers[0].desc}</span><br>`;
  if(owned){
   const prop = PC.properties[townId];
   // セリフを説明文の直後に表示（メンバーが確定してから）
@@ -3034,7 +3145,7 @@ function goPropertyNode(townId){
    ];
    if(_allRes.length){
     const _sp = _allRes[Math.floor(Math.random()*_allRes.length)];
-    const _defName = def.name;
+    const _defName = propName(townId);
     const _speeches = _sp.isChild ? [
      `「おかえり！ずっと待ってたよ！」`,
      `「どこ行ってたの？早く帰ってきてほしかった」`,
@@ -3197,7 +3308,7 @@ function goPropertyNode(townId){
    // イベント画面を表示してOKで拠点メイン画面へ
    if(_chosen.effect) _chosen.effect();
    story.innerHTML = `
-    <span style="color:#c8a44a">${def.name}</span><br>
+    <span style="color:#c8a44a">${propName(townId)}</span><br>
     <br>
     <div style="border:1px solid #443322;border-radius:4px;padding:12px;background:#0f0a04">
      <span style="color:${_chosen.color};font-weight:bold">${_chosen.title}</span><br><br>
@@ -3252,8 +3363,8 @@ function _showPropertyMain(townId){
    ...(prop.children).map(c=>({name:c.name,isChild:true})),
   ];
   // ストレージ・メンバー表示
-  let mhtml = ` <span style="color:#c8a44a">${def.name}</span><br>`;
-  mhtml += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${def.desc}</span><br>`;
+  let mhtml = ` <span style="color:#c8a44a">${propName(townId)}</span><br>`;
+  mhtml += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${propDesc(townId)}</span><br>`;
   if(_allRes2.length){
    const _sp2 = _allRes2[Math.floor(Math.random()*_allRes2.length)];
    const _speeches2 = _sp2.isChild ? [
@@ -3297,6 +3408,7 @@ function _showPropertyMain(townId){
   const graves = (prop.graves||[]);
   renderChoices([
    {label:' 拠点で休養する',                    fn:()=>propertyRest(townId)},
+   ...(propTier(townId)<2?[{label:`🏠 拠点を拡張する（${propTier(townId)===0?def.basePrice*2:def.basePrice*10}GP）`, fn:()=>propertyUpgrade(townId)}]:[]),
    ...(proposeTargets.length ? [{label:' 結婚を申し込む', fn:()=>propertyPropose(townId)}] : []),
    {label:' 留守番を管理する', fn:()=>propertyManageCaretakers(townId)},
    ...(deadParty.length ? [{label:` 仲間を埋葬する（${deadParty.length}人）`, fn:()=>propertyBury(townId)}] : []),
@@ -3316,7 +3428,7 @@ function propertyViewGraves(townId){
  const dead = (PC.party||[]).filter(n=>n.con<=0);
  const story = document.getElementById('story');
 
- let html = ` <span style="color:#c8a44a">${def.name} — 墓地</span><br><br>`;
+ let html = ` <span style="color:#c8a44a">${propName(townId)} — 墓地</span><br><br>`;
  if(graves.length){
   html += `<span class="dim">ここに眠る者たち：</span><br><br>`;
   graves.forEach(g=>{
@@ -3348,7 +3460,7 @@ function propertyBury(townId){
  const dead = (PC.party||[]).filter(n=>n.con<=0);
  const story = document.getElementById('story');
 
- story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+ story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
   +`<span class="dim">倒れた仲間を拠点の墓地に埋葬します。</span><br><br>`
   +dead.map(n=>`<span style="color:#aaaaaa"> <b>${n.name}</b></span><br>`).join('');
 
@@ -3370,7 +3482,7 @@ function propertyBury(townId){
     epitaph,
    });
    PC.party = (PC.party||[]).filter(m=>m.name !== n.name);
-   addLifeEvent('', `${n.name}を${def.name}に埋葬した。`);
+   addLifeEvent('', `${n.name}を${propName(townId)}に埋葬した。`);
    updateHUD();
    showSaveToast(` ${n.name}を埋葬した`);
    propertyViewGraves(townId);
@@ -3378,6 +3490,39 @@ function propertyBury(townId){
  }));
  choices.push({label:'← 拠点に戻る', fn:()=>_showPropertyMain(townId)});
  renderChoices(choices);
+}
+
+// ── 拠点拡張 ──────────────────────────────────────────────
+function propertyUpgrade(townId){
+ const def = PROPERTY_DEFS[townId];
+ const prop = PC.properties[townId];
+ const tier = prop.tier||0;
+ if(tier >= 2){ showSaveToast('これ以上拡張できません'); return; }
+ const cost = tier===0 ? def.basePrice*2 : def.basePrice*10;
+ const nextTier = def.tiers[tier+1];
+ const story = document.getElementById('story');
+
+ story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
+  +`<b> 拠点を拡張する</b><br><br>`
+  +`<span class="dim">現在：${def.tiers[tier].name}</span><br>`
+  +`<span style="color:var(--success)">拡張後：${nextTier.name}</span><br>`
+  +`<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${nextTier.desc}</span><br><br>`
+  +`<span style="color:var(--reward)">費用：${cost}GP</span>　`
+  +`<span class="dim">留守番上限：${propCaretakerLimit(townId)}人 → ${tier+1>=2?20:4}人</span>`;
+
+ const canAfford = totalCP() >= cost*100;
+ renderChoices([
+  {label:` 拡張する（${cost}GP）${canAfford?'':'　［所持金不足］'}`, fn:()=>{
+   if(!canAfford){ showSaveToast('所持金が足りない'); return; }
+   payPrice(cost);
+   prop.tier = tier+1;
+   addLifeEvent('', `${propName(townId)}に拡張した。`);
+   updateHUD();
+   showSaveToast(` ${def.tiers[tier+1].name}に拡張した`);
+   _showPropertyMain(townId);
+  }},
+  {label:'← 戻る', fn:()=>_showPropertyMain(townId)},
+ ]);
 }
 
 function propertyBuySR(townId){
@@ -3422,7 +3567,7 @@ function propertyManageCaretakers(townId){
  const partyAvailable = (PC.party||[]).filter(n=>n.con>0);
  const childReady = children.some(c=>(GAME_TIME.totalDays-c.bornDay)/365>=15);
 
- story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+ story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
   +`<b> 留守番の管理</b><br><br>`
   +`<span class="dim">現在の留守番：${caretakers.length>0?caretakers.map(n=>n.name).join('、'):'なし'}</span><br>`
   +`<span class="dim">拠点の子ども：${children.length>0?children.map(c=>{
@@ -3431,7 +3576,7 @@ function propertyManageCaretakers(townId){
   }).join('、'):'なし'}</span>`;
 
  const choices = [];
- if(partyAvailable.length) choices.push({label:' 留守番を置く',        fn:()=>propertySetCaretaker(townId)});
+ if(partyAvailable.length && caretakers.length < propCaretakerLimit(townId)) choices.push({label:' 留守番を置く',        fn:()=>propertySetCaretaker(townId)});
  if(caretakers.length)      choices.push({label:' 留守番を引き取る',    fn:()=>propertyPickupCaretaker(townId)});
  if(childReady)             choices.push({label:' 子どもを引き取る',    fn:()=>propertyPickupChild(townId)});
  // 他拠点が存在すれば転居ボタンを表示
@@ -3456,7 +3601,7 @@ function propertyTransfer(townId){
   ...(prop.children||[]).map(c=>({...c, _isChild:true})),
  ];
 
- story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+ story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
   +`<b> 別の拠点へ転居させる</b><br><br>`
   +`<span class="dim">誰を転居させますか？</span>`;
 
@@ -3549,7 +3694,7 @@ function propertySetCaretaker(townId){
   return;
  }
 
- story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+ story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
   +`<b> 留守番を置く</b><br><br>`
   +`<span class="dim">選んだNPCはパーティから外れ、拠点に残る。生活費は1GP／日かかる。</span><br><br>`
   +`<span class="dim">現在の留守番：${prop.caretakers.length>0?prop.caretakers.map(n=>n.name).join('、'):'なし'}</span>`;
@@ -3560,6 +3705,8 @@ function propertySetCaretaker(townId){
    fn:()=>{
     // 既に留守番にいれば追加しない
     if(prop.caretakers.some(c=>c===n||c._npcId===n._npcId)) return;
+    // 上限チェック
+    if(prop.caretakers.length >= propCaretakerLimit(townId)){ showSaveToast(`留守番は${propCaretakerLimit(townId)}名までです`); return; }
     const idx = PC.party.indexOf(n);
     if(idx !== -1) PC.party.splice(idx,1);
     prop.caretakers.push(n);
@@ -3587,7 +3734,7 @@ function propertyPickupCaretaker(townId){
   return;
  }
 
- story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+ story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
   +`<b> 留守番を引き取る</b><br><br>`
   +`<span class="dim">引き取ったNPCはパーティに戻る。</span>`;
 
@@ -3616,7 +3763,7 @@ function propertyPropose(townId){
  const targets = (PC.party||[]).filter(n=>n.con>0 && !n.married);
 
  if(!targets.length){
-  story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+  story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
    +`<span class="dim">今は申し込める相手がいない。</span>`;
   renderChoices([{label:'← 戻る', fn:()=>goPropertyNode(townId)}]);
   return;
@@ -3629,7 +3776,7 @@ function propertyPropose(townId){
   const canPropose = trust >= 90;
   const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[npc.type]||npc.type;
 
-  story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+  story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
    +`<b> ${npc.name}への求婚</b><br><br>`
    +`<span class="dim">${typeJa}　信頼度：<span style="color:${canPropose?'#c8a44a':'#c05040'}">${trust}/100（${trustLabel}）</span></span><br><br>`
    +(canPropose
@@ -3675,7 +3822,7 @@ function propertyPropose(townId){
  if(targets.length === 1){
   showPropose(targets[0]);
  } else {
-  story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+  story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
    +`<b> 誰に申し込みますか？</b>`;
   renderChoices([
    ...targets.map(n=>({
@@ -3795,7 +3942,7 @@ function propertyPickupChild(townId){
   propertyManageCaretakers(townId); return;
  }
 
- story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+ story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
   +`<b> 子どもを引き取る</b><br><br>`
   +`<span class="dim">15歳以上の子どもをパーティに加えることができます。</span>`;
 
@@ -3813,7 +3960,7 @@ function propertyPickupChild(townId){
      if(!child._typeChosen){
       const iq = child.iq||0, dex = child.dex||0;
       const canWizard = iq>=10 && dex>=8;
-      story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+      story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
        +`<b> ${child.name}の職業を選ぶ</b><br><br>`
        +`<span class="dim">ST:${child.st} IQ:${child.iq} LK:${child.lk} CON:${child.con} DEX:${child.dex} CHR:${child.chr} SPD:${child.spd}</span><br><br>`
        +`<span class="dim">${child.name}はどの道を歩むのか。今こそ決める時だ。</span>`
@@ -3880,7 +4027,7 @@ function _recruitChild(child, prop, townId){
  updateHUD(); renderPartyTab();
  const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[child.type]||child.type;
  const story = document.getElementById('story');
- story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+ story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
   +`<span style="color:#6aaa60"> <b>${child.name}</b>がパーティに加わった！</span><br><br>`
   +`<span class="dim">種族：${child.race}　タイプ：${typeJa}</span><br>`
   +`<span class="dim">ST:${child.st} IQ:${child.iq} LK:${child.lk} CON:${child.con} DEX:${child.dex} CHR:${child.chr} SPD:${child.spd}</span>`;
@@ -3897,7 +4044,7 @@ function propertyRest(townId){
   const priceLabel = costPerDay > 1
    ? `<span style="color:var(--danger)">${costPerDay}GP／日</span>`
    : `${costPerDay}GP／日`;
-  story.innerHTML = ` <span style="color:#c8a44a">${def.name}で休養</span><br><br>`
+  story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}で休養</span><br><br>`
    +`<span class="dim">生活費：${priceLabel}</span><br>`
    +`<span class="dim">所持金：${PC.gold||0}GP　現在CON：${PC.con}/${PC.maxCon}</span>`
    +(msg?`<br><br>${msg}`:'');
@@ -3975,7 +4122,7 @@ function propertyStorageItems(townId){
  const story = document.getElementById('story');
  const storW=(stor.weapons||[]).length, storA=(stor.armors||[]).length;
  const storJ=(stor.jewels||[]).length, storT=stor.torches||0;
- story.innerHTML = ` <span style="color:#c8a44a">${def.name}</span><br><br>`
+ story.innerHTML = ` <span style="color:#c8a44a">${propName(townId)}</span><br><br>`
   +`<b> アイテムの保管</b><br><br>`
   +`<span class="dim">保管中： 武器${storW}　 防具${storA}　 宝石${storJ}　 松明${storT}本</span>`;
  renderChoices([
@@ -8384,6 +8531,15 @@ function getAlignmentColor(ethics, order){
 function changeAlignment(ethicsDelta, orderDelta, pc=PC){
  if(ethicsDelta) pc.alignment_ethics = Math.max(-100, Math.min(100, (pc.alignment_ethics||0)+ethicsDelta));
  if(orderDelta)  pc.alignment_order  = Math.max(-100, Math.min(100, (pc.alignment_order||0)+orderDelta));
+ // パーティNPCはPCの1/2の変化（PCへの直接呼び出し時のみ）
+ if(pc === PC){
+  (PC.party||[]).filter(n=>n.con>0).forEach(npc=>{
+   const he = ethicsDelta ? Math.round(ethicsDelta / 2) : 0;
+   const ho = orderDelta  ? Math.round(orderDelta  / 2) : 0;
+   if(he) npc.alignment_ethics = Math.max(-100, Math.min(100, (npc.alignment_ethics||0)+he));
+   if(ho) npc.alignment_order  = Math.max(-100, Math.min(100, (npc.alignment_order||0)+ho));
+  });
+ }
  updateHUD();
 }
 
@@ -13056,6 +13212,34 @@ const YD_STYLE_ATM = {
   '掘り残しの岩肌に条線が走っている。地層の痕跡だが、その色の変化がある深さで急に変わっている。',
   '錆びた採掘車のレールが床に残っている。一部が浮き上がっており、踏むと大きな音がした。',
   '風がないのに粉塵が舞っている。どこかで岩が動いている証拠だ。',
+  '岩盤に耳をあてると、遠くで何かが動く振動が伝わってくる。岩が動いているのか、それとも生き物が動いているのか。',
+  '壁の一面だけ、他と色が違う。掘られた時期が異なるのか、別の岩質なのか。その境界線が気になる。',
+  '坑道の天井に鉱脈の跡が走っている。採り尽くされた後だが、これほどの規模が一度あったなら、別の場所にまだあるかもしれない。',
+  '足元に細かい金属屑が散らばっている。精錬作業の残りかすで、かつてここが作業場だったことを示している。',
+  '古い縄梯子の残骸がぶら下がっている。麻が腐り、もはや使い物にならないが、上に別の階層があることは分かる。',
+  '坑道の奥から水の音がする。地下水脈が近いのか、それともどこかから流れ込んでいるのか。',
+  '壁に赤い印がいくつか刻まれている。坑夫が残した目印か、危険を示すものか。意図は分からない。',
+  '天井から細い砂が流れ落ちている。どこかに空洞があり、少しずつ砂が落ちているのだ。',
+  '錆びた道具が壁際にまとめて置いてある。急いで逃げる必要があり、持ち出せなかったのだろう。',
+  '坑道の壁に採掘記録らしきものが刻まれている。日付らしき数字と、簡単な絵。最後の記録は途中で終わっている。',
+  '地下水が浸み出して床が鏡のようになっている。その水面に自分の顔が映り、思わず立ち止まった。',
+  '採掘で崩れた岩が天井まで積み上がっている。かつてはこの先に続く通路があったはずだ。',
+  '通路の途中に小さな祠の跡がある。坑夫たちが安全を祈った場所か、今はその石が崩れて残るだけだ。',
+  '岩の割れ目から温かい風が吹いてくる。地熱があることを示しており、この下はかなり深い。',
+  '古い坑内電話の箱が壁に取り付けられている。蔓草に覆われ、線は切れているが、かつての設備の名残だ。',
+  '坑道が急に広くなった。採掘現場の中心部だったらしく、四方から坑道が伸びている。',
+  '天井の高い箇所に足場の残骸がある。上部を掘るための作業台で、誰かがここで高いところの岩を切り出した。',
+  '金属を打つ音が遠くから聞こえてくる。反響が複雑で方向が分かりにくいが、確かに音がしている。',
+  '床に古い軌道の跡が残っている。採掘車を走らせていたもので、その溝が深く刻まれている。',
+  '坑道の壁が一か所だけ黒く煤けている。ここで爆発があったことを示しており、壁がえぐれている。',
+  '坑道の分岐に古い看板が落ちている。文字は読めないが、矢印の方向は辛うじて判別できる。',
+  '岩の間から細い糸のような鉱物が伸びている。触れると繊維のように柔らかく、何か価値があるかもしれない。',
+  '坑道の天井が一か所だけ丸く削られている。意図的な加工で、ここから何かを持ち上げたらしい跡がある。',
+  '床に動物の爪痕が残っている。地上の生き物がここまで潜り込んできたのか、それとも地下の生き物か。',
+  '坑道の途中にある小部屋の跡。坑夫の休憩所だったらしく、石を積んだ粗末な椅子の跡が残っている。',
+  '壁の一面が結晶化した鉱物で覆われている。美しいが、その中に何かが封じ込められているような気もする。',
+  '古い坑道支柱の根元に名前が刻まれている。誰かがここで働いた証として残したのだろう、消えかけた文字だ。',
+  '坑道の床に排水のための溝が掘られている。今は水が流れていないが、かつてはここを水が流れていた。',
  ],
  cave: [
   '天然の岩肌が迫る洞窟を進む。足元は濡れた石で、一歩ごとに靴底が滑りそうになる。',
@@ -13072,6 +13256,34 @@ const YD_STYLE_ATM = {
   '地面の一角が盛り上がって丘のようになっている。近づくと、盛り土ではなく積み上げられた骨だと分かった。',
   '洞窟の天井に無数の小穴が開いている。一定のリズムで空気が出入りしており、洞窟そのものが呼吸しているようだ。',
   '壁の一面に白い粉が吹いている。水分が蒸発した跡だが、その模様が何かの顔のようにも見える。',
+  '天井の鍾乳石が長年かけて床の石筍と繋がり、天然の柱を形成している。その間を縫うように進む。',
+  '洞窟の壁が一か所だけ平滑に磨かれている。水流か、生き物が繰り返し体を擦りつけたのか。',
+  '地下湖の水面が完全に静止している。波一つない黒い水面は、鏡のように天井を映し出している。',
+  '岩の割れ目から蒸気が吹き出している。地熱で地下水が温められており、この先は温度が高いかもしれない。',
+  '洞窟の天井に古代の手形が並んでいる。顔料は残っており、これほど深い場所にいた者の目的が気になる。',
+  '石灰岩の壁が波打つように侵食されている。かつて水中だった証拠で、この洞窟は海の底だったのかもしれない。',
+  '足元の水が突然冷たくなった。別の水脈と合流しているらしく、流れの方向が変わった。',
+  '洞窟の壁に気泡の跡が無数に残っている。過去に水没していた際の痕跡で、その高さまで水があったことを示す。',
+  '洞窟の天井から水晶が剥き出しになっている。無数の面が松明の光を乱反射し、まるで星空のようだ。',
+  '洞窟の床が突然傾斜している。足を踏み外せば、暗闇の中を落ちていくことになる。',
+  '洞窟の奥から複数の声のような音が聞こえる。音が反響しているだけかもしれないが、確認する前に考えさせてくれ。',
+  '洞窟の壁に化石が露出している。古代の生き物の形が石の中に残されており、この地の古さを物語っている。',
+  '天井の亀裂から根が下りてきている。地上の植物がここまで根を伸ばしてきたもので、その生命力に驚かされる。',
+  '洞窟の一角が完全に暗い。松明の光が届かないほど広い空間か、光を吸収する何かがあるのか。',
+  '水流の浸食で床に奇妙な模様が描かれている。自然の産物だが、何かの文字に見えなくもない。',
+  '洞窟の天井が急に低くなる。這って進まなければならない区間が続き、その閉塞感が息苦しい。',
+  '足元の石が他と色が違う。血で染まったのか、鉱物が染み込んだのか、その暗い赤色が気になる。',
+  '洞窟の奥から暖かい風が吹いてくる。地熱か、生き物の体温か。どちらにしても何かがある。',
+  '岩の表面が複雑な模様を描いている。自然の侵食によるものだが、見続けると何かの地図に見えてくる。',
+  '洞窟の床に砂が堆積している。かつて水流があった証拠で、その流れが何をもたらしたかは分からない。',
+  '天然の橋が深い亀裂を渡っている。一本の岩が両岸を繋いでおり、揺れを感じながら渡る。',
+  '洞窟の壁に触れると振動が伝わってくる。遠くの何かと共鳴しているようで、その振動が止まらない。',
+  '地下水が長年かけて穿った穴が無数に開いている。この岩盤がいかに柔らかかったかを示している。',
+  '洞窟の天井に蝙蝠の巣がある。今は静かだが、何かが刺激すれば一斉に飛び立つだろう。',
+  '洞窟の底に古い水たまりが残っている。蒸発しかけており、縁に白い結晶が析出している。',
+  '岩肌に手をついて進む。岩が思いのほか滑らかで、長年にわたって無数の手が触れてきたことが分かる。',
+  '洞窟の奥が開けた気配がする。音の反響が変わり、広い空間が近いことを体感で感じる。',
+  '足元の水が突然深くなった。膝まで浸かりながら進むと、靴の中まで冷たさが染みてくる。',
  ],
  ruin: [
   '石畳の廊下を進む。松明の光が壁の彫刻を照らし出し、見知らぬ神々の顔が暗闇から浮かび上がる。',
@@ -13088,6 +13300,34 @@ const YD_STYLE_ATM = {
   '壁の漆喰が剥がれ、下地の石に別の文字が現れている。上書きされた古い記録——何を消したかったのか。',
   '柱廊の柱の間に蜘蛛の巣が幾重にも張られている。千年ものと思われるほど複雑に積み重なった巣の中に、何かが動いた。',
   '遺跡の設計者が考えた完璧な左右対称が、一か所だけ意図的に崩されている。その非対称な箇所の意味が気になる。',
+  '壁に架かっていた装飾品の跡がある。フックだけが残り、かつて何が飾られていたかは想像するしかない。',
+  '廊下の途中に焼けた跡がある。炎で黒ずんだ石壁と、焼け残った骨が語ること——ここで最後の戦いがあった。',
+  '古代の照明器具の台座が一定間隔で並んでいる。魔法の光源だったのか、松明だったのか。今は空洞だけが残る。',
+  '壁の一面に描かれた壁画が残っている。色は褪せているが、何かの戦いの場面が描かれているのが分かる。',
+  '廊下の終わりに大きな扉の跡がある。扉自体は失われ、蝶番の金具だけが壁に残っている。',
+  '床の石畳に描かれた紋章が残っている。何の紋章かは分からないが、かつてここを支配した者の印だろう。',
+  '柱の基部に碑文が刻まれている。言語は古代のものだが、数字だけは読める——建造から二千年以上が経過している。',
+  '遺跡の一区画だけ、他より保存状態が良い。何らかの魔法的な保護がかかっていたのかもしれない。',
+  '廊下の途中に大きな穴が開いている。下が見えないほど深く、底から冷たい空気が上がってくる。',
+  '壁の嵌め込み宝石が全て剥ぎ取られている。かつては豪華だったはずの内装が、今は無残な跡だけを残す。',
+  '遺跡の設計が途中で変わっている。柱の様式と壁の石材が明らかに異なる箇所があり、増築された証拠だ。',
+  '天井に描かれた星図が今も鮮やかに残っている。天文学的に正確で、制作者の知識の高さが分かる。',
+  '廊下の端に小さな礼拝所の跡がある。神像は失われているが、台座の形から、それがどんな存在だったかが分かる。',
+  '床の一部が他と素材が違う。補修された跡で、元の石が何らかの理由で使えなくなったのだろう。',
+  '壁の通気孔から風が吹いている。遺跡の設計者が換気まで考慮していたことを示し、その技術力が窺える。',
+  '古代の配管設備の跡がある。鉛管が壁の中を通っており、かつてここに水道があったことを示す。',
+  '廊下の壁に古代の言語で何かが書かれている。詳しくは分からないが「立入禁止」に似た字形が繰り返されている。',
+  '遺跡の天井が一部開口している。上の階への移動手段だったか、光を取り込むための設計か。',
+  '石畳の下に空洞があるらしく、踏むと鈍い音がする。地下室への入口が隠されているかもしれない。',
+  '廊下に置かれた石製の長椅子が今も残っている。誰がここに座り、何を待っていたのか。',
+  '壁の一面に引っ掻き傷が無数についている。爪痕だが、あまりにも多すぎる——何年もかけて刻まれたものだ。',
+  '遺跡の扉の跡に、急いで刻まれた文字がある。「逃げろ」の二文字が、今も鮮明に残っている。',
+  '廊下の角の石が他より磨り減っている。数え切れない人が曲がるたびにここを触れていった証拠だ。',
+  '壁に仕掛けのような窪みが等間隔に並んでいる。かつて何かが嵌まっていたらしいが、今は全て空だ。',
+  '遺跡の通路が突然下に傾斜している。設計なのか、地盤沈下なのか——いずれにしても歩きにくい。',
+  '古代の机の跡が部屋の端に残っている。石製の机で重すぎて誰も持ち出せなかったのか、今もそこにある。',
+  '廊下の壁に血で描いた矢印がある。古くて茶色になっているが、指し示す方向だけははっきり分かる。',
+  '遺跡の壁が一部だけ黒く変色している。強力な魔法が放たれた跡で、石そのものが変質している。',
  ],
  tomb: [
   '石棺が両脇に並ぶ通路を進む。何百年もの死の静寂が空気の中に溶け込んでおり、自分の息づかいだけが場違いに響く。',
@@ -13104,6 +13344,34 @@ const YD_STYLE_ATM = {
   '通路の途中に半分開いた扉がある。鉄製で重そうなのに、何者かが力任せに引き剥がして半開きにした跡がある。',
   '天井に吊るし鎖の錆びた痕がある。かつて何かが吊られていた。今はそれがない——ということは、降りたのか降ろされたのか。',
   '床の石板の一枚が他よりわずかに浮いている。仕掛けか、それとも下から何かが押し上げているのか。',
+  '石棺の蓋に精巧な彫刻が施されている。被葬者の生前の姿を刻んだものだが、その目が開いているように見える。',
+  '弔いの蝋燭が何百本も立っていた台の跡がある。蝋が溶けて床に広がり、固まって奇妙な形を作っている。',
+  '通路の天井に死者の名が延々と刻まれている。一人一人の名前が丁寧に記録されており、その数は膨大だ。',
+  '墓守の小屋の跡がある。長年ここに住んでいた痕跡があるが、今は誰もいない——出ていったのか、出られなくなったのか。',
+  '石棺の列が途中から荒らされている。誰かが墓を暴いた跡で、副葬品を持ち去った形跡がある。',
+  '弔いの楽器が副葬品として通路に並んでいる。触れれば音が出るだろうが、ここで音を立てることへの躊躇いがある。',
+  '石棺に施錠の仕掛けがある。外側から鍵をかけるのではなく、内側から開かないように設計されている。',
+  '通路の一角に供物の皿が整然と並んでいる。食べ物だったものは全て塵となり、器だけが残っている。',
+  '墓所の碑文が一か所だけ書き直されている。元の文字を削り取り、上書きした跡——何かが歴史から消された。',
+  '石棺の間に小さな石像が立っている。守護神だろうが、その視線がこちらを追いかけているような気がする。',
+  '通路が突然行き止まりになっている。しかし壁に手をあてると、微かな振動が伝わってくる。隠し扉の可能性がある。',
+  '石棺の一つが他より新しい。年代が合わない——この墓所が作られてからずっと後に、誰かがここに埋葬されたのだ。',
+  '弔いの花の干からびた残骸がある。石の上に置かれたものが千年かけてこうなったのか、最近のものなのか判別できない。',
+  '墓所の通路に水の跡が残っている。定期的に水が流れており、誰かが今も管理しているのかもしれない。',
+  '石棺の周囲に護符が並べられている。悪霊が入らないようにする魔法的な結界の残骸で、今も効力があるのかもしれない。',
+  '通路に立つ石像の一つが他と向きが違う。全員が正面を向いているのに、一体だけが入口を向いている。',
+  '墓所の壁に遺言のような文章が刻まれている。個人の言葉で、財産の分配について書かれているが、宛先の名が消されている。',
+  '石棺から微かな臭いが漏れている。死の臭いだが古すぎず新しすぎず——何十年か前にここが使われた証拠だ。',
+  '通路の一角だけ石畳が剥がれている。その下に土が露出しており、何かが掘り起こされた跡がある。',
+  '墓所の明かり取りの穴から光が差し込んでいる。この深さに採光の穴があるということは、地上が近いのかもしれない。',
+  '石棺の脇に個人の持ち物が並べられている。武器、道具、本。その人物の人生の断片が静かに語りかけてくる。',
+  '通路の途中に骨が整然と積まれている。埋葬されたものではなく、整理されて積まれたもので、誰かが丁寧に並べた。',
+  '墓所の天井に時計の絵が刻まれている。時間の終わりを示す象徴か、今もその針が動いているような錯覚がある。',
+  '石棺の一つに名前がない。誰の墓かを示す文字が一切なく、ここに眠る者の素性を誰も知らない。',
+  '通路の壁に手形が一つだけ残っている。赤い顔料で押されたもので、その大きさから子どもの手形と分かる。',
+  '墓所の奥からかすかな歌声が聞こえた気がした。しかし立ち止まって聞くと、それは自分の呼吸音だった。',
+  '石棺の一つが空だ。埋葬された者がいないのか、それとも出ていったのか。内側に爪痕はなかった。',
+  '通路の床に刻まれた星の模様が続いている。足跡のように続くその模様は、奥へ奥へと案内しているかのようだ。',
  ],
  fortress: [
   'かつて兵士たちが行き来した石造りの廊下を進む。今は彼らの代わりに別の者が歩いている。',
@@ -13120,6 +13388,34 @@ const YD_STYLE_ATM = {
   '壁に「引け」と刻まれた文字がある。あわてた様子の刻み方で、時間がなかったことが伝わる。',
   '兵器庫だったらしい部屋の前を通る。扉は外れ、中は空だ。武器は全て奪われたか、それとも最後の戦いで使い果たされたか。',
   '窓のない廊下なのに、外の音が聞こえる気がする。壁に細い亀裂があり、外と繋がっているのかもしれない。',
+  '衛兵の詰め所の跡を通る。小さな炉の跡があり、番をする者が暖を取った場所だと分かる。',
+  '廊下の壁に戦闘の跡が残っている。剣傷、矢の跡、血の染み——ここで激しい戦いがあったことは明らかだ。',
+  '古い作戦図が壁に貼られたままになっている。紙は腐り端が崩れているが、地図の形だけは何とか残っている。',
+  '砦の通路が急に下がっている。地下室への通路で、こちら側には明らかに設計上の秘密がある。',
+  '兵士の名を刻んだ石板が壁に並んでいる。戦死者の名簿か、それとも別の意味があるのか。',
+  '廊下の途中に落とし格子の跡がある。今は開きっぱなしだが、かつてはここで敵を封じ込めたのだろう。',
+  '砦の壁に矢狭間が整然と並んでいる。かつてここから弓兵が矢を放ち、攻め手を押しとどめた。',
+  '廊下の端に古い幟の布切れが残っている。色は褪せているが、紋章の形だけは辛うじて判別できる。',
+  '砦の通路に秘密の抜け穴の跡がある。塞がれているが、形からどこへ続いていたかは想像できる。',
+  '古い兵器庫の戸棚が壁際に残っている。中は空だが、武器の油の臭いが今も微かに残っている。',
+  '廊下に拘束された者の爪痕が残っている。連行される者が必死で壁に爪を立てた跡で、その深さが絶望を物語る。',
+  '砦の廊下が突然広くなる。かつて集会や裁判が行われた場所らしく、中央の床だけが磨り減っている。',
+  '壁に古い伝令文の断片が貼り付けてある。「至急」の二文字と、日付だけが読める。',
+  '砦の廊下の隅に古い食料の残骸がある。籠の跡と干からびた何か——最後の籠城の痕跡かもしれない。',
+  '通路の途中に排水口がある。下から冷たい空気が上がってきており、地下の水路に繋がっているらしい。',
+  '砦の壁に砲弾の跡がある。外からの攻撃で穿たれた穴が今も残り、その大きさから攻撃の激しさが分かる。',
+  '廊下に倒れた甲冑がある。中に人はいないが、倒れ方が戦闘中に倒れたそのままで止まっているようだ。',
+  '古い命令書が床に落ちている。羊皮紙は腐り、文字は滲んでいるが「全員撤退」の文字だけが読み取れる。',
+  '砦の廊下の壁に「立て、諦めるな」と刻まれた文字がある。あわてた刻み方で、戦いの最中に残したものだろう。',
+  '兵士の個人用品が床に散乱している。コイン、写真のような何か、手紙の断片——急いで逃げた証拠だ。',
+  '廊下の天井に滑車の跡がある。重いものを持ち上げる仕掛けで、何を運んでいたのかが気になる。',
+  '砦の壁に古い暗号文が刻まれている。規則性はあるが解読できない。敵に読まれないための工夫だろう。',
+  '廊下に火薬の焦げ跡がある。かつてここで爆破が行われ、通路を塞ごうとしたのか、あるいは扉を破ったのか。',
+  '古い旗竿が壁から斜めに突き出している。旗は失われているが、その角度から風の方向が分かる。',
+  '砦の廊下の一角に祭壇の跡がある。戦場の神への祈りの場で、今は石だけが残っている。',
+  '壁に落書きがある。兵士が暇つぶしに刻んだものだが、その内容——家族の名前と「会いたい」の言葉——が胸に刺さる。',
+  '砦の廊下が突然行き止まりになっている。しかし床に引き跡があり、かつてここに動く石があったことを示す。',
+  '廊下の壁沿いに鎖が続いている。囚人を繋いで歩かせるためのもので、その重さと長さが囚われた者の数を物語る。',
  ],
  forest: [
   '木の根が頭上を渡る薄暗い洞道を進む。足元は腐葉土と岩が入り混じり、一歩ごとに湿った音がする。',
@@ -13136,6 +13432,34 @@ const YD_STYLE_ATM = {
   '根の奥に何かの骨が絡みついている。根が長年かけて骨を包み込んだもので、骨の持ち主がここで死んだことを示している。',
   '地面が急に柔らかくなった。一歩踏み出すたびに沈む感触があり、この下にさらに空洞がある可能性がある。',
   '木の根の先端が床に整然と並んでいる。自然にそうなったとは思えない規則性があり、何かが根を操っているように見える。',
+  '木の根の隙間から虫の鳴き声が聞こえてくる。地下なのに、地上の生き物の声が届くほど根が地表と繋がっている。',
+  '洞道の天井から大きな木の根が垂れ下がっている。迷路のように絡み合い、通路を進むたびに頭に触れる。',
+  '腐葉土の臭いが濃くなった。有機物が分解される臭いで、この先に何かが朽ちている場所がある。',
+  '根の隙間から種が落ちてきた。地下の暗闇では発芽できないはずなのに、芽を出そうとしている。',
+  '洞道の壁に古い彫刻がある。木の根が覆いかぶさり、元の形の半分しか見えないが、動物のようだ。',
+  '床が突然やわらかい土に変わった。埋まっているものがある証拠で、踏み込む前に確認した方がいいかもしれない。',
+  '根から樹液が大量に滴り落ちている。甘い臭いで虫が集まっており、その虫を狙う何かも来ているかもしれない。',
+  '洞道の奥に光が見える。生き物が発する光か、外に繋がる穴なのか——どちらにしても慎重に近づく必要がある。',
+  '木の根が特定の方向に向かって伸びている。根は水と光を求めるもの——その先に何かがあるということだ。',
+  '洞道の天井が急に高くなった。大きな木の根元の空洞を進んでいるらしく、木の内部にいるような感覚がある。',
+  '腐った木材の欠片が洞道に散らばっている。かつてここに何かの構造物があったらしいが、木は土に帰っていた。',
+  '根の隙間から水が滲み出ている。地表の雨水が浸透してきたもので、地上の天候がここまで届いている。',
+  '洞道の壁に動物の巣がある。今は空のようだが、巣材の種類から何が住んでいたかは分かる。',
+  '床の腐葉土の中に骨が混じっている。獣の骨で、地上から転がり落ちてきたものか、ここで死んだのか。',
+  '根の絡み合いが特に複雑な箇所がある。ここで複数の木が競合しているらしく、根が互いを締め付けている。',
+  '洞道の天井から雫が規則的に落ちてくる。一定のリズムで落ちる音が、無音の地下で際立って聞こえる。',
+  '木の根が古い構造物を包み込んでいる。石や金属が根に包まれており、何かがここに埋まっていたことを示す。',
+  '洞道の一部が完全に根で塞がれている。かき分けて通れそうだが、通り抜けるたびに根が揺れるのが気になる。',
+  '地下なのに土の臭いが濃い。生きた土の臭いで、菌類や虫が活発に活動していることを示している。',
+  '根の隙間に透明な繭がぶら下がっている。何が入っているのか、まだ動いているのかどうか——確認したくない。',
+  '木の根の年輪状の模様が洞道の壁に現れている。地下に伸びた根の断面で、その木の年齢が読み取れる。',
+  '洞道の床が根で持ち上げられて段差になっている。躓きながら越えると、その先の地面が揺れた。',
+  '根の絡み合いの奥に空間がある。根の迷宮を掻き分ければ入れそうだが、出てこられる保証はない。',
+  '洞道の壁に古代の文字が刻まれているが、根が半分を覆っている。読めるのは断片だけだが「……離れるな……」と読める。',
+  '腐葉土の中から陶器の破片が出てきた。地上にあったものが長年かけて地下まで沈んだのだろう。',
+  '洞道の一角に泉がある。透明な水で、根がフィルターのように水を浄化しているらしく飲めそうだ。',
+  '木の根が巨大な岩を包み込んでいる。岩の大きさから、数百年かけてこうなったことが分かる。',
+  '洞道の天井の根の隙間から星のような光が漏れている。地表まで届く細い穴がいくつか開いているらしい。',
  ],
  swamp: [
   '一歩踏み出すたびに泥が靴を飲み込もうとする。前に進むためだけに、相当な力が必要だ。',
@@ -13152,6 +13476,34 @@ const YD_STYLE_ATM = {
   '壁の泥が一か所だけ乾いた手形に押しつけられて固まっている。誰かが必死に何かを伝えようとした跡だ。',
   '水面に油膜が広がっている。金属を含む水か、腐敗した生き物の体液か。いずれにしても良い兆候ではない。',
   '水の色が急に変わった。透明から濁った赤みを帯びた色に。上流で何かが起きている証拠だ。',
+  '足元の泥が音を立てて沈む。一歩踏み出すたびにずぼりとはまり、引き抜く音が静寂を破る。',
+  '水の色が場所によって異なる。透明な場所と濁った場所が隣り合っており、その境界が何を意味するか分からない。',
+  '洞窟の壁に藻類が広がっている。触れるとぬるりとした感触があり、誤って体重をかけると滑り落ちる。',
+  '天井から垂れ下がる根が水面に届き、弾いて進む。その都度、波紋が広がり水底が見えそうになる。',
+  '水の中に沈んだ何かの輪郭が見える。大きさからして生き物か、あるいは大きな構造物の一部か。',
+  '腐敗臭が急に強くなった。近くで大きな生き物が死んでいるか、腐敗が進んでいる何かがある。',
+  '水面に油のような虹色の膜が広がっている。有機物の腐敗によるものだが、その下に何かが沈んでいる。',
+  '足元に何かを踏んだ感触がある。確認したいが、水が濁って底が見えない。動かない何かだったことを祈る。',
+  '天井の岩肌から滲み出た水がカーテンのように流れ落ちている。その水は思いのほか冷たく、ぞくりとする。',
+  '泥の中から古い木材が露出している。かつてここを渡るための橋か足場で、今は半分腐って沈んでいる。',
+  '水面に浮かぶ植物が通路を塞いでいる。かき分けると粘り気のある汁が飛び散り、衣服に染みをつける。',
+  '沼の底が突然深くなった。膝まで浸かっていたのが一歩で腰まで沈み、慌てて引き返す。',
+  '天井の割れ目から土砂が少量落ちてくる。上の地盤が不安定で、ここがいつ埋まってもおかしくない。',
+  '水の中に大きな気泡が膨らんでいる。地中のガスが溜まったもので、弾けると有毒ガスが出る可能性がある。',
+  '水面に足跡の跡が残っている。水たまりではなく泥の上についたもので、自分より前にここを通った者がいる。',
+  '沼の水が周期的に渦を巻いている。水中に何かの流れがあるのか、それとも何かが水中で動いているのか。',
+  '天井から糸状の菌類が垂れ下がっている。細くて見えにくく、気づかずに顔に触れると気持ち悪い感触が残る。',
+  '水の中に光るものが沈んでいる。宝か、あるいは発光する生き物か——取ろうとして沼に落ちる危険を考える。',
+  '足元の泥が急に固くなった。埋まった何か——石か木材か——の上を歩いているらしく、踏む音が変わる。',
+  '沼の表面に丸い模様が並んでいる。雨の痕跡にしては大きすぎる——何かが水中から顔を出した跡だ。',
+  '水の流れに乗って枯れ葉が流れてくる。上流が地上に繋がっている証拠だが、その距離と方向は分からない。',
+  '洞窟の壁に貝の化石が並んでいる。かつてここが海の底だったことを示す証拠で、時間の長さに思いを馳せる。',
+  '沼の中に朽ちた船の残骸がある。かつてここを船で渡った者がいることを示し、その後どうなったかが気になる。',
+  '水面を跳ねる虫の羽音が反響している。無数の虫が水面近くを飛んでおり、顔に当たりそうになる。',
+  '泥の色が一か所だけ異なる。その泥は他より赤みを帯びており、何かが混じっているのが分かる。',
+  '沼の底に何本もの棒が立っている。かつて足場を組んだ名残か、境界を示す目印か——その意図は不明だ。',
+  '水面に映る自分の顔が歪んでいる。水の揺れのせいだと分かっていても、その歪み方が不自然に思える。',
+  '天井の低い区間で這って進む。その間、水が口元まで来ており、水を飲まないように顔を上げ続ける。',
  ],
 };
 
@@ -13201,6 +13553,11 @@ function ydNodeTxt(node, floor){
     `${td}へ曲がる通路の角に古い標識の残骸がある。文字は消えて読めないが、矢印の形だけが辛うじて分かる。`,
     `通路が${td}手へ緩やかに弧を描くように曲がっている。曲がった先から風が吹いてきており、その先に広い空間がある証拠だ。`,
     `${td}に折れた角の天井が一部崩れており、小石が散乱している。足音を立てると崩れが広がりそうだ。`,
+    `${td}への曲がり角の床に、誰かが刻んだ矢印がある。方向は${td}を指しており、誰かがここで道を記録した。`,
+    `通路が${td}へ曲がった先で、一瞬だけ何かが光った気がした。振り返っても何もない——松明の見せた錯覚か。`,
+    `${td}に曲がる角の床が他より磨り減っている。多くの者がここを通り、その角を踏んでいった証だ。`,
+    `通路が${td}手に折れている。曲がり角の直前で足音が止まる——耳を澄ませると、その先から微かな呼吸音がした。`,
+    `${td}への曲がり角に古い血痕がある。茶色く変色しているが、かなりの量がここに流れた痕跡だ。`,
    ];
    return `${tBar}${fLabel}<br><br>
     <span style="color:var(--log)">${turnAtms[Math.floor(Math.random()*turnAtms.length)]}</span>${darkWarn}`;
@@ -13212,16 +13569,25 @@ function ydNodeTxt(node, floor){
      '左手の壁が一部切れて、暗い支通路が口を開けている。主通路より狭く、奥が見えない。',
      '左に分岐する通路がある。入口の縁に引っ掻き傷が集中しており、何かがここを定期的に通っている。',
      '左手の岩に人工的な開口部がある。加工の仕方が主通路と異なり、後から掘り抜いたものらしい。',
+     '左手の通路の入口に古い松明ホルダーがある。使われた跡があり、誰かがここを定期的に訪れていた。',
+     '左に伸びる通路から冷たい風が吹いてくる。その先に空間があることは確かだ。',
+     '左手の通路の床に引きずった跡がある。重いものを運んだ痕で、この先に何かが持ち込まれた。',
     ],
     right90:[
      '右手に支通路が続いている。こちらは主通路よりも古く、壁の石組みの様式が違う。',
      '右手の壁に細い隙間がある。人一人がやっと通れる幅で、その先に空間がある気配がする。',
      '右に分岐する通路の入口に干からびた血痕がある。かなり古いものだが、量は多い。',
+     '右手の通路から獣の臭いがする。何かがこちらを縄張りにしているらしく、その気配が漂っている。',
+     '右に伸びる通路の壁に誰かが書き残した記号がある。意味は分からないが、警告のようにも見える。',
+     '右手の通路の奥で水の滴る音がする。地下水が近いか、別の空洞と繋がっているのかもしれない。',
     ],
     tee:[
      'T字路に出た。左右どちらの通路も等しく暗く、どちらから臭いが来るかも判別できない。',
      'T字路の中央に古い道標の残骸が転がっている。文字は読めないが、指差す方向はまだ分かる——右だ。',
      '三方向に通路が延びるT字路だ。足元の泥を観察すると、足跡は左右の通路から来てそれぞれ別方向へ消えている。',
+     'T字路の天井に古い滑車の跡がある。ここで何かを引き上げるか下ろすかしていたらしい。',
+     '三叉路の中央の床だけが他より磨り減っている。多くの者がここで立ち止まり、どちらへ行くか迷ったのだろう。',
+     'T字路の壁に三方向を指す矢印が刻まれている。それぞれの方向に記号があるが、意味は分からない。',
     ],
     cross:[
      '十字路に出た。四方向すべてから微かな気配がする。どれが正しい道かは分からない。',
