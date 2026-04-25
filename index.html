@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042501</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042502</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -3110,9 +3110,10 @@ function buyProperty(townId){
  if(!payPrice(info.price)){ showSaveToast('所持金が足りない'); return; }
  PC.properties[townId] = { boughtAt: info.price, day: GAME_TIME.totalDays, tier:0, storage:{ gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 } };
  changeTrust(townId, 10);
- addLifeEvent('', `${PROPERTY_DEFS[townId].name}を購入した。`);
+ const tier0name = PROPERTY_DEFS[townId].tiers[0].name;
+ addLifeEvent('', `${tier0name}を購入した。`);
  updateHUD();
- showSaveToast(' '+PROPERTY_DEFS[townId].name+'を購入した！');
+ showSaveToast(' '+tier0name+'を購入した！');
  go('TOWN_'+townId.toUpperCase());
 }
 
@@ -3277,7 +3278,7 @@ function goPropertyNode(townId){
   const _eventChance = _trust >= 75 ? 0.50 : _trust >= 50 ? 0.30 : _trust >= 25 ? 0.15 : 0.05;
   if(Math.random() < _eventChance){
    const _evPool = [
-    { weight:3, title:' 玄関に奇妙な紋章が刻まれていた', color:'var(--amber)',
+    { weight:0.3, title:' 玄関に奇妙な紋章が刻まれていた', color:'var(--amber)',
       body:`扉の前に立つと、玄関の木材に何かが焼き付けられていた。よく見ると、目の空洞だけが残る兜の紋章だ。<br>
        誰かがここに来たことへの脅しか、あるいは別の意味があるのか。見覚えのない紋章だが、妙に不安をかき立てる。`,
       effect: null },
@@ -7858,8 +7859,9 @@ function showSaveSlotUI(mode){
 
   row.innerHTML = `<div style="flex:1">${slotLabel}<br>${slotDesc}</div>`;
   row.onclick = ()=>{
-   if(info && info.name !== PC.name){
-    if(!confirm(`スロット${s}（${info.name}）に上書きしますか？`)) return;
+   if(info){
+    const slotName = info.name !== PC.name ? `スロット${s}（${info.name}）` : `スロット${s}`;
+    if(!confirm(`${slotName}のデータに上書きしますか？`)) return;
    }
    panel.remove();
    _doSaveToSlot(s);
@@ -16854,7 +16856,7 @@ function travelTick(){
 
  // ── ヴェイン遭遇チェック（陸上のみ・極低確率・1キャラ1回まで） ──
  if(ts.daysDone < ts.totalDays && ts.method !== 'ship'){
-  if(Math.random() < 0.001){ // 0.1%
+  if(Math.random() < 0.00033){ // 約0.033%（元の1/3）
    startVaineEncounter(ts);
    return;
   }
@@ -17222,6 +17224,9 @@ function innRest(cost){
  // STを最大値まで完全回復（魔法消費分を含む）
  PC.st = PC.maxSt;
  const msgs = [];
+ // PC自身の回復メッセージ
+ const _conHealed = Math.min(PC.maxCon, PC.con + Math.floor(PC.maxCon * 0.5)) - (PC.con - Math.floor(PC.maxCon * 0.5));
+ msgs.push(`体力が回復した（CON +${Math.floor(PC.maxCon * 0.5)}）`);
  // 毒治癒
  if(PC._poisoned){
  PC._poisoned = false;
