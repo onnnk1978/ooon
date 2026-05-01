@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026042702</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026043001</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -691,6 +691,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div id="hdr-date" style="font-size:calc(var(--font-sm) - 1px);color:var(--gold)">-</div>
  <div style="display:flex;align-items:center;gap:6px">
  <button onclick="saveGame()" style="background:#150f06;border:1px solid var(--rust);color:#44cc44;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 7px;cursor:pointer;border-radius:3px" title="セーブ">&#128190;</button>
+ 
  <button onclick="showFontSizePanel()" style="background:#080c18;border:1px solid #224466;color:var(--magic);font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 7px;cursor:pointer;border-radius:3px" title="文字サイズ設定">&#9881;</button>
  <button onclick="showInventory()" style="background:#150f06;border:1px solid var(--rust);color:var(--bronze);font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 7px;cursor:pointer;border-radius:3px" title="ステータス">STATUS</button>
   
@@ -1406,7 +1407,7 @@ const HERO_QUEST_TEMPLATES = [
   ydStyle:'mine',
   nodes:[
    { txt:'地下通路の入口は隠し扉の奥にあった。松明の光を頼りに進んでいくと、荷物を運ぶ男たちの声が聞こえてくる。まだ気づかれていない。', sr:{attr:'dex', level:2, reason:'地下通路で荷物を運ぶ男たちに気づかれないよう進む。', fail:{attr:'lk', dmg:2}, failTxt:'足音を立てた。警戒される。LK-2'} },
-   { txt:'地下の倉庫に出た。積まれた荷物の陰から武装した男たちが現れた。首謀者らしき大柄な男が前に出る。「ここで終わりにしてやろう」', sr:null },
+   { txt:'地下の倉庫に出た。積まれた荷物の陰から足音が聞こえる。首謀者は奥にいるはずだ。', sr:null },
   ],
   bossDesc:'密輸団の首謀者',
   winTxt:'密輸団を壊滅させた。依頼は完了だ。',
@@ -3993,7 +3994,7 @@ function _revealChildStats(child, prop){
   const pcVal = PC[a]||8;
   const spVal = spouseData?.[a]||8;
   const avg = Math.floor((pcVal+spVal)/2);
-  base[a] = Math.max(3, avg + Math.floor(Math.random()*7)-3);
+  base[a] = Math.min(18, Math.max(3, avg + Math.floor(Math.random()*7)-3));
  });
  const applied = applyRace(base, child.race);
  Object.assign(child, applied);
@@ -7709,6 +7710,15 @@ const DUNGEON_NODES = new Set([
  'RUIN_B','RUIN_C','RUIN_D','RUIN_DE_DOOR',
  'RUIN_E','RUIN_E_WEST_GATE','RUIN_E_WEST_FORCE','RUIN_E_WEST_ROOM',
  'RUIN_EF_DOOR','RUIN_F','RUIN_F_SOUTH_GATE','RUIN_F_SOUTH_FORCE','RUIN_F_SOUTH_ROOM',
+ // ザールカノンの墓所B1（新構造）
+ 'RUIN_P1','RUIN_P2','RUIN_P3','RUIN_P4','RUIN_P5','RUIN_P6',
+ 'RUIN_P7','RUIN_P8','RUIN_P9','RUIN_P10','RUIN_P11','RUIN_P12',
+ 'RUIN_P13','RUIN_P14','RUIN_P15','RUIN_P16','RUIN_P17','RUIN_P18',
+ 'RUIN_P19','RUIN_P20','RUIN_P21','RUIN_P22',
+ 'RUIN_TJUNC1','RUIN_TJUNC2','RUIN_TJUNC3',
+ 'RUIN_ROOM1','RUIN_ROOM2','RUIN_ROOM3','RUIN_ROOM4',
+ 'RUIN_ROOM5','RUIN_ROOM6','RUIN_ROOM7','RUIN_ROOM8',
+ 'RUIN_ROOM9','RUIN_ROOM10','RUIN_ROOM11',
  // 砂漠ダンジョン「ザハラの封印廟」(拡張版)
  'TOMB_1','TOMB_2','TOMB_3','TOMB_4','TOMB_5','TOMB_6','TOMB_7','TOMB_8',
  'TOMB_9','TOMB_10','TOMB_11','TOMB_12','TOMB_13','TOMB_14','TOMB_15','TOMB_16',
@@ -7810,7 +7820,7 @@ const DUNGEON_NODES = new Set([
 const DUNGEON_SAFE_NODES = new Set([
  'RUIN_ENTRANCE','RUIN_DARK_ESCAPE',
  'TOMB_ENTRANCE','TOMB_DARK_ESCAPE','TOMB_EXIT',
- 'SHRINE_ENTRANCE','SHRINE_EXIT',
+ 'SHRINE_ENTRANCE','SHRINE_EXIT','SHRINE_DARK_ESCAPE',
  'SHR2_ENTRANCE','SHR2_DARK_ESCAPE',
  'CRYPT_ENTRANCE','CRYPT_DARK_ESCAPE',
  'CRYPT_P1','CRYPT_P2','CRYPT_P3','CRYPT_P4','CRYPT_P5','CRYPT_P6',
@@ -12960,6 +12970,12 @@ function ydInitDungeon(){
 
  // 1Fを初期化
  dungeon.floors[1] = ydInitFloor(1);
+ // 入口ノードをnodeMapに生成
+ const f1 = dungeon.floors[1];
+ f1.nodeMap[f1.entryNodeId] = {
+  id: f1.entryNodeId, type:'entrance', floor:1,
+  exits:{}, pending:['forward'], _facingIdx:0,
+ };
  return dungeon;
 }
 
@@ -21348,9 +21364,9 @@ function darkRoomChoices(nodeId){
   { prefix:'CRYPT_',        escape:'CRYPT_DARK_ESCAPE' },
   { prefix:'SHM3_',         escape:'RUIN_DARK_ESCAPE' },
   { prefix:'SHM2_',         escape:'RUIN_DARK_ESCAPE' },
-  { prefix:'AL_DNG_',       escape:'AL_DNG_ENTRANCE' },
-  { prefix:'AL_W_',         escape:'AL_DNG_ENTRANCE' },
-  { prefix:'AL_',           escape:'AL_DNG_ENTRANCE' },
+  { prefix:'AL_DNG_',       escape:'RUIN_DARK_ESCAPE' },
+  { prefix:'AL_W_',         escape:'RUIN_DARK_ESCAPE' },
+  { prefix:'AL_',           escape:'RUIN_DARK_ESCAPE' },
   { prefix:'FP_B2_',        escape:'FP_B2_ENTRANCE' },
   { prefix:'FP_',           escape:'FP_ENTRANCE' },
   { prefix:'RUIN_',         escape:'RUIN_DARK_ESCAPE' },
@@ -21539,7 +21555,9 @@ function go(nodeId){
  }
 
  // モンスターエンカウント（暗闇中は判定しない）
- if(PC._torchTurns > 0){
+ // 専用エンカウント関数を持つダンジョンはスキップ
+ const _skipGenericEnc = nodeId.startsWith('RUIN_P') || nodeId.startsWith('RUIN_ROOM') || nodeId.startsWith('RUIN_TJUNC');
+ if(PC._torchTurns > 0 && !_skipGenericEnc){
  const dungeonFloor = nodeId.startsWith('CRYPT3_') ? 3 : nodeId.startsWith('CRYPT2_') ? 2 : nodeId.startsWith('SHR2_') ? 2 : 1;
  const enc = rollEncounter(dungeonFloor);
  if(enc){
@@ -23716,7 +23734,11 @@ function castSpell(spell,ctx){
   PC.st-=Math.max(1,spell.cost);gainAPAll(spell.cost);
   updateHUD();
  }
- const result=document.getElementById('magic-result');
+ // 結果表示先：戦闘中はclog、それ以外はmagic-result
+ const inCombat = !!cbtState;
+ const result = inCombat
+  ? { innerHTML: '', set innerHTML(v){ const clog=document.getElementById('clog'); if(clog){ const div=document.createElement('div'); div.style.cssText='color:var(--arcane);font-size:calc(var(--font-sm) - 1px);padding:2px 0;border-bottom:1px solid #220033'; div.innerHTML=v; clog.appendChild(div); clog.scrollTop=clog.scrollHeight; } } }
+  : document.getElementById('magic-result');
 
  switch(spell.fn){
  case 'ttyf':
@@ -23747,7 +23769,7 @@ function castSpell(spell,ctx){
  const power=PC.iq+PC.lk+PC.chr;
  const totalCurMR=cbtState.enemies.reduce((s,e)=>s+e.curMR,0);
  if(power>totalCurMR){
- result.innerHTML=` <span class="wizard-c">Oh-Go-Away</span>: IQ+LK+CHR=${power} > 合計MR=${totalCurMR}<br><span class="grn">全ての敵が逃げ出した！</span>`;
+ result.innerHTML=` <span class="wizard-c">Oh-Go-Away</span><br>IQ+LK+CHR = ${power} ＞ 合計MR ${totalCurMR}<br><span class="grn"> 魔法が効いた！全ての敵が恐怖で逃げ出した！</span>`;
  showCombatOK(()=>{
   if(cbtState && cbtState.win === '__noop__'){
    document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
@@ -23760,7 +23782,8 @@ function castSpell(spell,ctx){
   }
  });
  } else {
- result.innerHTML=` <span class="red">Oh-Go-Away失敗！</span> IQ+LK+CHR=${power} ≤ 合計MR=${totalCurMR}<br>敵があなたを狙う！`;
+ result.innerHTML=` <span class="wizard-c">Oh-Go-Away</span><br>IQ+LK+CHR = ${power} ≤ 合計MR ${totalCurMR}<br><span class="red"> 魔法が効かなかった！敵はひるまない。</span>`;
+ updateCombatUI();
  }
  }break;
 
@@ -23809,9 +23832,12 @@ function castSpell(spell,ctx){
  if(power > enemyMR){
  const sleepTurns = Nd6(1);
  cbtState.sleeping = sleepTurns;
- result.innerHTML=` <span class="wizard-c">Rock-a-Bye</span>: ST+IQ+CHR=${power} > MR=${enemyMR}<br><span class="grn">敵が${sleepTurns}ターン眠り込んだ！（眠り中は無防備）</span>`;
+ cbtState._spellCaster = true;
+ result.innerHTML=` <span class="wizard-c">Rock-a-Bye</span><br>ST+IQ+CHR = ${power} ＞ MR ${enemyMR}<br><span class="grn"> 魔法が効いた！敵が${sleepTurns}ターン眠り込んだ！</span>`;
+ updateCombatUI();
  } else {
- result.innerHTML=` <span class="red">Rock-a-Bye失敗！</span> ST+IQ+CHR=${power} ≤ MR=${enemyMR}`;
+ result.innerHTML=` <span class="wizard-c">Rock-a-Bye</span><br>ST+IQ+CHR = ${power} ≤ MR ${enemyMR}<br><span class="red"> 魔法が効かなかった！敵は眠らない。</span>`;
+ updateCombatUI();
  }
  } else result.textContent='戦闘中のみ使用可';
  break;
@@ -24048,26 +24074,6 @@ const ENTRY_NODE = 'TOWN_KHAZAN';
 function dbg(fn){
  try{ fn(); } catch(e){ showSaveToast('ERR:'+e.message); } }
 
-function showDebugPanel(){
- // イベントリスト生成
- const list = document.getElementById('dbg-event-list');
- if(list && !list.children.length){
-  const names = {
-   spring:'泉', sandwriting:'砂の文字', urn:'壺', ring:'指輪',
-   torch_flicker:'松明の揺らぎ', rolling_coin:'転がるコイン',
-   falling_stones:'落石', presence:'気配', corpse:'死体',
-   stench:'悪臭', wound:'傷跡', wall_knock:'壁の音',
-   prayer:'祈り', gold_pile:'金の山', black_spring:'黒い泉',
-  };
-  (typeof DUNGEON_EVENTS !== 'undefined' ? DUNGEON_EVENTS : []).forEach(ev=>{
-   const b = document.createElement('button');
-   b.className = 'dbg-btn';
-   b.textContent = (ev.icon||'') + ' ' + (names[ev.id]||ev.id);
-   b.onclick = ()=>{ dbgFireEvent(ev); };
-   list.appendChild(b);
-  });
- } }
-
 function dbgFireEvent(ev){
  const story = document.getElementById('story');
  story.innerHTML =
@@ -24149,7 +24155,7 @@ const CRYPT_MONSTER_TABLE = [
  {name:'地下の番人',     mr:100,armor:3, minApp:1, maxApp:1},
 ];
 
-function cryptMove(dest){ _consumeDungeonTorch(); if(!cryptCheckEncounter(dest)) go(dest); }
+function cryptMove(dest){ if(!cryptCheckEncounter(dest)) go(dest); }
 
 
 function cryptB2Guard(returnNode){
@@ -24204,6 +24210,55 @@ function _consumeDungeonTorch(){
   updateHUD();
  }
 }
+
+const RUIN_MONSTER_TABLE = [
+ {name:'封印廟の亡霊',   mr:35, armor:1, minApp:1, maxApp:3},
+ {name:'石の守護像',     mr:55, armor:3, minApp:1, maxApp:2},
+ {name:'墓所の番兵骨',   mr:40, armor:1, minApp:1, maxApp:4},
+ {name:'呪われた僧侶',   mr:70, armor:2, minApp:1, maxApp:2},
+ {name:'封印の霊体',     mr:90, armor:1, minApp:1, maxApp:1},
+ {name:'古代の守護者',   mr:120,armor:4, minApp:1, maxApp:1},
+];
+
+function ruinMove(dest){ if(!ruinCheckEncounter(dest)) go(dest); }
+
+function ruinCheckEncounter(returnNode){
+ if(Math.random() >= 0.15) return false;
+ const m = RUIN_MONSTER_TABLE[Math.floor(Math.random()*RUIN_MONSTER_TABLE.length)];
+ const count = m.minApp + Math.floor(Math.random()*(m.maxApp - m.minApp + 1));
+ const FLAVORS = [
+  '暗闇の奥で何かが動く気配がした。松明の光が届いた先に——',
+  '足音が止まった。静寂の中、背後から息遣いが聞こえた。振り返ると——',
+  '通路の角を曲がった瞬間、松明の炎が大きく揺れた。その光の中に——',
+  '壁の向こうから引っ掻く音がした。気づけばすぐそこに——',
+  '石畳の上に影が伸びた。光源はこちらにしかない。振り向くと——',
+ ];
+ const flavor = FLAVORS[Math.floor(Math.random()*FLAVORS.length)];
+ const label = count > 1 ? `${count}体の${m.name}` : m.name;
+ const s = document.getElementById('story');
+ s.innerHTML += `<br><br><span style="color:var(--log)">${flavor}</span><br><span style="color:var(--slash)"> ${label}が現れた！</span>`;
+ const enemies = Array.from({length: count}, (_,i) => ({
+  name: count > 1 ? `${m.name} #${i+1}` : m.name,
+  mr: m.mr, curMR: m.mr, armor: m.armor||0,
+ }));
+ renderChoices([{label:' 身構える', fn:()=>{
+  renderChoices([]);
+  drawScene('combat');
+  startCombat({
+   enemies,
+   canFlee: true, win:'__noop__', lose:'DEAD',
+   onWin(){
+    document.getElementById('cbt-area').classList.add('hidden');
+    document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display='';
+    cbtState=null;
+    go(returnNode);
+   },
+  });
+ }}]);
+ return true;
+}
+
 function shm2Move(dest){
  _consumeDungeonTorch();
  if(!shm2CheckEncounter(dest)) go(dest);
@@ -24296,7 +24351,7 @@ const FP_B3_MONSTER_TABLE = [
  {name:'山岳オーガの長',   mr:160, armor:4, minApp:1, maxApp:2},
 ];
 
-function fpB3Move(dest){ _consumeDungeonTorch(); if(!fpB3CheckEncounter(dest)) go(dest); }
+function fpB3Move(dest){ if(!fpB3CheckEncounter(dest)) go(dest); }
 
 function fpB3CheckEncounter(returnNode){
  if(Math.random() >= 0.22) return false;
@@ -24341,7 +24396,7 @@ const FP_B2_MONSTER_TABLE = [
  {name:'山岳ゴブリン隊長', mr:70,  armor:2, minApp:2, maxApp:4},
 ];
 
-function fpB2Move(dest){ _consumeDungeonTorch(); if(!fpB2CheckEncounter(dest)) go(dest); }
+function fpB2Move(dest){ if(!fpB2CheckEncounter(dest)) go(dest); }
 
 function fpB2CheckEncounter(returnNode){
  if(Math.random() >= 0.20) return false;
@@ -24383,7 +24438,7 @@ const FP_MONSTER_TABLE = [
  {name:'古の山岳竜（幼体）',mr:150,armor:5, minApp:1, maxApp:1},
 ];
 
-function fpMove(dest){ _consumeDungeonTorch(); if(!fpCheckEncounter(dest)) go(dest); }
+function fpMove(dest){ if(!fpCheckEncounter(dest)) go(dest); }
 
 function fpCheckEncounter(returnNode){
  if(Math.random() >= 0.18) return false;
@@ -24434,7 +24489,7 @@ function alCheckEncounter(returnNode){
  });
  return true;
 }
-function alMove(dest){ _consumeDungeonTorch(); if(!alCheckEncounter(dest)) go(dest); }
+function alMove(dest){ if(!alCheckEncounter(dest)) go(dest); }
 
 const NODES = {
  DEAD: DEAD_NODE,
@@ -25942,7 +25997,7 @@ const NODES = {
  <span class="dim">入口の石には読めない古代文字が刻まれている。</span>`;
  },
  choices:[
- {label:' 中に入る', fn:()=>initTorch(), go:'RUIN_A'},
+ {label:' 中に入る', fn:()=>{ initTorch(); ruinMove('RUIN_P1'); }},
  {label:'← ストーンヘイムへ戻る', go:'TOWN_STONEHIEM'},
  ],
  },
@@ -31632,8 +31687,484 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  },
  },
 
+
+ // ── ザールカノンの墓所 B1（新構造）──────────────────────────
+ RUIN_P1:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西15mの通路。東端は地上への出口。西端はT字路に続く。
+  石材の継ぎ目から草が伸びており、長年放置されてきたことが分かる。`,
+ choices:[
+  {label:'→ 東端・地上へ', go:'RUIN_ENTRANCE'},
+  {label:'← 西端・T字路', fn:()=>ruinMove('RUIN_TJUNC1')},
+ ],
+ },
+
+ RUIN_TJUNC1:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — T字路</span><br><br>
+  東西に延びる通路から北へ延びる通路が分岐するT字路。
+  床に古い魔法陣の残骸があり、かつて結界が張られていたことを示す。`,
+ choices:[
+  {label:'→ 東', fn:()=>ruinMove('RUIN_P1')},
+  {label:'↑ 北', fn:()=>ruinMove('RUIN_P4')},
+  {label:'← 西', fn:()=>ruinMove('RUIN_P2')},
+ ],
+ },
+
+ RUIN_P2:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西35mの通路。東はT字路へ。西へは暗くなっており先が見えない。`,
+ choices:[
+  {label:'→ 東・T字路', fn:()=>ruinMove('RUIN_TJUNC1')},
+  {label:'← 西（暗闇の先へ）', fn:()=>ruinMove('RUIN_P3')},
+ ],
+ },
+
+ RUIN_P3:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西35mの通路。東へは暗くなっており先が見えない。西端は行き止まりで、北の壁に扉がある。`,
+ choices:[
+  {label:'→ 東（暗闇の先へ）', fn:()=>ruinMove('RUIN_P2')},
+  {label:'↑ 西端・北壁の扉', fn:()=>ruinMove('RUIN_ROOM4')},
+ ],
+ },
+
+ RUIN_P4:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北10mの通路。南はT字路へ。北は西へ折れて別の通路へ続く。`,
+ choices:[
+  {label:'↓ 南・T字路', fn:()=>ruinMove('RUIN_TJUNC1')},
+  {label:'↖ 北端・西へ', fn:()=>ruinMove('RUIN_P5')},
+ ],
+ },
+
+ RUIN_P5:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西15mの通路。東端は南へ折れて別の通路へ。西端は行き止まりで、部屋への扉がある。`,
+ choices:[
+  {label:'↘ 東端・南へ', fn:()=>ruinMove('RUIN_P4')},
+  {label:'← 西端の扉', fn:()=>ruinMove('RUIN_ROOM9')},
+ ],
+ },
+
+ RUIN_P6:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北25mの通路。南端は行き止まりで東壁にアーチがある。北は東へ折れて別の通路へ続く。`,
+ choices:[
+  {label:'→ 南端・東壁の扉', fn:()=>ruinMove('RUIN_ROOM9')},
+  {label:'↗ 北端・東へ', fn:()=>ruinMove('RUIN_P7')},
+ ],
+ },
+
+ RUIN_P7:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西25mの通路。西端は南へ折れて別の通路へ。東端は部屋への扉で行き止まり。`,
+ choices:[
+  {label:'↙ 西端・南へ', fn:()=>ruinMove('RUIN_P6')},
+  {label:'→ 東端の扉', fn:()=>ruinMove('RUIN_ROOM5')},
+ ],
+ },
+
+ RUIN_P8:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西25mの通路。東端は部屋への扉で行き止まり。西端は行き止まりで北壁に扉がある。`,
+ choices:[
+  {label:'→ 東端の扉', fn:()=>ruinMove('RUIN_ROOM11')},
+  {label:'↑ 西端・北壁の扉', fn:()=>ruinMove('RUIN_ROOM2')},
+ ],
+ },
+
+ RUIN_P9:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西15mの通路。中程の南にB2への階段がある。
+  西側に部屋へ通じる落とし格子、東側に部屋へ通じる落とし格子（${PC._ruin_lever?'開放中':'閉鎖中'}）がある。`,
+ choices:()=>{
+  const ch=[];
+  ch.push({label:'↓ 中程・南のB2への階段', fn:()=>{
+   document.getElementById('story').innerHTML += '<br><br><span style="color:var(--amber)"> 階段の入口は天井が崩落しており、瓦礫で塞がれている。通れない。</span>';
+   renderChoices([
+    {label:'← 西の落とし格子（部屋6）', fn:()=>ruinMove('RUIN_ROOM6')},
+    {label:'← 引き返す', fn:()=>ruinMove('RUIN_ROOM6')},
+   ]);
+  }});
+  ch.push({label:'← 西の落とし格子', fn:()=>ruinMove('RUIN_ROOM6')});
+  if(PC._ruin_lever){
+   ch.push({label:'→ 東の落とし格子', fn:()=>ruinMove('RUIN_ROOM8')});
+  } else {
+   ch.push({label:'→ 東の落とし格子（閉鎖中）', fn:()=>{
+    document.getElementById('story').innerHTML+='<br><br><span style="color:var(--amber)"> 格子は固く閉じている。</span>';
+    renderChoices([{label:'← 引き返す', fn:()=>ruinMove('RUIN_ROOM6')}]);
+   }});
+  }
+  return ch;
+ },
+ },
+
+ RUIN_P10:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北15mの通路。北端は部屋へのアーチ。南端は東へ折れて別の通路へ続く。`,
+ choices:[
+  {label:'↑ 北端のアーチ', fn:()=>ruinMove('RUIN_ROOM6')},
+  {label:'↘ 南端・東へ', fn:()=>ruinMove('RUIN_P11')},
+ ],
+ },
+
+ RUIN_P11:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西35mの通路。西端は北へ折れて別の通路へ。東端は南へ折れて別の通路へ続く。`,
+ choices:[
+  {label:'↖ 西端・北へ', fn:()=>ruinMove('RUIN_P10')},
+  {label:'↘ 東端・南へ', fn:()=>ruinMove('RUIN_P12')},
+ ],
+ },
+
+ RUIN_P12:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北25mの通路。北端は西へ折れて別の通路へ。南端は東へ折れて別の通路へ続く。`,
+ choices:[
+  {label:'↖ 北端・西へ', fn:()=>ruinMove('RUIN_P11')},
+  {label:'↘ 南端・東へ', fn:()=>ruinMove('RUIN_P13')},
+ ],
+ },
+
+ RUIN_P13:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西25mの通路。西端は北へ折れて別の通路へ。東端はT字路へ続く。`,
+ choices:[
+  {label:'↖ 西端・北へ', fn:()=>ruinMove('RUIN_P12')},
+  {label:'→ 東端・T字路', fn:()=>ruinMove('RUIN_TJUNC2')},
+ ],
+ },
+
+ RUIN_TJUNC2:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — T字路</span><br><br>
+  東西に延びる通路から北へ通路が分岐するT字路。壁に古い蝋燭の台座が残っている。`,
+ choices:[
+  {label:'← 西', fn:()=>ruinMove('RUIN_P13')},
+  {label:'→ 東', fn:()=>ruinMove('RUIN_P14')},
+  {label:'↑ 北', fn:()=>ruinMove('RUIN_P16')},
+ ],
+ },
+
+ RUIN_P14:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西20mの通路。西はT字路へ。東端は北へ折れて別の通路へ続く。`,
+ choices:[
+  {label:'← 西・T字路', fn:()=>ruinMove('RUIN_TJUNC2')},
+  {label:'↗ 東端・北へ', fn:()=>ruinMove('RUIN_P15')},
+ ],
+ },
+
+ RUIN_P15:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北25mの通路。南端は西へ折れて別の通路へ。北端は行き止まりで、北壁に扉がある。`,
+ choices:[
+  {label:'↙ 南端・西へ', fn:()=>ruinMove('RUIN_P14')},
+  {label:'↑ 北端の扉', fn:()=>ruinMove('RUIN_ROOM3')},
+ ],
+ },
+
+ RUIN_P16:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北40mの通路。南はT字路へ。北へは暗くなっており先が見えない。`,
+ choices:[
+  {label:'↓ 南・T字路', fn:()=>ruinMove('RUIN_TJUNC2')},
+  {label:'↑ 北（暗闇の先へ）', fn:()=>ruinMove('RUIN_P17')},
+ ],
+ },
+
+ RUIN_P17:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北40mの通路。南北ともに暗くて先が見えない。`,
+ choices:[
+  {label:'↓ 南（暗闇の先へ）', fn:()=>ruinMove('RUIN_P16')},
+  {label:'↑ 北（暗闇の先へ）', fn:()=>ruinMove('RUIN_P18')},
+ ],
+ },
+
+ RUIN_P18:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北40mの通路。南へは暗くなっており先が見えない。北はT字路へ続く。`,
+ choices:[
+  {label:'↓ 南（暗闇の先へ）', fn:()=>ruinMove('RUIN_P17')},
+  {label:'↑ 北・T字路', fn:()=>ruinMove('RUIN_TJUNC3')},
+ ],
+ },
+
+ RUIN_TJUNC3:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — T字路</span><br><br>
+  南北に走る通路から西へ通路が分岐するT字路。壁に「深域への警告」と読める古い碑文がある。`,
+ choices:[
+  {label:'↓ 南', fn:()=>ruinMove('RUIN_P18')},
+  {label:'↑ 北', fn:()=>ruinMove('RUIN_P19')},
+  {label:'← 西', fn:()=>ruinMove('RUIN_P22')},
+ ],
+ },
+
+ RUIN_P19:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北40mの通路。南はT字路へ。北端は東へ折れて別の通路へ続く。`,
+ choices:[
+  {label:'↓ 南・T字路', fn:()=>ruinMove('RUIN_TJUNC3')},
+  {label:'↗ 北端・東へ', fn:()=>ruinMove('RUIN_P20')},
+ ],
+ },
+
+ RUIN_P20:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西25mの通路。西端は南へ折れて別の通路へ。東端も南へ折れて別の通路へ続く。`,
+ choices:[
+  {label:'↙ 西端・南へ', fn:()=>ruinMove('RUIN_P19')},
+  {label:'↘ 東端・南へ', fn:()=>ruinMove('RUIN_P21')},
+ ],
+ },
+
+ RUIN_P21:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  南北25mの通路。北端は西へ折れて別の通路へ。南端は行き止まりで南壁に扉がある。`,
+ choices:[
+  {label:'↖ 北端・西へ', fn:()=>ruinMove('RUIN_P20')},
+  {label:'↓ 南端の扉', fn:()=>ruinMove('RUIN_ROOM1')},
+ ],
+ },
+
+ RUIN_P22:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 通路</span><br><br>
+  東西10mの短い通路。東はT字路へ。西端は行き止まりで、西壁に扉がある。`,
+ choices:[
+  {label:'→ 東・T字路', fn:()=>ruinMove('RUIN_TJUNC3')},
+  {label:'← 西端の扉', fn:()=>ruinMove('RUIN_ROOM10')},
+ ],
+ },
+
+ RUIN_ROOM1:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  15m四方の部屋。部屋の真ん中に古い機械仕掛けのレバーがある。
+  ${PC._ruin_lever?'レバーはすでに引かれた状態になっている。':'このレバーが何を制御しているかは定かでない。'}
+  北の壁に扉がある。`,
+ choices:()=>{
+  const ch=[];
+  if(!PC._ruin_lever){
+   ch.push({label:' レバーを引く', fn:()=>{
+    PC._ruin_lever=true;
+    showSaveToast(' レバーを引いた。どこかで音がした。');
+    go('RUIN_ROOM1');
+   }});
+  }
+  ch.push({label:'↑ 北壁の扉', fn:()=>ruinMove('RUIN_P21')});
+  return ch;
+ },
+ },
+
+ RUIN_ROOM2:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  15m四方の部屋。壁に古代の記号が刻まれている。南壁に扉がある。`,
+ choices:[
+  {label:'↓ 南壁の扉', fn:()=>ruinMove('RUIN_P8')},
+ ],
+ },
+
+ RUIN_ROOM3:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  15m四方の部屋。中央に大きな巻き上げ機がある。
+  ${(PC._ruin_winch_count||0)>0?`${PC._ruin_winch_count}回操作済み（残り${3-PC._ruin_winch_count}回）。`:'何に役立つのか分からないが、頑丈な造りの巻き上げ機だ。'}
+  南の壁に扉がある。`,
+ choices:()=>{
+  const ch=[];
+  if((PC._ruin_winch_count||0)<3){
+   ch.push({label:' 巻き上げ機を操作する（ST Lv3 SR）', fn:()=>{
+    setupSavingRoll({attr:'st', level:3,
+     passTxt:`渾身の力で巻き上げた！（${(PC._ruin_winch_count||0)+1}/3回成功）`,
+     failTxt:'機械は動かなかった。腕が痺れた。',
+     onSuccess(){
+      PC._ruin_winch_count=(PC._ruin_winch_count||0)+1;
+      if(PC._ruin_winch_count>=3){ PC._ruin_portcullis=true; showSaveToast(' 遠くで格子が開く音がした！'); }
+      renderChoices([{label:'↓ 南壁の扉', fn:()=>ruinMove('RUIN_P15')},{label:' もう一度操作する', fn:()=>go('RUIN_ROOM3')}]);
+     },
+     onFail(){ renderChoices([{label:'↓ 南壁の扉', fn:()=>ruinMove('RUIN_P15')},{label:' もう一度試みる', fn:()=>go('RUIN_ROOM3')}]); },
+    });
+   }});
+  }
+  ch.push({label:'↓ 南壁の扉', fn:()=>ruinMove('RUIN_P15')});
+  return ch;
+ },
+ },
+
+ RUIN_ROOM4:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  15m四方の部屋。壁の装飾が他の部屋より丁寧で、かつて重要な用途があったらしい。南壁に扉がある。`,
+ choices:[
+  {label:'↓ 南壁の扉', fn:()=>ruinMove('RUIN_P3')},
+ ],
+ },
+
+ RUIN_ROOM5:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  45m四方の広い部屋。墓所の中心的な空間らしく、四方に様々な出口がある。
+  西壁の北端に扉、西壁の中央に扉、西壁の南端に扉。南壁の中央にアーチ、東壁の北端にアーチがある。`,
+ choices:[
+  {label:'↖ 西壁・北端の扉', fn:()=>ruinMove('RUIN_ROOM11')},
+  {label:'← 西壁・中央の扉', fn:()=>ruinMove('RUIN_P7')},
+  {label:'↙ 西壁・南端の扉', fn:()=>ruinMove('RUIN_ROOM9')},
+  {label:'↓ 南壁・中央のアーチ', fn:()=>ruinMove('RUIN_ROOM6')},
+  {label:'↗ 東壁・北端のアーチ', fn:()=>ruinMove('RUIN_ROOM10')},
+ ],
+ },
+
+ RUIN_ROOM6:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  南北15m、東西25mの部屋。北壁に部屋へのアーチ、南壁に通路へのアーチがある。
+  東壁に落とし格子（${PC._ruin_portcullis?'開いている':'固く閉じている'}）がある。`,
+ choices:()=>{
+  const ch=[
+   {label:'↑ 北壁のアーチ', fn:()=>ruinMove('RUIN_ROOM5')},
+   {label:'↓ 南壁のアーチ', fn:()=>ruinMove('RUIN_P10')},
+  ];
+  if(PC._ruin_portcullis){
+   ch.push({label:'→ 東壁の落とし格子', fn:()=>ruinMove('RUIN_P9')});
+  } else {
+   ch.push({label:'→ 東壁の落とし格子（閉鎖中）', fn:()=>{
+    document.getElementById('story').innerHTML+='<br><br><span style="color:var(--amber)"> 格子は固く閉じており、開く気配がない。</span>';
+    renderChoices([{label:'← 引き返す', fn:()=>ruinMove('RUIN_ROOM5')}]);
+   }});
+  }
+  return ch;
+ },
+ },
+
+ RUIN_ROOM7:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 隔離室</span><br><br>
+  出入り口のない南北15m、東西25mの部屋。${PC._ruin_boss_cleared?'番人を倒した後の静かな部屋。北壁にボタンがある。':'部屋8のボタンで転送されてここに来た。怒り狂ったバルログが行く手を塞いでいる。'}`,
+ choices:()=>{
+  const ch=[];
+  if(!PC._ruin_boss_cleared){
+   ch.push({label:' バルログと戦う', fn:()=>{
+    document.getElementById('story').innerHTML+='<br><br><span style="color:var(--slash)"> バルログが咆哮した！炎と影が部屋を満たす！</span>';
+    renderChoices([{label:' 身構える', fn:()=>{
+     renderChoices([]);
+     drawScene('combat');
+     startCombat({
+      enemies:[{name:'バルログ',mr:300,curMR:300,armor:6}],
+      canFlee:false, win:'__noop__', lose:'DEAD',
+      onWin(){
+       PC._ruin_boss_cleared=true;
+       let totalGP=0, jewels=[];
+       for(let i=0;i<30;i++){
+        let r=''; let att=0;
+        do { r=generateTreasure(100); att++; }
+        while(att<5&&(r.includes('CP（')||r.includes('SP（')));
+        const gpM=r.match(/(\d+)GP/); if(gpM) totalGP+=parseInt(gpM[1]);
+        const jM=r.match(/宝石[^（]*（([^）]+)）/); if(jM) jewels.push(jM[1]);
+       }
+       let lootStr=`金貨 ${totalGP}GP`;
+       if(jewels.length) lootStr+=`、宝石類×${jewels.length}個（${jewels.slice(0,5).join('・')}${jewels.length>5?'など':''}）`;
+       PC._ruin_room7_loot=lootStr;
+       addLifeEvent('','バルログを倒し、宝物庫の財宝を手に入れた。');
+       document.getElementById('cbt-area').classList.add('hidden');
+       document.getElementById('scroll-area').classList.remove('in-combat');
+       document.getElementById('text-win').style.display='';
+       cbtState=null;
+       showSaveToast(' バルログを倒した！');
+       go('RUIN_ROOM7');
+      },
+     });
+    }}]);
+   }});
+  } else {
+   if(PC._ruin_room7_loot){
+    ch.push({label:' 財宝を受け取る', fn:()=>{
+     document.getElementById('story').innerHTML+=`<br><br><span style="color:var(--reward)"> 宝物庫の財宝：${PC._ruin_room7_loot}</span>`;
+     PC._ruin_room7_loot='';
+     updateHUD();
+     renderChoices([{label:'↑ 北壁のボタンを押す（部屋5へ）', fn:()=>go('RUIN_ROOM5')}]);
+    }});
+   }
+   ch.push({label:'↑ 北壁のボタンを押す（部屋5へテレポート）', fn:()=>go('RUIN_ROOM5')});
+  }
+  return ch;
+ },
+ },
+
+ RUIN_ROOM8:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  南北35m、東西15mの部屋。西壁に落とし格子がある。
+  北壁に「注意せよ」と刻まれたボタンがある。`,
+ choices:[
+  {label:'← 西壁の落とし格子', fn:()=>ruinMove('RUIN_P9')},
+  {label:'↑ 北壁のボタンを押す', fn:()=>{
+   const s=document.getElementById('story');
+   s.innerHTML+='<br><br><span style="color:var(--arcane)"> 部屋が激しく明滅し始めた——気づくと全員が別の場所に立っていた。</span>';
+   renderChoices([{label:'▶ 目を開く', fn:()=>go('RUIN_ROOM7')}]);
+  }},
+ ],
+ },
+
+ RUIN_ROOM9:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  南北35m、東西15mの部屋。東壁の南端に扉、東壁の北端に扉、西壁の北端にアーチがある。`,
+ choices:[
+  {label:'↘ 東壁・南端の扉', fn:()=>ruinMove('RUIN_P4')},
+  {label:'↗ 東壁・北端の扉', fn:()=>ruinMove('RUIN_ROOM5')},
+  {label:'↖ 西壁・北端のアーチ', fn:()=>ruinMove('RUIN_P6')},
+ ],
+ },
+
+ RUIN_ROOM10:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  南北35m、東西15mの部屋。東壁に扉、西壁の南端に部屋へのアーチがある。`,
+ choices:[
+  {label:'→ 東壁の扉', fn:()=>ruinMove('RUIN_P22')},
+  {label:'↙ 西壁・南端のアーチ', fn:()=>ruinMove('RUIN_ROOM5')},
+ ],
+ },
+
+ RUIN_ROOM11:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">ザールカノンの墓所 — 部屋</span><br><br>
+  南北35m、東西15mの部屋。東壁の南端に部屋への扉、西壁の中央に扉がある。`,
+ choices:[
+  {label:'↘ 東壁・南端の扉', fn:()=>ruinMove('RUIN_ROOM5')},
+  {label:'← 西壁・中央の扉', fn:()=>ruinMove('RUIN_P8')},
+ ],
+ },
+
 }; // NODES
 
 </script>
+
 </body>
 </html>
