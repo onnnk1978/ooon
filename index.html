@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026043003</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026050201</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -22390,23 +22390,307 @@ function startCombat(en, winNode){
 
  if((PC.type==='wizard'||PC.type==='rogue')&&PC.spells.length) showMagicInCombat();
 
- // ターン1：遠距離攻撃フェーズ
- _startRangedPhase();
+ _startNewRound();
  scrollToTop();
+}
+
+
+// ── ラウンド開始処理 ──────────────────────────────────────────────
+function _startNewRound(){
+ if(!cbtState) return;
+ // 前ラウンドのフラグをリセット
+ cbtState._pcDidCast   = false;
+ cbtState._pcDidRanged = false;
+ cbtState._pcDaggerUsed = false;
+ (PC.party||[]).forEach((_,i)=>{
+  cbtState[`_npcDidCast_${i}`]    = false;
+  cbtState[`_npcDidRanged_${i}`]  = false;
+  cbtState[`_npcDaggerUsed_${i}`] = false;
+ });
+ if(cbtState.isNPC) updateCombatUINPC(); else updateCombatUI();
+ _startMagicPhase();
+}
+
+// ── 魔法フェーズ ─────────────────────────────────────────────────
+function _startMagicPhase(){
+ // 魔法を使えるパーティNPC
+ const magicParty = (PC.party||[]).filter((n,i)=>
+  n.con>0 && (n.type==='wizard'||n.type==='rogue') && (n.spells||[]).length>0
+ );
+ _magicPhaseStep(0, magicParty);
+}
+
+function _magicPhaseStep(npcIdx, magicParty, pcDone){
+ // まずPC（pcDone=trueの場合はスキップ）
+ if(npcIdx === 0 && !pcDone && !cbtState._pcDidCast && (PC.type==='wizard'||PC.type==='rogue') && PC.spells.length>0){
+  const panel = document.getElementById('npc-action-panel');
+  const title = document.getElementById('npc-action-title');
+  const btns  = document.getElementById('npc-action-btns');
+  panel.style.display='';
+  title.innerHTML=`<span style="color:#c89aff;font-size:var(--font-sm)"> 魔法フェーズ — ${PC.name}の詠唱</span>`;
+  btns.innerHTML='';
+
+  const castBtn = document.createElement('button');
+  castBtn.className='choice-btn';
+  castBtn.style.cssText='border-color:#664488;color:#c89aff';
+  castBtn.textContent=' 魔法を詠唱する';
+  castBtn.onclick=()=>{ _magicPhaseSpellSelect(npcIdx, magicParty); };
+  btns.appendChild(castBtn);
+
+  const skipBtn = document.createElement('button');
+  skipBtn.className='choice-btn';
+  skipBtn.textContent='スキップ';
+  skipBtn.onclick=()=>{ panel.style.display='none'; _magicPhaseStep(0, magicParty, true); };
+  btns.appendChild(skipBtn);
+
+  const skipAllBtn = document.createElement('button');
+  skipAllBtn.className='choice-btn';
+  skipAllBtn.style.cssText='border-color:#446644;color:#88aa88;font-size:calc(var(--font-sm) - 1px)';
+  skipAllBtn.textContent='近接攻撃フェーズへ';
+  skipAllBtn.onclick=()=>{ panel.style.display='none'; _skipToMeleePhase(); };
+  btns.appendChild(skipAllBtn);
+  return;
+ }
+
+ // 次にNPC順
+ const npc = magicParty[npcIdx];
+ if(!npc){
+  // 全員完了→遠距離フェーズ（ターン1）or 近接フェーズ
+  document.getElementById('npc-action-panel').style.display='none';
+  if(cbtState.turn === 0){
+   _startRangedPhase();
+  } else {
+   _showPCActionChoices();
+  }
+  return;
+ }
+
+ const partyIdx = (PC.party||[]).indexOf(npc);
+ if(cbtState[`_npcDidCast_${partyIdx}`]){
+  _magicPhaseStep(npcIdx+1, magicParty);
+  return;
+ }
+
+ const panel = document.getElementById('npc-action-panel');
+ const title = document.getElementById('npc-action-title');
+ const btns  = document.getElementById('npc-action-btns');
+ panel.style.display='';
+ const typeJa={warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[npc.type]||npc.type;
+ title.innerHTML=`<span style="color:#c89aff;font-size:var(--font-sm)"> 魔法フェーズ — ${npc.name}（${typeJa}）の詠唱</span>`;
+ btns.innerHTML='';
+
+ const castBtn = document.createElement('button');
+ castBtn.className='choice-btn';
+ castBtn.style.cssText='border-color:#664488;color:#c89aff';
+ castBtn.textContent=' 魔法を詠唱する';
+ castBtn.onclick=()=>{ _magicPhaseNPCSpellSelect(npc, npcIdx, magicParty); };
+ btns.appendChild(castBtn);
+
+ const skipBtn = document.createElement('button');
+ skipBtn.className='choice-btn';
+ skipBtn.textContent='スキップ';
+ skipBtn.onclick=()=>{ _magicPhaseStep(npcIdx+1, magicParty); };
+ btns.appendChild(skipBtn);
+
+ const skipAllBtn = document.createElement('button');
+ skipAllBtn.className='choice-btn';
+ skipAllBtn.style.cssText='border-color:#446644;color:#88aa88;font-size:calc(var(--font-sm) - 1px)';
+ skipAllBtn.textContent='近接攻撃フェーズへ';
+ skipAllBtn.onclick=()=>{ document.getElementById('npc-action-panel').style.display='none'; _skipToMeleePhase(); };
+ btns.appendChild(skipAllBtn);
+}
+
+function _skipToMeleePhase(){
+ // 魔法フェーズを全員スキップして近接攻撃フェーズへ（遠距離はスキップ）
+ document.getElementById('npc-action-panel').style.display='none';
+ _showPCActionChoices();
+}
+
+function _magicPhaseSpellSelect(npcIdx, magicParty){
+ const title = document.getElementById('npc-action-title');
+ const btns  = document.getElementById('npc-action-btns');
+ title.innerHTML=`<span style="color:#c89aff;font-size:var(--font-sm)"> 呪文を選択</span>`;
+ btns.innerHTML='';
+
+ PC.spells.forEach(sp=>{
+  const canAfford = PC.st > sp.cost;
+  const b = document.createElement('button');
+  b.className='choice-btn';
+  b.style.cssText='border-color:#553377;color:'+(canAfford?'#c89aff':'#665577');
+  b.innerHTML=`${sp.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${sp.cost}</span>`;
+  b.disabled=!canAfford;
+  b.onclick=()=>{
+   document.getElementById('npc-action-panel').style.display='none';
+   cbtState._pcDidCast = true;
+   // 次フェーズへのコールバックを登録（TTYF等の追加インタラクション後に呼ばれる）
+   cbtState._magicPhaseNext = ()=>{ cbtState._magicPhaseNext=null; _magicPhaseStep(0, magicParty, true); };
+   castSpell(sp,'combat');
+  };
+  btns.appendChild(b);
+ });
+
+ const back = document.createElement('button');
+ back.className='choice-btn';
+ back.textContent='← 戻る';
+ back.onclick=()=>{ _magicPhaseStep(0, magicParty); };
+ btns.appendChild(back);
+}
+
+function _magicPhaseNPCSpellSelect(npc, npcIdx, magicParty){
+ const partyIdx = (PC.party||[]).indexOf(npc);
+ const panel = document.getElementById('npc-action-panel');
+ const title = document.getElementById('npc-action-title');
+ const btns  = document.getElementById('npc-action-btns');
+ panel.style.display='';
+ title.innerHTML=`<span style="color:#c89aff;font-size:var(--font-sm)"> ${npc.name}の呪文を選択</span>`;
+ btns.innerHTML='';
+
+ (npc.spells||[]).forEach(sp=>{
+  const canAfford=(npc.st||0)>sp.cost;
+  const b=document.createElement('button');
+  b.className='choice-btn';
+  b.style.cssText='border-color:#553377;color:'+(canAfford?'#c89aff':'#665577');
+  b.innerHTML=`${sp.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${sp.cost}</span>`;
+  b.disabled=!canAfford;
+  b.onclick=()=>{
+   cbtState[`_npcDidCast_${partyIdx}`]=true;
+   _npcCastSpellInPhase(npc, npcIdx, magicParty, sp);
+  };
+  btns.appendChild(b);
+ });
+
+ const back=document.createElement('button');
+ back.className='choice-btn';
+ back.textContent='← 戻る';
+ back.onclick=()=>{ _magicPhaseStep(npcIdx, magicParty); };
+ btns.appendChild(back);
+}
+
+// NPC呪文詠唱処理（レベル選択→対象選択→効果）
+function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp){
+ const onDone = ()=>{ updateCombatUI(); _magicPhaseStep(npcIdx+1, magicParty); };
+
+ if(sp.fn === 'ttyf'){
+  // TTYFのみレベル選択（盗賊はLv1固定）
+  if(npc.type === 'rogue'){
+   _npcTtyfCast(npc, npcIdx, magicParty, sp, 1, sp.cost, onDone);
+  } else {
+   _npcTtyfSelectLevel(npc, npcIdx, magicParty, sp, onDone);
+  }
+  return;
+ }
+
+ if(sp.fn === 'blastingPower' || sp.fn === 'freezePleeze'){
+  npc.st = Math.max(0,(npc.st||0)-sp.cost);
+  const dice = npc.level || 1;
+  const adds = Math.max(0, calcAdds(npc));
+  const dmg = Nd6(dice) + adds;
+  cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + dmg;
+  cbtState._spellCaster = true;
+  const cl = document.getElementById('clog');
+  const spName = sp.fn==='blastingPower' ? 'Blasting Power' : 'Freeze Pleeze';
+  cl.innerHTML += `<span style="color:#c89aff"> ${npc.name}が${spName}を詠唱！${dice}D+${adds}=${dmg}ヒット追加！</span><br>`;
+  onDone();
+  return;
+ }
+
+ // その他の呪文：ST消費してログ出力
+ npc.st = Math.max(0,(npc.st||0)-sp.cost);
+ const cl = document.getElementById('clog');
+ cl.innerHTML += `<span style="color:#c89aff"> ${npc.name}が${sp.name}を詠唱した！（ST-${sp.cost}）</span><br>`;
+ onDone();
+}
+
+function _npcTtyfSelectLevel(npc, npcIdx, magicParty, sp, onDone){
+ const maxLv = npc.level || 1;
+ const panel = document.getElementById('npc-action-panel');
+ const title = document.getElementById('npc-action-title');
+ const btns  = document.getElementById('npc-action-btns');
+ panel.style.display='';
+ title.innerHTML=`<span style="color:#c89aff;font-size:var(--font-sm)"> ${npc.name}のTTYF — レベルを選択（最大Lv${maxLv}）</span>`;
+ btns.innerHTML='';
+
+ for(let lv=1; lv<=maxLv; lv++){
+  const stCost = 6*lv;
+  if((npc.st||0) <= stCost) continue;
+  const b=document.createElement('button');
+  b.className='choice-btn';
+  b.style.cssText='border-color:#553377;color:#c89aff';
+  b.innerHTML=`Lv${lv} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${stCost}</span>`;
+  b.onclick=()=>{ _npcTtyfCast(npc, npcIdx, magicParty, sp, lv, stCost, onDone); };
+  btns.appendChild(b);
+ }
+}
+
+function _npcTtyfCast(npc, npcIdx, magicParty, sp, lv, stCost, onDone){
+ const isNPCCbt = cbtState.isNPC;
+ const alive = cbtState.enemies.filter(e=>(isNPCCbt?e.curCon:e.curMR)>0);
+ if(alive.length===1){
+  _npcTtyfApply(npc, sp, lv, stCost, alive[0], onDone);
+  return;
+ }
+ const panel = document.getElementById('npc-action-panel');
+ const title = document.getElementById('npc-action-title');
+ const btns  = document.getElementById('npc-action-btns');
+ panel.style.display='';
+ title.innerHTML=`<span style="color:#c89aff;font-size:var(--font-sm)"> ${npc.name}のTTYF Lv${lv} — 対象を選択</span>`;
+ btns.innerHTML='';
+ alive.forEach(e=>{
+  const b=document.createElement('button');
+  b.className='choice-btn';
+  b.style.cssText='border-color:#553377;color:#c89aff';
+  const hpVal = isNPCCbt ? e.curCon : e.curMR;
+  const hpLabel = isNPCCbt ? 'CON' : 'MR';
+  b.textContent=`${e.name}（${hpLabel} ${hpVal}）`;
+  b.onclick=()=>{ _npcTtyfApply(npc, sp, lv, stCost, e, onDone); };
+  btns.appendChild(b);
+ });
+}
+
+function _npcTtyfApply(npc, sp, lv, stCost, target, onDone){
+ const isNPCCbt = cbtState.isNPC;
+ npc.st = Math.max(0,(npc.st||0)-stCost);
+ const dmg = (npc.iq||10)*lv;
+ const prevHp = isNPCCbt ? target.curCon : target.curMR;
+ if(isNPCCbt){ target.curCon = Math.max(0, target.curCon - dmg); }
+ else { target.curMR = Math.max(0, target.curMR - dmg); }
+ const afterHp = isNPCCbt ? target.curCon : target.curMR;
+ const hpLabel = isNPCCbt ? 'CON' : 'MR';
+ const cl = document.getElementById('clog');
+ cl.innerHTML+=`<span style="color:#c89aff"> ${npc.name}がTake That You Fiend Lv${lv}を詠唱！</span><br>`;
+ cl.innerHTML+=`<span style="color:#44ffaa"> ${target.name}に${dmg}ダメージ！（IQ${npc.iq||10}×Lv${lv}）${hpLabel}: ${prevHp}→${afterHp}</span><br>`;
+ cbtState._npcTtyfMagicHit = (cbtState._npcTtyfMagicHit||0) + dmg;
+ // 全滅チェック
+ if(cbtState.enemies.every(e=>(isNPCCbt?e.curCon:e.curMR)<=0)){
+  gainAPAll(cbtState.totalMR);
+  showCombatOK(()=>{
+   if(cbtState?.win==='__noop__'){
+    document.getElementById('cbt-area').classList.add('hidden');
+    document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display='';
+    const _ow=cbtState.onWin; cbtState=null; if(_ow)_ow();
+   } else {
+    if(cbtState?.onWin) cbtState.onWin();
+    go((cbtState?.win)||currentNodeId);
+   }
+  });
+  return;
+ }
+ onDone();
 }
 
 // ── 遠距離攻撃フェーズ ──────────────────────────────────────────────
 function _startRangedPhase(){
  // 遠距離武器を持つパーティNPCのリスト
- const rangedParty = (PC.party||[]).filter(n=>n.con>0 && isRangedWeapon(n.equippedRanged));
+ const rangedParty = (PC.party||[]).filter((n,i)=>n.con>0 && isRangedWeapon(n.equippedRanged) && !cbtState[`_npcDidCast_${i}`]);
 
  // PCと遠距離NPCを順番に処理
  _rangedPhaseStep(0, rangedParty);
 }
 
 function _rangedPhaseStep(npcIdx, rangedParty){
- // PC未攻撃かつ遠距離武器あり かつ 敵が生存している場合にPCフェーズ
- if(npcIdx === 0 && !cbtState._pcDidRanged && isRangedWeapon(PC.equippedRanged) && !cbtState.enemies.every(e=>e.curMR<=0)){
+ // PC未攻撃かつ遠距離武器あり かつ 魔法未詠唱 かつ 敵が生存している場合にPCフェーズ
+ if(npcIdx === 0 && !cbtState._pcDidRanged && !cbtState._pcDidCast && isRangedWeapon(PC.equippedRanged) && !cbtState.enemies.every(e=>(cbtState.isNPC?e.curCon:e.curMR)<=0)){
   // PCの遠距離攻撃選択UI
   const panel = document.getElementById('npc-action-panel');
   const title = document.getElementById('npc-action-title');
@@ -22525,7 +22809,7 @@ function _npcRangedAttack(npc, target, npcIdx, rangedParty){
   const hit = diceRoll + (w.adds||0) + rangedAdds;
   const armor = target.armor||0;
   const dmg = Math.max(0, hit - armor);
-  target.curMR = Math.max(0, target.curMR - dmg);
+  if(cbtState.isNPC){ target.curCon=Math.max(0,target.curCon-dmg); } else { target.curMR=Math.max(0,target.curMR-dmg); }
   cbtState._rangedHitTotal = (cbtState._rangedHitTotal||0) + hit;
   cl.innerHTML += `<span style="color:#88ccff"> ${npc.name}の遠距離攻撃命中！${w.dice}D=${diceRoll} adds=${rangedAdds} hit=${hit} → ${target.name} MR-${dmg}${armor>0?`（防護-${armor}）`:''}</span><br>`;
  } else {
@@ -22538,7 +22822,7 @@ function _npcRangedAttack(npc, target, npcIdx, rangedParty){
 }
 
 function _pcRangedSelectTarget(onDone){
- const alive = cbtState.enemies.filter(e=>e.curMR>0);
+ const alive = cbtState.enemies.filter(e=>(cbtState.isNPC?e.curCon:e.curMR)>0);
  if(alive.length === 1){ _pcRangedAttack(alive[0], onDone); return; }
 
  const panel = document.getElementById('npc-action-panel');
@@ -22584,9 +22868,9 @@ function _pcRangedAttack(target, onDone){
    const rangedAdds = stAdd + lkAdd + dexAdd * 2;
    const hit = diceRoll + (w.adds||0) + rangedAdds;
    const dmg = Math.max(0, hit - armor);
-   target.curMR = Math.max(0, target.curMR - dmg);
+   if(cbtState.isNPC){ target.curCon=Math.max(0,target.curCon-dmg); } else { target.curMR=Math.max(0,target.curMR-dmg); }
    cbtState._rangedHitTotal = (cbtState._rangedHitTotal||0) + hit;
-   cl.innerHTML += `<span style="color:#88ccff"> 命中！${w.dice}D=${diceRoll} adds=${rangedAdds}（DEX×2） hit=${hit} → ${target.name} MR-${dmg}${armor>0?`（防護-${armor}）`:''}</span><br>`;
+   cl.innerHTML += `<span style="color:#88ccff"> 命中！${w.dice}D=${diceRoll} adds=${rangedAdds}（DEX×2） hit=${hit} → ${target.name} ${cbtState.isNPC?'CON':'MR'}-${dmg}${armor>0?`（防護-${armor}）`:''}</span><br>`;
    updateCombatUI();
    if(onDone) onDone(); else _showPCActionChoices();
   },
@@ -22662,10 +22946,10 @@ function startCombatNPC(en){
  const _okArea = document.getElementById('cbt-ok-area');
  if(_okArea){ _okArea.innerHTML=''; _okArea.style.display='none'; }
  updateCombatUINPC();
- _showPCActionChoices();
  document.getElementById('clog').innerHTML =
   `<span style="color:#ccccaa"> ${cbtState.name}との戦闘！</span><br>`;
  if((PC.type==='wizard'||PC.type==='rogue')&&PC.spells.length) showMagicInCombat();
+ _startNewRound();
  scrollToTop();
 }
 
@@ -22995,10 +23279,7 @@ function resolveRoundNPC(pRoll, npcActions){
  // 次ターンへ
  _hidePCActionChoices();
  document.getElementById('npc-action-panel').style.display = 'none';
- showCombatOK(()=>{
-  updateCombatUINPC();
-  _showPCActionChoices();
- });
+ showCombatOK(()=>{ _startNewRound(); });
 }
 
 // 逃走：SPD Lv1 SR
@@ -23222,8 +23503,13 @@ function _showPCActionChoices(){
  if(!panel) return;
  panel.style.display = '';
 
- // 遠距離攻撃済みかつターン1の場合のみ様子を見るに制限
- if(cbtState?._pcDidRanged && cbtState.turn <= 1){
+ // 魔法詠唱済みか遠距離攻撃済みかつターン1の場合は様子を見るのみ
+ if(cbtState?._pcDidCast || (cbtState?._pcDidRanged && cbtState.turn <= 1)){
+  // 魔法フェーズ継続コールバックがあれば呼ぶ（NPC魔法フェーズへ）
+  if(cbtState._magicPhaseNext){
+   cbtState._magicPhaseNext();
+   return;
+  }
   title.innerHTML = `<span style="font-size:var(--font-sm);color:var(--gold3)"> ${PC.name}（遠距離攻撃済み）:</span>`;
   btns.innerHTML = '';
   const b = document.createElement('button');
@@ -23253,15 +23539,7 @@ function _showPCActionChoices(){
   btns.appendChild(b);
  });
 
- // 呪文ボタン（wizard/rogueかつ呪文あり）
- if((PC.type==='wizard'||PC.type==='rogue') && PC.spells.length){
-  const mb = document.createElement('button');
-  mb.className = 'choice-btn';
-  mb.style.cssText = 'border-color:#664488;color:#c89aff';
-  mb.textContent = ' 魔法';
-  mb.onclick = ()=>{ _showSpellChoices(); };
-  btns.appendChild(mb);
- }
+ // 魔法はフェーズで処理済みのため近接フェーズでは表示しない
 }
 
 function _showSpellChoices(){
@@ -23405,7 +23683,7 @@ function showNPCActionPhase(idx, aliveParty){
  const npc = aliveParty[idx];
  // 遠距離攻撃済みのNPCは自動で様子を見る
  const npcPartyIdx = (PC.party||[]).indexOf(npc);
- if(cbtState?.[`_npcDidRanged_${npcPartyIdx}`] && cbtState.turn <= 1){
+ if(cbtState?.[`_npcDidCast_${npcPartyIdx}`] || (cbtState?.[`_npcDidRanged_${npcPartyIdx}`] && cbtState.turn <= 1)){
   const cl = document.getElementById('clog');
   cl.innerHTML += `<span style="color:#88aaff"> ${npc.name}（遠距離攻撃済み）様子を見た。</span><br>`;
   _cbtNPCActions.push({npc, action:'defend'});
@@ -23462,41 +23740,8 @@ function showNPCActionPhase(idx, aliveParty){
   };
   btns.appendChild(b);
  });
- // wizard/rogue NPCは呪文ボタンを追加
- if((npc.spells||[]).length>0){
-  const spellBtn = document.createElement('button');
-  spellBtn.className = 'choice-btn';
-  spellBtn.style.cssText = 'border-color:#664488;color:#c89aff';
-  spellBtn.textContent = ' 魔法';
-  spellBtn.onclick = ()=>{
-   // 呪文サブメニューを表示
-   btns.innerHTML = '';
-   const backBtn = document.createElement('button');
-   backBtn.className = 'choice-btn';
-   backBtn.style.cssText = 'border-color:#555';
-   backBtn.textContent = '← 戻る';
-   backBtn.onclick = ()=>showNPCActionPhase(idx, aliveParty);
-   btns.appendChild(backBtn);
-   (npc.spells||[]).forEach(spell=>{
-    const stCost = spell.cost || 0;
-    const canCast = (npc.st||0) >= stCost;
-    const sb = document.createElement('button');
-    sb.className = 'choice-btn';
-    sb.style.cssText = `border-color:#664488;color:${canCast?'#c89aff':'#555'}`;
-    sb.disabled = !canCast;
-    sb.textContent = ` ${spell.name}（ST-${stCost}）`;
-    sb.onclick = ()=>{
-     npc.st = Math.max(0, (npc.st||0) - stCost);
-     // 呪文効果をボーナスとして登録
-     const bonus = npcSpellBonus(npc, spell);
-     _cbtNPCActions.push({npc, action:'spell', spell, bonus});
-     showNPCActionPhase(idx+1, aliveParty);
-    };
-    btns.appendChild(sb);
-   });
-  };
-  btns.appendChild(spellBtn);
- }
+ // 魔法は魔法フェーズで処理済みのため近接フェーズでは表示しない
+ // if((npc.spells||[]).length>0){ ... }
 }
 
 // NPC呪文のボーナス値を計算
@@ -23587,6 +23832,7 @@ function resolveRound(pRoll, npcActions){
  cs._ttyfHit = 0;
  cs._ttyfTarget = null;
  cs._ttyfPRoll = 0;
+ cs._ttyfMagicPhase = false;
  // 遠距離攻撃フラグをリセット（次ラウンド以降は使用不可のまま保持）
  // ※遠距離はターン1のみなのでフラグはクリアしない（リセット不要）
 
@@ -23614,14 +23860,15 @@ function resolveRound(pRoll, npcActions){
  });
 
  // PCのヒット：詠唱者ならttyfHit or 0（近接スキップ）、spellHitBonusは加算
- // ttyfの場合はpRollに既にttyfHitが渡されている
- // blasting/freezeの場合はpRoll=0、spellHitBonusを加算
  const pcHit = spellCaster
   ? (ttyfHit > 0 ? ttyfHit : 0) + spellHitBonus
   : pRoll + spellHitBonus;
  // 遠距離攻撃ヒット合計はパーティ攻撃合計に加算しない（直接ダメージのみ）
  cs._rangedHitTotal = 0;
- const totalPlayerRoll = pcHit + partyRoll;
+ // NPC魔法フェーズTTYF分（ヒット比較には加算、差分ダメージには含めない）
+ const npcTtyfMagicHit = cs._npcTtyfMagicHit || 0;
+ cs._npcTtyfMagicHit = 0;
+ const totalPlayerRoll = pcHit + partyRoll + npcTtyfMagicHit;
 
  // ── 各敵ロール（ttyfでダメージ適用後のcurMRで計算）──
  const aliveEnemies = cs.enemies.filter(e=>e.curMR>0);
@@ -23674,7 +23921,9 @@ function resolveRound(pRoll, npcActions){
 
  if(totalPlayerRoll > eTotalRoll){
  const rawDmg = totalPlayerRoll - eTotalRoll;
- const totalDmg = ttyfHit > 0 ? Math.max(0, rawDmg - ttyfHit) : rawDmg;
+ // 魔法フェーズで既に適用済みのTTYFダメージを差し引く
+ const ttyfMagicTotal = (ttyfHit > 0 && cs._ttyfMagicPhase ? ttyfHit : 0) + npcTtyfMagicHit;
+ const totalDmg = Math.max(0, rawDmg - ttyfMagicTotal);
  const perEnemy = Math.floor(totalDmg / aliveEnemies.length);
  const remainder = totalDmg % aliveEnemies.length;
  const eNames = aliveEnemies.map(e=>e.name);
@@ -23780,12 +24029,10 @@ function resolveRound(pRoll, npcActions){
  return;
  }
 
- // 次ターンへ：OKを押したら行動選択肢を再表示
+ // 次ターンへ
  _hidePCActionChoices();
  document.getElementById('npc-action-panel').style.display = 'none';
- showCombatOK(()=>{
-  updateCombatUI();
- });
+ showCombatOK(()=>{ _startNewRound(); });
 }
 
 // 戦闘ログ確認用OKボタンを表示
@@ -24012,6 +24259,24 @@ function _ttyfApply(spell, ttyfLv, stCost, target){
   <span style="color:#c05040;font-size:calc(var(--font-sm) - 2px)">${hpLabel}: ${prevHp} → ${afterHp}　ST-${stCost}</span><br>
   <span style="color:#aaa;font-size:calc(var(--font-sm) - 2px)">近接戦闘では詠唱者の攻撃ヒット＝${dmg}として処理</span>`;
 
+ // 魔法フェーズ中（_magicPhaseNextがある）なら先に処理
+ if(cbtState._magicPhaseNext){
+  cbtState._spellCaster = true;
+  // ヒット比較には加算、差分ダメージからは除算するためdmgを保持
+  cbtState._ttyfHit = dmg;
+  cbtState._ttyfMagicPhase = true; // 魔法フェーズで適用済みフラグ
+  cbtState._ttyfTarget = target;
+  cbtState._ttyfPRoll = dmg;
+  const allDeadMagic = isNPCCbt
+   ? cbtState.enemies.every(e=>e.curCon<=0)
+   : cbtState.enemies.every(e=>e.curMR<=0);
+  updateCombatUI();
+  if(!allDeadMagic){
+   cbtState._magicPhaseNext();
+   return;
+  }
+ }
+
  updateCombatUI();
 
  // 即死判定（ttyf時点で全滅）
@@ -24212,6 +24477,10 @@ function castSpell(spell,ctx){
  default:result.innerHTML=` ${spell.name} 使用。`;
  }
  renderSpellList(ctx);
+ // 魔法フェーズ中かつTTYF以外（TTYFは_ttyfApplyで継続）は次フェーズへ進める
+ if(cbtState && cbtState._magicPhaseNext && spell.fn !== 'ttyf'){
+  updateCombatUI();
+ }
 }
 
 // ──────────────────────────────────────
