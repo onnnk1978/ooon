@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026043002</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026043003</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -4824,6 +4824,21 @@ function renderPartyStatus(){
 }
 
 // NPC装備操作
+function npcEquipRanged(npcIdx, invIdx){
+ const n = PC.party[npcIdx]; if(!n) return;
+ const w = (n.invWeapons||[])[invIdx]; if(!w || !isRangedWeapon(w)) return;
+ if(n.equippedRanged) n.invWeapons.push(n.equippedRanged);
+ n.invWeapons.splice(invIdx,1);
+ n.equippedRanged = w;
+ renderPartyTab();
+}
+function npcUnequipRanged(npcIdx){
+ const n = PC.party[npcIdx]; if(!n || !n.equippedRanged) return;
+ n.invWeapons = n.invWeapons||[];
+ n.invWeapons.push(n.equippedRanged);
+ n.equippedRanged = null;
+ renderPartyTab();
+}
 function npcEquipWeapon(npcIdx, invIdx){
  const n = PC.party[npcIdx]; if(!n) return;
  const w = (n.invWeapons||[])[invIdx]; if(!w) return;
@@ -17447,8 +17462,8 @@ const SPELLS_L3 = [
 
 // ── WEAPON TABLE ───────────────────────
 const WEAPONS_TABLE = [
- {name:'Dirk',dice:2,adds:1,stReq:1,dexReq:4,cost:18,weight:16,twoHand:false},
- {name:'Sax (Dagger)',dice:2,adds:5,stReq:7,dexReq:10,cost:30,weight:25,twoHand:false},
+ {name:'Dirk',dice:2,adds:1,stReq:1,dexReq:4,cost:18,weight:16,twoHand:false,rangedOk:true},
+ {name:'Sax (Dagger)',dice:2,adds:5,stReq:7,dexReq:10,cost:30,weight:25,twoHand:false,rangedOk:true},
  {name:'Short Sword',dice:3,adds:0,stReq:7,dexReq:3,cost:35,weight:30,twoHand:false},
  {name:'Broadsword',dice:3,adds:4,stReq:15,dexReq:10,cost:70,weight:120,twoHand:false},
  {name:'Scimitar',dice:4,adds:0,stReq:10,dexReq:11,cost:60,weight:100,twoHand:false},
@@ -17459,6 +17474,9 @@ const WEAPONS_TABLE = [
  {name:'Heavy Mace',dice:5,adds:2,stReq:17,dexReq:3,cost:120,weight:200,twoHand:true},
 ];
 
+
+// 遠距離武器として使えるか
+function isRangedWeapon(w){ return !!(w && (w.isRanged || w.rangedOk)); }
 const ARMOR_TABLE = [
  {name:'Arming Doublet', hits:3, stReq:1, cost:40, weight:75, isShield:false},
  {name:'Steel Cap', hits:1, stReq:1, cost:10, weight:25, isShield:false},
@@ -17527,7 +17545,7 @@ const WEAPONS_TABLE_KHAZAN = [
  {name:'Baton', dice:2,adds:0, stReq:2, dexReq:1, cost:10, weight:20, twoHand:false},
  {name:'Quarterstaff†', dice:2,adds:0, stReq:2, dexReq:8, cost:10, weight:50, twoHand:true},
  // Daggers
- {name:'Sax (Dagger)', dice:2,adds:5, stReq:7, dexReq:10,cost:30, weight:25, twoHand:false},
+ {name:'Sax (Dagger)', dice:2,adds:5, stReq:7, dexReq:10,cost:30, weight:25, twoHand:false,rangedOk:true},
  {name:'Kukri', dice:2,adds:5, stReq:6, dexReq:6, cost:30, weight:20, twoHand:false},
  {name:'Katar', dice:2,adds:4, stReq:2, dexReq:8, cost:18, weight:22, twoHand:false},
  {name:'Dirk', dice:2,adds:1, stReq:1, dexReq:4, cost:18, weight:16, twoHand:false},
@@ -17580,7 +17598,7 @@ const WEAPONS_TABLE_ELSIA = [
  {name:'Short Sword', dice:3,adds:0, stReq:7, dexReq:3, cost:35, weight:30, twoHand:false},
  {name:'Dirk', dice:2,adds:1, stReq:1, dexReq:4, cost:18, weight:16, twoHand:false},
  // エルマリア地方 Dagger全種
- {name:'Sax (Dagger)', dice:2,adds:5, stReq:7, dexReq:10,cost:30, weight:25, twoHand:false},
+ {name:'Sax (Dagger)', dice:2,adds:5, stReq:7, dexReq:10,cost:30, weight:25, twoHand:false,rangedOk:true},
  {name:'Kukri',        dice:2,adds:5, stReq:6, dexReq:6, cost:30, weight:20, twoHand:false},
  {name:'Katar',        dice:2,adds:4, stReq:2, dexReq:8, cost:18, weight:22, twoHand:false},
  {name:'Haladie',      dice:2,adds:4, stReq:2, dexReq:4, cost:25, weight:15, twoHand:false},
@@ -18458,6 +18476,20 @@ function canEquipArmor(a){
  return {ok:true};
 }
 
+function equipRanged(idx){
+ const w = PC.invWeapons[idx];
+ if(!w || !isRangedWeapon(w)) return;
+ if(PC.equippedRanged) PC.invWeapons.push(PC.equippedRanged); // 既存を所持に戻す
+ PC.invWeapons.splice(idx, 1); // スロットから削除
+ PC.equippedRanged = w;
+ updateHUD(); renderStatusPanel(); showSaveToast(` ${w.name}を遠距離スロットに装備した`);
+}
+function unequipRanged(){
+ if(!PC.equippedRanged) return;
+ const w = PC.equippedRanged;
+ PC.equippedRanged = null;
+ updateHUD(); renderStatusPanel(); showSaveToast(`${w.name}を外した`);
+}
 function equipWeapon(idx){
  const _sa = _shopActor || PC;
  const w = _sa.invWeapons[idx];
@@ -18868,7 +18900,7 @@ function renderIgsList(townId){
 
  // 武器（未装備のみ）
  const _shopA = _shopActor || PC;
- const uninvW = (_shopA.invWeapons||[]).filter(w=>!(_shopA.equippedWeapons||[]).find(e=>e.name===w.name));
+ const uninvW = (_shopA.invWeapons||[]).filter(w=>!(_shopA.equippedWeapons||[]).find(e=>e.name===w.name) && !w.isRanged);
  if(uninvW.length){
   sec(' 武器');
   uninvW.forEach(w=>{
@@ -19179,7 +19211,7 @@ function igsBuyWeapon(i, townId){
  if(!it||totalCP(_sa)<it.cost*100)return;
  payPrice(it.cost, _sa);
  if(!_sa.invWeapons) _sa.invWeapons=[];
- _sa.invWeapons.push({name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0});
+ _sa.invWeapons.push({name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0,...(it.isRanged?{isRanged:true}:{}),...(it.rangedOk?{rangedOk:true}:{})});
  updateHUD(); renderIngameShop(townId||PC.town);
  showSaveToast(` ${_sa.name}: ${it.name}を購入`);
 }
@@ -19201,7 +19233,16 @@ function igsBuyEquip(i){
  if(totalCP(_sa)<effectiveCost*100)return;
  payPrice(effectiveCost, _sa);
  // 消耗品はPC（パーティ共有）に加算
- if(it._isArrows){ PC.arrows=(PC.arrows||0)+it._arrowAmt; updateHUD(); showSaveToast(` 矢+${it._arrowAmt}（残り${PC.arrows}本）`); return; }
+ if(it._isArrows){
+  if(_sa === PC){
+   PC.arrows=(PC.arrows||0)+it._arrowAmt;
+   updateHUD(); showSaveToast(` 矢+${it._arrowAmt}（残り${PC.arrows}本）`);
+  } else {
+   _sa.arrows=(_sa.arrows||0)+it._arrowAmt;
+   updateHUD(); showSaveToast(` ${_sa.name}: 矢+${it._arrowAmt}（残り${_sa.arrows}本）`);
+  }
+  return;
+ }
  if(it._isFood){ const amt=it._foodAmt||1; PC._food=(PC._food||0)+amt; showSaveToast(` 食料+${amt}（残り${PC._food}日分）`); }
  else if(it.name==='Boots'||it.name==='Sandals'){ _sa.invBoots=true; _sa.invBootsName=it.name; }
  else if(it.name==='Torch'){ PC._torchStock=(PC._torchStock||0)+1; }
@@ -19578,7 +19619,7 @@ function renderNPCDetail(el, n, idx){
  <button onclick="npcUnequipWeapon(${idx},${wi})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#c05040;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>
  </div>`).join('');
 
- const invWpRows = (n.invWeapons||[]).map((w,wi)=>{
+ const invWpRows = (n.invWeapons||[]).filter(w=>!w.isRanged).map((w,wi)=>{
  const canUse = (w.stReq||0)<=n.st && (w.dexReq||0)<=n.dex && (n.type!=='wizard' || (w.dice||0)<=2);
  return `<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
@@ -19688,6 +19729,34 @@ function renderNPCDetail(el, n, idx){
  <div style="font-size:calc(var(--font-sm) - 2px);color:var(--arcane);margin-bottom:6px;border-bottom:1px solid var(--shadow);padding-bottom:3px"> 武器</div>
  <div style="margin-bottom:4px">${wpRows || '<div style="font-size:var(--font-sm);color:var(--dim)">装備なし</div>'}</div>
  ${invWpRows ? `<div style="font-size:calc(var(--font-sm) - 2px);color:#554466;margin-bottom:4px">── 所持（未装備）──</div><div style="margin-bottom:12px">${invWpRows}</div>` : '<div style="margin-bottom:12px"></div>'}
+
+ <!-- 遠距離武器スロット -->
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#88aacc;margin-bottom:6px;border-bottom:1px solid #224466;padding-bottom:3px"> 遠距離武器スロット</div>
+ ${(()=>{
+  const rw = n.equippedRanged;
+  let rHtml = '';
+  if(rw){
+   rHtml += `<div style="background:#001830;border:1px solid #224466;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+   <div>
+    <div style="font-size:var(--font-sm);color:#88ccff"> ${rw.name}</div>
+    <div style="font-size:calc(var(--font-sm) - 2px);color:var(--dim)">${rw.dice}D+${rw.adds||0}　${rw.isRanged?'弓':'投擲'}</div>
+   </div>
+   <button onclick="npcUnequipRanged(${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#c05040;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>
+   </div>`;
+  } else {
+   rHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:#334455;padding:6px;margin-bottom:4px">（なし）</div>`;
+  }
+  const candidates = (n.invWeapons||[]).filter(w=>isRangedWeapon(w) && !(rw && rw.name===w.name));
+  candidates.forEach((w,wi)=>{
+   const widx = (n.invWeapons||[]).indexOf(w);
+   rHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+   <div style="font-size:var(--font-sm);color:var(--dim)"> ${w.name} <span style="color:#445566;font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds||0}</span></div>
+   <button onclick="npcEquipRanged(${idx},${widx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#001020;border:1px solid #224466;color:#4488aa;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">遠距離装備</button>
+   </div>`;
+  });
+  return rHtml;
+ })()}
+ <div style="margin-bottom:12px"></div>
 
  <!-- 防具 -->
  <div style="font-size:calc(var(--font-sm) - 2px);color:var(--arcane);margin-bottom:6px;border-bottom:1px solid var(--shadow);padding-bottom:3px"> 防具</div>
@@ -19903,7 +19972,7 @@ function renderStatusPanel(){
  });
  }
  // 所持（未装備）
- const uninvW = PC.invWeapons.filter(w=>!PC.equippedWeapons.find(e=>e.name===w.name));
+ const uninvW = PC.invWeapons.filter(w=>!PC.equippedWeapons.find(e=>e.name===w.name) && !w.isRanged);
  if(uninvW.length){
  wpHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--dim);margin:6px 0 4px">── 所持（未装備）──</div>`;
  uninvW.forEach(w=>{
@@ -19933,7 +20002,34 @@ function renderStatusPanel(){
  </div>`;
  });
  }
+ // 遠距離武器スロット
+ const rngEl = document.getElementById('sp-weapons');
+ let rngHtml = '';
+ const rngW = PC.equippedRanged || null;
+ rngHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:#88aacc;margin-bottom:4px;margin-top:8px">── 遠距離武器スロット ──</div>`;
+ if(rngW){
+  rngHtml += `<div style="background:#001830;border:1px solid #224466;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+  <div>
+  <div style="font-size:var(--font-sm);color:#88ccff"> ${rngW.name}</div>
+  <div style="font-size:calc(var(--font-sm) - 2px);color:var(--dim)">${rngW.dice}D+${rngW.adds}　${rngW.isRanged?'弓':'投擲'}</div>
+  </div>
+  <button onclick="unequipRanged()" ${btnStyle('#c05040','#200000','#550000')}>外す</button>
+  </div>`;
+ } else {
+  rngHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:#334455;padding:6px">（なし）</div>`;
+ }
+ // 遠距離装備可能な所持武器を表示
+ const rangedCandidates = PC.invWeapons.filter(w=>isRangedWeapon(w) && !(PC.equippedRanged && PC.equippedRanged.name===w.name));
+ rangedCandidates.forEach(w=>{
+  const idx = PC.invWeapons.indexOf(w);
+  rngHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+  <div style="font-size:var(--font-sm);color:var(--dim)"> ${w.name} <span style="color:#445566;font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds}</span></div>
+  <button onclick="equipRanged(${idx})" ${btnStyle('#4488aa','#001020','#224466')}>遠距離装備</button>
+  </div>`;
+ });
+
  wpEl.innerHTML = wpHtml || '<div style="font-size:var(--font-sm);color:var(--dim)">武器なし（素手 1D）</div>';
+ wpEl.innerHTML += rngHtml;
 
  // 防具
  const arEl = document.getElementById('sp-armor');
@@ -22169,6 +22265,10 @@ function doRoll(){
    sr.onSuccess();
   } else if(!success && typeof sr.onFail === 'function'){
    sr.onFail();
+  } else if(sr.autoAdvance){
+   // autoAdvanceフラグがある場合はDONEボタンなしで即進行（onSuccess/onFail必須）
+   if(success) sr.onSuccess && sr.onSuccess();
+   else sr.onFail && sr.onFail();
   } else {
    go(success?sr.success:sr.fail);
   }
@@ -22289,7 +22389,221 @@ function startCombat(en, winNode){
  `<span style="color:#ccccaa"> ${cbtState.name}との戦闘開始！</span><br>`;
 
  if((PC.type==='wizard'||PC.type==='rogue')&&PC.spells.length) showMagicInCombat();
+
+ // ターン1：遠距離攻撃フェーズ
+ _startRangedPhase();
  scrollToTop();
+}
+
+// ── 遠距離攻撃フェーズ ──────────────────────────────────────────────
+function _startRangedPhase(){
+ // 遠距離武器を持つパーティNPCのリスト
+ const rangedParty = (PC.party||[]).filter(n=>n.con>0 && isRangedWeapon(n.equippedRanged));
+
+ // PCと遠距離NPCを順番に処理
+ _rangedPhaseStep(0, rangedParty);
+}
+
+function _rangedPhaseStep(npcIdx, rangedParty){
+ // PC未攻撃かつ遠距離武器あり かつ 敵が生存している場合にPCフェーズ
+ if(npcIdx === 0 && !cbtState._pcDidRanged && isRangedWeapon(PC.equippedRanged) && !cbtState.enemies.every(e=>e.curMR<=0)){
+  // PCの遠距離攻撃選択UI
+  const panel = document.getElementById('npc-action-panel');
+  const title = document.getElementById('npc-action-title');
+  const btns = document.getElementById('npc-action-btns');
+  panel.style.display = '';
+  title.innerHTML = `<span style="color:#88ccff;font-size:var(--font-sm)"> 遠距離攻撃フェーズ（ターン1のみ）</span>`;
+  btns.innerHTML = '';
+
+  // 弓の場合は矢チェック、短剣は投擲済みチェック
+  const _pcW = PC.equippedRanged;
+  const _pcNeedsArrow = _pcW.isRanged && !_pcW.rangedOk;
+  const _pcDaggerUsed = _pcW.rangedOk && cbtState._pcDaggerUsed;
+  const _pcHasArrow = !_pcNeedsArrow || (PC.arrows||0) > 0;
+  const _pcCanRanged = _pcHasArrow && !_pcDaggerUsed;
+  const doRanged = document.createElement('button');
+  doRanged.className = 'choice-btn';
+  doRanged.style.cssText = `border-color:#224466;color:${_pcHasArrow?'#88ccff':'#556677'}`;
+  doRanged.textContent = ` 遠距離攻撃（${_pcW.name}）${_pcNeedsArrow?` 矢:${PC.arrows||0}本`:_pcDaggerUsed?' （投擲済み）':''}`;
+  doRanged.disabled = !_pcCanRanged;
+  doRanged.onclick = ()=>{ _pcRangedSelectTarget(()=>_rangedPhaseStep(0, rangedParty, true)); };
+  btns.appendChild(doRanged);
+  if(!_pcCanRanged){
+   const warn = document.createElement('div');
+   warn.style.cssText = 'font-size:calc(var(--font-sm) - 2px);color:#c05040;padding:4px 0';
+   warn.textContent = !_pcHasArrow ? ' 矢がありません' : ' この戦闘では短剣を投擲済みです';
+   btns.appendChild(warn);
+  }
+
+  const skip = document.createElement('button');
+  skip.className = 'choice-btn';
+  skip.textContent = 'スキップ';
+  skip.onclick = ()=>{ panel.style.display='none'; _rangedPhaseStep(0, rangedParty, true); };
+  btns.appendChild(skip);
+  return;
+ }
+
+ // NPC順に処理
+ const npc = rangedParty[npcIdx];
+ if(!npc || cbtState.enemies.every(e=>e.curMR<=0)){
+  // 全員完了→近接フェーズへ
+  document.getElementById('npc-action-panel').style.display = 'none';
+  _showPCActionChoices();
+  return;
+ }
+
+ const panel = document.getElementById('npc-action-panel');
+ const title = document.getElementById('npc-action-title');
+ const btns = document.getElementById('npc-action-btns');
+ panel.style.display = '';
+ const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[npc.type]||npc.type;
+ title.innerHTML = `<span style="color:#88ccff;font-size:var(--font-sm)"> ${npc.name}（${typeJa}）の遠距離攻撃</span>`;
+ btns.innerHTML = '';
+
+ // 弓の場合は矢チェック、短剣は投擲済みチェック
+ const _nW = npc.equippedRanged;
+ const _nNeedsArrow = _nW.isRanged && !_nW.rangedOk;
+ const _nDaggerUsed = _nW.rangedOk && (cbtState[`_npcDaggerUsed_${npcIdx}`]);
+ const _nHasArrow = !_nNeedsArrow || (npc.arrows||0) > 0;
+ const _nCanRanged = _nHasArrow && !_nDaggerUsed;
+ const doRanged = document.createElement('button');
+ doRanged.className = 'choice-btn';
+ doRanged.style.cssText = `border-color:#224466;color:${_nHasArrow?'#88ccff':'#556677'}`;
+ doRanged.textContent = ` 遠距離攻撃（${_nW.name}）${_nNeedsArrow?` 矢:${npc.arrows||0}本`:_nDaggerUsed?' （投擲済み）':''}`;
+ doRanged.disabled = !_nCanRanged;
+ doRanged.onclick = ()=>{ _npcRangedSelectTarget(npc, npcIdx, rangedParty); };
+ btns.appendChild(doRanged);
+ if(!_nCanRanged){
+  const warn = document.createElement('div');
+  warn.style.cssText = 'font-size:calc(var(--font-sm) - 2px);color:#c05040;padding:4px 0';
+  warn.textContent = !_nHasArrow ? ' 矢がありません' : ' この戦闘では短剣を投擲済みです';
+  btns.appendChild(warn);
+ }
+
+ const skip = document.createElement('button');
+ skip.className = 'choice-btn';
+ skip.textContent = 'スキップ';
+ skip.onclick = ()=>{ _rangedPhaseStep(npcIdx+1, rangedParty); };
+ btns.appendChild(skip);
+}
+
+function _npcRangedSelectTarget(npc, npcIdx, rangedParty){
+ const alive = cbtState.enemies.filter(e=>e.curMR>0);
+ if(alive.length === 1){ _npcRangedAttack(npc, alive[0], npcIdx, rangedParty); return; }
+
+ const panel = document.getElementById('npc-action-panel');
+ const title = document.getElementById('npc-action-title');
+ const btns = document.getElementById('npc-action-btns');
+ panel.style.display = '';
+ title.innerHTML = `<span style="color:#88ccff;font-size:var(--font-sm)"> ${npc.name}の遠距離攻撃 — 対象を選択</span>`;
+ btns.innerHTML = '';
+ alive.forEach(e=>{
+  const b = document.createElement('button');
+  b.className = 'choice-btn';
+  b.style.cssText = 'border-color:#224466;color:#88ccff';
+  b.textContent = `${e.name}（MR ${e.curMR}）`;
+  b.onclick = ()=>{ _npcRangedAttack(npc, e, npcIdx, rangedParty); };
+  btns.appendChild(b);
+ });
+}
+
+function _npcRangedAttack(npc, target, npcIdx, rangedParty){
+ const w = npc.equippedRanged;
+ const cl = document.getElementById('clog');
+ // 弓の場合は矢を1本消費、短剣は投擲済みフラグ
+ if(w.isRanged && !w.rangedOk){ npc.arrows = Math.max(0,(npc.arrows||0)-1); }
+ else if(w.rangedOk){ cbtState[`_npcDaggerUsed_${npcIdx}`] = true; }
+ cbtState[`_npcDidRanged_${npcIdx}`] = true;
+ cbtState[`_npcDidRanged_${npcIdx}`] = true;
+ const sr = savingRoll('dex', 2, npc);
+ if(sr.success){
+  const diceRoll = Nd6(w.dice);
+  const dexAdd = npc.dex > 12 ? (npc.dex-12)*2 : (npc.dex < 9 ? (npc.dex-9)*2 : 0);
+  const stAdd  = npc.st  > 12 ? npc.st  - 12 : (npc.st  < 9 ? npc.st  - 9 : 0);
+  const lkAdd  = npc.lk  > 12 ? npc.lk  - 12 : (npc.lk  < 9 ? npc.lk  - 9 : 0);
+  const rangedAdds = stAdd + lkAdd + dexAdd;
+  const hit = diceRoll + (w.adds||0) + rangedAdds;
+  const armor = target.armor||0;
+  const dmg = Math.max(0, hit - armor);
+  target.curMR = Math.max(0, target.curMR - dmg);
+  cbtState._rangedHitTotal = (cbtState._rangedHitTotal||0) + hit;
+  cl.innerHTML += `<span style="color:#88ccff"> ${npc.name}の遠距離攻撃命中！${w.dice}D=${diceRoll} adds=${rangedAdds} hit=${hit} → ${target.name} MR-${dmg}${armor>0?`（防護-${armor}）`:''}</span><br>`;
+ } else {
+  const hit = w.dice + (w.adds||0);
+  cbtState._rangedHitTotal = (cbtState._rangedHitTotal||0) + hit;
+  cl.innerHTML += `<span style="color:#556677"> ${npc.name}の遠距離攻撃が外れた。</span><br>`;
+ }
+ updateCombatUI();
+ _rangedPhaseStep(npcIdx+1, rangedParty);
+}
+
+function _pcRangedSelectTarget(onDone){
+ const alive = cbtState.enemies.filter(e=>e.curMR>0);
+ if(alive.length === 1){ _pcRangedAttack(alive[0], onDone); return; }
+
+ const panel = document.getElementById('npc-action-panel');
+ const title = document.getElementById('npc-action-title');
+ const btns = document.getElementById('npc-action-btns');
+ panel.style.display = '';
+ title.innerHTML = `<span style="color:#88ccff;font-size:var(--font-sm)"> 対象を選択</span>`;
+ btns.innerHTML = '';
+ alive.forEach(e=>{
+  const b = document.createElement('button');
+  b.className = 'choice-btn';
+  b.style.cssText = 'border-color:#224466;color:#88ccff';
+  b.textContent = `${e.name}（MR ${e.curMR}）`;
+  b.onclick = ()=>{ _pcRangedAttack(e, onDone); };
+  btns.appendChild(b);
+ });
+}
+
+function _pcRangedAttack(target, onDone){
+ document.getElementById('npc-action-panel').style.display = 'none';
+ const w = PC.equippedRanged;
+ const cl = document.getElementById('clog');
+
+ // 戦闘中はSRダイスUIのためtext-winを一時的に表示
+ document.getElementById('text-win').style.display = '';
+
+ setupSavingRoll({
+  attr:'dex', level:2,
+  passTxt:`${w.name}が命中！`,
+  failTxt:`${w.name}が外れた…`,
+  onSuccess(){
+   document.getElementById('text-win').style.display = 'none';
+   document.getElementById('dice-area').classList.add('hidden');
+   // 弓の場合は矢を1本消費、短剣の場合は投擲済みフラグ
+   if(w.isRanged && !w.rangedOk){ PC.arrows = Math.max(0,(PC.arrows||0)-1); updateHUD(); }
+   else if(w.rangedOk){ cbtState._pcDaggerUsed = true; }
+   cbtState._pcDidRanged = true;
+   const armor = target.armor||0;
+   const diceRoll = Nd6(w.dice);
+   const stAdd  = PC.st  > 12 ? PC.st  - 12 : (PC.st  < 9 ? PC.st  - 9 : 0);
+   const lkAdd  = PC.lk  > 12 ? PC.lk  - 12 : (PC.lk  < 9 ? PC.lk  - 9 : 0);
+   const dexAdd = PC.dex > 12 ? PC.dex - 12 : (PC.dex < 9 ? PC.dex - 9 : 0);
+   const rangedAdds = stAdd + lkAdd + dexAdd * 2;
+   const hit = diceRoll + (w.adds||0) + rangedAdds;
+   const dmg = Math.max(0, hit - armor);
+   target.curMR = Math.max(0, target.curMR - dmg);
+   cbtState._rangedHitTotal = (cbtState._rangedHitTotal||0) + hit;
+   cl.innerHTML += `<span style="color:#88ccff"> 命中！${w.dice}D=${diceRoll} adds=${rangedAdds}（DEX×2） hit=${hit} → ${target.name} MR-${dmg}${armor>0?`（防護-${armor}）`:''}</span><br>`;
+   updateCombatUI();
+   if(onDone) onDone(); else _showPCActionChoices();
+  },
+  onFail(){
+   document.getElementById('text-win').style.display = 'none';
+   document.getElementById('dice-area').classList.add('hidden');
+   // 弓の場合は外れても矢を1本消費、短剣の場合は投擲済みフラグ
+   if(w.isRanged && !w.rangedOk){ PC.arrows = Math.max(0,(PC.arrows||0)-1); updateHUD(); }
+   else if(w.rangedOk){ cbtState._pcDaggerUsed = true; }
+   cbtState._pcDidRanged = true;
+   const hit = w.dice + (w.adds||0);
+   cbtState._rangedHitTotal = (cbtState._rangedHitTotal||0) + hit;
+   cl.innerHTML += `<span style="color:#556677"> 外れた。</span><br>`;
+   updateCombatUI();
+   if(onDone) onDone(); else _showPCActionChoices();
+  },
+ });
 }
 
 // ══════════════════════════════════════════
@@ -22907,6 +23221,19 @@ function _showPCActionChoices(){
  const btns  = document.getElementById('npc-action-btns');
  if(!panel) return;
  panel.style.display = '';
+
+ // 遠距離攻撃済みかつターン1の場合のみ様子を見るに制限
+ if(cbtState?._pcDidRanged && cbtState.turn <= 1){
+  title.innerHTML = `<span style="font-size:var(--font-sm);color:var(--gold3)"> ${PC.name}（遠距離攻撃済み）:</span>`;
+  btns.innerHTML = '';
+  const b = document.createElement('button');
+  b.className = 'choice-btn';
+  b.textContent = ' 様子を見る';
+  b.onclick = ()=>{ _hidePCActionChoices(); doDefend(); };
+  btns.appendChild(b);
+  return;
+ }
+
  title.innerHTML = `<span style="font-size:var(--font-sm);color:var(--gold3)"> ${PC.name}の行動を選択:</span>`;
  btns.innerHTML = '';
 
@@ -23076,6 +23403,15 @@ function showNPCActionPhase(idx, aliveParty){
  return;
  }
  const npc = aliveParty[idx];
+ // 遠距離攻撃済みのNPCは自動で様子を見る
+ const npcPartyIdx = (PC.party||[]).indexOf(npc);
+ if(cbtState?.[`_npcDidRanged_${npcPartyIdx}`] && cbtState.turn <= 1){
+  const cl = document.getElementById('clog');
+  cl.innerHTML += `<span style="color:#88aaff"> ${npc.name}（遠距離攻撃済み）様子を見た。</span><br>`;
+  _cbtNPCActions.push({npc, action:'defend'});
+  showNPCActionPhase(idx+1, aliveParty);
+  return;
+ }
  const panel = document.getElementById('npc-action-panel');
  const title = document.getElementById('npc-action-title');
  const btns = document.getElementById('npc-action-btns');
@@ -23251,6 +23587,8 @@ function resolveRound(pRoll, npcActions){
  cs._ttyfHit = 0;
  cs._ttyfTarget = null;
  cs._ttyfPRoll = 0;
+ // 遠距離攻撃フラグをリセット（次ラウンド以降は使用不可のまま保持）
+ // ※遠距離はターン1のみなのでフラグはクリアしない（リセット不要）
 
  // ── NPCロール計算 ──
  let partyRoll = 0;
@@ -23281,6 +23619,8 @@ function resolveRound(pRoll, npcActions){
  const pcHit = spellCaster
   ? (ttyfHit > 0 ? ttyfHit : 0) + spellHitBonus
   : pRoll + spellHitBonus;
+ // 遠距離攻撃ヒット合計はパーティ攻撃合計に加算しない（直接ダメージのみ）
+ cs._rangedHitTotal = 0;
  const totalPlayerRoll = pcHit + partyRoll;
 
  // ── 各敵ロール（ttyfでダメージ適用後のcurMRで計算）──
