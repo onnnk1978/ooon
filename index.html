@@ -7793,7 +7793,7 @@ const SAVE_KEY_PREFIX = 'tt5_save_';
 const AUTOSAVE_KEY = 'tt5_autosave';
 
 function autoSave(){
- if(!PC._autoSave) return;
+ if(PC._autoSave === false) return;
  const data = {
   pc: JSON.parse(JSON.stringify(PC)),
   gameTime: JSON.parse(JSON.stringify(GAME_TIME)),
@@ -8298,7 +8298,7 @@ function _showSettingsMain(){
  panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#080c18;border:2px solid #224466;border-radius:6px;padding:16px;z-index:9998;min-width:280px;max-width:340px;box-shadow:0 0 30px #000a;font-family:system-ui,sans-serif';
  panel.innerHTML = `
   <div style="color:var(--magic);font-size:var(--font-sm);margin-bottom:14px;text-align:center">⚙ 設定</div>
-  <button id="fsp-autosave-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> 自動セーブ：${PC._autoSave ? '<span style="color:#6aaa60">ON</span>' : '<span style="color:#667">OFF</span>'}</button>
+  <button id="fsp-autosave-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> 自動セーブ：${PC._autoSave === false ? '<span style="color:#667">OFF</span>' : '<span style="color:#6aaa60">ON</span>'}</button>
   <button id="fsp-font-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> フォント設定</button>
   <button id="fsp-world-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> OOONの世界</button>
   <button id="fsp-guide-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> ゲームシステム</button>
@@ -8307,7 +8307,7 @@ function _showSettingsMain(){
  `;
  document.body.appendChild(panel);
  document.getElementById('fsp-autosave-btn').onclick = ()=>{
-  PC._autoSave = !PC._autoSave;
+  PC._autoSave = (PC._autoSave === false) ? true : false;
   showSaveToast(` 自動セーブ：${PC._autoSave ? 'ON' : 'OFF'}`);
   panel.remove(); _showSettingsMain();
  };
