@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026050201</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026050202</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -3241,6 +3241,70 @@ function goPropertyNode(townId){
   }
   prop._lastVisitDay = GAME_TIME.totalDays;
 
+  // ── 留守番NPCの寿命チェック ──
+  prop.caretakers = prop.caretakers || [];
+  prop.graves = prop.graves || [];
+  const deadCaretakers = [];
+  prop.caretakers = prop.caretakers.filter(npc=>{
+   const params = AGING_PARAMS[npc.race] || AGING_PARAMS.human;
+   const lifespan = npc.lifespan || params.lifespan;
+   const joinedDay = npc._joinedPropertyDay || prop._lastVisitDay || GAME_TIME.totalDays;
+   const elapsedYears = Math.floor((GAME_TIME.totalDays - joinedDay) / 365);
+   const currentAge = (npc.age||0) + elapsedYears;
+   if(currentAge >= lifespan){
+    deadCaretakers.push({name:npc.name, diedAge:currentAge, type:npc.type, race:npc.race});
+    return false;
+   }
+   return true;
+  });
+  const CARETAKER_EPITAPHS = [
+   '穏やかな余生を過ごした。',
+   'この地を愛し、最後まで守り続けた。',
+   '旅人の帰りをいつも待っていた。',
+   '笑顔が絶えない人だった。',
+   '静かに、しかし確かに生きた。',
+   '多くを語らず、多くを成した。',
+   '拠点の炉の火を絶やさなかった。',
+   '風の音に耳を澄ませていた。',
+   '誰よりも早く起き、誰よりも遅く眠った。',
+   '小さな幸せを大切にする人だった。',
+   '冒険者たちの帰りを祈り続けた。',
+   '年老いてなお、心は若かった。',
+   '友と過ごした日々を誇りとした。',
+   '大地に根ざした、揺るぎない生涯だった。',
+   '最期まで自分らしく生きた。',
+   '記憶の中に永遠に生き続ける。',
+   '波乱の時代を、静かに生き抜いた。',
+   '旅立ちの日まで、ここが我が家だった。',
+  ];
+  deadCaretakers.forEach(d=>{
+   const epitaph = CARETAKER_EPITAPHS[Math.floor(Math.random()*CARETAKER_EPITAPHS.length)];
+   prop.graves.push({name:d.name, date:`享年${d.diedAge}歳`, epitaph});
+   addLifeEvent('', `${d.name}が老衰で亡くなった。享年${d.diedAge}歳。`);
+   html += `<div style="color:#8888aa;font-size:calc(var(--font-sm) - 1px);margin:4px 0"> ${d.name}（享年${d.diedAge}歳）が老衰で亡くなった。</div>`;
+  });
+
+  // ── 住人（引退PC）の寿命チェック ──
+  prop.residents = prop.residents || [];
+  prop.graveyard = prop.graveyard || [];
+  const deadResidents = [];
+  prop.residents = prop.residents.filter(r=>{
+   const retiredDay = r.retiredDay || r.movedInDay || GAME_TIME.totalDays;
+   const elapsedYears = Math.floor((GAME_TIME.totalDays - retiredDay) / 365);
+   const ageYears = (r.retiredAge || 0) + elapsedYears;
+   const lifespanYrs = r.lifespanYears ?? Math.floor((r.lifespan||25550) / 365);
+   if(ageYears >= lifespanYrs){
+    deadResidents.push({...r, diedAge: ageYears, diedDay: GAME_TIME.totalDays});
+    return false;
+   }
+   return true;
+  });
+  deadResidents.forEach(r=>{
+   prop.graveyard.push(r);
+   addLifeEvent('', `${r.name}が老衰で亡くなった。${propName(townId)}の墓地に埋葬された。（享年${r.diedAge}歳）`);
+   html += `<div style="color:#8888aa;font-size:calc(var(--font-sm) - 1px);margin:4px 0"> ${r.name}（享年${r.diedAge}歳）が老衰で亡くなり、墓地に埋葬された。</div>`;
+  });
+
   // 泥棒イベント（留守番なし・8%・保管GPがある場合のみ）
   let robberyMsg = '';
   if(caretakers.length === 0 && storGP > 0 && Math.random() < 0.08){
@@ -3253,19 +3317,27 @@ function goPropertyNode(townId){
   }
 
   html += `<span class="dim">保管中： ${stor.gold||0}GP ${storSP}SP ${storCP}CP　 武器${storW}　 防具${storA}　 宝石${storJ}　 松明${storT}本</span><br>`;
-  // 拠点メンバー一覧（留守番NPC＋子ども）
+  // 拠点メンバー一覧（留守番NPC＋子ども＋住人）
+  const retiredResidents = (prop.residents||[]).map(r=>{
+   const retiredDay = r.retiredDay || r.movedInDay || GAME_TIME.totalDays;
+   const elapsedYears = Math.floor((GAME_TIME.totalDays - retiredDay) / 365);
+   const ageYears = (r.retiredAge || 0) + elapsedYears;
+   return { name:r.name, tag:`${ageYears}歳・元${r.typeJa||r.type}・引退`, isRetired:true };
+  });
   const allResidents = [
-   ...caretakers.map(n=>({ name:n.name, tag:n.married?'配偶者':'留守番', npc:n, isChild:false })),
+   ...caretakers.map(n=>({ name:n.name, tag:n.married?'配偶者':'留守番', npc:n, isChild:false, isRetired:false })),
    ...children.map(c=>{
     const ageYears = Math.floor((GAME_TIME.totalDays - c.bornDay)/365);
     const ready = ageYears >= 15;
-    return { name:c.name, tag:`${ageYears}歳${ready?'・引き取り可':''}`, npc:c, isChild:true };
+    return { name:c.name, tag:`${ageYears}歳${ready?'・引き取り可':''}`, npc:c, isChild:true, isRetired:false };
    }),
+   ...retiredResidents,
   ];
   if(allResidents.length){
    html += `<span class="dim">拠点のメンバー：</span><br>`;
    allResidents.forEach(r=>{
-    html += `<span class="dim">　${r.isChild?'':''} <b>${r.name}</b>（${r.tag}）</span><br>`;
+    const icon = r.isRetired ? '' : r.isChild ? '' : '';
+    html += `<span class="dim">　${icon} <b>${r.name}</b>（${r.tag}）</span><br>`;
    });
   } else {
    html += `<span class="dim">拠点のメンバー：なし（泥棒リスクあり）</span>`;
@@ -3361,15 +3433,25 @@ function _showPropertyMain(townId){
   const storW = (stor.weapons||[]).length, storA = (stor.armors||[]).length;
   const storJ = (stor.jewels||[]).length, storT = stor.torches||0;
   const _allRes2 = [
-   ...(prop.caretakers).map(n=>({name:n.name,isChild:false})),
-   ...(prop.children).map(c=>({name:c.name,isChild:true})),
+   ...(prop.caretakers).map(n=>({name:n.name,isChild:false,isRetired:false})),
+   ...(prop.children).map(c=>({name:c.name,isChild:true,isRetired:false})),
+   ...(prop.residents||[]).map(r=>({name:r.name,isChild:false,isRetired:true,typeJa:r.typeJa||r.type})),
   ];
   // ストレージ・メンバー表示
   let mhtml = ` <span style="color:#c8a44a">${propName(townId)}</span><br>`;
   mhtml += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${propDesc(townId)}</span><br>`;
   if(_allRes2.length){
    const _sp2 = _allRes2[Math.floor(Math.random()*_allRes2.length)];
-   const _speeches2 = _sp2.isChild ? [
+   const _speeches2 = _sp2.isRetired ? [
+    `「久しぶりだな。冒険はどうだった？」`,
+    `「あの頃を思い出すよ。旅は続けるものだ」`,
+    `「体に気をつけろよ。引退してから初めてその大切さが分かった」`,
+    `「お前が帰ってくるのを待っていた。ゆっくりしていけ」`,
+    `「冒険者か……懐かしいな。あの頃の自分を見ているようだ」`,
+    `「無事で良かった。それだけで十分だ」`,
+    `「旅の話を聞かせてくれ。ここにいると外の話が恋しくなる」`,
+    `「この家を頼むぞ。わしはもう身体が言うことを聞かんからな」`,
+   ] : _sp2.isChild ? [
     '「おかえり！ずっと待ってたよ！」','「どこ行ってたの？早く帰ってきてほしかった」',
     '「ねえ、次はどんなところに行くの？」','「…おかえり。」',
    ] : [
@@ -3382,16 +3464,33 @@ function _showPropertyMain(townId){
   }
   mhtml += `<span class="dim">保管中： ${stor.gold||0}GP ${storSP}SP ${storCP}CP　 武器${storW}　 防具${storA}　 宝石${storJ}　 松明${storT}本</span><br>`;
   const allResidents2 = [
-   ...(prop.caretakers).map(n=>({name:n.name,tag:n.married?'配偶者':'留守番',npc:n,isChild:false})),
+   ...(prop.caretakers).map(n=>({name:n.name,tag:n.married?'配偶者':'留守番',npc:n,isChild:false,isRetired:false})),
    ...(prop.children).map(c=>{
     const ageYears=Math.floor((GAME_TIME.totalDays-c.bornDay)/365);
     const ready=ageYears>=15;
-    return {name:c.name,tag:`${ageYears}歳${ready?'・引き取り可':''}`,npc:c,isChild:true};
+    return {name:c.name,tag:`${ageYears}歳${ready?'・引き取り可':''}`,npc:c,isChild:true,isRetired:false};
+   }),
+   ...(prop.residents||[]).map(r=>{
+    // 引退時の年齢＋経過日数で現在の年齢を計算
+    const retiredDay = r.retiredDay || r.movedInDay || GAME_TIME.totalDays;
+    const elapsedYears = Math.floor((GAME_TIME.totalDays - retiredDay) / 365);
+    // birthTotalDaysが正常値かチェック（負すぎる場合はPC.ageから推算）
+    let ageYears;
+    if(r.birthTotalDays != null && r.birthTotalDays > -10000){
+     ageYears = Math.floor((GAME_TIME.totalDays - r.birthTotalDays) / 365);
+    } else {
+     // retiredDayからの経過年数で推算（引退時年齢が不明なら経過年数のみ）
+     ageYears = (r.retiredAge || 0) + elapsedYears;
+    }
+    return {name:r.name, tag:`${ageYears>0?ageYears+'歳・':''}元${r.typeJa||r.type}・引退`, isRetired:true};
    }),
   ];
   if(allResidents2.length){
    mhtml += `<span class="dim">拠点のメンバー：</span><br>`;
-   allResidents2.forEach(r=>{ mhtml += `<span class="dim">　 <b>${r.name}</b>（${r.tag}）</span><br>`; });
+   allResidents2.forEach(r=>{
+    const icon = r.isRetired ? '' : r.isChild ? '' : '';
+    mhtml += `<span class="dim">　${icon} <b>${r.name}</b>（${r.tag}）</span><br>`;
+   });
   } else {
    mhtml += `<span class="dim">拠点のメンバー：なし（泥棒リスクあり）</span>`;
   }
@@ -3414,7 +3513,7 @@ function _showPropertyMain(townId){
    ...(proposeTargets.length ? [{label:' 結婚を申し込む', fn:()=>propertyPropose(townId)}] : []),
    {label:' 留守番を管理する', fn:()=>propertyManageCaretakers(townId)},
    ...(deadParty.length ? [{label:` 仲間を埋葬する（${deadParty.length}人）`, fn:()=>propertyBury(townId)}] : []),
-   ...(graves.length || deadParty.length ? [{label:` 墓地を見る`, fn:()=>propertyViewGraves(townId)}] : []),
+   ...(graves.length || (prop.graveyard||[]).length || deadParty.length ? [{label:` 墓地を見る`, fn:()=>propertyViewGraves(townId)}] : []),
    {label:' 所持金を預ける／引き出す',           fn:()=>propertyStorageMoney(townId)},
    {label:' アイテムを預ける／引き出す',           fn:()=>propertyStorageItems(townId)},
    {label:'← 戻る', go:'TOWN_'+townId.toUpperCase()},
@@ -3426,13 +3525,24 @@ function propertyViewGraves(townId){
  const def = PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
  prop.graves = prop.graves || [];
+ prop.graveyard = prop.graveyard || [];
  const graves = prop.graves;
+ const retiredDead = prop.graveyard;
  const dead = (PC.party||[]).filter(n=>n.con<=0);
  const story = document.getElementById('story');
 
  let html = ` <span style="color:#c8a44a">${propName(townId)} — 墓地</span><br><br>`;
- if(graves.length){
+ const hasGraves = graves.length || retiredDead.length;
+ if(hasGraves){
   html += `<span class="dim">ここに眠る者たち：</span><br><br>`;
+  retiredDead.forEach(g=>{
+   const cur = getCurrentDate ? getCurrentDate() : {year:'?',month:'?',day:'?'};
+   html += `<div style="border-left:2px solid #554455;padding:6px 10px;margin-bottom:8px">`
+    +`<span style="color:#ccbbdd"> <b>${g.name}</b></span>`
+    +`<span style="color:#776688;font-size:calc(var(--font-sm) - 1px)">　享年${g.diedAge}歳・元${g.typeJa||g.type}</span><br>`
+    +`<span style="color:#665577;font-size:calc(var(--font-sm) - 1px)"><i>引退冒険者。この地で穏やかな余生を送った。</i></span>`
+    +`</div>`;
+  });
   graves.forEach(g=>{
    html += `<div style="border-left:2px solid #554433;padding:6px 10px;margin-bottom:8px">`
     +`<span style="color:#ccbbaa"> <b>${g.name}</b></span>`
@@ -3711,6 +3821,7 @@ function propertySetCaretaker(townId){
     if(prop.caretakers.length >= propCaretakerLimit(townId)){ showSaveToast(`留守番は${propCaretakerLimit(townId)}名までです`); return; }
     const idx = PC.party.indexOf(n);
     if(idx !== -1) PC.party.splice(idx,1);
+    n._joinedPropertyDay = GAME_TIME.totalDays;
     prop.caretakers.push(n);
     prop._lastVisitDay = GAME_TIME.totalDays;
     addLifeEvent('', `${n.name}を${PROPERTY_DEFS[townId]?.name||'拠点'}の留守番に置いた。`);
@@ -7679,6 +7790,45 @@ function checkWeightPenalty(pc=PC){
 // ══════════════════════════════════════════
 const SAVE_SLOT_COUNT = 3;
 const SAVE_KEY_PREFIX = 'tt5_save_';
+const AUTOSAVE_KEY = 'tt5_autosave';
+
+function autoSave(){
+ if(!PC._autoSave) return;
+ const data = {
+  pc: JSON.parse(JSON.stringify(PC)),
+  gameTime: JSON.parse(JSON.stringify(GAME_TIME)),
+  nodeId: currentNodeId,
+  savedAt: Date.now(),
+  isAutoSave: true,
+ };
+ localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+ showSaveToast(' 自動セーブ完了');
+}
+
+function loadAutoSave(){
+ const raw = localStorage.getItem(AUTOSAVE_KEY);
+ if(!raw) return false;
+ const data = JSON.parse(raw);
+ Object.assign(PC, data.pc);
+ Object.assign(GAME_TIME, data.gameTime);
+ if(PC.invEquip){
+  PC.invEquip = PC.invEquip.filter(name => {
+   if(name === 'Torch'){ PC._torchStock = (PC._torchStock||0)+3; return false; }
+   return true;
+  });
+ }
+ if(PC._torchStock == null) PC._torchStock = 0;
+ if(PC._torchTurns == null) PC._torchTurns = 0;
+ ['title-screen','chargen','shop-area'].forEach(id=>{
+  document.getElementById(id)?.classList.add('hidden');
+ });
+ const g = document.getElementById('game');
+ g.classList.remove('hidden'); g.style.display='flex';
+ currentNodeId = data.nodeId || 'TOWN_KHAZAN';
+ updateHUD(); updateTimebar();
+ go(currentNodeId);
+ return true;
+}
 const WORLD_KEY = 'tt5_world'; // 世界の継続状態（暦・過去仲間）
 let currentSaveSlot = 1; // 現在使用中スロット（1〜3）
 function getSaveKey(slot){ return SAVE_KEY_PREFIX + (slot||currentSaveSlot); }
@@ -7689,10 +7839,13 @@ let currentNodeId = 'TOWN_KHAZAN';
 function loadWorldState(){
  try{
  const raw = localStorage.getItem(WORLD_KEY);
- return raw ? JSON.parse(raw) : null;
- }catch(e){ return null; }
+ const ws = raw ? JSON.parse(raw) : null;
+ console.log('[WS] loadWorldState key=', WORLD_KEY, 'found=', !!ws, 'properties=', ws ? JSON.stringify(ws.properties)?.slice(0,200) : null);
+ return ws;
+ }catch(e){ console.error('[WS] loadWorldState error', e); return null; }
 }
 function saveWorldState(ws){
+ console.log('[WS] saveWorldState key=', WORLD_KEY, 'properties=', JSON.stringify(ws.properties)?.slice(0,200), 'residents=', JSON.stringify(ws.properties ? Object.values(ws.properties).map(p=>p.residents) : null));
  localStorage.setItem(WORLD_KEY, JSON.stringify(ws));
 }
 function clearWorldState(){
@@ -7700,6 +7853,17 @@ function clearWorldState(){
 }
 
 // 現在PCを引退・死亡させ、WORLD_STATEを更新
+function mergeArray(wsArr, pcArr, key){
+ // wsArrとpcArrをkeyで重複排除してマージ（pcArrを優先）
+ const base = JSON.parse(JSON.stringify(wsArr||[]));
+ const cur  = JSON.parse(JSON.stringify(pcArr||[]));
+ cur.forEach(item=>{
+  const idx = base.findIndex(b=>b[key]===item[key]);
+  if(idx >= 0) base[idx] = item; else base.push(item);
+ });
+ return base;
+}
+
 function archiveCurrentPC(reason){
  const ws = loadWorldState() || { totalDays: 0, knownNPCs: [] };
  // 暦を保存
@@ -7710,13 +7874,63 @@ function archiveCurrentPC(reason){
  if(!ws.knownNPCs.find(k => k._npcId === npc._npcId)){
  ws.knownNPCs.push(JSON.parse(JSON.stringify(npc)));
  } else {
- // 既存エントリを最新状態に更新
  const idx = ws.knownNPCs.findIndex(k => k._npcId === npc._npcId);
  ws.knownNPCs[idx] = JSON.parse(JSON.stringify(npc));
  }
  });
  ws.lastPCName = PC.name;
- ws.lastReason = reason; // 'retire' | 'dead'
+ ws.lastReason = reason;
+
+ // 混沌の状態を保存
+ if(PC._chaosNest) ws.chaosNest = JSON.parse(JSON.stringify(PC._chaosNest));
+ // 飢饉の記録を保存
+ if(PC._famineYear) ws.famineYear = PC._famineYear;
+ if(PC._famineHeroName) ws.famineHeroName = PC._famineHeroName;
+ // 地方英雄・各町英雄フラグを保存（噂話用）
+ if(PC._heroRegions) ws.heroRegions = JSON.parse(JSON.stringify(PC._heroRegions));
+ if(PC._heroTowns) ws.heroTowns = JSON.parse(JSON.stringify(PC._heroTowns));
+ // 農業の豊凶状況を保存
+ if(PC._harvestYear) ws.harvestYear = PC._harvestYear;
+ if(PC._harvestResult) ws.harvestResult = PC._harvestResult;
+ if(PC._foodPriceMult) ws.foodPriceMult = PC._foodPriceMult;
+ if(PC._harvestPriceApplied) ws.harvestPriceApplied = PC._harvestPriceApplied; // 'retire' | 'dead'
+
+ // 拠点をワールドステートに保存（既存データとマージ）
+ if(PC.properties && Object.keys(PC.properties).length > 0){
+  ws.properties = ws.properties || {};
+  // 各拠点をマージ：現PCのデータを基本としつつ、既存wsの graves/graveyard/residents を保持
+  Object.keys(PC.properties).forEach(townId=>{
+   const curProp = JSON.parse(JSON.stringify(PC.properties[townId]));
+   const wsProp  = ws.properties[townId] || {};
+   // 墓地・住人は既存wsのデータと現PCのデータを合算
+   curProp.graves    = mergeArray(wsProp.graves,    curProp.graves,    'name');
+   curProp.graveyard = mergeArray(wsProp.graveyard, curProp.graveyard, 'name');
+   curProp.residents = mergeArray(wsProp.residents, curProp.residents, 'name');
+   ws.properties[townId] = curProp;
+  });
+
+  // 「拠点に住んで引退」の場合のみ住人として登録
+  if(reason === 'retire_to_property'){
+   const townIds = Object.keys(PC.properties);
+   const mainTown = townIds.sort((a,b)=>(PC.properties[b]?.tier||0)-(PC.properties[a]?.tier||0))[0];
+   console.log('[WS] retire_to_property mainTown=', mainTown, 'ws.properties[mainTown]=', !!ws.properties?.[mainTown]);
+   if(mainTown && ws.properties[mainTown]){
+    const prop = ws.properties[mainTown];
+    prop.residents = prop.residents || [];
+    if(!prop.residents.find(r=>r.name===PC.name)){
+     const birthTotalDays = ((PC.birthYear||0) - (GAME_TIME.startYear||400)) * 365 + ((PC.birthMonth||1)-1)*30 + ((PC.birthDay||1)-1);
+     const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[PC.type]||PC.type;
+     const lifespanYears = PC.lifespan || (AGING_PARAMS[PC.race]||AGING_PARAMS.human).lifespan;
+     const resident = { name: PC.name, race: PC.race, type: PC.type, typeJa, birthTotalDays, lifespanYears, retiredAge: PC.age||0, movedInDay: GAME_TIME.totalDays, retiredDay: GAME_TIME.totalDays };
+     prop.residents.push(resident);
+     console.log('[WS] resident added:', JSON.stringify(resident));
+    } else {
+     console.log('[WS] resident already exists:', PC.name);
+    }
+   }
+  }
+ }
+
  saveWorldState(ws);
 }
 
@@ -7971,14 +8185,40 @@ function showSaveSlotUI(mode){
 
   row.innerHTML = `<div style="flex:1">${slotLabel}<br>${slotDesc}</div>`;
   row.onclick = ()=>{
-   if(info){
-    const slotName = info.name !== PC.name ? `スロット${s}（${info.name}）` : `スロット${s}`;
-    if(!confirm(`${slotName}のデータに上書きしますか？`)) return;
+   if(mode === 'load'){
+    if(!info){ return; }
+    if(!confirm(`スロット${s}（${info.name}）をロードしますか？`)) return;
+    panel.remove(); loadGame(s);
+   } else {
+    if(info){
+     const slotName = info.name !== PC.name ? `スロット${s}（${info.name}）` : `スロット${s}`;
+     if(!confirm(`${slotName}のデータに上書きしますか？`)) return;
+    }
+    panel.remove();
+    _doSaveToSlot(s);
    }
-   panel.remove();
-   _doSaveToSlot(s);
   };
   panel.appendChild(row);
+ }
+
+ // 自動セーブスロット（ロード時のみ表示）
+ if(mode === 'load'){
+  const asRaw = localStorage.getItem(AUTOSAVE_KEY);
+  if(asRaw){
+   try{
+    const asData = JSON.parse(asRaw);
+    const asDate = new Date(asData.savedAt).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const asName = asData.pc?.name || '?';
+    const asRow = document.createElement('div');
+    asRow.style.cssText = 'border:1px solid #224433;border-radius:3px;padding:8px;margin:4px 0;display:flex;align-items:center;gap:8px;cursor:pointer;background:#0a1a10;';
+    asRow.innerHTML = `<div style="flex:1"><span style="color:#6aaa60;font-size:calc(var(--font-sm) - 4px)">AUTO </span><br><span style="color:#ccc;font-size:calc(var(--font-sm) - 3px)">${asName}</span> <span style="color:#667788;font-size:calc(var(--font-sm) - 4px)">[${asDate}]</span></div>`;
+    asRow.onclick = ()=>{
+     if(!confirm(`自動セーブデータをロードしますか？`)) return;
+     panel.remove(); loadAutoSave();
+    };
+    panel.appendChild(asRow);
+   }catch(e){}
+  }
  }
 
  const cancelBtn = document.createElement('button');
@@ -8058,6 +8298,7 @@ function _showSettingsMain(){
  panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#080c18;border:2px solid #224466;border-radius:6px;padding:16px;z-index:9998;min-width:280px;max-width:340px;box-shadow:0 0 30px #000a;font-family:system-ui,sans-serif';
  panel.innerHTML = `
   <div style="color:var(--magic);font-size:var(--font-sm);margin-bottom:14px;text-align:center">⚙ 設定</div>
+  <button id="fsp-autosave-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> 自動セーブ：${PC._autoSave ? '<span style="color:#6aaa60">ON</span>' : '<span style="color:#667">OFF</span>'}</button>
   <button id="fsp-font-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> フォント設定</button>
   <button id="fsp-world-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> OOONの世界</button>
   <button id="fsp-guide-btn" style="width:100%;background:#0a0f1a;border:1px solid #334466;color:#88aacc;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> ゲームシステム</button>
@@ -8065,6 +8306,11 @@ function _showSettingsMain(){
   <button id="fsp-close" style="width:100%;background:none;border:1px solid #334;color:#667;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px;cursor:pointer;border-radius:3px"> 閉じる</button>
  `;
  document.body.appendChild(panel);
+ document.getElementById('fsp-autosave-btn').onclick = ()=>{
+  PC._autoSave = !PC._autoSave;
+  showSaveToast(` 自動セーブ：${PC._autoSave ? 'ON' : 'OFF'}`);
+  panel.remove(); _showSettingsMain();
+ };
  document.getElementById('fsp-font-btn').onclick  = ()=>_showFontSettings();
  document.getElementById('fsp-world-btn').onclick = ()=>_showWorldMenu();
  document.getElementById('fsp-guide-btn').onclick = ()=>_showGuideMenu();
@@ -8435,6 +8681,47 @@ function checkSaveOnTitle(){
     </div>`;
   }
   container.appendChild(slotDiv);
+ }
+
+ // 自動セーブスロットを表示
+ const asRaw = localStorage.getItem(AUTOSAVE_KEY);
+ if(asRaw){
+  try{
+   const asData = JSON.parse(asRaw);
+   const asDate = new Date(asData.savedAt).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+   const asName = asData.pc?.name || '?';
+   const asRace = asData.pc?.race||'';
+   const asType = asData.pc?.type||'';
+   const asLv = asData.pc?.level||1;
+   const asAge = asData.pc?.age||0;
+   const asTownMap = {
+    TOWN_KHAZAN:'カザン',TOWN_PORT_ARGON:'ポートアルゴン',TOWN_STONEHIEM:'ストーンヘイム',
+    TOWN_ELSIA:'エルマリア',TOWN_VERDA:'ヴェルダ村',TOWN_RIMHOLM:'リムホルム',
+    TOWN_MARAKAI:'マラカイ',TOWN_AL_RASHID:'アル・ラシード',TOWN_OASIS_FORT:'オアシス砦',
+    TOWN_SAROON:'サルーン',TOWN_DUNA:'デュナ',TOWN_YELDUN:'イェルドゥン',
+    TOWN_FROSTPEAK:'フロストピーク',TOWN_ASHVEIL:'アッシュヴェイル',
+    TOWN_VALDHEIM:'ヴァルドヘイム',TOWN_NIFURVIK:'ニフルヴィーク',TOWN_ISKALD:'イスカルド',
+    TOWN_NERIA:'ネリア港',TOWN_DORUA:'ドルアの村',TOWN_SARPE:'サルペ',TOWN_NEBRA:'ネブラ',
+   };
+   const asTownName = asTownMap[asData.nodeId] || asData.nodeId || '?';
+   const raceMap={human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'};
+   const typeMap={warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'};
+   const asDiv = document.createElement('div');
+   asDiv.style.cssText = 'border:1px solid #224433;border-radius:4px;padding:8px 10px;margin:4px 0;background:#061208;display:flex;align-items:center;gap:8px;';
+   asDiv.innerHTML = `
+    <div style="flex:1;min-width:0">
+     <div style="color:#6aaa60;font-size:calc(var(--font-sm) - 3px);margin-bottom:2px">AUTO SAVE</div>
+     <div style="color:#eee;font-size:calc(var(--font-sm) - 2px);font-family:system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${asName}</div>
+     <div style="color:var(--slate);font-size:calc(var(--font-sm) - 4px);margin-top:2px">${raceMap[asRace]||asRace} ${typeMap[asType]||asType} Lv${asLv} / ${asAge}歳　 ${asTownName}</div>
+     <div style="color:#556677;font-size:calc(var(--font-sm) - 4px)">${asDate}</div>
+    </div>
+    <button id="autosave-load-btn" style="background:#001a0a;border:1px solid #226644;color:#6aaa60;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 4px);padding:6px 8px;cursor:pointer;border-radius:3px;white-space:nowrap">▶ 再開</button>`;
+   container.insertBefore(asDiv, container.firstChild);
+   asDiv.querySelector('#autosave-load-btn').onclick = ()=>{
+    if(confirm(`自動セーブ（${asName}）をロードしますか？`)) loadAutoSave();
+   };
+   hasAny = true;
+  }catch(e){}
  }
 
  // ワールド状態の表示
@@ -18309,6 +18596,40 @@ function startGame(){
  GAME_TIME.totalDays = 0;
  }
  PC._inheritTime = undefined;
+ // 拠点の引き継ぎ
+ if(PC._inheritedProperties){
+  PC.properties = PC._inheritedProperties;
+  PC._inheritedProperties = undefined;
+ }
+ // 混沌・飢饉の引き継ぎ
+ if(PC._inheritedChaosNest){
+  PC._chaosNest = PC._inheritedChaosNest;
+  PC._inheritedChaosNest = undefined;
+ }
+ if(PC._inheritedFamineYear){
+  PC._famineYear = PC._inheritedFamineYear;
+  PC._famineHeroName = PC._inheritedFamineHeroName||'';
+  PC._inheritedFamineYear = undefined;
+  PC._inheritedFamineHeroName = undefined;
+ }
+ if(PC._inheritedHeroRegions){
+  PC._heroRegions = PC._inheritedHeroRegions;
+  PC._inheritedHeroRegions = undefined;
+ }
+ if(PC._inheritedHeroTowns){
+  PC._heroTowns = PC._inheritedHeroTowns;
+  PC._inheritedHeroTowns = undefined;
+ }
+ if(PC._inheritedHarvestYear){
+  PC._harvestYear = PC._inheritedHarvestYear;
+  PC._harvestResult = PC._inheritedHarvestResult;
+  PC._foodPriceMult = PC._inheritedFoodPriceMult || 1.0;
+  PC._harvestPriceApplied = PC._inheritedHarvestPriceApplied;
+  PC._inheritedHarvestYear = undefined;
+  PC._inheritedHarvestResult = undefined;
+  PC._inheritedFoodPriceMult = undefined;
+  PC._inheritedHarvestPriceApplied = undefined;
+ }
  const startDate = getCurrentDate();
  const birthMonth = Math.floor(Math.random() * 12) + 1; // 1〜12月
  const birthDay = Math.floor(Math.random() * 30) + 1; // 1〜30日
@@ -21286,10 +21607,33 @@ function removeRing(){
 }
 
 function confirmRetire(){
- if(!confirm(`${PC.name}を引退させますか？\nこの冒険者のプレイは終了します。`)) return;
- archiveCurrentPC('retire');
- closeInventory();
- go('RETIRE');
+ const hasProp = PC.properties && Object.keys(PC.properties).length > 0;
+ if(hasProp){
+  // 拠点あり：選択肢を表示
+  const story = document.getElementById('story');
+  story.innerHTML = `<span style="color:#c8a44a"> ${PC.name}を引退させますか？</span><br><br>`
+   +`<span class="dim">拠点を持っています。次の冒険者に引き継ぐことができます。</span>`;
+  renderChoices([
+   {label:' 拠点に住んで引退（拠点・住人として登録）', fn:()=>{
+    if(!confirm(`${PC.name}を拠点に住まわせて引退しますか？`)) return;
+    archiveCurrentPC('retire_to_property');
+    closeInventory();
+    go('RETIRE');
+   }},
+   {label:' そのまま引退（拠点のみ引き継ぎ）', fn:()=>{
+    if(!confirm(`${PC.name}を引退させますか？`)) return;
+    archiveCurrentPC('retire');
+    closeInventory();
+    go('RETIRE');
+   }},
+   {label:'← キャンセル', fn:()=>go(currentNodeId)},
+  ]);
+ } else {
+  if(!confirm(`${PC.name}を引退させますか？\nこの冒険者のプレイは終了します。`)) return;
+  archiveCurrentPC('retire');
+  closeInventory();
+  go('RETIRE');
+ }
 }
 
 // エンディング画面の「続ける」HTML（仲間NPC一覧）
@@ -21336,23 +21680,40 @@ function startAsNPC(npcIdx){
 
  // NPCのデータをPCに転写
  Object.assign(PC, JSON.parse(JSON.stringify(npc)));
- // PCとして必要な項目を補完
+ // PCとして不要なNPC固有フィールドをクリア
  PC.party = [];
  PC.quests = [];
+ PC.lifeLog = []; // ライフイベントは新PCのものからスタート
  PC.spdBase = PC.spd;
- // ap/levelの整合性保証
- const inheritedLevel = PC.level || 1;
- // apが未設定・NaN・またはlevelに対応する閾値を下回っている場合は補正
- if(PC.ap == null || isNaN(PC.ap) || PC.ap < (LEVEL_THRESHOLDS[inheritedLevel-1]||0)){
- PC.ap = LEVEL_THRESHOLDS[Math.max(0, inheritedLevel - 1)] || 0;
+ // 前PCの_フラグ類をクリア（世界状態はworldStateから引き継ぐ）
+ const keepFlags = new Set(['_startTown','_npcId']);
+ Object.keys(PC).filter(k=>k.startsWith('_') && !keepFlags.has(k)).forEach(k=>{ delete PC[k]; });
+ // 年齢を現在の暦から再計算
+ if(PC.birthYear != null){
+  const ageNow = Math.floor((GAME_TIME.totalDays - ((PC.birthYear - (GAME_TIME.startYear||400))*365)) / 365);
+  PC.age = Math.max(PC.age||0, ageNow);
+ } else {
+  PC.birthYear = (400 + Math.floor(ws.totalDays / 360)) - (PC.age||20);
+  PC.birthMonth = 1; PC.birthDay = 1;
  }
- PC.level = inheritedLevel; // levelを明示的に再セット
- if(PC.birthYear == null) PC.birthYear = (400 + Math.floor(ws.totalDays / 360)) - (PC.age||20);
- if(PC.birthMonth == null){ PC.birthMonth = 1; PC.birthDay = 1; }
  if(PC.lifespan == null) PC.lifespan = rollLifespan(PC.race);
 
  // ワールドからこのNPCを除去
  ws.knownNPCs.splice(npcIdx, 1);
+ // 拠点を引き継ぎ（worldStateの最新データを使用）
+ if(ws.properties) PC.properties = JSON.parse(JSON.stringify(ws.properties));
+ // 混沌・飢饉の引き継ぎ
+ if(ws.chaosNest) PC._chaosNest = JSON.parse(JSON.stringify(ws.chaosNest));
+ if(ws.famineYear) PC._famineYear = ws.famineYear;
+ if(ws.famineHeroName) PC._famineHeroName = ws.famineHeroName;
+ // 地方英雄・英雄フラグの引き継ぎ
+ if(ws.heroRegions) PC._heroRegions = JSON.parse(JSON.stringify(ws.heroRegions));
+ if(ws.heroTowns) PC._heroTowns = JSON.parse(JSON.stringify(ws.heroTowns));
+ // 農業豊凶の引き継ぎ
+ if(ws.harvestYear) PC._harvestYear = ws.harvestYear;
+ if(ws.harvestResult) PC._harvestResult = ws.harvestResult;
+ if(ws.foodPriceMult) PC._foodPriceMult = ws.foodPriceMult;
+ if(ws.harvestPriceApplied) PC._harvestPriceApplied = ws.harvestPriceApplied;
  saveWorldState(ws);
  localStorage.removeItem(getSaveKey());
 
@@ -21368,7 +21729,13 @@ function startAsNPC(npcIdx){
 // 新PCを作成・暦は引き継ぐ
 function startNewPCInherit(){
  const ws = loadWorldState();
- if(ws) GAME_TIME.totalDays = ws.totalDays; // 先に引き継ぐ
+ if(ws) GAME_TIME.totalDays = ws.totalDays;
+ if(ws && ws.properties) PC._inheritedProperties = JSON.parse(JSON.stringify(ws.properties));
+ if(ws && ws.chaosNest) PC._inheritedChaosNest = JSON.parse(JSON.stringify(ws.chaosNest));
+ if(ws && ws.famineYear){ PC._inheritedFamineYear = ws.famineYear; PC._inheritedFamineHeroName = ws.famineHeroName||''; }
+ if(ws && ws.heroRegions) PC._inheritedHeroRegions = JSON.parse(JSON.stringify(ws.heroRegions));
+ if(ws && ws.heroTowns) PC._inheritedHeroTowns = JSON.parse(JSON.stringify(ws.heroTowns));
+ if(ws && ws.harvestYear){ PC._inheritedHarvestYear = ws.harvestYear; PC._inheritedHarvestResult = ws.harvestResult; PC._inheritedFoodPriceMult = ws.foodPriceMult; PC._inheritedHarvestPriceApplied = ws.harvestPriceApplied; }
  localStorage.removeItem(getSaveKey());
  ['title-screen','shop-area','game'].forEach(id=>{
  const el = document.getElementById(id);
@@ -21376,7 +21743,6 @@ function startNewPCInherit(){
  });
  document.getElementById('chargen').classList.remove('hidden');
  setTimeout(showTitleImage, 0);
- // startGameで暦がリセットされないよう一時フラグを立てる
  PC._inheritTime = true;
 }
 
@@ -21601,6 +21967,7 @@ function go(nodeId){
  TOWN_NERIA:'neria', TOWN_DORUA:'dorua', TOWN_SARPE:'sarpe', TOWN_NEBRA:'nebra'
  };
  if(townNodeMap[nodeId]) checkAllDeliveries(townNodeMap[nodeId]);
+ if(townNodeMap[nodeId]) autoSave();
 
  // 酒場ノード到着時にペナルティチェック
  const tavernTownMap = {
@@ -22401,6 +22768,7 @@ function _startNewRound(){
  // 前ラウンドのフラグをリセット
  cbtState._pcDidCast   = false;
  cbtState._pcDidRanged = false;
+ cbtState._pcRangedSkipped = false;
  cbtState._pcDaggerUsed = false;
  (PC.party||[]).forEach((_,i)=>{
   cbtState[`_npcDidCast_${i}`]    = false;
@@ -22690,7 +23058,7 @@ function _startRangedPhase(){
 
 function _rangedPhaseStep(npcIdx, rangedParty){
  // PC未攻撃かつ遠距離武器あり かつ 魔法未詠唱 かつ 敵が生存している場合にPCフェーズ
- if(npcIdx === 0 && !cbtState._pcDidRanged && !cbtState._pcDidCast && isRangedWeapon(PC.equippedRanged) && !cbtState.enemies.every(e=>(cbtState.isNPC?e.curCon:e.curMR)<=0)){
+ if(npcIdx === 0 && !cbtState._pcDidRanged && !cbtState._pcRangedSkipped && !cbtState._pcDidCast && isRangedWeapon(PC.equippedRanged) && !cbtState.enemies.every(e=>(cbtState.isNPC?e.curCon:e.curMR)<=0)){
   // PCの遠距離攻撃選択UI
   const panel = document.getElementById('npc-action-panel');
   const title = document.getElementById('npc-action-title');
@@ -22722,7 +23090,7 @@ function _rangedPhaseStep(npcIdx, rangedParty){
   const skip = document.createElement('button');
   skip.className = 'choice-btn';
   skip.textContent = 'スキップ';
-  skip.onclick = ()=>{ panel.style.display='none'; _rangedPhaseStep(0, rangedParty, true); };
+  skip.onclick = ()=>{ panel.style.display='none'; cbtState._pcRangedSkipped=true; _rangedPhaseStep(0, rangedParty); };
   btns.appendChild(skip);
   return;
  }
@@ -24685,6 +25053,47 @@ const ENTRY_NODE = 'TOWN_KHAZAN';
 function dbg(fn){
  try{ fn(); } catch(e){ showSaveToast('ERR:'+e.message); } }
 
+function dbgShowWorldState(){
+ const ws = loadWorldState();
+ const story = document.getElementById('story');
+ if(!ws){ story.innerHTML = '<span style="color:#c05040">worldState: null（未保存）</span>'; return; }
+ let html = '<span style="color:#cc88ff;font-size:calc(var(--font-sm) - 1px)">── worldState ──</span><br><br>';
+ html += `<b>key:</b> ${typeof WORLD_KEY !== 'undefined' ? WORLD_KEY : 'UNDEFINED'}<br>`;
+ html += `<b>totalDays:</b> ${ws.totalDays}<br>`;
+ html += `<b>lastPCName:</b> ${ws.lastPCName}<br>`;
+ html += `<b>lastReason:</b> ${ws.lastReason}<br>`;
+ html += `<b>knownNPCs:</b> ${(ws.knownNPCs||[]).map(n=>n.name).join(', ') || 'なし'}<br>`;
+ html += `<b>chaosNest:</b> ${ws.chaosNest ? JSON.stringify(ws.chaosNest).slice(0,60)+'...' : 'なし'}<br>`;
+ if(ws.properties){
+  html += '<br><b>properties:</b><br>';
+  Object.keys(ws.properties).forEach(tid=>{
+   const p = ws.properties[tid];
+   html += `&nbsp;&nbsp;<b>${tid}</b>: tier=${p.tier||0}`;
+   html += ` graves=${( p.graves||[]).length} graveyard=${(p.graveyard||[]).length}`;
+   html += ` residents=${JSON.stringify((p.residents||[]).map(r=>r.name))}<br>`;
+  });
+ } else {
+  html += '<b>properties:</b> なし<br>';
+ }
+ story.innerHTML = html;
+}
+
+function dbgShowPCProperties(){
+ const story = document.getElementById('story');
+ let html = '<span style="color:#cc88ff;font-size:calc(var(--font-sm) - 1px)">── PC.properties ──</span><br><br>';
+ if(!PC.properties || Object.keys(PC.properties).length===0){
+  html += 'なし';
+ } else {
+  Object.keys(PC.properties).forEach(tid=>{
+   const p = PC.properties[tid];
+   html += `<b>${tid}</b>: tier=${p.tier||0}`;
+   html += ` graves=${(p.graves||[]).length} graveyard=${(p.graveyard||[]).length}`;
+   html += ` residents=${JSON.stringify((p.residents||[]).map(r=>r.name))}<br>`;
+  });
+ }
+ story.innerHTML = html;
+}
+
 function dbgFireEvent(ev){
  const story = document.getElementById('story');
  story.innerHTML =
@@ -25114,13 +25523,37 @@ const NODES = {
  const yearsAdventuring = Math.max(0, age - 20);
  const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[PC.type]||PC.type;
  const raceJa = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[PC.race]||PC.race;
- const gold = PC.gold||0;
+ const gold = (PC.gold||0) + Object.values(PC.properties||{}).reduce((s,p)=>s+(p.storage?.gold||0),0);
  const wealth = gold>=1000?'大富豪として':gold>=500?'余裕のある暮らしで':gold>=100?'慎ましく':gold>0?'わずかな蓄えで':'無一文で';
  const partyNames = (PC.party||[]).filter(n=>n.con>0).map(n=>n.name).join('、');
  const partyLine = partyNames
  ? `仲間の${partyNames}とともに、穏やかな余生を送ることにした。`
  : '孤独だが、充実した日々を振り返りながら、静かな余生を選んだ。';
- const legacy = PC.level>=4?'伝説の':PC.level>=3?'名高い':PC.level>=2?'一人前の':'駆け出しの';
+ // 実績スコアで形容を決定
+ const heroTownCount = Object.keys(PC._heroTowns||{}).length;
+ const heroRegionCount = Object.keys(PC._heroRegions||{}).length;
+ const chaosCleared = !!(PC._chaosNest?.cleared);
+ const famineHero = !!(PC._famineYear && PC._famineHeroName === PC.name);
+ const achievementScore =
+  heroTownCount +
+  heroRegionCount * 3 +
+  (chaosCleared ? 5 : 0) +
+  (famineHero ? 4 : 0);
+
+ let legacy;
+ if(achievementScore >= 15 || (achievementScore >= 10 && PC.level >= 8)){
+  legacy = '神々しい';
+ } else if(achievementScore >= 8 || (achievementScore >= 5 && PC.level >= 6)){
+  legacy = '伝説の';
+ } else if(achievementScore >= 4 || (achievementScore >= 2 && PC.level >= 5)){
+  legacy = '知らぬ者のいない';
+ } else if(PC.level >= 6){
+  legacy = '名高い';
+ } else if(PC.level >= 2){
+  legacy = '一人前の';
+ } else {
+  legacy = '駆け出しの';
+ }
 
  return `<div style="text-align:center;margin-bottom:16px">
  <div style="font-size:calc(var(--font-lg) + 6px);color:var(--gold);margin-bottom:6px"> 引退</div>
