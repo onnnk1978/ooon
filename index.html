@@ -4492,6 +4492,7 @@ function goOtherActions(townId){
   duna:      {label:' 郊外の封印廟へ',         go:'TOMB_ENTRANCE'},
   al_rashid: {label:' 東方の地下迷宮へ',       go:'AL_DNG_ENTRANCE'},
   frostpeak: {label:' 山麓の迷宮へ',           go:'FP_ENTRANCE'},
+  iskald:    {label:' 古代遺跡の地下へ',       go:'ISKALD_ENTRANCE'},
  };
  if(dungeonMap[townId]){
   const d = dungeonMap[townId];
@@ -7959,19 +7960,16 @@ const DUNGEON_NODES = new Set([
  'TOMB_SECRET_24_SEARCH','TOMB_SECRET_24_TRY',
  'TOMB_SECRET_1114_SEARCH','TOMB_SECRET_1114_TRY',
  'TOMB_3_6','TOMB_5_6','TOMB_10_11',
- // エルマリア「封じられた神殿」
- 'SHRINE_1','SHRINE_2','SHRINE_3','SHRINE_4','SHRINE_5','SHRINE_6',
- 'SHRINE_7','SHRINE_8','SHRINE_9','SHRINE_10','SHRINE_11',
- 'SHRINE_A','SHRINE_C','SHRINE_E','SHRINE_I',
- 'SHRINE_DOOR_14','SHRINE_DOOR_12','SHRINE_DOOR_56',
- 'SHRINE_LOCK_57','SHRINE_LOCK_57_TRY',
- 'SHRINE_LOCK_79','SHRINE_LOCK_79_TRY',
- 'SHRINE_TRAP_28','SHRINE_TRAP_28_TRIGGER',
- 'SHRINE_TRAP_3C','SHRINE_TRAP_3C_TRIGGER',
- 'SHRINE_PORT_7','SHRINE_PORT_7_TRY',
- 'SHRINE_PORT_EI','SHRINE_PORT_EI_TRY',
- 'SHRINE_SECRET_A_SEARCH','SHRINE_SECRET_A_TRY',
- 'SHRINE_DARK_ESCAPE',
+ // リムホルム「封じられた神殿」B1F（再設計版）
+ 'SHRINE_P1','SHRINE_CROSS1','SHRINE_P2','SHRINE_P4','SHRINE_P6',
+ 'SHRINE_ROOM1','SHRINE_P3','SHRINE_ROOM2','SHRINE_ROOM2_TELEPORT',
+ 'SHRINE_ROOM3','SHRINE_ROOM4','SHRINE_P5',
+ 'SHRINE_ROOM5',
+ 'SHRINE_P7','SHRINE_ROOM7',
+ 'SHRINE_P8','SHRINE_ROOM8',
+ 'SHRINE_P9','SHRINE_P10','SHRINE_ROOM9',
+ 'SHRINE_P11','SHRINE_ROOM10','SHRINE_P12',
+ 'SHRINE_B2F','SHRINE_DARK_ESCAPE',
  // 封じられた神殿 B2F「古の回廊」
  'SHR2_1','SHR2_2','SHR2_3','SHR2_4','SHR2_5','SHR2_6',
  'SHR2_7','SHR2_8','SHR2_9','SHR2_10','SHR2_11','SHR2_12',
@@ -8059,12 +8057,19 @@ const DUNGEON_NODES = new Set([
  'FP_B2_TJUNC1','FP_B2_LEVER',
  'FP_B2_ROOM1','FP_B2_ROOM2','FP_B2_ROOM3','FP_B2_ROOM4',
  'FP_B2_ROOM5','FP_B2_ROOM6','FP_B2_ROOM7',
+ // イスカルド「古代遺跡」B1F
+ 'ISKALD_ENTRANCE','ISKALD_C1','ISKALD_C2','ISKALD_C3','ISKALD_C4','ISKALD_C5',
+ 'ISKALD_C6','ISKALD_C7','ISKALD_C8','ISKALD_C9','ISKALD_C10','ISKALD_C11','ISKALD_C12',
+ 'ISKALD_ROOM1','ISKALD_ROOM2','ISKALD_ROOM3','ISKALD_ROOM4','ISKALD_ROOM5',
+ 'ISKALD_ROOM6','ISKALD_ROOM7','ISKALD_ROOM8','ISKALD_ROOM9','ISKALD_ROOM10','ISKALD_ROOM11',
+ 'ISKALD_B2F','ISKALD_DARK_ESCAPE',
 ]);
 // 入口・出口など松明消費・暗闇判定を除外するノード
 const DUNGEON_SAFE_NODES = new Set([
  'RUIN_ENTRANCE','RUIN_DARK_ESCAPE',
  'TOMB_ENTRANCE','TOMB_DARK_ESCAPE','TOMB_EXIT',
- 'SHRINE_ENTRANCE','SHRINE_EXIT','SHRINE_DARK_ESCAPE',
+ 'SHRINE_ENTRANCE','SHRINE_DARK_ESCAPE',
+ 'ISKALD_ENTRANCE','ISKALD_DARK_ESCAPE',
  'SHR2_ENTRANCE','SHR2_DARK_ESCAPE',
  'CRYPT_ENTRANCE','CRYPT_DARK_ESCAPE',
  'CRYPT2_ENTRANCE','CRYPT2_DARK_ESCAPE',
@@ -13962,9 +13967,14 @@ function ydNodeTxt(node, floor){
    const huntDone = dung.isHuntDungeon && dung.huntCompleted;
    const killed = dung.isHuntDungeon ? (dung.killedKeys?.filter(k=>PC[k]).length||0) : 0;
    const total  = dung.targetCount || 0;
-   const entrTxt = floor===1
-    ? ydEntranceTxt(design)
-    : `B${floor}Fへ続く階段の降り口付近だ。足元の石段は磨り減っており、これまで幾度となく踏まれてきたことが分かる。`;
+   // 入口テキストをダンジョンに固定（初回のみ生成）
+   if(!dung._entranceTxt) dung._entranceTxt = {};
+   if(!dung._entranceTxt[floor]){
+    dung._entranceTxt[floor] = floor===1
+     ? ydEntranceTxt(design)
+     : `B${floor}Fへ続く階段の降り口付近だ。足元の石段は磨り減っており、これまで幾度となく踏まれてきたことが分かる。`;
+   }
+   const entrTxt = dung._entranceTxt[floor];
    return `${tBar}${fLabel}<br><br>
     <span style="color:var(--gray)">${entrTxt}</span>
     ${dung.isHuntDungeon ? `<br><br><span style="color:${huntDone?'#6aaa60':'var(--amber)'}">討伐：${killed}/${total}体${huntDone?'  全滅させた！':''}</span>` : ''}`;
@@ -15942,16 +15952,19 @@ function _huntGoNode(nodeIdOrIdx){
  // テキスト描画
  const storyEl = document.getElementById('story');
  let nodeTxt = typeof node.txt==='function' ? node.txt() : (node.txt||'');
- // 分岐点の場合は追加描写
+ // 分岐点の場合は追加描写（固定テキストを使用）
  if(node.isBranch){
-  const side = node.branchSide==='right' ? '右手' : '左手';
-  const branchDescs = [
-   `${side}に暗い通路が分かれている。`,
-   `進む先で通路が二手に分かれている。${side}の道は奥が見えない。`,
-   `ここで道が分岐している。${side}手の通路から冷たい風が吹いている。`,
-   `壁の角に${side}へ続く通路の入口がある。`,
-  ];
-  nodeTxt += `<br><br><span style="color:var(--mist)">${_rdungPick(branchDescs)}</span>`;
+  if(!node._branchDesc){
+   const side = node.branchSide==='right' ? '右手' : '左手';
+   const branchDescs = [
+    `${side}に暗い通路が分かれている。`,
+    `進む先で通路が二手に分かれている。${side}の道は奥が見えない。`,
+    `ここで道が分岐している。${side}手の通路から冷たい風が吹いている。`,
+    `壁の角に${side}へ続く通路の入口がある。`,
+   ];
+   node._branchDesc = _rdungPick(branchDescs);
+  }
+  nodeTxt += `<br><br><span style="color:var(--mist)">${node._branchDesc}</span>`;
  }
  storyEl.innerHTML = nodeTxt;
 
@@ -18800,6 +18813,7 @@ function canEquipArmor(a){
 function equipRanged(idx){
  const w = PC.invWeapons[idx];
  if(!w || !isRangedWeapon(w)) return;
+ if(PC.type === 'wizard'){ showSaveToast('魔法使いは遠距離武器を装備できません'); return; }
  if(PC.equippedRanged) PC.invWeapons.push(PC.equippedRanged); // 既存を所持に戻す
  PC.invWeapons.splice(idx, 1); // スロットから削除
  PC.equippedRanged = w;
@@ -20340,7 +20354,7 @@ function renderStatusPanel(){
   rngHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:#334455;padding:6px">（なし）</div>`;
  }
  // 遠距離装備可能な所持武器を表示
- const rangedCandidates = PC.invWeapons.filter(w=>isRangedWeapon(w) && !(PC.equippedRanged && PC.equippedRanged.name===w.name));
+ const rangedCandidates = PC.type === 'wizard' ? [] : PC.invWeapons.filter(w=>isRangedWeapon(w) && !(PC.equippedRanged && PC.equippedRanged.name===w.name));
  rangedCandidates.forEach(w=>{
   const idx = PC.invWeapons.indexOf(w);
   rngHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
@@ -21826,6 +21840,7 @@ function darkRoomChoices(nodeId){
   { prefix:'CRYPT3_',       escape:'CRYPT3_DARK_ESCAPE' },
   { prefix:'CRYPT2_',       escape:'CRYPT2_DARK_ESCAPE' },
   { prefix:'CRYPT_',        escape:'CRYPT_DARK_ESCAPE' },
+  { prefix:'ISKALD_',       escape:'ISKALD_DARK_ESCAPE' },
   { prefix:'SHM3_',         escape:'RUIN_DARK_ESCAPE' },
   { prefix:'SHM2_',         escape:'RUIN_DARK_ESCAPE' },
   { prefix:'AL_DNG_',       escape:'RUIN_DARK_ESCAPE' },
@@ -22936,7 +22951,7 @@ function _magicPhaseNPCSpellSelect(npc, npcIdx, magicParty){
 
 // NPC呪文詠唱処理（レベル選択→対象選択→効果）
 function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp){
- const onDone = ()=>{ updateCombatUI(); _magicPhaseStep(npcIdx+1, magicParty); };
+ const onDone = ()=>{ _magicPhaseStep(npcIdx+1, magicParty); };
 
  if(sp.fn === 'ttyf'){
   // TTYFのみレベル選択（盗賊はLv1固定）
@@ -23028,6 +23043,8 @@ function _npcTtyfApply(npc, sp, lv, stCost, target, onDone){
  cl.innerHTML+=`<span style="color:#c89aff"> ${npc.name}がTake That You Fiend Lv${lv}を詠唱！</span><br>`;
  cl.innerHTML+=`<span style="color:#44ffaa"> ${target.name}に${dmg}ダメージ！（IQ${npc.iq||10}×Lv${lv}）${hpLabel}: ${prevHp}→${afterHp}</span><br>`;
  cbtState._npcTtyfMagicHit = (cbtState._npcTtyfMagicHit||0) + dmg;
+ // HPバーのみ更新（_showPCActionChoicesは呼ばない）
+ _updateCombatBars();
  // 全滅チェック
  if(cbtState.enemies.every(e=>(isNPCCbt?e.curCon:e.curMR)<=0)){
   gainAPAll(cbtState.totalMR);
@@ -23058,7 +23075,7 @@ function _startRangedPhase(){
 
 function _rangedPhaseStep(npcIdx, rangedParty){
  // PC未攻撃かつ遠距離武器あり かつ 魔法未詠唱 かつ 敵が生存している場合にPCフェーズ
- if(npcIdx === 0 && !cbtState._pcDidRanged && !cbtState._pcRangedSkipped && !cbtState._pcDidCast && isRangedWeapon(PC.equippedRanged) && !cbtState.enemies.every(e=>(cbtState.isNPC?e.curCon:e.curMR)<=0)){
+ if(npcIdx === 0 && !cbtState._pcDidRanged && !cbtState._pcRangedSkipped && isRangedWeapon(PC.equippedRanged) && !cbtState.enemies.every(e=>(cbtState.isNPC?e.curCon:e.curMR)<=0)){
   // PCの遠距離攻撃選択UI
   const panel = document.getElementById('npc-action-panel');
   const title = document.getElementById('npc-action-title');
@@ -27789,6 +27806,10 @@ const NODES = {
  // 入口: 北（Arch×2）/ 出口: 南（Arch）
  // ══════════════════════════════════════════════════════
 
+ // ══════════════════════════════════════════════════════════
+ // リムホルム：封じられた神殿 B1F（再設計版）
+ // ══════════════════════════════════════════════════════════
+
  SHRINE_ENTRANCE:{
  scene:'dungeon',
  txt:()=>{
@@ -27796,27 +27817,15 @@ const NODES = {
   const torchMsg = torches > 0
    ? `<span class="grn"> 松明を ${torches}本 持っている。</span>`
    : `<span class="red"> 松明を持っていない！暗闇の中を進むことになる。</span>`;
-  return ` <span class="gold" style="font-size:var(--font-base)">封じられた神殿</span><br><br>
-   リムホルムから半日ほど密林を分け入った先、石造りの廃神殿の入口が蔦に覆われている。<br>
-   北側に二つの拱門（アーチ）がそびえ、その奥から冷えた緑の空気が流れ出している。<br>
-   かつてエルフの神官が守ったとされるが、今では誰も近づかない。<br><br>
-   ${torchMsg}<br>
-   <span class="dim">入口の拱門の石には古エルフ語で「汝の心清きならば先へ進め」と刻まれている。</span>`;
+  return `<span class="gold" style="font-size:var(--font-base)">封じられた神殿</span><br><br>
+   リムホルムから半日ほど密林を分け入った先、蔦に覆われた石造りの廃神殿が姿を現す。<br>
+   風化した石段の先に重い石扉がそびえており、隙間から冷えた空気が流れ出している。<br>
+   かつてエルフの神官が守ったとされるが、今では何かが棲みついているという。<br><br>
+   ${torchMsg}`;
  },
  choices:[
-  {label:' 北の拱門をくぐる', fn:()=>initTorch(), go:'SHRINE_4'},
+  {label:' 重い石扉を押し開けて入る', fn:()=>initTorch(), go:'SHRINE_P1'},
   {label:'← リムホルムへ戻る', go:'TOWN_RIMHOLM'},
- ],
- },
-
- SHRINE_EXIT:{
- scene:'dungeon',
- txt:` <span class="gold">封じられた神殿 — 南出口</span><br><br>
-  石の拱門をくぐると、密林の湿った空気が体を包んだ。<br>
-  ここが神殿の南出口だ。リムホルムへ戻る道が続いている。`,
- choices:[
-  {label:'← リムホルムへ戻る', go:'TOWN_RIMHOLM'},
-  {label:' 神殿に入り直す（北拱門へ）', go:'SHRINE_ENTRANCE'},
  ],
  },
 
@@ -27828,671 +27837,780 @@ const NODES = {
   if(sr.success){
    PC._darkEscaped = true;
    return `<span class="gold"></span><br><br>
-    蔦の絡まる壁を手探りで進んだ。かすかな外光を頼りに、なんとか入口拱門まで辿り着いた！<br>
-    <span class="grn">LK SR 成功（${sr.total} ≥ ${sr.target}）　AP+${sr.ap}</span>`;
-  } else {
-   PC._darkEscaped = false;
-   const dmg = 5;
-   PC.con = Math.max(0, PC.con - dmg); updateHUD();
-   if(PC.con <= 0){ PC._darkDead = true;
-    return `<span class="gold"></span><br><br>
-     石畳の段差に足を取られ倒れ込んだ。動けない……<br>
-     <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg} → 死亡</span>`; }
-   PC._darkDead = false;
-   return `<span class="gold"></span><br><br>
-    根に躓き石壁に激突した。痛みをこらえながら、また出口を探す…<br>
-    <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg}（残り${PC.con}）</span>`;
+    壁を手探りで進み、かすかな外光を頼りになんとか入口へ辿り着いた！<br>
+    <span class="grn">${sr.rolled}D6=${sr.total} 目標:${sr.target}</span>`;
   }
+  return `<span class="red"></span><br><br>
+   暗闇の中で方向を失い、柱に何度もぶつかりながら彷徨い続けた。<br>
+   <span class="red">${sr.rolled}D6=${sr.total} 目標:${sr.target}</span>`;
  },
  choices:()=>{
-  if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
   if(PC._darkEscaped) return [{label:' 外の光の方へ', go:'SHRINE_ENTRANCE'}];
   return [{label:' もう一度出口を探す（LK Lv3 SR）', go:'SHRINE_DARK_ESCAPE'}];
  },
  },
 
- // ──────────────────────────────────────────────────
- // 部屋4（北の前室・入口直結）
- // 北: 拱門×2（入口）/ 東: Doorで部屋1へ / 西: Archで部屋5へ
- // ──────────────────────────────────────────────────
- SHRINE_4:{
- scene:'dungeon',
- txt:` <span class="gold">部屋4 — 北の前室</span><br><br>
-  拱門をくぐった先の広い石室。天井から蔦が垂れ下がり、床には苔が生えている。<br>
-  かつて参拝者が集まっただろう広間だが、今は静寂だけが支配する。<br>
-  東の壁には重い石扉、西側は開いた通路が続く。<br><br>
-  <span class="dim">━ 出口: 北（入口拱門）東（扉→部屋1）西（通路→部屋5） ━</span>`,
- choices:[
-  {label:' 東の扉へ（部屋1へ）', go:'SHRINE_DOOR_14'},
-  {label:'⬅ 西の通路へ（部屋5へ）', go:'SHRINE_5'},
-  {label:'⬆ 北（入口拱門）へ戻る', go:'SHRINE_ENTRANCE'},
- ],
- },
-
- // ──────────────────────────────────────────────────
- // 扉（部屋4←→部屋1）
- // ──────────────────────────────────────────────────
- SHRINE_DOOR_14:{
- scene:'dungeon',
- txt:` <span class="gold">石の扉（部屋4 — 部屋1）</span><br><br>
-  重い石造りの扉。蔦で縁取られているが、押すと石を引きずるような音とともに開いた。`,
- choices:[
-  {label:' 東へ進む', go:'SHRINE_1'},
-  {label:'⬅ 西へ進む', go:'SHRINE_4'},
- ],
- },
-
- // ──────────────────────────────────────────────────
- // 部屋1（北東の大広間）
- // 西: Doorで部屋4へ / 南西: Locked Doorで部屋2へ / 東: 部屋aへのSecret Searchへ
- // ──────────────────────────────────────────────────
- SHRINE_1:{
- scene:'dungeon',
- txt:` <span class="gold">部屋1 — 神官の間</span><br><br>
-  かつて神官たちが儀式を行った広間。大きな祭壇の台座だけが残り、神像は持ち去られている。<br>
-  東の壁の石目がやや違う——よく見ると隠し扉の気配がある。<br>
-  南西には鍵のかかった重厚な扉がある。<br><br>
-  <span class="dim">━ 出口: 西（扉→部屋4）南西（鍵扉→部屋2）東（？） ━</span>`,
- choices:[
-  {label:' 東の壁を調べる（隠し部屋を探す）', fn:()=>dungeonTrySR({ attr:'iq', level:2, flagKey:'_shrine_secret_a', successTxt:()=>` <b>東の壁を調べた</b><br>石の継ぎ目をなぞると、壁の一部がゆっくり回転した。隠し部屋への通路だ！`, failTxt:()=>` <b>東の壁を調べた</b><br>壁を叩き回ってみたが、何も見つからなかった。`, choicesFn:(ok)=>ok?[{label:' 隠し扉をくぐって部屋Aへ',go:'SHRINE_A'},{label:'⬅ 西へ進む',go:'SHRINE_1'}]:[{label:'⬅ 西へ進む',go:'SHRINE_1'}] })},
-  {label:' 南西の鍵扉を試みる（部屋2へ）', go:'SHRINE_LOCK_12'},
-  {label:'⬅ 西へ進む', go:'SHRINE_DOOR_14'},
- ],
- },
-
- SHRINE_SECRET_A_SEARCH:{
+ SHRINE_P1:{
  scene:'dungeon',
  txt:()=>{
-  dungeonTrySR({
-   attr:'iq', level:2, flagKey:'_shrine_secret_a',
-   successTxt:()=>` <span class="gold">東の壁を調べた</span><br><br>石の継ぎ目をなぞると、壁の一部がゆっくり回転した。隠し部屋への通路だ！`,
-   failTxt:()=>` <span class="gold">東の壁を調べた</span><br><br>壁を叩き回ってみたが、何も見つからなかった。`,
-   choicesFn:(ok)=> ok
-    ? [{label:' 隠し扉をくぐって部屋Aへ', go:'SHRINE_A'},{label:'⬅ 西へ進む', go:'SHRINE_1'}]
-    : [{label:'⬅ 西へ進む', go:'SHRINE_1'}],
-  }); return '';
+  return `<span class="gold">入口前の通路</span><br><br>
+   南北に延びる15mほどの石造りの通路。壁には古エルフ語の碑文が刻まれているが、<br>
+   長年の風化で読めなくなっている。床には細かな砂が積もり、足跡が残る。<br>
+   北に石扉（入口）、南の先で十字路に出る。`;
+ },
+ choices:[
+  {label:'⬆ 北（入口）へ戻る', go:'SHRINE_ENTRANCE'},
+  {label:'⬇ 南（十字路へ）進む', go:'SHRINE_CROSS1'},
+ ],
+ },
+
+ SHRINE_CROSS1:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">十字路</span><br><br>
+   四方に通路が延びる十字路。天井が高く、中央に割れた台座がある。<br>
+   かつて何かが置かれていたようだが、今は空だ。<br>
+   北に入口前の通路、東に装飾扉前の通路、南に南の長い通路、西に行き止まりの通路が続く。`;
+ },
+ choices:[
+  {label:'⬆ 北（入口前の通路）へ', go:'SHRINE_P1'},
+  {label:'➡ 東（装飾扉前の通路）へ', go:'SHRINE_P2'},
+  {label:'⬇ 南（南の長い通路）へ', go:'SHRINE_P6'},
+  {label:'⬅ 西（行き止まりの通路）へ', go:'SHRINE_P4'},
+ ],
+ },
+
+ SHRINE_P2:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">装飾扉前の通路</span><br><br>
+   東西10mの通路。東の突き当たりに豪華な装飾が施された石造りの扉がある。<br>
+   蔓草の文様が彫り込まれ、取っ手は金属製で今も鈍く光を反射している。<br>
+   鍵がかかっているようだ。`;
  },
  choices:()=>{
-  if(PC._shrine_secret_a) return [{label:' 隠し扉をくぐって部屋Aへ', go:'SHRINE_A'},{label:'⬅ 西へ進む', go:'SHRINE_1'}];
-  return [{label:'⬅ 西へ進む', go:'SHRINE_1'}];
- },
- },
-
- // ──────────────────────────────────────────────────
- // 部屋A（隠し部屋・宝物室）
- // ──────────────────────────────────────────────────
- SHRINE_A:{
- scene:'dungeon',
- txt:()=>{
-  const gp = 40 + Math.floor(Math.random()*41);
-  const ap = 30 + Math.floor(Math.random()*21);
-  gainGPAll(gp); gainAPAll(ap); updateHUD();
-  return ` <span class="gold">部屋A — 隠し宝物室</span><br><br>
-   蔦に覆われた小部屋。埃をかぶった宝箱と古い祭具が無造作に積まれている。<br>
-   エルフの文字が刻まれた護符、古い金貨が散らばっている。<br>
-   誰も入ったことのない静謐な空間だ。<br><br>
-   <span class="grn"> 古い金貨を拾った！ +${gp}GP　AP+${ap}</span><br><br>
-   <span class="dim">━ 出口: 西（隠し扉→部屋1） ━</span>`;
- },
- choices:[
-  {label:'⬅ 西へ進む', go:'SHRINE_1'},
- ],
- },
-
- // 鍵扉（部屋1→部屋2）Locked Door
- SHRINE_LOCK_12:{
- scene:'dungeon',
- txt:` <span class="gold">鍵のかかった扉（部屋1 — 部屋2）</span><br><br>
-  鍛冶仕事の施された重厚な鍵扉。南西に向かう通路へ通じているようだ。`,
- spellContext:'封じられた神殿の鍵扉（部屋1-2）',
- spellEffects:{
-  knockKnock:{ desc:'魔法で錠前を開錠する',
-   fn:()=>{ PC._shrine_lock12=true; return ' Knock Knock！錠前が音を立てて弾け飛んだ。扉が開く！'; },
-   afterChoices:[{label:'⬇ 南西へ進む',go:'SHRINE_2'},{label:'⬅ 西へ進む',go:'SHRINE_1'}]},
- },
- choices:[
-  {label:' 鍵を壊そうとする（ST Lv2 SR）', fn:()=>dungeonTrySR({ attr:'st', level:2, flagKey:'_shrine_lock12', successTxt:()=>` <b>鍵扉を力で開けた</b><br>扉の鍵部分に力を集中させると、金属が軋んで破れた。扉が開く！`, failTxt:()=>` <b>鍵扉を試みたが…</b><br>扉はびくともしない。腕が痛くなっただけだ。`, choicesFn:(ok)=>ok?[{label:'⬇ 南西へ進む',go:'SHRINE_2'},{label:'⬅ 西へ進む',go:'SHRINE_1'}]:[{label:'⬅ 西へ進む',go:'SHRINE_1'}] })},
-  {label:'⬅ 西へ進む', go:'SHRINE_1'},
- ],
- },
-
- SHRINE_LOCK_12_TRY:{
- scene:'dungeon',
- txt:()=>{
-  dungeonTrySR({
-   attr:'st', level:2, flagKey:'_shrine_lock12',
-   successTxt:()=>` <span class="gold">鍵扉を力で開けた</span><br><br>扉の鍵部分に力を集中させると、金属が軋んで破れた。扉が開く！`,
-   failTxt:()=>` <span class="gold">鍵扉を試みたが…</span><br><br>扉はびくともしない。腕が痛くなっただけだ。`,
-   choicesFn:(ok)=> ok
-    ? [{label:'⬇ 南西へ進む', go:'SHRINE_2'},{label:'⬅ 西へ進む', go:'SHRINE_1'}]
-    : [{label:'⬅ 西へ進む', go:'SHRINE_1'}],
-  }); return '';
- },
- choices:()=>{
-  if(PC._shrine_lock12) return [{label:'⬇ 南西へ進む', go:'SHRINE_2'},{label:'⬅ 西へ進む', go:'SHRINE_1'}];
-  return [{label:'⬅ 西へ進む', go:'SHRINE_1'}];
- },
- },
-
- // ──────────────────────────────────────────────────
- // 部屋2（中央の通路広間）
- // 北: 鍵扉→部屋1 / 東: Trapped Door→部屋8 / 西: 通路→部屋C
- // ──────────────────────────────────────────────────
- SHRINE_2:{
- scene:'dungeon',
- txt:` <span class="gold">部屋2 — 中央通路広間</span><br><br>
-  十字路のような広間。壁には守護精霊の浮彫りが連続している。<br>
-  東の扉には金属の罠機構が見え、慎重に進む必要がありそうだ。<br>
-  西側の通路は暗く、奥に小部屋が見える。<br><br>
-  <span class="dim">━ 出口: 北（鍵扉→部屋1）東（罠扉→部屋8）西（通路→部屋C） ━</span>`,
- choices:[
-  {label:' 東の扉へ進む（罠付き）', go:'SHRINE_TRAP_28'},
-  {label:'⬅ 西の通路へ（部屋Cへ）', go:'SHRINE_C'},
-  {label:'⬆ 北（鍵扉）へ進む', go:'SHRINE_LOCK_12'},
- ],
- },
-
- // 罠扉（部屋2→部屋8）Trapped Door
- SHRINE_TRAP_28:{
- scene:'dungeon',
- txt:` <span class="gold">罠付き扉（部屋2 — 部屋8）</span><br><br>
-  扉の把手に細い金属線が張られているのが見える。罠だ。<br>
-  慎重に解除を試みるか、このまま強引に開けるか？`,
- choices:[
-  {label:' 罠を解除してから開ける（DEX Lv2 SR）', fn:()=>dungeonTrySR({ attr:'dex', level:2, flagKey:'_shrine_trap28', successTxt:()=>` <b>罠を解除した</b><br>指先を使って金属線を慎重に外した。パチンと音がして罠が無効化された。`, failFn:(actor)=>{ const dmg=4+Math.floor(Math.random()*4); actor.con=Math.max(0,actor.con-dmg); if(actor===PC)PC.con=actor.con; if(PC.con<=0)PC._deadByTrap=true; updateHUD(); PC._trap28Dmg=dmg; }, failTxt:()=>` <b>罠が作動した！</b><br>針が飛び出して腕に刺さった。CON -${PC._trap28Dmg||0}`, choicesFn:()=>PC._deadByTrap?(()=>{PC._deadByTrap=false;return [{label:'…（毒に倒れた）',go:'DEAD'}];})():[{label:' 東へ進む',go:'SHRINE_8'},{label:'⬅ 西へ進む',go:'SHRINE_2'}] })},
-  {label:' 構わず開ける（CON -3）', fn:()=>{ PC.con=Math.max(0,PC.con-3); updateHUD(); }, go:'SHRINE_8'},
-  {label:'⬅ 西へ進む', go:'SHRINE_2'},
- ],
- },
-
- SHRINE_TRAP_28_TRIGGER:{
- scene:'dungeon',
- txt:()=>{
-  dungeonTrySR({
-   attr:'dex', level:2, flagKey:'_shrine_trap28',
-   successTxt:()=>` <span class="gold">罠を解除した</span><br><br>指先を使って金属線を慎重に外した。パチンと音がして罠が無効化された。`,
-   failTxt:(actor)=>{
-    const dmg = 4+Math.floor(Math.random()*4);
-    actor.con = Math.max(0,(actor.con||PC.con)-dmg);
-    if(actor===PC) PC.con=actor.con;
-    if(PC.con<=0) PC._deadByTrap=true;
-    updateHUD();
-    return ` <span class="gold">罠が作動した！</span><br><br>金属線が外れた瞬間、針が飛び出して腕に刺さった。毒が少し回る。CON -${dmg}（残り${actor.con}）`;
-   },
-   choicesFn:()=> PC._deadByTrap
-    ? (()=>{ PC._deadByTrap=false; return [{label:'…（毒に倒れた）', go:'DEAD'}]; })()
-    : [{label:' 東へ進む', go:'SHRINE_8'},{label:'⬅ 西へ進む', go:'SHRINE_2'}],
-  }); return '';
- },
- choices:()=>{
-  if(PC._deadByTrap){ PC._deadByTrap=false; return [{label:'…（毒に倒れた）', go:'DEAD'}]; }
-  return [{label:' 東へ進む', go:'SHRINE_8'},{label:'⬅ 西へ進む', go:'SHRINE_2'}];
- },
- },
-
- // 部屋C（南の小通路）
- SHRINE_C:{
- scene:'dungeon',
- txt:` <span class="gold">部屋C — 南の小通路</span><br><br>
-  細い石廊下。壁が狭く、二人並んでは歩けない。<br>
-  床に罠機構の跡があるが、すでに作動済みか壊れている。<br>
-  南の壁には古いArch（拱門）が見え、その先は出口へ通じているようだ。<br><br>
-  <span class="dim">━ 出口: 北南（出口拱門） ━</span>`,
- choices:[
-  {label:'⬆ 北へ進む', go:'SHRINE_2'},
-  {label:'⬇ 南の拱門から外へ出る', go:'SHRINE_EXIT'},
- ],
- },
-
- // ──────────────────────────────────────────────────
- // 部屋5（西の長い石室）
- // 北東: Arch→部屋4 / 南: Locked Door→部屋7 / 東: Door→部屋6
- // ──────────────────────────────────────────────────
- SHRINE_5:{
- scene:'dungeon',
- txt:` <span class="gold">部屋5 — 西の長石室</span><br><br>
-  縦長の石室。壁の両側に空の燭台が並び、かつては明るかっただろう。<br>
-  南側に鍵付きの重い扉、東側には通常の扉がある。<br>
-  北東の通路は部屋4へと繋がっている。<br><br>
-  <span class="dim">━ 出口: 北東（通路→部屋4）東（扉→部屋6）南（鍵扉→部屋7） ━</span>`,
- choices:[
-  {label:' 東の扉へ（部屋6へ）', go:'SHRINE_DOOR_56'},
-  {label:' 南の鍵扉を試みる（部屋7へ）', go:'SHRINE_LOCK_57'},
-  {label:'⬆ 北東へ進む', go:'SHRINE_4'},
- ],
- },
-
- // 扉（部屋5→部屋6）
- SHRINE_DOOR_56:{
- scene:'dungeon',
- txt:` <span class="gold">扉（部屋5 — 部屋6）</span><br><br>
-  石の扉が半開きになっている。東の部屋から光が漏れている。`,
- choices:[
-  {label:' 東へ進む', go:'SHRINE_6'},
-  {label:'⬅ 西へ進む', go:'SHRINE_5'},
- ],
- },
-
- // ──────────────────────────────────────────────────
- // 部屋6（中央の祭室）
- // 西: Door→部屋5 / 南: Door→部屋9 / 東: Portcullis→部屋9
- // ──────────────────────────────────────────────────
- SHRINE_6:{
- scene:'dungeon',
- txt:` <span class="gold">部屋6 — 中央の祭室</span><br><br>
-  この神殿で最も装飾が豊かな部屋。天井に星座を模した彫刻、床には魔法陣の跡が残る。<br>
-  南の壁には通常の扉、東の壁には落し格子（ポートカリス）が設置されている。<br><br>
-  <span class="dim">━ 出口: 西（扉→部屋5）南（扉→部屋9）東（落し格子→別通路） ━</span>`,
- choices:[
-  {label:'⬇ 南の扉へ（部屋9へ）', go:'SHRINE_DOOR_69'},
-  {label:' 東の落し格子を試みる', go:'SHRINE_PORT_7'},
-  {label:'⬅ 西へ進む', go:'SHRINE_DOOR_56'},
- ],
- },
-
- // 落し格子（部屋6東）→部屋7側通路
- SHRINE_PORT_7:{
- scene:'dungeon',
- txt:` <span class="gold">落し格子（部屋6東）</span><br><br>
-  鉄の落し格子が通路を塞いでいる。脇に小さなレバーが見える。`,
- choices:[
-  {label:' レバーを操作する（ST Lv1 SR）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_shrine_port7', successTxt:()=>` <b>落し格子を上げた</b><br>重いレバーを力任せに引くと、格子がガラガラと音を立てて上がった。`, failTxt:()=>` <b>格子は動かない</b><br>レバーを引いたが、機構が錆び付いているのか格子は上がらない。`, choicesFn:(ok)=>ok?[{label:' 格子をくぐって東の通路へ',go:'SHRINE_7'},{label:'⬅ 西へ進む',go:'SHRINE_6'}]:[{label:'⬅ 西へ進む',go:'SHRINE_6'}] })},
-  {label:'⬅ 西へ進む', go:'SHRINE_6'},
- ],
- },
-
- SHRINE_PORT_7_TRY:{
- scene:'dungeon',
- txt:()=>{
-  dungeonTrySR({
-   attr:'st', level:1, flagKey:'_shrine_port7',
-   successTxt:()=>` <span class="gold">落し格子を上げた</span><br><br>重いレバーを力任せに引くと、格子がガラガラと音を立てて上がった。`,
-   failTxt:()=>` <span class="gold">格子は動かない</span><br><br>レバーを引いたが、機構が錆び付いているのか格子は上がらない。`,
-   choicesFn:(ok)=> ok
-    ? [{label:' 格子をくぐって東の通路へ', go:'SHRINE_7'},{label:'⬅ 西へ進む', go:'SHRINE_6'}]
-    : [{label:'⬅ 西へ進む', go:'SHRINE_6'}],
-  }); return '';
- },
- choices:()=>{
-  if(PC._shrine_port7) return [{label:' 格子をくぐって東の通路へ', go:'SHRINE_7'},{label:'⬅ 西へ進む', go:'SHRINE_6'}];
-  return [{label:'⬅ 西へ進む', go:'SHRINE_6'}];
- },
- },
-
- // 扉（部屋6→部屋9）
- SHRINE_DOOR_69:{
- scene:'dungeon',
- txt:` <span class="gold">扉（部屋6 — 部屋9）</span><br><br>
-  蔦で縁取られた石扉。南の通路を抜けて部屋9へ向かう。`,
- choices:[
-  {label:'⬇ 南へ進む', go:'SHRINE_9'},
-  {label:'⬆ 北へ進む', go:'SHRINE_6'},
- ],
- },
-
- // ──────────────────────────────────────────────────
- // 鍵扉（部屋5→部屋7）
- // ──────────────────────────────────────────────────
- SHRINE_LOCK_57:{
- scene:'dungeon',
- txt:` <span class="gold">鍵のかかった扉（部屋5 — 部屋7）</span><br><br>
-  古い錠前がついた石扉。腐食しているが頑丈だ。`,
- spellContext:'封じられた神殿の鍵扉（部屋5-7）',
- spellEffects:{
-  knockKnock:{ desc:'魔法で錠前を開錠する',
-   fn:()=>{ PC._shrine_lock57=true; return ' Knock Knock！古い錠前が砕けた。扉が開く！'; },
-   afterChoices:[{label:'⬇ 南へ進む',go:'SHRINE_7'},{label:'⬆ 北へ進む',go:'SHRINE_5'}]},
- },
- choices:[
-  {label:' 錠前を壊す（ST Lv2 SR）', fn:()=>dungeonTrySR({ attr:'st', level:2, flagKey:'_shrine_lock57', successTxt:()=>` <b>錠前を叩き壊した</b><br>石造りの鍵穴に剣の柄を叩き込むと、錠前が砕けた。扉が開く！`, failTxt:()=>` <b>錠前は壊れない</b><br>何度叩いても扉は開かない。別の方法が必要かもしれない。`, choicesFn:(ok)=>ok?[{label:'⬇ 南へ進む',go:'SHRINE_7'},{label:'⬆ 北へ進む',go:'SHRINE_5'}]:[{label:'⬆ 北へ進む',go:'SHRINE_5'}] })},
-  {label:'⬆ 北へ進む', go:'SHRINE_5'},
- ],
- },
-
- SHRINE_LOCK_57_TRY:{
- scene:'dungeon',
- txt:()=>{
-  dungeonTrySR({
-   attr:'st', level:2, flagKey:'_shrine_lock57',
-   successTxt:()=>` <span class="gold">錠前を叩き壊した</span><br><br>石造りの鍵穴に剣の柄を叩き込むと、錠前が砕けた。扉が開く！`,
-   failTxt:()=>` <span class="gold">錠前は壊れない</span><br><br>何度叩いても扉は開かない。別の方法が必要かもしれない。`,
-   choicesFn:(ok)=> ok
-    ? [{label:'⬇ 南へ進む', go:'SHRINE_7'},{label:'⬆ 北へ進む', go:'SHRINE_5'}]
-    : [{label:'⬆ 北へ進む', go:'SHRINE_5'}],
-  }); return '';
- },
- choices:()=>{
-  if(PC._shrine_lock57) return [{label:'⬇ 南へ進む', go:'SHRINE_7'},{label:'⬆ 北へ進む', go:'SHRINE_5'}];
-  return [{label:'⬆ 北へ進む', go:'SHRINE_5'}];
- },
- },
-
- // ──────────────────────────────────────────────────
- // 部屋7（西の深部・不気味な儀式室）
- // 北: 鍵扉→部屋5（or 落し格子→部屋6） / 南: 部屋11へ / 西: Portcullis（左の小室）
- // ──────────────────────────────────────────────────
- SHRINE_7:{
- scene:'dungeon',
- spellContext:'封じられた神殿・儀式の間',
- spellEffects:{
-  ohGoAway:{ desc:'IQ+LK+CHR > MR42なら亡霊を退散させる',
-   fn:()=>{
-    if(PC._shrine7_cleared) return '亡霊はすでに祓われている。';
-    const power=PC.iq+PC.lk+PC.chr;
-    if(power>42){ PC._shrine7_cleared=true; gainGPAll(15); gainAPAll(35); updateHUD();
-     return `Oh-Go-Away！（${power} > 42）亡霊が悲鳴を上げて消えた！+15GP　AP+35`; }
-    return `Oh-Go-Away失敗。（IQ+LK+CHR=${power} ≤ 42）亡霊には届かなかった。`;
-   }},
-  wisp:{ desc:'松明代わりに1ターン照らす',
-   fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,1); return 'Will-o-Wisp！指先が明るく輝いた。（1ターン）'; }},
- },
- txt:()=>{
-  const hasMonster = !PC._shrine7_cleared;
-  const monsterTxt = hasMonster
-   ? `
-  この部屋には何かが潜んでいる——壁の影が動いた気がした。<br>`
-   : `
-  <span class="dim">（この部屋はすでに探索済みだ）</span><br>`;
-  return ` <span class="gold">部屋7 — 儀式の間</span><br><br>
-   密閉された石室。血のような錆色の染みが床に広がり、異様な祭壇の痕跡が残る。${monsterTxt}
-   南の通路は部屋11へ、西の壁には落し格子がある。<br><br>
-   <span class="dim">━ 出口: 北（鍵扉/格子→部屋5/6）南（通路→部屋11）西（落し格子） ━</span>`;
- },
- choices:()=>{
-  const choices = [];
-  if(!PC._shrine7_cleared){
-   choices.push({label:' 影と戦う', fn:()=>{
-    startCombat({name:'神殿の亡霊', mr:42, armor:3, isHuman:false, canFlee:true,
-     onWin:()=>{ PC._shrine7_cleared=true; const gp=15+Math.floor(Math.random()*11); gainGPAll(gp); gainAPAll(35); updateHUD();
-      showSaveToast(` 亡霊を祓った！ +${gp}GP　AP+35`); }}, 'SHRINE_7');
-   }, go:'__travel__'});
+  const ch = [];
+  if(PC._shrineN_p2_open){
+   ch.push({label:'➡ 東（礼拝の間）へ入る', go:'SHRINE_ROOM1'});
+  } else {
+   ch.push({label:' 扉を解錠する（DEX Lv2 SR）', fn:()=>{
+    dungeonTrySR({
+     attr:'dex', level:2,
+     successTxt:'手先を器用に動かすと、複雑な錠前が外れた。扉が開く。',
+     failTxt:'錠前を弄っていると物音に気づいた何かが近づいてきた！',
+     successFn:()=>{ PC._shrineN_p2_open = true; },
+     failFn:()=>{
+      setTimeout(()=>startCombat({name:'神殿の守護者',enemies:[{name:'神殿の守護者',mr:28,curMR:28,armor:2}],canFlee:true,win:'SHRINE_P2',lose:'SHRINE_ENTRANCE'}),0);
+      return true;
+     },
+     choicesFn:(ok)=>ok?[{label:'➡ 東（礼拝の間）へ入る',go:'SHRINE_ROOM1'}]:[{label:'⬅ 装飾扉前の通路へ戻る',go:'SHRINE_P2'}],
+    });
+   }});
   }
-  choices.push({label:'⬇ 南へ進む', go:'SHRINE_11'});
-  choices.push({label:' 西の落し格子を調べる', go:'SHRINE_PORT_WEST'});
-  choices.push({label:'⬆ 北（部屋5/6）へ進む', go:'SHRINE_5'});
-  return choices;
+  ch.push({label:'⬅ 西（十字路）へ戻る', go:'SHRINE_CROSS1'});
+  return ch;
  },
  },
 
- // 西の小室（部屋7西の落し格子の先）
- SHRINE_PORT_WEST:{
- scene:'dungeon',
- txt:` <span class="gold">西の落し格子</span><br><br>
-  部屋7の西壁に設けられた格子扉。格子の向こうに狭い小室が見える。`,
- choices:[
-  {label:' 格子を持ち上げる（ST Lv1 SR）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_shrine_portwest', successFn:()=>{ const gp=20+Math.floor(Math.random()*21); gainGPAll(gp); updateHUD(); PC._portwestGP=gp; }, successTxt:()=>` <b>格子を上げた</b><br>腕の力で格子を持ち上げると、奥の小室に宝箱が置かれていた。中には古い金貨。+${PC._portwestGP||0}GP`, failTxt:()=>` <b>格子は動かない</b><br>全体重をかけても格子はびくともしない。`, choicesFn:()=>[{label:'⬅ 西へ進む',go:'SHRINE_7'}] })},
-  {label:'⬅ 西へ進む', go:'SHRINE_7'},
- ],
- },
-
- SHRINE_PORT_WEST_TRY:{
+ SHRINE_ROOM1:{
  scene:'dungeon',
  txt:()=>{
-  dungeonTrySR({
-   attr:'st', level:1, flagKey:'_shrine_portwest',
-   successFn:()=>{ const gp=20+Math.floor(Math.random()*21); gainGPAll(gp); updateHUD(); PC._shrine_portwest_gp=gp; },
-   successTxt:()=>` <span class="gold">格子を上げた</span><br><br>腕の力で格子を持ち上げると、奥の小室に宝箱が置かれていた。中には古い金貨。+${PC._shrine_portwest_gp||0}GP`,
-   failTxt:()=>` <span class="gold">格子は動かない</span><br><br>全体重をかけても格子はびくともしない。`,
-   choicesFn:()=>[{label:'⬅ 西へ進む', go:'SHRINE_7'}],
-  }); return '';
+  return `<span class="gold">礼拝の間</span><br><br>
+   南北30m、東西20mの広大な礼拝の間。天井は高く、石柱が列を成して立ち並んでいる。<br>
+   床には古い宗教画のモザイクが残り、かつての荘厳さを偲ばせる。<br>
+   西壁に豪華な装飾扉（装飾扉前の通路）、東壁に木製の扉（奥の通路）。`;
  },
- choices:[{label:'⬅ 西へ進む', go:'SHRINE_7'}],
- },
-
- // ──────────────────────────────────────────────────
- // 部屋9（右中段）
- // 北: Door→部屋6 / 西: 通路→部屋10 / 東: Portcullis
- // ──────────────────────────────────────────────────
- SHRINE_9:{
- scene:'dungeon',
- txt:` <span class="gold">部屋9 — 東の見張り室</span><br><br>
-  かつて見張り兵が常駐したと思われる部屋。石製の長椅子の残骸が並ぶ。<br>
-  東の壁には落し格子が設置されており、その先に通路が続く。<br>
-  西の通路は奥の部屋10へ繋がる。<br><br>
-  <span class="dim">━ 出口: 北（扉→部屋6）西（通路→部屋10）東（落し格子） ━</span>`,
  choices:[
-  {label:'⬅ 西へ進む', go:'SHRINE_10'},
-  {label:' 東の落し格子を試みる', go:'SHRINE_LOCK_79'},
-  {label:'⬆ 北へ進む', go:'SHRINE_DOOR_69'},
+  {label:'⬅ 西（装飾扉前の通路）へ戻る', go:'SHRINE_P2'},
+  {label:'➡ 東（奥の通路）の木扉を押す', go:'SHRINE_P3'},
  ],
  },
 
- // 落し格子（部屋9東）→右端の小室
- SHRINE_LOCK_79:{
- scene:'dungeon',
- txt:` <span class="gold">落し格子（部屋9東）</span><br><br>
-  東の通路を塞ぐ重い格子。格子の向こうに宝物らしきものが見える。`,
- choices:[
-  {label:' 格子を上げる（ST Lv2 SR）', fn:()=>dungeonTrySR({ attr:'st', level:2, flagKey:'_shrine_lock79', successFn:()=>{ const gp=30+Math.floor(Math.random()*31); gainGPAll(gp); updateHUD(); PC._lock79GP=gp; }, successTxt:()=>` <b>格子を持ち上げた</b><br>渾身の力で格子を引き上げ、奥の小室に入った。エルフの工芸品と金貨が積んであった。+${PC._lock79GP||0}GP`, failTxt:()=>` <b>格子は持ち上がらない</b><br>格子は重すぎて微動だにしない。`, choicesFn:()=>[{label:'⬅ 西へ進む',go:'SHRINE_9'}] })},
-  {label:'⬅ 西へ進む', go:'SHRINE_9'},
- ],
- },
-
- SHRINE_LOCK_79_TRY:{
+ SHRINE_P3:{
  scene:'dungeon',
  txt:()=>{
-  dungeonTrySR({
-   attr:'st', level:2, flagKey:'_shrine_lock79',
-   successFn:()=>{ const gp=30+Math.floor(Math.random()*31); gainGPAll(gp); updateHUD(); PC._shrine_lock79_gp=gp; },
-   successTxt:()=>` <span class="gold">格子を持ち上げた</span><br><br>渾身の力で格子を引き上げ、奥の小室に入った。エルフの工芸品と金貨が積んであった。+${PC._shrine_lock79_gp||0}GP`,
-   failTxt:()=>` <span class="gold">格子は持ち上がらない</span><br><br>格子は重すぎて微動だにしない。`,
-   choicesFn:()=>[{label:'⬅ 西へ進む', go:'SHRINE_9'}],
-  }); return '';
+  return `<span class="gold">奥の通路</span><br><br>
+   東西18mの通路。木造の扉は腐りかけているがまだ通れる。<br>
+   東の突き当たりにアーチ形の入口が開いており、奥に部屋が見える。<br>
+   かすかに石の焦げた臭いがする。`;
  },
- choices:[{label:'⬅ 西へ進む', go:'SHRINE_9'}],
- },
-
- // ──────────────────────────────────────────────────
- // 部屋10（中段右の広間）
- // 東: 部屋9 / 南: Portcullis→部屋8 / 西: 部屋11へ
- // ──────────────────────────────────────────────────
- SHRINE_10:{
- scene:'dungeon',
- txt:` <span class="gold">部屋10 — 奥の広間</span><br><br>
-  神殿中段の広い石室。床に複雑な幾何学模様が描かれており、魔法陣の残滓だろうか。<br>
-  南の壁には落し格子（ポートカリス）があり、さらに奥へ繋がる。<br>
-  西の通路は部屋11へ通じる。<br><br>
-  <span class="dim">━ 出口: 東（通路→部屋9）南（落し格子→部屋8）西（通路→部屋11） ━</span>`,
  choices:[
-  {label:'⬇ 南の落し格子を試みる（部屋8へ）', go:'SHRINE_PORT_EI'},
-  {label:'⬅ 西へ進む', go:'SHRINE_11'},
-  {label:' 東へ進む', go:'SHRINE_9'},
+  {label:'⬅ 西（礼拝の間）へ戻る', go:'SHRINE_ROOM1'},
+  {label:'➡ 東（彫像の間）のアーチへ進む', go:'SHRINE_ROOM2'},
  ],
  },
 
- // ──────────────────────────────────────────────────
- // 落し格子（部屋10南→部屋8）
- // ──────────────────────────────────────────────────
- SHRINE_PORT_EI:{
- scene:'dungeon',
- txt:` <span class="gold">落し格子（部屋10南）</span><br><br>
-  南の壁の格子。格子の向こうに広い部屋が見える。`,
- choices:[
-  {label:' 格子を上げる（ST Lv2 SR）', fn:()=>dungeonTrySR({ attr:'st', level:2, flagKey:'_shrine_portei', successTxt:()=>` <b>格子を持ち上げた</b><br>重い格子を力で持ち上げ、南の部屋8への道が開いた。`, failTxt:()=>` <b>格子は動かない</b><br>格子は重く、まるで壁のように動かない。`, choicesFn:(ok)=>ok?[{label:'⬇ 南へ進む',go:'SHRINE_8'},{label:'⬆ 北へ進む',go:'SHRINE_10'}]:[{label:'⬆ 北へ進む',go:'SHRINE_10'}] })},
-  {label:'⬆ 北へ進む', go:'SHRINE_10'},
- ],
- },
-
- SHRINE_PORT_EI_TRY:{
+ SHRINE_ROOM2:{
  scene:'dungeon',
  txt:()=>{
-  dungeonTrySR({
-   attr:'st', level:2, flagKey:'_shrine_portei',
-   successTxt:()=>` <span class="gold">格子を持ち上げた</span><br><br>重い格子を力で持ち上げ、南の部屋8への道が開いた。`,
-   failTxt:()=>` <span class="gold">格子は動かない</span><br><br>格子は重く、まるで壁のように動かない。`,
-   choicesFn:(ok)=> ok
-    ? [{label:'⬇ 南へ進む', go:'SHRINE_8'},{label:'⬆ 北へ進む', go:'SHRINE_10'}]
-    : [{label:'⬆ 北へ進む', go:'SHRINE_10'}],
-  }); return '';
+  return `<span class="gold">彫像の間</span><br><br>
+   9m四方の小部屋。中央に不気味な表情をした石造りの彫像が鎮座している。<br>
+   目の部分に宝石が嵌め込まれており、こちらを見ているようだ。<br>
+   彫像の台座には「汝の魂を試せ」と古エルフ語で刻まれている。`;
  },
- choices:()=>{
-  if(PC._shrine_portei) return [{label:'⬇ 南へ進む', go:'SHRINE_8'},{label:'⬆ 北へ進む', go:'SHRINE_10'}];
-  return [{label:'⬆ 北へ進む', go:'SHRINE_10'}];
- },
- },
-
- // ──────────────────────────────────────────────────
- // 部屋8（南中段の大広間）
- // 北: Trapped Door→部屋2 / 北（別）: Portcullis→部屋10 / 東: 通路→部屋i / 西: 通路→部屋E
- // ──────────────────────────────────────────────────
- SHRINE_8:{
- scene:'dungeon',
- txt:` <span class="gold">部屋8 — 南の大広間</span><br><br>
-  神殿南側の広い石室。天井が一部崩落しており、外の光がかすかに差し込む。<br>
-  東の通路の奥には最深部（部屋i）が、西には扉Eへの通路が続く。<br><br>
-  <span class="dim">━ 出口: 北（罠扉→部屋2）北東（格子→部屋10）東（通路→部屋i）西（通路→部屋E） ━</span>`,
  choices:[
-  {label:' 東（部屋i・最深部）へ進む', go:'SHRINE_I'},
-  {label:'⬅ 西（扉E）へ進む', go:'SHRINE_E'},
-  {label:'⬆ 北（罠扉→部屋2）へ進む', go:'SHRINE_TRAP_28'},
+  {label:' 彫像に触れてみる', go:'SHRINE_ROOM2_TELEPORT'},
+  {label:'⬅ 西（奥の通路）へ戻る', go:'SHRINE_P3'},
  ],
  },
 
- // ──────────────────────────────────────────────────
- // 部屋E（南西の分岐小室・落し格子E）
- // ──────────────────────────────────────────────────
- SHRINE_E:{
- scene:'dungeon',
- txt:` <span class="gold">扉E — 南西の分岐小室</span><br><br>
-  部屋8から西に折れた先の小部屋。落し格子が南の出口通路を塞いでいる。<br>
-  格子の向こうに「i」と刻まれた石柱が見える——最深部への別ルートか。`,
- choices:[
-  {label:' 落し格子を上げる（ST Lv1 SR）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_shrine_trap3c', successTxt:()=>` <b>落し格子を上げた</b><br>格子をぐっと持ち上げると、通路が開いた。奥に続く道が見える。`, failTxt:()=>` <b>格子は上がらない</b><br>格子をいくら引っ張っても動かない。`, choicesFn:(ok)=>ok?[{label:'⬇ 南（部屋i）へ進む',go:'SHRINE_I'},{label:' 東へ進む',go:'SHRINE_8'}]:[{label:' 東へ進む',go:'SHRINE_8'}] })},
-  {label:' 東へ進む', go:'SHRINE_8'},
- ],
- },
-
- SHRINE_TRAP_3C:{
+ SHRINE_ROOM2_TELEPORT:{
  scene:'dungeon',
  txt:()=>{
-  dungeonTrySR({
-   attr:'st', level:1, flagKey:'_shrine_trap3c',
-   successTxt:()=>` <span class="gold">落し格子を上げた</span><br><br>格子をぐっと持ち上げると、通路が開いた。奥に続く道が見える。`,
-   failTxt:()=>` <span class="gold">格子は上がらない</span><br><br>格子をいくら引っ張っても動かない。`,
-   choicesFn:(ok)=> ok
-    ? [{label:'⬇ 南（部屋i）へ進む', go:'SHRINE_I'},{label:' 東へ進む', go:'SHRINE_8'}]
-    : [{label:' 東へ進む', go:'SHRINE_8'}],
-  }); return '';
- },
- choices:()=>{
-  if(PC._shrine_trap3c) return [{label:'⬇ 南（部屋i）へ進む', go:'SHRINE_I'},{label:' 東へ進む', go:'SHRINE_8'}];
-  return [{label:' 東へ進む', go:'SHRINE_8'}];
- },
- },
-
- SHRINE_TRAP_3C_TRIGGER: { scene:'dungeon', txt:'（未使用ノード）', choices:[{label:'戻る', go:'SHRINE_8'}] },
-
- // ──────────────────────────────────────────────────
- // 部屋I（最深部・ボス部屋）
- // ──────────────────────────────────────────────────
- SHRINE_I:{
- scene:'dungeon',
- txt:()=>{
-  const cleared = PC._shrine_I_cleared;
-  if(cleared){
-   return ` <span class="gold">部屋I — 神殿の最奥</span><br><br>
-    すでに番人は退けられ、静寂が戻っている。<br>
-    祭壇には僅かな残り香が漂い、かつての神聖さの名残が感じられる。<br>
-    祭壇の脇に、深く続く石段がある。<br><br>
-    <span class="dim">━ 出口: 北/ 下（石段→B2F 古の回廊）━</span>`;
-  }
-  return ` <span class="gold">部屋I — 神殿の最奥</span><br><br>
-   神殿の最深部。巨大な祭壇が中央に据えられ、その上に光る石が置かれている。<br>
-   祭壇の脇には深く続く石段があり、さらに下の層へ続いているようだ。<br>
-   しかし祭壇の前に、石化した古代の番人が立っている——目が赤く光り始めた。<br><br>
-   <span class="red"> 番人が動き出した！</span>`;
- },
- choices:()=>{
-  if(PC._shrine_I_cleared){
-   return [
-    {label:' 祭壇をよく調べる（IQ Lv2 SR）', fn:()=>dungeonTrySR({ attr:'iq', level:2, successFn:()=>{ const gp=25+Math.floor(Math.random()*26); gainGPAll(gp); updateHUD(); PC._iSearchGP=gp; }, successTxt:()=>` <b>祭壇を調べた</b><br>祭壇の裏に小さな格納空間があり、エルフ語で刻まれた石板と古い祭具が眠っていた。+${PC._iSearchGP||0}GP`, failTxt:()=>` <b>祭壇を調べた</b><br>祭壇の彫刻は美しいが、特に隠しものは見つからなかった。`, choicesFn:()=>[{label:'⬆ 北へ進む',go:'SHRINE_8'}] })},
-    {label:'⬆ 北へ進む', go:'SHRINE_8'},
-    {label:' 地下へ降りる（B2F・古の回廊）', go:'SHR2_ENTRANCE'},
-   ];
-  }
-  return [
-   {label:' 祭壇の脇の石段を降りる（B2F・古の回廊）', go:'SHR2_ENTRANCE'},
-   {label:' 番人と戦う', fn:()=>{
-    startCombat({
-     name:'石化した番人', mr:55, armor:6, isHuman:false, canFlee:false,
-     onWin:()=>{
-      PC._shrine_I_cleared = true;
-      const gp = 60 + Math.floor(Math.random()*41);
-      gainGPAll(gp); gainAPAll(60); updateHUD();
-      showSaveToast(` 番人を倒した！ +${gp}GP　AP+60`);
-     }
-    }, 'SHRINE_I');
-   }, go:'__travel__'},
-   {label:' 逃げる（SPD SR Lv2）', fn:()=>{
-    const sr = savingRoll('spd', 2);
-    if(!sr.success){ const d=5; PC.con=Math.max(0,PC.con-d); updateHUD(); showSaveToast(`逃げ損ねた！CON-${d}`); }
-   }, go:'SHRINE_8'},
+  // ランダムなノードにテレポート
+  const targets = [
+   'SHRINE_P1','SHRINE_CROSS1','SHRINE_P6','SHRINE_P4',
+   'SHRINE_ROOM5','SHRINE_P10','SHRINE_ROOM9','SHRINE_P11',
+   'SHRINE_ROOM7','SHRINE_ROOM8','SHRINE_ROOM3','SHRINE_P5',
+   'SHRINE_P8','SHRINE_ROOM10','SHRINE_P12',
   ];
+  const dest = targets[Math.floor(Math.random()*targets.length)];
+  setTimeout(()=>go(dest), 1200);
+  return ` <span class="gold">転送！</span><br><br>
+   彫像に手を触れた瞬間、目の宝石が眩く輝いた。<br>
+   体が光に包まれ、気づけば全く別の場所に立っていた……。<br>
+   <span class="dim">（ダンジョン内のどこかへ転送された）</span>`;
  },
+ choices:[],
  },
 
- // 最奥祭壇を調べる
- SHRINE_I_SEARCH:{
+ SHRINE_P6:{
  scene:'dungeon',
  txt:()=>{
-  dungeonTrySR({
-   attr:'iq', level:2,
-   successFn:()=>{ const gp=25+Math.floor(Math.random()*26); gainGPAll(gp); updateHUD(); PC._shrine_i_search_gp=gp; },
-   successTxt:()=>` <span class="gold">祭壇を調べた</span><br><br>祭壇の裏に小さな格納空間があり、エルフ語で刻まれた石板と古い祭具が眠っていた。神官しか知らない隠し場所だ。+${PC._shrine_i_search_gp||0}GP`,
-   failTxt:()=>` <span class="gold">祭壇を調べた</span><br><br>祭壇の彫刻は美しいが、特に隠しものは見つからなかった。`,
-   choicesFn:()=>[{label:'⬆ 北へ進む', go:'SHRINE_8'}],
-  }); return '';
+  return `<span class="gold">南の長い通路</span><br><br>
+   南北に延びる30mの長い通路。天井は低く、等間隔に石柱の台座が並んでいる。<br>
+   かつては松明が灯されていたのか、壁に煤の痕跡が残る。<br>
+   北は十字路、南の突き当たりにアーチ形の入口（中央の広間）。`;
  },
- choices:[{label:'⬆ 北へ進む', go:'SHRINE_8'}],
- },
-
- // ──────────────────────────────────────────────────
- // 部屋11（西中段）
- // 北: 通路→部屋7 / 東: 通路→部屋10 / 南: 通路→部屋3
- // ──────────────────────────────────────────────────
- SHRINE_11:{
- scene:'dungeon',
- txt:` <span class="gold">部屋11 — 西中段の石室</span><br><br>
-  壁に蔦が這い、床が微かに傾いた石室。かつては倉庫として使われたようで、<br>
-  腐敗した木箱の残骸が隅に積まれている。<br><br>
-  <span class="dim">━ 出口: 北（通路→部屋7）東（通路→部屋10）南（通路→部屋3） ━</span>`,
  choices:[
-  {label:'⬆ 北へ進む', go:'SHRINE_7'},
-  {label:' 東へ進む', go:'SHRINE_10'},
-  {label:'⬇ 南へ進む', go:'SHRINE_3'},
+  {label:'⬆ 北（十字路）へ戻る', go:'SHRINE_CROSS1'},
+  {label:'⬇ 南（中央の広間）のアーチへ進む', go:'SHRINE_ROOM5'},
  ],
  },
 
- // ──────────────────────────────────────────────────
- // 部屋3（南西の大石室）
- // 北: 通路→部屋11 / 東: 通路→部屋C（南出口へ）
- // ──────────────────────────────────────────────────
- SHRINE_3:{
+ SHRINE_ROOM5:{
  scene:'dungeon',
  txt:()=>{
-  const cleared = PC._shrine3_cleared;
-  const statusTxt = cleared
-   ? '<br><span class="dim">（すでに紋章は調べ済みだ）</span>'
-   : '<br><span class="red">紋章から何かが這い出てくる気配がある……</span>';
-  return ` <span class="gold">部屋3 — 南西の大石室</span><br><br>
-   天井まで届く石柱が四隅に立ち、かつての礼拝堂の名残を留める。<br>
-   床の中央に封印の紋章が刻まれており、踏むと仄かに光る。${statusTxt}<br><br>
-   <span class="dim">━ 出口: 北（通路→部屋11）東（通路→出口通路C） ━</span>`;
+  const eastOpen = PC._shrineN_lever;
+  return `<span class="gold">中央の広間</span><br><br>
+   南北15m、東西25mの広い部屋。石柱が四隅に立ち、床は磨かれた石板。<br>
+   北壁にアーチ（南の長い通路）、西壁に石造りの扉（西の通路）、南壁にアーチ（南の横通路）。<br>
+   東壁の石扉は${eastOpen?'<span class="grn">レバー操作で開いている</span>（東の通路へ）':'<span class="red">固く閉じている</span>（レバーが必要）'}。<br>
+   部屋の中央付近に床の色が微妙に異なる場所がある。`;
  },
  choices:()=>{
-  const choices = [];
-  if(!PC._shrine3_cleared){
-   choices.push({label:' 紋章の番人と戦う', fn:()=>{
-    startCombat({name:'紋章の番人（スケルトン）', mr:38, armor:4, isHuman:false, canFlee:true,
-     onWin:()=>{ PC._shrine3_cleared=true; const gp=20+Math.floor(Math.random()*16); gainGPAll(gp); gainAPAll(40); updateHUD();
-      showSaveToast(` スケルトンを倒した！ +${gp}GP　AP+40`); }}, 'SHRINE_3');
-   }, go:'__travel__'});
+  const ch = [];
+  if(!PC._shrineN_trap5){
+   ch.push({label:' 中央を横切る', fn:()=>{
+    PC._shrineN_trap5 = true;
+    dungeonTrySR({
+     attr:'lk', level:2,
+     successTxt:'足元の床石がずれ、その下に深い穴が口を開けた。寸前で気づき飛び退いた！',
+     failTxt:()=>{
+      const dmg = 3 + Math.floor(Math.random()*4);
+      PC.con = Math.max(0, PC.con - dmg);
+      updateHUD();
+      return `床石が崩れ、深い穴に落下した。なんとか這い上がったが体に応えた。<span class="red"> CON-${dmg}</span>`;
+     },
+     choicesFn:()=>[{label:'⬅ 中央の広間へ戻る', go:'SHRINE_ROOM5'}],
+    });
+   }});
   }
-  choices.push({label:'⬆ 北へ進む', go:'SHRINE_11'});
-  choices.push({label:' 東（出口通路へ）', go:'SHRINE_C'});
-  return choices;
+  if(PC._shrineN_lever){
+   ch.push({label:'➡ 東（東の通路）の石扉へ', go:'SHRINE_P7'});
+  }
+  ch.push({label:'⬅ 西（西の通路）の石扉へ', go:'SHRINE_P8'});
+  ch.push({label:'⬇ 南（南の横通路）のアーチへ', go:'SHRINE_P10'});
+  ch.push({label:'⬆ 北（南の長い通路）のアーチへ戻る', go:'SHRINE_P6'});
+  if(PC._shrineN_trap5){
+   // 落とし穴は既に発見済みのため中央を避けて自由に移動できる
+  }
+  return ch;
  },
  },
+
+ SHRINE_P7:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">東の石扉前の通路</span><br><br>
+   南北10mの通路。北端の西壁に中央の広間への石造りの扉、南の突き当たりにアーチ（神官の控え室）。<br>
+   壁に小さな神像が並んでいるが、いくつかは首が落とされている。`;
+ },
+ choices:[
+  {label:'⬆ 北（中央の広間）の石扉へ', go:'SHRINE_ROOM5'},
+  {label:'⬇ 南（神官の控え室）のアーチへ', go:'SHRINE_ROOM7'},
+ ],
+ },
+
+ SHRINE_ROOM7:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">神官の控え室</span><br><br>
+   南北6m、東西9mの小部屋。かつて神官の控え室だったのか、石造りの棚が壁に沿って並ぶ。<br>
+   棚の上には壊れた器や腐った布の残骸。北壁にアーチ（東の通路）。<br>
+   <span class="dim">行き止まり。</span>`;
+ },
+ choices:[
+  {label:'⬆ 北（東の通路）のアーチへ戻る', go:'SHRINE_P7'},
+ ],
+ },
+
+ SHRINE_P8:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">西の通路</span><br><br>
+   南北12mの通路。北端の東壁に中央の広間への石造りの扉、南端にアーチ（錠前の部屋）。<br>
+   床が湿っており、壁に苔が生えている。水がどこかから滲み出しているようだ。`;
+ },
+ choices:[
+  {label:'⬆ 北（中央の広間）の石扉へ', go:'SHRINE_ROOM5'},
+  {label:'⬇ 南（錠前の部屋）のアーチへ', go:'SHRINE_ROOM8'},
+ ],
+ },
+
+ SHRINE_ROOM8:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">錠前の部屋</span><br><br>
+   6m四方の小部屋。北壁にアーチ（西の通路）、西壁に古びた石造りの扉がある。<br>
+   扉には鎖と錠前がかかっており、内側から閉められているようだ。<br>
+   隙間から冷たい空気が流れてくる。`;
+ },
+ choices:()=>{
+  const ch = [];
+  if(PC._shrineN_room8_open){
+   ch.push({label:'⬅ 西（冷えた通路）の扉へ', go:'SHRINE_P9'});
+  } else {
+   ch.push({label:' 扉を解錠する（DEX Lv2 SR）', fn:()=>{
+    dungeonTrySR({
+     attr:'dex', level:2,
+     successTxt:'鎖が床に落ちる音が響いた。扉が軋みながら開く。',
+     failTxt:'音を立てすぎた！廊下から何かが近づいてくる！',
+     successFn:()=>{ PC._shrineN_room8_open = true; },
+     failFn:()=>{
+      setTimeout(()=>startCombat({name:'廊下の亡者',enemies:[{name:'廊下の亡者',mr:22,curMR:22,armor:0}],canFlee:true,win:'SHRINE_ROOM8',lose:'SHRINE_ENTRANCE'}),0);
+      return true;
+     },
+     choicesFn:(ok)=>ok?[{label:'⬅ 西（冷えた通路）へ',go:'SHRINE_P9'}]:[{label:'⬆ 錠前の部屋へ戻る',go:'SHRINE_ROOM8'}],
+    });
+   }});
+  }
+  ch.push({label:'⬆ 北（西の通路）のアーチへ戻る', go:'SHRINE_P8'});
+  return ch;
+ },
+ },
+
+ SHRINE_P9:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">錠前の先の通路</span><br><br>
+   南北18mの通路。南端の東壁に錠前の部屋への扉、北端は壁で塞がれている。<br>
+   壁に沿って空の木箱や壊れた道具が積まれている。何かを隠す場所に使われていたのか。<br>
+   <span class="dim">北端は行き止まり。</span>`;
+ },
+ choices:[
+  {label:'⬇ 南（錠前の部屋）の扉へ戻る', go:'SHRINE_ROOM8'},
+ ],
+ },
+
+ SHRINE_P10:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">南の横通路</span><br><br>
+   東西に延びる通路。西端の北壁に中央の広間へのアーチ、東端にアーチ（壁画の部屋）。<br>
+   床に古い血痕のようなものが染みになっている。`;
+ },
+ choices:[
+  {label:'⬆ 北（中央の広間）のアーチへ', go:'SHRINE_ROOM5'},
+  {label:'➡ 東（壁画の部屋）のアーチへ', go:'SHRINE_ROOM9'},
+ ],
+ },
+
+ SHRINE_ROOM9:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">壁画の部屋</span><br><br>
+   南北9m、東西12mの部屋。壁に描かれた壁画が残るが、色は褪せている。<br>
+   西壁にアーチ（南の横通路）、南壁に扉（崩れた通路）、東壁にアーチ（奥の短い通路）。`;
+ },
+ choices:[
+  {label:'⬅ 西（南の横通路）のアーチへ', go:'SHRINE_P10'},
+  {label:'⬇ 南（崩れた通路）の扉へ', go:'SHRINE_P12'},
+  {label:'➡ 東（奥の短い通路）のアーチへ', go:'SHRINE_P11'},
+ ],
+ },
+
+ SHRINE_P11:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">奥の短い通路</span><br><br>
+   東西9mの短い通路。西端の西壁に壁画の部屋へのアーチ、東端の東壁に石棚の部屋へのアーチ。<br>
+   両側の壁に古代の文様が規則正しく刻まれている。`;
+ },
+ choices:[
+  {label:'⬅ 西（壁画の部屋）のアーチへ', go:'SHRINE_ROOM9'},
+  {label:'➡ 東（石棚の部屋）のアーチへ', go:'SHRINE_ROOM10'},
+ ],
+ },
+
+ SHRINE_ROOM10:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">石棚の部屋</span><br><br>
+   6m四方の小部屋。西壁にアーチ（奥の短い通路）。<br>
+   部屋の奥に石棚があり、金属製の箱が置かれている。<br>
+   箱は空だったが、棚の隅に古いコインが数枚落ちていた。<br>
+   <span class="dim">行き止まり。</span>`;
+ },
+ choices:[
+  {label:'⬅ 西（奥の短い通路）のアーチへ戻る', go:'SHRINE_P11'},
+ ],
+ },
+
+ SHRINE_P12:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">崩れた通路</span><br><br>
+   東西20mの通路。西端の北壁に壁画の部屋への扉、東端は崩れた瓦礫で塞がれている。<br>
+   壁に沿って古い彫刻が連続して続くが、東端は完全に崩壊している。<br>
+   <span class="dim">東端は行き止まり（崩壊）。</span>`;
+ },
+ choices:[
+  {label:'⬆ 北（壁画の部屋）の扉へ戻る', go:'SHRINE_ROOM9'},
+ ],
+ },
+
+ SHRINE_P4:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">行き止まりの通路</span><br><br>
+   東西10mの通路。東は十字路、西端は石壁で行き止まりに見える。<br>
+   しかし壁の石材の積み方が他と微妙に異なる部分がある。<br>
+   ${PC._shrineN_secret4 ? '<span class="grn"> 隠し扉の位置は分かっている（隠し部屋へ）。</span>' : ''}`;
+ },
+ choices:()=>{
+  const ch = [];
+  if(PC._shrineN_secret4){
+   ch.push({label:' 西壁の隠し扉を開けて隠し部屋へ', go:'SHRINE_ROOM3'});
+  } else {
+   ch.push({label:' 西壁を調べる（LK Lv2 SR）', fn:()=>{
+    dungeonTrySR({
+     attr:'lk', level:2,
+     successTxt:'石材の隙間に指を入れると、壁の一部がゆっくりと回転した。隠し扉を発見した！',
+     failTxt:'壁を調べていると、背後から気配が！物音に引き寄せられた何かが迫ってくる！',
+     successFn:()=>{ PC._shrineN_secret4 = true; },
+     failFn:()=>{
+      setTimeout(()=>startCombat({name:'神殿の亡者',enemies:[{name:'神殿の亡者',mr:25,curMR:25,armor:0}],canFlee:true,win:'SHRINE_P4',lose:'SHRINE_ENTRANCE'}),0);
+      return true;
+     },
+     choicesFn:(ok)=>ok?[{label:' 隠し扉へ進む（隠し部屋）',go:'SHRINE_ROOM3'}]:[{label:'➡ 行き止まりの通路へ戻る',go:'SHRINE_P4'}],
+    });
+   }});
+  }
+  ch.push({label:'➡ 東（十字路）へ戻る', go:'SHRINE_CROSS1'});
+  return ch;
+ },
+ },
+
+ SHRINE_ROOM3:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">隠し部屋</span><br><br>
+   6m四方の隠し部屋。東壁に行き止まりの通路への扉（隠し扉）、北壁に石造りの扉（レバーの間）、<br>
+   西壁にアーチ（深部への通路）が続いている。<br>
+   棚に埃を被った魔法書のような書物が置かれているが、文字は読めない。`;
+ },
+ choices:[
+  {label:'⬆ 北（レバーの間）の石扉を開ける', go:'SHRINE_ROOM4'},
+  {label:'⬅ 西（深部への通路）のアーチへ', go:'SHRINE_P5'},
+  {label:'➡ 東（行き止まりの通路）の隠し扉へ戻る', go:'SHRINE_P4'},
+ ],
+ },
+
+ SHRINE_ROOM4:{
+ scene:'dungeon',
+ txt:()=>{
+  const leverPulled = !!PC._shrineN_lever;
+  return `<span class="gold">レバーの間</span><br><br>
+   3m四方の極めて小さな部屋。南壁に隠し部屋への石造りの扉。<br>
+   北壁に大きな鉄製のレバーが取り付けられている。<br>
+   ${leverPulled
+    ? '<span class="grn"> レバーは引かれた状態だ。中央の広間の東扉は開いている。</span>'
+    : 'レバーはまだ押し込まれた状態だ。用途は不明だが、引けば何かが動くだろう。'}`;
+ },
+ choices:()=>{
+  const ch = [];
+  if(!PC._shrineN_lever){
+   ch.push({label:' レバーを引く', fn:()=>{
+    PC._shrineN_lever = true;
+    updateHUD();
+    showSaveToast('レバーを引いた。どこかで音がした。');
+    go('SHRINE_ROOM4');
+   }});
+  }
+  ch.push({label:'⬇ 南（隠し部屋）の石扉へ戻る', go:'SHRINE_ROOM3'});
+  return ch;
+ },
+ },
+
+ SHRINE_P5:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">深部への通路</span><br><br>
+   南北30mの長い通路。南端の東壁に隠し部屋へのアーチ。<br>
+   北へ進むにつれ天井が高くなり、通路が広がっていく。<br>
+   北端に幅5mの立派な石段が下へと続いている——地下2階への階段だ。`;
+ },
+ choices:[
+  {label:'⬇ 南（隠し部屋）のアーチへ', go:'SHRINE_ROOM3'},
+  {label:'⬆ 北（地下2階）の階段を降りる', go:'SHRINE_B2F'},
+ ],
+ },
+
+ SHRINE_B2F:{
+ scene:'dungeon',
+ txt:()=>{
+  return `<span class="gold">地下2階への階段</span><br><br>
+   幅5mの立派な石段が深く下へ続いている。<br>
+   ……この先はまだ調査されていない。`;
+ },
+ choices:[
+  {label:'⬆ 引き返す（深部への通路へ）', go:'SHRINE_P5'},
+ ],
+ },
+
+
+ // ══════════════════════════════════════════════════════════
+ // イスカルド：古代遺跡 B1F
+ // ══════════════════════════════════════════════════════════
+
+ ISKALD_ENTRANCE:{
+ scene:'dungeon',
+ txt:`<span class="gold" style="font-size:var(--font-base)">古代遺跡 ── 入口</span><br><br>
+  イスカルドの外れ、凍土に埋もれた石造りの遺跡。北に延びる10mの下り階段が地下へ続く。<br>
+  冷気と埃の臭いが吹き上げてくる。<br><br>
+  <span class="dim">地下1階へ降りる。</span>`,
+ choices:[
+  {label:'⬇ 地下1階へ降りる', fn:()=>initTorch(), go:'ISKALD_C1'},
+  {label:'← イスカルドへ戻る', go:'TOWN_ISKALD'},
+ ],
+ },
+
+ ISKALD_DARK_ESCAPE:{
+ scene:'dungeon',
+ txt:()=>{
+  const sr = savingRoll('lk',3);
+  gainAPAll(sr.ap); updateHUD();
+  if(sr.success){ PC._iskaldEscaped=true; return `<span class="grn"> 壁を伝って出口を見つけた！</span>`; }
+  return `<span class="red"> 暗闇の中で迷い続けた……</span>`;
+ },
+ choices:()=>PC._iskaldEscaped
+  ? [{label:' 出口へ',go:'ISKALD_ENTRANCE'}]
+  : [{label:' 再度出口を探す（LK Lv3 SR）',go:'ISKALD_DARK_ESCAPE'}],
+ },
+
+ ISKALD_C1:{
+ scene:'dungeon',
+ txt:`<span class="gold">地下大通路</span><br><br>
+  東西に延びる幅広い石造りの通路（約30m）。天井は高く、壁に古代文字の刻印がある。<br>
+  中央やや南寄りに入口への上り階段。西端で通路が南へ折れ曲がっている。<br>
+  東端の南壁に扉が見える。`,
+ choices:[
+  {label:'⬆ 入口の階段へ', go:'ISKALD_ENTRANCE'},
+  {label:'⬅ 西（折れ曲がった縦通路）へ', go:'ISKALD_C2'},
+  {label:'➡ 東端・南壁の扉へ', go:'ISKALD_ROOM8'},
+ ],
+ },
+
+ ISKALD_C2:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">折れ曲がった縦通路</span><br><br>
+  南北に延びる通路（約15m）。北端は東へ折れて大通路へ続く。<br>
+  南端は行き止まりで、南壁に重厚な石積みがある。<br>
+  ${PC._iskaldN_c2N?'<span class="grn"> 北壁に隠し扉を発見している（北の大広間へ）。</span>':''}<br>
+  ${PC._iskaldN_c2S?'<span class="grn"> 南壁に隠し扉を発見している（南の小部屋へ）。</span>':''}`,
+ choices:()=>{
+  const ch=[];
+  ch.push({label:'⬆ 北（大通路）へ',go:'ISKALD_C1'});
+  if(PC._iskaldN_c2N) ch.push({label:'⬆ 北壁の隠し扉（北の大広間）へ',go:'ISKALD_ROOM2'});
+  else ch.push({label:' 北壁を調べる（INT Lv2 SR）',fn:()=>{
+   dungeonTrySR({attr:'iq',level:2,
+    successTxt:'石の継ぎ目に手を差し込むと、壁の一部が動いた。隠し扉を発見した！',
+    failTxt:'壁を調べたが何も見つからなかった。',
+    successFn:()=>{PC._iskaldN_c2N=true;},
+    choicesFn:(ok)=>ok?[{label:'⬆ 北壁の隠し扉へ',go:'ISKALD_ROOM2'}]:[{label:'⬇ 通路へ戻る',go:'ISKALD_C2'}],
+   });
+  }});
+  if(PC._iskaldN_c2S) ch.push({label:'⬇ 南壁の隠し扉（南の小部屋）へ',go:'ISKALD_ROOM11'});
+  else ch.push({label:' 南壁を調べる（INT Lv2 SR）',fn:()=>{
+   dungeonTrySR({attr:'iq',level:2,
+    successTxt:'南壁にも巧妙に隠された扉を発見した！',
+    failTxt:'南壁を調べたが何も見つからなかった。',
+    successFn:()=>{PC._iskaldN_c2S=true;},
+    choicesFn:(ok)=>ok?[{label:'⬇ 南壁の隠し扉へ',go:'ISKALD_ROOM11'}]:[{label:'⬇ 通路へ戻る',go:'ISKALD_C2'}],
+   });
+  }});
+  return ch;
+ },
+ },
+
+ ISKALD_C3:{
+ scene:'dungeon',
+ txt:`<span class="gold">短い縦通路（階段室）</span><br><br>
+  南北約10mの短い通路。北端の北壁に扉（上の小部屋へ）、南端の南壁に扉（南の大広間へ）。<br>
+  通路中央あたりの東壁に、幅5mの大きな開口部があり、東へと降りる石段が続いている。<br>
+  <span style="color:#88ccff">── 地下2階への下り階段 ──</span>`,
+ choices:[
+  {label:'⬆ 北（扉の小部屋）へ',go:'ISKALD_ROOM8'},
+  {label:'⬇ 南（南の大広間）へ',go:'ISKALD_ROOM4'},
+  {label:'➡ 東（地下2階）の階段へ',go:'ISKALD_B2F'},
+ ],
+ },
+
+ ISKALD_C4:{
+ scene:'dungeon',
+ txt:`<span class="gold">縦の通路</span><br><br>
+  南北に延びる通路（約25m）。南端は行き止まりで西壁に扉（南の大広間へ）。<br>
+  北端も行き止まりで東壁に扉（小部屋へ）。`,
+ choices:[
+  {label:'⬇ 南端・西壁の扉（南の大広間）へ',go:'ISKALD_ROOM4'},
+  {label:'⬆ 北端・東壁の扉（小部屋）へ',go:'ISKALD_ROOM6'},
+ ],
+ },
+
+ ISKALD_C5:{
+ scene:'dungeon',
+ txt:`<span class="gold">南の縦通路</span><br><br>
+  南北に延びる通路（約15m）。北端に扉（小部屋へ）。<br>
+  南端は東へ折れ曲がって別の通路へ続く。`,
+ choices:[
+  {label:'⬆ 北（小部屋）の扉へ',go:'ISKALD_ROOM6'},
+  {label:'➡ 南東（折れ曲がり）の通路へ',go:'ISKALD_C6'},
+ ],
+ },
+
+ ISKALD_C6:{
+ scene:'dungeon',
+ txt:`<span class="gold">折れ曲がり横通路（南）</span><br><br>
+  東西に延びる通路（約15m）。西端は北へ折れ曲がって縦通路へ。<br>
+  東端も北へ折れ曲がって別の縦通路へ続く。`,
+ choices:[
+  {label:'⬅ 西北（縦通路）へ',go:'ISKALD_C5'},
+  {label:'➡ 東北（縦通路）へ',go:'ISKALD_C7'},
+ ],
+ },
+
+ ISKALD_C7:{
+ scene:'dungeon',
+ txt:`<span class="gold">南西の縦通路</span><br><br>
+  南北に延びる通路（約15m）。南端は西へ折れ曲がって横通路へ。<br>
+  北端は東へ折れ曲がって別の横通路へ続く。`,
+ choices:[
+  {label:'⬇ 南西（折れ曲がり）の通路へ',go:'ISKALD_C6'},
+  {label:'⬆ 北東（折れ曲がり）の通路へ',go:'ISKALD_C8'},
+ ],
+ },
+
+ ISKALD_C8:{
+ scene:'dungeon',
+ txt:`<span class="gold">折れ曲がり横通路（北）</span><br><br>
+  東西に延びる通路（約15m）。西端は南へ折れ曲がって縦通路へ。<br>
+  東端も南へ折れ曲がって別の縦通路へ続く。`,
+ choices:[
+  {label:'⬅ 西南（縦通路）へ',go:'ISKALD_C7'},
+  {label:'➡ 東南（縦通路）へ',go:'ISKALD_C9'},
+ ],
+ },
+
+ ISKALD_C9:{
+ scene:'dungeon',
+ txt:`<span class="gold">北の縦通路</span><br><br>
+  南北に延びる通路（約15m）。北端は西へ折れ曲がって横通路へ。<br>
+  南端は行き止まりで、東壁に扉（奥の大広間へ）。`,
+ choices:[
+  {label:'⬆ 北西（折れ曲がり）の通路へ',go:'ISKALD_C8'},
+  {label:'➡ 南端・東壁の扉（奥の大広間）へ',go:'ISKALD_ROOM5'},
+ ],
+ },
+
+ ISKALD_C10:{
+ scene:'dungeon',
+ txt:`<span class="gold">東の長い横通路</span><br><br>
+  東西に延びる通路（約25m）。西端の南壁に扉（奥の大広間へ）。<br>
+  東端の北壁にアーチ形の開口部（大きな礼拝室へ）。`,
+ choices:[
+  {label:'⬅ 西端・南壁の扉（奥の大広間）へ',go:'ISKALD_ROOM5'},
+  {label:'➡ 東端・北壁のアーチ（礼拝室）へ',go:'ISKALD_ROOM7'},
+ ],
+ },
+
+ ISKALD_C11:{
+ scene:'dungeon',
+ txt:`<span class="gold">北の短い横通路</span><br><br>
+  東西に延びる通路（約15m）。東端に扉（東の大広間へ）。<br>
+  西端は行き止まりで、南壁に扉（横長の部屋へ）。`,
+ choices:[
+  {label:'➡ 東（東の大広間）の扉へ',go:'ISKALD_ROOM3'},
+  {label:'⬇ 西端・南壁の扉（横長の部屋）へ',go:'ISKALD_ROOM10'},
+ ],
+ },
+
+ ISKALD_C12:{
+ scene:'dungeon',
+ txt:`<span class="gold">短い縦通路</span><br><br>
+  南北に延びる通路（約15m）。南端の扉から五角形の間へ、北端の扉から縦長の部屋へ続く。`,
+ choices:[
+  {label:'⬇ 南（五角形の間）の扉へ',go:'ISKALD_ROOM1'},
+  {label:'⬆ 北（縦長の部屋）の扉へ',go:'ISKALD_ROOM9'},
+ ],
+ },
+
+ ISKALD_ROOM1:{
+ scene:'dungeon',
+ txt:`<span class="gold">五角形の間</span><br><br>
+  1辺25mほどの五角形の奇妙な形の部屋。壁の角度が独特で、声が反響する。<br>
+  東壁に扉（大きな礼拝室へ）、西壁に扉（短い縦通路へ）。`,
+ choices:[
+  {label:'➡ 東（礼拝室）の扉へ',go:'ISKALD_ROOM7'},
+  {label:'⬅ 西（短い縦通路）の扉へ',go:'ISKALD_C12'},
+ ],
+ },
+
+ ISKALD_ROOM2:{
+ scene:'dungeon',
+ txt:`<span class="gold">北の大広間</span><br><br>
+  35m四方の広大な部屋。天井が高く、かつては重要な儀式が行われた場所と思われる。<br>
+  東壁に部屋9への隠し扉（こちら側からは見える）、南壁に折れ曲がった縦通路への隠し扉。`,
+ choices:[
+  {label:'➡ 東壁の隠し扉（縦長の部屋）へ',go:'ISKALD_ROOM9'},
+  {label:'⬇ 南壁の隠し扉（折れ曲がった縦通路）へ',go:'ISKALD_C2'},
+ ],
+ },
+
+ ISKALD_ROOM3:{
+ scene:'dungeon',
+ txt:`<span class="gold">東の大広間</span><br><br>
+  35m四方の広い部屋。壁に古代の装飾が施されている。<br>
+  南壁東寄りに扉（礼拝室へ）、西壁北寄りに扉（北の短い横通路へ）、西壁南寄りに扉（横長の部屋へ）。`,
+ choices:[
+  {label:'⬇ 南壁東寄りの扉（礼拝室）へ',go:'ISKALD_ROOM7'},
+  {label:'⬅ 西壁北寄りの扉（北の短い横通路）へ',go:'ISKALD_C11'},
+  {label:'⬅ 西壁南寄りの扉（横長の部屋）へ',go:'ISKALD_ROOM10'},
+ ],
+ },
+
+ ISKALD_ROOM4:{
+ scene:'dungeon',
+ txt:`<span class="gold">南の大広間</span><br><br>
+  35m四方の広間。南側の壁は崩落気味で、瓦礫が散らばっている。<br>
+  北壁東寄りに扉（階段室へ）、北壁西寄りに扉（隠し通路の小部屋へ）、東壁南寄りに扉（縦の通路へ）。`,
+ choices:[
+  {label:'⬆ 北壁東寄りの扉（階段室）へ',go:'ISKALD_C3'},
+  {label:'⬆ 北壁西寄りの扉（小部屋）へ',go:'ISKALD_ROOM11'},
+  {label:'➡ 東壁南寄りの扉（縦の通路）へ',go:'ISKALD_C4'},
+ ],
+ },
+
+ ISKALD_ROOM5:{
+ scene:'dungeon',
+ txt:`<span class="gold">奥の大広間</span><br><br>
+  35m四方の広間。回廊に囲まれた奥まった場所にある。床に古代の文様が刻まれている。<br>
+  西壁に扉（北の縦通路へ）、北壁に扉（東の長い横通路へ）。`,
+ choices:[
+  {label:'⬅ 西（北の縦通路）の扉へ',go:'ISKALD_C9'},
+  {label:'⬆ 北（東の長い横通路）の扉へ',go:'ISKALD_C10'},
+ ],
+ },
+
+ ISKALD_ROOM6:{
+ scene:'dungeon',
+ txt:`<span class="gold">小部屋</span><br><br>
+  15m四方の小部屋。石棚に割れた器が並んでいる。<br>
+  西壁に扉（縦の通路へ）、南壁に扉（南の縦通路へ）。`,
+ choices:[
+  {label:'⬅ 西（縦の通路）の扉へ',go:'ISKALD_C4'},
+  {label:'⬇ 南（南の縦通路）の扉へ',go:'ISKALD_C5'},
+ ],
+ },
+
+ ISKALD_ROOM7:{
+ scene:'dungeon',
+ txt:`<span class="gold">大きな礼拝室</span><br><br>
+  南北25m、東西35mの礼拝の間。石柱が列を成し、正面に祭壇の台座が残っている。<br>
+  南壁東寄りにアーチ（東の長い横通路へ）、北壁東寄りに扉（東の大広間へ）、西壁に扉（五角形の間へ）。`,
+ choices:[
+  {label:'⬇ 南壁東寄りのアーチ（長い横通路）へ',go:'ISKALD_C10'},
+  {label:'⬆ 北壁東寄りの扉（東の大広間）へ',go:'ISKALD_ROOM3'},
+  {label:'⬅ 西壁の扉（五角形の間）へ',go:'ISKALD_ROOM1'},
+ ],
+ },
+
+ ISKALD_ROOM8:{
+ scene:'dungeon',
+ txt:`<span class="gold">扉の小部屋</span><br><br>
+  15m四方の小部屋。北壁と南壁のそれぞれに扉があるだけの殺風景な部屋。<br>
+  通路の中継地点のような造りだ。<br>
+  北壁の扉は地下大通路へ、南壁の扉は階段室へ。`,
+ choices:[
+  {label:'⬆ 北（地下大通路）の扉へ',go:'ISKALD_C1'},
+  {label:'⬇ 南（階段室）の扉へ',go:'ISKALD_C3'},
+ ],
+ },
+
+ ISKALD_ROOM9:{
+ scene:'dungeon',
+ txt:()=>`<span class="gold">縦長の部屋</span><br><br>
+  南北35m、東西15mの縦に長い部屋。壁に等間隔で燭台の台座が並んでいる。<br>
+  南壁に扉（短い縦通路へ）。西壁の石積みが…微妙に他と異なる部分がある。<br>
+  ${PC._iskaldN_room9W?'<span class="grn"> 西壁の隠し扉を発見している（北の大広間へ）。</span>':''}`,
+ choices:()=>{
+  const ch=[];
+  ch.push({label:'⬇ 南（短い縦通路）の扉へ',go:'ISKALD_C12'});
+  if(PC._iskaldN_room9W) ch.push({label:'⬅ 西壁の隠し扉（北の大広間）へ',go:'ISKALD_ROOM2'});
+  else ch.push({label:' 西壁を調べる（INT Lv2 SR）',fn:()=>{
+   dungeonTrySR({attr:'iq',level:2,
+    successTxt:'石の積み方の違いを手がかりに調べると、西壁に隠し扉を発見した！',
+    failTxt:'念入りに調べたが、何も見つからなかった。',
+    successFn:()=>{PC._iskaldN_room9W=true;},
+    choicesFn:(ok)=>ok?[{label:'⬅ 西壁の隠し扉（北の大広間）へ',go:'ISKALD_ROOM2'}]:[{label:'⬆ 縦長の部屋へ',go:'ISKALD_ROOM9'}],
+   });
+  }});
+  return ch;
+ },
+ },
+
+ ISKALD_ROOM10:{
+ scene:'dungeon',
+ txt:`<span class="gold">横長の部屋</span><br><br>
+  南北25m、東西15mの横に長い部屋。壁に沿って石製の長椅子が並んでいる。<br>
+  北壁に扉（北の短い横通路へ）、東壁に扉（東の大広間へ）。`,
+ choices:[
+  {label:'⬆ 北（北の短い横通路）の扉へ',go:'ISKALD_C11'},
+  {label:'➡ 東（東の大広間）の扉へ',go:'ISKALD_ROOM3'},
+ ],
+ },
+
+ ISKALD_ROOM11:{
+ scene:'dungeon',
+ txt:`<span class="gold">隠し通路の小部屋</span><br><br>
+  15m四方の小部屋。南壁に扉（南の大広間へ）、北壁に隠し扉（折れ曲がった縦通路へ、こちら側からは見える）。<br>
+  ひっそりとした隠し部屋のような雰囲気がある。`,
+ choices:[
+  {label:'⬇ 南（南の大広間）の扉へ',go:'ISKALD_ROOM4'},
+  {label:'⬆ 北壁の隠し扉（折れ曲がった縦通路）へ',go:'ISKALD_C2'},
+ ],
+ },
+
+ ISKALD_B2F:{
+ scene:'dungeon',
+ txt:`<span class="gold">地下2階への下り階段</span><br><br>
+  通路東壁の大きな開口部から続く石段。地下2階へと延びているが、先は暗闇に沈んでいる。<br>
+  <span class="dim">……この先はまだ調査されていない。</span>`,
+ choices:[
+  {label:'⬅ 引き返す（階段室へ）',go:'ISKALD_C3'},
+ ],
+ },
+
 
  TEST_MAGIC:{
  scene:'dungeon',
