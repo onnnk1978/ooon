@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062101</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062501</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -604,73 +604,73 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 
 <!-- ══════════ CHAR GEN ══════════ -->
 <div id="chargen" class="hidden">
- <h2> CREATE YOUR ADVENTURER</h2>
+ <h2> キャラクター作成</h2>
  <div class="cg-hint">3D6を各能力値に振る。後で変更できない！</div>
 
  <div class="cg-section">
- <h3> PRIME ATTRIBUTES</h3>
- <div class="cg-row"><label>ST 強さ</label><input type="number" id="a-st" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>IQ 知力</label><input type="number" id="a-iq" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>LK 運 </label><input type="number" id="a-lk" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>CON 体力</label><input type="number" id="a-con" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>DEX 器用</label><input type="number" id="a-dex" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>CHR 魅力</label><input type="number" id="a-chr" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>SPD 速度</label><input type="number" id="a-spd" value="10" min="1" max="99"></div>
+ <h3> 能力値</h3>
+ <div class="cg-row"><label>強さ</label><input type="number" id="a-st" value="10" min="1" max="99"></div>
+ <div class="cg-row"><label>知力</label><input type="number" id="a-iq" value="10" min="1" max="99"></div>
+ <div class="cg-row"><label>運　</label><input type="number" id="a-lk" value="10" min="1" max="99"></div>
+ <div class="cg-row"><label>体力</label><input type="number" id="a-con" value="10" min="1" max="99"></div>
+ <div class="cg-row"><label>器用さ</label><input type="number" id="a-dex" value="10" min="1" max="99"></div>
+ <div class="cg-row"><label>魅力</label><input type="number" id="a-chr" value="10" min="1" max="99"></div>
+ <div class="cg-row"><label>素早さ</label><input type="number" id="a-spd" value="10" min="1" max="99"></div>
  <div class="stat-preview" id="adds-preview">
  <div class="sp-cell">戦闘力修正<span id="prev-adds">0</span></div>
- <div class="sp-cell">WEIGHT<span id="prev-wt">1000</span></div>
- <div class="sp-cell">START GP<span id="prev-gp">?</span></div>
- <div class="sp-cell">LEVEL<span>1</span></div>
+ <div class="sp-cell">積載量<span id="prev-wt">1000</span></div>
+ <div class="sp-cell">開始所持金<span id="prev-gp">?</span></div>
+ <div class="sp-cell">レベル<span>1</span></div>
  </div>
  <div style="font-size:calc(var(--font-lg) + 4px);color:var(--dim);margin:6px 4px 2px">◆ 種族補正後ステータス</div>
  <div class="stat-preview" id="stat-after-race" style="grid-template-columns:repeat(7,1fr)"></div>
- <button class="cg-btn rand" onclick="rollStats()" style="margin-top:10px"> ROLL 3D6 ALL</button>
+ <button class="cg-btn rand" onclick="rollStats()" style="margin-top:10px"> サイコロを振る（3D6）</button>
  </div>
 
  <div class="cg-section">
- <h3> KINDRED（種族）</h3>
+ <h3> 種族</h3>
  <div class="cg-row">
  <label>種族</label>
  <select id="a-race" onchange="updateRaceInfo();updateAddsPreview()">
- <option value="human">Human 人間</option>
- <option value="elf">Elf エルフ</option>
- <option value="dwarf">Dwarf ドワーフ</option>
- <option value="halfling">Halfling ハーフリング</option>
- <option value="fairy">Fairy フェアリー</option>
- <option value="leprechaun">Leprechaun レプラコーン</option>
+ <option value="human">人間</option>
+ <option value="elf">エルフ</option>
+ <option value="dwarf">ドワーフ</option>
+ <option value="halfling">ハーフリング</option>
+ <option value="fairy">フェアリー</option>
+ <option value="leprechaun">レプラコーン</option>
  </select>
  </div>
- <div class="race-info" id="race-info">Human: 全能力値 ×1（補正なし）</div>
+ <div class="race-info" id="race-info">人間: 全能力値 ×1（補正なし）</div>
  </div>
 
  <div class="cg-section">
- <h3> CHARACTER TYPE（職業）</h3>
+ <h3> 職業</h3>
  <div class="type-card warrior selected" id="card-warrior" onclick="selectType('warrior')">
- <h4> WARRIOR 戦士</h4>
- <p>防具・盾の防護値が2倍。魔法は使えないが武器は何でも使える。ST &gt; IQ or LK 向き。</p>
+ <h4> 戦士</h4>
+ <p>防具・盾の防護値が2倍。魔法は使えないが武器は何でも使える。強さ重視向き。</p>
  </div>
  <div class="type-card wizard" id="card-wizard" onclick="selectType('wizard')">
- <h4> WIZARD 魔法使い</h4>
- <p>全レベル1呪文を習得済み。ダガー・クォータースタッフのみ。IQ≥10、DEX≥8 必須。</p>
+ <h4> 魔法使い</h4>
+ <p>全レベル1呪文を習得済み。ダガー・杖のみ。知力≥10、器用さ≥8 必須。</p>
  </div>
  <div class="type-card rogue" id="card-rogue" onclick="selectType('rogue')">
- <h4> ROGUE 盗賊</h4>
+ <h4> 盗賊</h4>
  <p>防具ボーナスなし。盗賊ギルドで呪文を習得可能（通常の2倍の費用）。能力値要件なし。</p>
  </div>
- <div id="type-warn" class="cg-hint hidden" style="color:#c05040">※ WizardはIQ≥10、DEX≥8が必要です</div>
+ <div id="type-warn" class="cg-hint hidden" style="color:#c05040">※ 魔法使いは知力≥10、器用さ≥8が必要です</div>
  </div>
 
  <div class="cg-section">
- <h3> NAME &amp; GOLD</h3>
+ <h3> 名前と所持金</h3>
  <div class="cg-row">
  <label>名前</label>
  <input type="text" id="a-name" value="Mantaro" style="background:#000033;border:2px solid var(--border);color:var(--white2);font-family:system-ui,sans-serif;font-size:var(--font-base);padding:7px;border-radius:3px;width:150px">
- <button onclick="document.getElementById('a-name').value=pickNPC()" style="background:none;border:1px solid #444;color:#a09060;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 6px;cursor:pointer;border-radius:2px;margin-left:6px" title="ランダムな名前">RAND</button>
+ <button onclick="document.getElementById('a-name').value=pickNPC()" style="background:none;border:1px solid #444;color:#a09060;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 6px;cursor:pointer;border-radius:2px;margin-left:6px" title="ランダムな名前">ランダム</button>
  </div>
- <div class="cg-hint" style="margin-top:6px">開始GP: 3D6×10（<button onclick="rollGold()" style="background:none;border:1px solid #444;color:#a09060;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 6px;cursor:pointer;border-radius:2px">ROLL</button>）= <span id="gp-result" style="color:var(--gold)">?</span> GP</div>
+ <div class="cg-hint" style="margin-top:6px">開始GP: 3D6×10（<button onclick="rollGold()" style="background:none;border:1px solid #444;color:#a09060;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 6px;cursor:pointer;border-radius:2px">振る</button>）= <span id="gp-result" style="color:var(--gold)">?</span> GP</div>
  </div>
 
- <button class="cg-btn start" onclick="startGame()">▶ BEGIN ADVENTURE!</button>
+ <button class="cg-btn start" onclick="startGame()">▶ 冒険を始める！</button>
  <div style="height:16px"></div>
 </div>
 
@@ -825,10 +825,10 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <!-- モバイル用の要素（デスクトップではCSSで非表示） -->
  <div id="timebar" style="display:none">-</div>
  <div id="stats-bar">
- <div class="stat-cell" id="sc-st"><span class="sl">ST</span><span class="sv" id="d-st">-</span></div>
- <div class="stat-cell" id="sc-con"><span class="sl">CON</span><span class="sv" id="d-con">-</span></div>
- <div class="stat-cell" hidden><span class="sl">LK</span><span class="sv" id="d-lk">-</span></div>
- <div class="stat-cell" hidden><span class="sl">DEX</span><span class="sv" id="d-dex">-</span></div>
+ <div class="stat-cell" id="sc-st"><span class="sl">強さ</span><span class="sv" id="d-st">-</span></div>
+ <div class="stat-cell" id="sc-con"><span class="sl">体力</span><span class="sv" id="d-con">-</span></div>
+ <div class="stat-cell" hidden><span class="sl">運</span><span class="sv" id="d-lk">-</span></div>
+ <div class="stat-cell" hidden><span class="sl">器用さ</span><span class="sv" id="d-dex">-</span></div>
  <div class="stat-cell" hidden><span class="sl">戦闘力修正</span><span class="sv" id="d-adds">-</span></div>
  <div class="stat-cell"><span class="sl">ARMOR</span><span class="sv" id="d-armor">-</span></div>
  <div class="stat-cell" id="sc-wt"><span class="sl">WT</span><span class="sv" id="d-wt">-</span></div>
@@ -1335,7 +1335,7 @@ const HERO_QUEST_TEMPLATES = [
   clientLine:(town)=>`「${town}の水源近くの洞窟に何かが棲みついた。放置すれば水が汚染される。すでに一組の傭兵が戻らなかった。急いでほしい」`,
   mrType:true,
   nodes:[
-   { txt:'洞窟の入口に傭兵の装備が散乱していた。血の跡が奥へ続いている。壁を伝う冷たい水の音に混じって、何かが動く気配がする。', sr:{attr:'dex', level:2, reason:'滑りやすい岩場を慎重に進む必要がある。', fail:{attr:'st', dmg:2}, failTxt:'足を滑らせて壁に激突した。ST-2'} },
+   { txt:'洞窟の入口に傭兵の装備が散乱していた。血の跡が奥へ続いている。壁を伝う冷たい水の音に混じって、何かが動く気配がする。', sr:{attr:'dex', level:2, reason:'滑りやすい岩場を慎重に進む必要がある。', fail:{attr:'st', dmg:2}, failTxt:'足を滑らせて壁に激突した。強さ-2'} },
    { txt:'奥へ進むほど水音が大きくなる。光が届かない暗闇の中、何かの眼が光った。一つではない。', sr:{attr:'lk', level:3, reason:'暗闇の中、何かの気配を感じながら進む。', fail:{attr:'con', dmg:3}, failTxt:'暗闇で体を掴まれた。CON-3'} },
   ],
   bossDesc:'洞窟の主',
@@ -1599,7 +1599,7 @@ function _runSpecialMissionNode(q, nodeIdx){
  if(node.sr){
   const sr = node.sr;
   const attr = _chaosSR(sr.level);
-  const attrNames = {dex:'DEX 器用',lk:'LK 運',iq:'IQ 知力'};
+  const attrNames = {dex:'器用さ',lk:'運',iq:'知力'};
   story.innerHTML += `<div style="color:#997744;font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:#080600;border-left:2px solid #553300;line-height:1.9">時間の歪みに対応するための判定が必要だ。<br><span style="color:#cc7700"> ${attrNames[attr]} Lv${sr.level} 能力値テスト</span></div>`;
   renderChoices([{label:` ダイスを振る（${attrNames[attr]} Lv${sr.level} 能力値テスト）`, fn:()=>{
    document.getElementById('dice-area').classList.remove('hidden');
@@ -1870,7 +1870,7 @@ function _runSpecialMissionVNode(q, nodeIdx){
  if(node.sr){
   const sr = node.sr;
   const attr = _chaosSR(sr.level);
-  const attrNames = {dex:'DEX 器用',lk:'LK 運',iq:'IQ 知力'};
+  const attrNames = {dex:'器用さ',lk:'運',iq:'知力'};
   story.innerHTML += `<div style="color:#667788;font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:#060a12;border-left:2px solid #224466;line-height:1.9">時間の歪みに対応するための判定が必要だ。<br><span style="color:#88aacc"> ${attrNames[attr]} Lv${sr.level} 能力値テスト</span></div>`;
   renderChoices([{label:` ダイスを振る（${attrNames[attr]} Lv${sr.level} 能力値テスト）`, fn:()=>{
    document.getElementById('dice-area').classList.remove('hidden');
@@ -2132,7 +2132,7 @@ function _runSpecialMissionMNode(q, nodeIdx){
  if(node.sr){
   const sr = node.sr;
   const attr = _chaosSR(sr.level);
-  const attrNames = {dex:'DEX 器用',lk:'LK 運',iq:'IQ 知力'};
+  const attrNames = {dex:'器用さ',lk:'運',iq:'知力'};
   story.innerHTML += `<div style="color:#336655;font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:#040c08;border-left:2px solid #1a4433;line-height:1.9">時間の歪みに対応するための判定が必要だ。<br><span style="color:#44cc88"> ${attrNames[attr]} Lv${sr.level} 能力値テスト</span></div>`;
   renderChoices([{label:` ダイスを振る（${attrNames[attr]} Lv${sr.level} 能力値テスト）`, fn:()=>{
    document.getElementById('dice-area').classList.remove('hidden');
@@ -2328,7 +2328,7 @@ function _runHeroQuestNode(q, tmpl, nodeIdx){
 
  if(node.sr){
   const sr = node.sr;
-  const attrNames = {st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+  const attrNames = {st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
 
   // SR前フレーバー（属性別）
   const srPreFlavor = {
@@ -2906,7 +2906,7 @@ function startChaosNestBattle(townId){
 }
 
 const HERO_REGIONS = {
- khazan_region:   { name:'カザン地方',       towns:['khazan','port_argon','stonehiem'] },
+ khazan_region:   { name:'カザーヌ地方',       towns:['khazan','port_argon','stonehiem'] },
  elmaria_region:  { name:'エルマリア地方',      towns:['elsia','verda','rimholm','marakai'] },
  zahara_region:   { name:'ザハラ地方',          towns:['al_rashid','oasis_fort','saroon','duna'] },
  draklim_region:  { name:'ドラクリム地方',      towns:['yeldun','frostpeak','ashveil'] },
@@ -3028,9 +3028,9 @@ const PROPERTY_DEFS = {
   ]},
  khazan:    { basePrice:50000,
   tiers:[
-   { name:'カザンの市街地の住居',       desc:'王都の市街地に建つ石造りの住居。交通の便がよい。' },
-   { name:'カザンの中級市民宅',         desc:'王都の中級市民にふさわしい邸宅。あらゆる情報が集まる。' },
-   { name:'カザンの豪商邸宅',           desc:'王都に名を馳せる豪商の邸宅。訪問者が絶えない。' },
+   { name:'カザーヌの市街地の住居',       desc:'王都の市街地に建つ石造りの住居。交通の便がよい。' },
+   { name:'カザーヌの中級市民宅',         desc:'王都の中級市民にふさわしい邸宅。あらゆる情報が集まる。' },
+   { name:'カザーヌの豪商邸宅',           desc:'王都に名を馳せる豪商の邸宅。訪問者が絶えない。' },
   ]},
  elsia:     { basePrice:40000,
   tiers:[
@@ -3407,7 +3407,7 @@ function goPropertyNode(townId){
   if(story) story.innerHTML = html;
   const choices = [];
   if(info.srRequired){
-   choices.push({label:` CHR 能力値テストで強引に交渉（${info.price}GP）`, fn:()=>propertyBuySR(townId)});
+   choices.push({label:` 魅力 能力値テストで強引に交渉（${info.price}GP）`, fn:()=>propertyBuySR(townId)});
   } else {
    const canAfford = totalCP() >= info.price*100;
    choices.push({label:` 購入する（${info.price}GP）${canAfford?'':'　［所持金不足］'}`,
@@ -4077,7 +4077,7 @@ function propertyPickupChild(townId){
        +`<b> ${child.name}の職業を選ぶ</b><br><br>`
        +`<span class="dim">ST:${child.st} IQ:${child.iq} LK:${child.lk} CON:${child.con} DEX:${child.dex} CHR:${child.chr} SPD:${child.spd}</span><br><br>`
        +`<span class="dim">${child.name}はどの道を歩むのか。今こそ決める時だ。</span>`
-       +(!canWizard?`<br><span style="color:#c05040;font-size:calc(var(--font-sm) - 2px)">※ 魔法使いにはIQ10・DEX8以上が必要</span>`:'');
+       +(!canWizard?`<br><span style="color:#c05040;font-size:calc(var(--font-sm) - 2px)">※ 魔法使いには知力10・器用さ8以上が必要</span>`:'');
       const typeChoices = [
        {label:' 戦士（Warrior）', fn:()=>{ child.type='warrior'; child._typeChosen=true; _recruitChild(child,prop,townId); }},
        ...(canWizard?[{label:' 魔法使い（Wizard）', fn:()=>{ child.type='wizard'; child._typeChosen=true; _recruitChild(child,prop,townId); }}]:[]),
@@ -4508,7 +4508,7 @@ function goOtherActions(townId){
 
 // 都市の両替所名
 const EXCHANGE_BANK_NAMES = {
- khazan:    'カザン両替商ギルド',
+ khazan:    'カザーヌ両替商ギルド',
  al_rashid: 'アル＝ラシード砂漠金融組合',
  elsia:     'エルシア王立両替所',
  yeldun:    'イェルドゥン山岳交易銀行',
@@ -4697,7 +4697,7 @@ function generateJewel(){
   const priceGP = gem.base * 10 * gemCount;
 
   if(itemType === 'Weapon'){
-   // カザン装備屋のテーブルからランダムに武器を選ぶ
+   // カザーヌ装備屋のテーブルからランダムに武器を選ぶ
    const baseWeapon = WEAPONS_TABLE_KHAZAN[Math.floor(Math.random()*WEAPONS_TABLE_KHAZAN.length)];
    // 売値の1/10を攻撃修整として加算（切り捨て）
    const magicBonus = Math.floor(priceGP / 10);
@@ -5009,13 +5009,13 @@ function npcUnequipArmor(npcIdx, eqIdx){
 
 const PATRON_EVENTS = {
 
- // ── カザン ──
+ // ── カザーヌ ──
  khazan: [
   { name:'老商人のバーナス', icon:'',
     intro:'白髭の老商人が地図を広げて一人で飲んでいる。話しかけると目を細めた。',
     type:'rumor',
     lines:['「最近ザハラ地方から来る隊商が減っとる。砂漠に何かあるのかのう…」',
-           '「カザンの裏市場では珍しい地図が売られとる。ま、信用できるかは別じゃが」',
+           '「カザーヌの裏市場では珍しい地図が売られとる。ま、信用できるかは別じゃが」',
            '「王城の地下には迷宮があるという噂があるぞ。王様が隠したお宝つきでな」'] },
   { name:'傭兵くずれのガルト', icon:'',
     intro:'傷だらけの大男がジョッキを片手に壁にもたれている。こちらを一瞥した。',
@@ -5129,7 +5129,7 @@ const PATRON_EVENTS = {
   { name:'旅人のミラ', icon:'',
     intro:'旅慣れた様子の女性が一人で飲んでいる。いくつもの地方を渡り歩いてきた顔だ。',
     type:'tip',
-    line:'「カザンからエルマリアに来たんだけど…途中の道で変な廃屋を見たわ。中に光るものがあったけど怖くて入れなかった」',
+    line:'「カザーヌからエルマリアに来たんだけど…途中の道で変な廃屋を見たわ。中に光るものがあったけど怖くて入れなかった」',
     ap:10 },
   { name:'村の若者ペトル', icon:'',
     intro:'村育ちの若者が緊張した様子でエールを飲んでいる。冒険者が珍しいらしい。',
@@ -5202,7 +5202,7 @@ const PATRON_EVENTS = {
   { name:'香辛料商のルーミ', icon:'',
     intro:'芳しい香りをまとった商人が商品の話を楽しそうにしている。',
     type:'tip',
-    line:'「最近カザン地方で香辛料が品薄でな。今持って行けば相場の1.5倍は固いぞ。ただし急いで行かんと値崩れする」',
+    line:'「最近カザーヌ地方で香辛料が品薄でな。今持って行けば相場の1.5倍は固いぞ。ただし急いで行かんと値崩れする」',
     ap:10 },
   { name:'酔った賭博師', icon:'',
     intro:'骰子を転がしながら飲んでいる男が目をつけてきた。「一勝負どうだ？」',
@@ -5251,7 +5251,7 @@ const PATRON_EVENTS = {
   { name:'岩塩商のビラ', icon:'',
     intro:'こんがり日焼けした女性が取引の計算をしながら飲んでいる。',
     type:'tip',
-    line:'「岩塩はカザンで売れるぞ。鉱山の精錬鋼塊と一緒に持って行くと荷物効率もいい」',
+    line:'「岩塩はカザーヌで売れるぞ。鉱山の精錬鋼塊と一緒に持って行くと荷物効率もいい」',
     ap:8 },
  ],
 
@@ -5288,7 +5288,7 @@ const PATRON_EVENTS = {
   { name:'鍛冶師のドボル', icon:'',
     intro:'鉄の臭いがする男が大きな手でジョッキを掴んでいる。',
     type:'tip',
-    line:'「精錬鉄は重いが価値がある。カザンの鍛冶師に渡せば武器一本分の代金になるぞ。試してみな」',
+    line:'「精錬鉄は重いが価値がある。カザーヌの鍛冶師に渡せば武器一本分の代金になるぞ。試してみな」',
     ap:10 },
   { name:'元騎士のロドベルト', icon:'',
     intro:'貫禄のある老人が静かに飲んでいる。かつての栄光を感じさせる佇まいだ。',
@@ -5361,7 +5361,7 @@ const PATRON_EVENTS = {
   { name:'鉱物収集家のドラン', icon:'',
     intro:'小さな黒曜石を並べて品定めしている男が飲んでいる。',
     type:'tip',
-    line:'「黒曜石は産地によって切れ味が全然違う。アッシュヴェイル産は最高品質だ。カザンの武器職人に直接売ると高値がつく」',
+    line:'「黒曜石は産地によって切れ味が全然違う。アッシュヴェイル産は最高品質だ。カザーヌの武器職人に直接売ると高値がつく」',
     ap:0 },
   { name:'火山研究者のオーロ', icon:'',
     intro:'採取した岩石サンプルを並べた男が熱心に調べながら飲んでいる。',
@@ -5568,7 +5568,7 @@ const extra = {
     type:'rumor',
     lines:['「最近、王城の地下倉庫から変な音がするんだ。上には報告してるが…相手にされない」',
            '「国王陛下が新しい遠征隊を募集してるらしい。危険な任務だが報酬は破格だとか」',
-           '「カザンの外壁の修理が始まった。何かに備えてるのかもしれない」'] },
+           '「カザーヌの外壁の修理が始まった。何かに備えてるのかもしれない」'] },
   { name:'魔法使いギルドの見習いパルス', icon:'',
     intro:'ローブ姿の若者がしょんぼりしながら飲んでいる。',
     type:'drink',
@@ -5578,7 +5578,7 @@ const extra = {
     intro:'金のボタンの制服を着た男が疲れた顔で飲んでいる。',
     type:'rumor',
     lines:['「今日は貴族様の荷物をエルマリアまで運ぶ予定だったのに急に中止になった。向こうで何かあったのかな」',
-           '「カザンの南門の外に最近テントの集落ができてるぞ。難民か旅商人か…」',
+           '「カザーヌの南門の外に最近テントの集落ができてるぞ。難民か旅商人か…」',
            '「王都の地図屋で古い迷宮地図が出回ってるって噂を聞いた。本物かどうかは知らないが」'] },
   { name:'競技場の予選落ち戦士', icon:'',
     intro:'くやしそうな顔をした大男が酒を煽っている。',
@@ -5591,7 +5591,7 @@ const extra = {
   { name:'香辛料商のマルカ', icon:'',
     intro:'派手な衣装の女性商人が帳簿をつけながら飲んでいる。',
     type:'tip',
-    line:'「ザハラの岩塩がカザンで品薄になってきてるわよ。今運んできたら高値で売れると思う」',
+    line:'「ザハラの岩塩がカザーヌで品薄になってきてるわよ。今運んできたら高値で売れると思う」',
     ap:0 },
   { name:'酔った貴族の息子', icon:'',
     intro:'高そうな服を着た若者がひどく酔って絡んでいる。',
@@ -5611,7 +5611,7 @@ const extra = {
     type:'rumor',
     lines:['「ポートアルゴン沖に新種の魔物が出たって漁師から聞いた。海の底から来るらしい」',
            '「魔物には天敵がいる。それを知ってるだけで戦いが楽になるんだがな…教えるのは高くつく」',
-           '「カザンの下水道に住み着いた魔物がいるという。退治を依頼されたが断った。割に合わん」'] },
+           '「カザーヌの下水道に住み着いた魔物がいるという。退治を依頼されたが断った。割に合わん」'] },
   { name:'地方から出てきた農夫ガルシア', icon:'',
     intro:'垢抜けない服装の男が目を丸くしながら王都の喧騒を眺めている。',
     type:'drink',
@@ -5729,7 +5729,7 @@ const extra = {
   { name:'石材商のラムゼイ', icon:'',
     intro:'太った男が仕入れの計算をしながら大量に飲んでいる。',
     type:'tip',
-    line:'「精錬鋼塊の需要がカザンでまた上がってきた。今持って行けばいい値がつくぞ。重いけどな」',
+    line:'「精錬鋼塊の需要がカザーヌでまた上がってきた。今持って行けばいい値がつくぞ。重いけどな」',
     ap:0 },
  ],
  elsia: [
@@ -5807,7 +5807,7 @@ const extra = {
   { name:'毛皮商人のクラウス', icon:'',
     intro:'大量の毛皮を背後に積んだ男が疲れた顔で飲んでいる。',
     type:'tip',
-    line:'「狩人の上質毛皮はカザンよりエルシアで売った方が高値がつく。エルフは毛皮に目がないんだ」',
+    line:'「狩人の上質毛皮はカザーヌよりエルシアで売った方が高値がつく。エルフは毛皮に目がないんだ」',
     ap:0 },
   { name:'森の精霊を見たという老婆', icon:'',
     intro:'不思議な目をした老婆が一人でぶつぶつ言いながら飲んでいる。',
@@ -5940,7 +5940,7 @@ const extra = {
   { name:'錬金術師のナサル', icon:'',
     intro:'奇妙な道具を持った男が自分の実験について熱弁している。',
     type:'tip',
-    line:'「砂金と香辛料を特定の比率で混ぜると、魔法薬の媒体になる。カザンで高値で売れるぞ」',
+    line:'「砂金と香辛料を特定の比率で混ぜると、魔法薬の媒体になる。カザーヌで高値で売れるぞ」',
     ap:0 },
   { name:'酒に強い女戦士アルマ', icon:'',
     intro:'屈強な女性が周囲の男たちに飲み比べで勝ち続けている。',
@@ -6037,7 +6037,7 @@ const extra = {
   { name:'塩職人のコルダ', icon:'',
     intro:'白い粉をまとった女性が製品の品質について語っている。',
     type:'tip',
-    line:'「岩塩の中でも白くて細かい結晶のものが最高品質だ。カザンの料理人は特に高値で買う」',
+    line:'「岩塩の中でも白くて細かい結晶のものが最高品質だ。カザーヌの料理人は特に高値で買う」',
     ap:0 },
   { name:'鉱夫仲間の喧嘩', icon:'',
     intro:'2人の鉱夫が何かで言い合いをしている。「お前も参加しろ！」と呼ばれた。',
@@ -6311,7 +6311,7 @@ const extra = {
   {icon:'', name:'港の船乗り', intro:'日焼けした顔の男が酒をあおりながら話しかけてくる。',
    type:'rumor', lines:['「大陸の商品は高く売れる。特に鉄製品は島では作れないからな」','「最近、古代遺物を求めて大陸から学者が来てるらしいぞ」','「ドルアの遺跡に近づこうとすると島民に追い返されるらしい。理由は教えてくれないが」']},
   {icon:'', name:'島の商人', intro:'珊瑚のネックレスを首にかけた女性が話しかけてくる。',
-   type:'rumor', lines:['「ネブラの灯台、あれは誰も管理してないのに何百年も燃え続けてるんだよ」','「珊瑚は大陸では希少品だから、持って帰れば高く売れると思うよ」','「サルペの石碑、カザンの学者が読もうとしたけど解読できなかったって話だ」']},
+   type:'rumor', lines:['「ネブラの灯台、あれは誰も管理してないのに何百年も燃え続けてるんだよ」','「珊瑚は大陸では希少品だから、持って帰れば高く売れると思うよ」','「サルペの石碑、カザーヌの学者が読もうとしたけど解読できなかったって話だ」']},
   {icon:'', name:'老漁師', intro:'網を繕いながら老人がぽつりと話す。',
    type:'tip', line:'「諸島を巡るなら、まずネリアで信頼を積むといい。島民は外来者に慎重だからな」'},
  ],
@@ -6323,7 +6323,7 @@ const extra = {
  ],
  sarpe:[
   {icon:'', name:'老漁師', intro:'石碑を背にして座った老人が話しかけてくる。',
-   type:'rumor', lines:['「あの石碑の文字、誰も読めないが、雨の日だけ光るんだ」','「カザンから来た学者が何年か前に石碑を調べてた。何を発見したかは教えてくれなかった」','「霧の島のネブラとは昔から親戚付き合いがある。島民同士は仲がいいんだ」']},
+   type:'rumor', lines:['「あの石碑の文字、誰も読めないが、雨の日だけ光るんだ」','「カザーヌから来た学者が何年か前に石碑を調べてた。何を発見したかは教えてくれなかった」','「霧の島のネブラとは昔から親戚付き合いがある。島民同士は仲がいいんだ」']},
  ],
  nebra:[
   {icon:'', name:'灯台守', intro:'顔中に霧の水滴をつけた老人が静かに話す。',
@@ -6340,12 +6340,12 @@ const extra = {
   {icon:'', name:'賭場帰りの博徒', intro:'金の指輪をじゃらじゃらさせた男がご機嫌で飲んでいる。',
    type:'luck', line_good:'「今日は大勝ちだ！お前も飲め！」男は気前よくコインを放ってきた。', line_bad:'「一緒に飲んだら運が逃げた…」男はぶつぶつ言いながら去った。', lk_thresh:11, good_gp:20, bad_lk:-1 },
   {icon:'', name:'密偵風の女', intro:'背の高い女が柱の陰で周囲を観察しながら飲んでいる。',
-   type:'rumor', lines:['「最近カザンに流れ込む銀貨に偽物が混じっている。形が少し違う」','「王城の北棟に三日前から明かりがついていない。使用人が怯えている」','「市場の薬屋が突然店を畳んだ。在庫ごと消えた」']},
+   type:'rumor', lines:['「最近カザーヌに流れ込む銀貨に偽物が混じっている。形が少し違う」','「王城の北棟に三日前から明かりがついていない。使用人が怯えている」','「市場の薬屋が突然店を畳んだ。在庫ごと消えた」']},
   {icon:'', name:'引退した傭兵隊長', intro:'古傷の多い男が静かに強い酒を飲んでいる。',
    type:'brawl', intro_sr:'「若いころを思い出させてくれ。本気でかかってきていい」穏やかに言った。',
    attr:'st', level:3, win_line:'「久しぶりに本気が出せた。これを持っていけ」男は革袋を渡してきた。', lose_line:'「まだ甘い。もっと場数を踏め」男は短く言った。', win_gp:25, lose_con:3 },
   {icon:'', name:'迷子の行商人', intro:'地図を逆さに持った男が困り顔で飲んでいる。',
-   type:'drink', line:'「道を教えてもらえますか…カザンの南市場がどうしても見つからなくて」話を聞いてあげると礼として一杯奢ってくれた。', gp_delta:0, free_drink:true },
+   type:'drink', line:'「道を教えてもらえますか…カザーヌの南市場がどうしても見つからなくて」話を聞いてあげると礼として一杯奢ってくれた。', gp_delta:0, free_drink:true },
   {icon:'', name:'武具磨きの職人', intro:'指先が鉄錆で赤い老人が隅で飲んでいる。',
    type:'tip', line:'「装備は使ったらすぐ手入れすること。特に雨の日の後はな。さびは刃こぼれより怖い」' },
  ],
@@ -7021,7 +7021,7 @@ function npcCastSpellOutside(npcIdx, spellIdx){
   updateHUD();
   msg = ` ${n.name}が${spell.name}を唱えた。あなたのCON+${heal}（→${PC.con}/${PC.maxCon}）`;
  } else {
-  msg = ` ${n.name}が${spell.name}を唱えた（ST-${cost}）`;
+  msg = ` ${n.name}が${spell.name}を唱えた（強さ-${cost}）`;
  }
 
  addLifeEvent('', msg);
@@ -7317,7 +7317,7 @@ function sendNPCMessage(idx){
 // 募集ノード生成
 function makeRecruitNodes(){
  const defs = [
- {key:'RECRUIT_KHAZAN', town:'khazan', back:'TAVERN_KHAZAN', label:'カザンの大酒場'},
+ {key:'RECRUIT_KHAZAN', town:'khazan', back:'TAVERN_KHAZAN', label:'カザーヌの大酒場'},
  {key:'RECRUIT_PORT', town:'port_argon',back:'TAVERN_PORT', label:'波止場の酒場'},
  {key:'RECRUIT_STONE', town:'stonehiem', back:'TAVERN_STONE', label:'鉱夫の飲み屋'},
  {key:'RECRUIT_ELSIA', town:'elsia', back:'TAVERN_ELSIA', label:'賢者の隠れ家'},
@@ -7380,7 +7380,7 @@ function makeRecruitNodes(){
    if(!already && !invited){
     const nLv = n.level||1;
     choices.push({
-     label:` ${n.epithet?n.epithet+' ':''}${n.name}を誘う（CHR Lv${nLv} 能力値テスト）`,
+     label:` ${n.epithet?n.epithet+' ':''}${n.name}を誘う（魅力 Lv${nLv} 能力値テスト）`,
      fn:()=>{
       PC._recruitedSlots[n._tavernSlot] = true;
       startRecruitSR(n, key, nLv);
@@ -7977,7 +7977,7 @@ const DUNGEON_NODES = new Set([
  'SHR2_D_10_12','SHR2_D_12_16','SHR2_D_16_2','SHR2_D_2_3',
  'SHR2_D_3_6','SHR2_D_6_7','SHR2_D_7_9','SHR2_D_9_11',
  'SHR2_D_4_5','SHR2_D_8_9','SHR2_PORT_15','SHR2_LOCK_58',
- // カザン「王城地下牢」（旧ノード）
+ // カザーヌ「王城地下牢」（旧ノード）
  'CRYPT_1','CRYPT_2','CRYPT_3','CRYPT_4','CRYPT_5',
  'CRYPT_6','CRYPT_7','CRYPT_8','CRYPT_9',
  'CRYPT_DOOR_23','CRYPT_DOOR_34','CRYPT_DOOR_27','CRYPT_DOOR_17',
@@ -8115,6 +8115,18 @@ function loadGame(slot){
  }
  if(PC._torchStock == null) PC._torchStock = 0;
  if(PC._torchTurns == null) PC._torchTurns = 0;
+ // 呪文名・説明を最新定義と同期（セーブデータの名称が古い場合に対応）
+ const allSpellDefs = [...(SPELLS_L1||[]),...(SPELLS_L2||[]),...(SPELLS_L3||[])];
+ (PC.spells||[]).forEach(s=>{
+  const def = allSpellDefs.find(d=>d.fn===s.fn);
+  if(def){ s.name = def.name; s.desc = def.desc; }
+ });
+ (PC.party||[]).forEach(npc=>{
+  (npc.spells||[]).forEach(s=>{
+   const def = allSpellDefs.find(d=>d.fn===s.fn);
+   if(def){ s.name = def.name; s.desc = def.desc; }
+  });
+ });
  // 旧データ移行：alignmentがなければランダム初期値を付与（保存データで判定）
  if(!('alignment_ethics' in data.pc)) PC.alignment_ethics = Math.floor((Math.random()-0.5)*60);
  if(!('alignment_order'  in data.pc)) PC.alignment_order  = Math.floor((Math.random()-0.5)*60);
@@ -8239,17 +8251,17 @@ function showSaveSlotUI(mode){
 // ── 世界設定テキスト ──
 const WORLD_LORE = {
  khazan:{
-  title:'カザン地方',
+  title:'カザーヌ地方',
   color:'#ffcc33',
-  text:`大陸の中央部に位置する、政治・経済の中心地。なだらかな丘陵地帯と肥沃な平野が広がり、街道網が各地方へと延びている。王国の首都カザンを擁するこの地方には各地から人が集まり、あらゆる文物が流通する。
+  text:`大陸の中央部に位置する、政治・経済の中心地。なだらかな丘陵地帯と肥沃な平野が広がり、街道網が各地方へと延びている。王国の首都カザーヌを擁するこの地方には各地から人が集まり、あらゆる文物が流通する。
 
-【カザン（王都）】
-王国最大の都市。中央広場を起点に四方へ延びる大通りが街区を分け、商業区・居住区・王城区が整然と並ぶ。冒険者ギルド・ウィザードギルド・両替商ギルドといった組合が軒を連ね、駆け出しの冒険者から熟練の傭兵まで依頼を求めて集まる。武器や防具の品揃えは随一で、他の地方では手に入らないものもここなら見つかると言われる。醸造所が誇る上等な葡萄酒は遠方にも輸出されており、カザンの豊かさを象徴する品のひとつだ。`
+【カザーヌ（王都）】
+王国最大の都市。中央広場を起点に四方へ延びる大通りが街区を分け、商業区・居住区・王城区が整然と並ぶ。冒険者ギルド・ウィザードギルド・両替商ギルドといった組合が軒を連ね、駆け出しの冒険者から熟練の傭兵まで依頼を求めて集まる。武器や防具の品揃えは随一で、他の地方では手に入らないものもここなら見つかると言われる。醸造所が誇る上等な葡萄酒は遠方にも輸出されており、カザーヌの豊かさを象徴する品のひとつだ。`
  },
  elmaria:{
   title:'エルマリア地方',
   color:'var(--heal)',
-  text:`大陸の西方、深い密林が果てしなく広がる地方。カザンからの街道は途中から獣道に変わり、木々の梢が空を覆い尽くして昼でも薄暗い。磁針がおかしくなるほど精霊の気が濃く、奥へ進むほど地図が役に立たなくなると言われる。エルフをはじめとした密林の民が暮らし、古代の遺跡が蔦に覆われたまま眠っている。エルマリア産の薬草は効能が高く遠方でも珍重され、精霊木から採れる樹脂を使った装飾品はカザンの宝飾品市場でも高値がつく。
+  text:`大陸の西方、深い密林が果てしなく広がる地方。カザーヌからの街道は途中から獣道に変わり、木々の梢が空を覆い尽くして昼でも薄暗い。磁針がおかしくなるほど精霊の気が濃く、奥へ進むほど地図が役に立たなくなると言われる。エルフをはじめとした密林の民が暮らし、古代の遺跡が蔦に覆われたまま眠っている。エルマリア産の薬草は効能が高く遠方でも珍重され、精霊木から採れる樹脂を使った装飾品はカザーヌの宝飾品市場でも高値がつく。
 
 【エルマリア（中心都市）】
 密林の奥深くに開けた古代エルフの秘境。評議会広場には古代の石柱が立ち並び、木漏れ日が石畳に模様を落とす。街は静かで、エルフたちは外来者に対して排他的ではないが、過剰に歓迎もしない。弓士や遺跡探索者が集まり、密林の遺跡や封印された神殿を目指す者の拠点となっている。外の世界との隔絶ゆえか、ここでしか手に入らないものが多い。弓・軽装備・エルフの工芸品・古代遺物の類は、密林の外ではまず見つからない。`
@@ -8257,7 +8269,7 @@ const WORLD_LORE = {
  zahara:{
   title:'ザハラ地方',
   color:'#c8a44a',
-  text:`大陸の南方に広がる広大な砂漠地帯。カザンから南下すると次第に緑が消え、赤茶けた岩と砂の景色が果てしなく続く。隊商が命綱であり、砂漠の道に詳しい遊牧民だけが知る隠れた通路もあると言われる。香辛料・砂金・岩塩といった交易品が豊富で、品薄が続くカザンでは大きな利益を生む。砂漠の東の果てには砂に埋まった古代都市が眠るという話があり、地元の遊牧民だけがその場所を知っているとされる。封印廟と呼ばれる遺跡では、内部の構造が探索のたびに変わると報告する者が後を絶たない。
+  text:`大陸の南方に広がる広大な砂漠地帯。カザーヌから南下すると次第に緑が消え、赤茶けた岩と砂の景色が果てしなく続く。隊商が命綱であり、砂漠の道に詳しい遊牧民だけが知る隠れた通路もあると言われる。香辛料・砂金・岩塩といった交易品が豊富で、品薄が続くカザーヌでは大きな利益を生む。砂漠の東の果てには砂に埋まった古代都市が眠るという話があり、地元の遊牧民だけがその場所を知っているとされる。封印廟と呼ばれる遺跡では、内部の構造が探索のたびに変わると報告する者が後を絶たない。
 
 【アル・ラシード（中心都市）】
 砂漠の交易都市。隊商の拠点として栄え、香辛料・絨毯・砂金が大量に取引される。砂漠の民と各地の商人が入り混じる活気ある市場は昼夜問わず賑わい、真偽不明の情報と本物の掘り出し物が同じ場所に並んでいる。東に新しい遺跡が発見されたという情報が近年流れているが、まだ一般には公表されていない。`
@@ -8509,38 +8521,38 @@ const _GUIDE_PAGES = [
  {
   title:'1. キャラクターの基本',
   body:`<b>能力値はすべて3D6で決まります。</b><br><br>
-<b>ST（強さ）</b><br>重い武器の装備条件や、力が必要な場面の能力値テストに影響します。<br><br>
-<b>IQ（知力）</b><br>魔法使いにとって最重要。呪文の習得条件や知的な試練に影響します。<br><br>
-<b>LK（運）</b><br>罠の回避や予期せぬ幸運が必要な判定に影響する重要な数値です。<br><br>
-<b>CON（体力）</b><br>あなたの生命力。0になると冒険は終わります。<br><br>
-<b>DEX（器用）</b><br>命中率や鍵開けなど、精密な動作に影響します。<br><br>
-<b>種族（Kindred）</b><br>人間・エルフ・ドワーフなど、種族ごとに能力値に強力な補正（倍率）がかかります。`
+<b>強さ</b><br>重い武器の装備条件や、力が必要な場面の能力値テストに影響します。<br><br>
+<b>知力</b><br>魔法使いにとって最重要。呪文の習得条件や知的な試練に影響します。<br><br>
+<b>運</b><br>罠の回避や予期せぬ幸運が必要な判定に影響する重要な数値です。<br><br>
+<b>体力</b><br>あなたの生命力。0になると冒険は終わります。<br><br>
+<b>器用さ</b><br>命中率や鍵開けなど、精密な動作に影響します。<br><br>
+<b>種族</b><br>人間・エルフ・ドワーフなど、種族ごとに能力値に強力な補正（倍率）がかかります。`
  },
  {
   title:'2. 戦闘システム',
   body:`戦闘は「HPの削り合い」ではなく、<b>互いの戦闘総力を競う</b>形式です。<br><br>
-<b>戦闘総力（Combat Power）</b><br>「武器のダイス＋修正値（ADDS）」の合計で決まります。双方がロールし、高い方が勝ちます。<br><br>
-<b>ADDS（修正値）</b><br>ST・LK・DEXが12を超えるとボーナス（＋）が加算されます。逆に低いとマイナスになります。<br><br>
+<b>戦闘総力（Combat Power）</b><br>「武器のダイス＋戦闘力修正」の合計で決まります。双方がロールし、高い方が勝ちます。<br><br>
+<b>戦闘力修正</b><br>強さ・運・器用さが12を超えるとボーナス（＋）が加算されます。逆に低いとマイナスになります。<br><br>
 <b>防護値（Armor）</b><br>鎧や盾を装備すると防護値を得ます。敵から受けたダメージを直接差し引きます。<b>戦士はこの防護値が2倍</b>になります。`
  },
  {
-  title:'3. 能力値テスト（能力値テスト）',
-  body:`罠を避けたり崖を登る際に<b>能力値テスト（能力値テスト）</b>が発生します。<br><br>
+  title:'3. 能力値テスト',
+  body:`罠を避けたり崖を登る際に<b>能力値テスト</b>が発生します。<br><br>
 <b>判定方法</b><br>指定された能力値で2D6を振り、能力値との合計が目標値を超えれば成功です。<br><br>目標値はレベル×5＋15です。<br><br>
 <b>ゾロ目の特典</b><br>「1・1」以外のゾロ目が出ると<b>自動成功</b>となり、さらにダイスを振り足してスコアを加算できます。<br><br>
-<b>APの獲得</b><br>成否に関わらず、出目×レベル分のAPを獲得できます。失敗しても経験は積まれます。`
+<b>経験値の獲得</b><br>成否に関わらず、出目×レベル分の経験値を獲得できます。失敗しても経験は積まれます。`
  },
  {
   title:'4. 魔法とリソース',
-  body:`<b>魔法使い（Wizard）</b><br>IQとDEXの条件を満たせば呪文が使えます。呪文を唱えると<b>STを消費</b>します。STが尽きると使えなくなります。<br><br>
-<b>食料</b><br>街から街へ移動する際に消費されます。食料が尽きると毎日ST・CON・DEXが減少し、CONが0になると死亡します。<br><br>
+  body:`<b>魔法使い（Wizard）</b><br>知力と器用さの条件を満たせば呪文が使えます。呪文を唱えると<b>強さを消費</b>します。強さが尽きると使えなくなります。<br><br>
+<b>食料</b><br>街から街へ移動する際に消費されます。食料が尽きると毎日強さ・体力・器用さが減少し、体力が0になると死亡します。<br><br>
 <b>松明</b><br>ダンジョン探索に必要です。松明がなくなると暗闇でのペナルティが発生します。<br><br>
 <b>重量（WT）</b><br>持ち物には重さがあります。最大運搬量を超えるとペナルティが発生します。定期的に整理しましょう。`
  },
  {
   title:'5. 街での準備と仲間',
   body:`<b>武器屋・装備屋</b><br>武器・防具・食料・松明を購入できます。購入後はステータス画面から装備してください。<b>初期装備はありません。</b><br><br>
-<b>酒場</b><br>依頼の受注と仲間（NPC）の勧誘ができます。仲間にはCON・攻撃力・種族があり、戦闘を有利にします。<br><br>
+<b>酒場</b><br>依頼の受注と仲間（NPC）の勧誘ができます。仲間には体力・攻撃力・種族があり、戦闘を有利にします。<br><br>
 <b>信頼度</b><br>依頼をこなすと街の信頼度が上がります。信頼度が高いと商品の割引などの恩恵があります。<br><br>
 <b>通貨（GP・SP・CP）</b><br>金貨（GP）・銀貨（SP）・銅貨（CP）の3種類があります。両替所では預金も可能です。`
  },
@@ -8579,7 +8591,7 @@ function _showWorldMenu(){
  panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#080c18;border:2px solid #224466;border-radius:6px;padding:16px;z-index:9998;min-width:280px;max-width:340px;box-shadow:0 0 30px #000a;font-family:system-ui,sans-serif';
 
  const regions = [
-  {key:'khazan',  label:'カザン地方'},
+  {key:'khazan',  label:'カザーヌ地方'},
   {key:'elmaria', label:'エルマリア地方'},
   {key:'zahara',  label:'ザハラ地方'},
   {key:'draklim', label:'ドラクリム地方'},
@@ -8699,7 +8711,7 @@ function checkSaveOnTitle(){
    const asLv = asData.pc?.level||1;
    const asAge = asData.pc?.age||0;
    const asTownMap = {
-    TOWN_KHAZAN:'カザン',TOWN_PORT_ARGON:'ポートアルゴン',TOWN_STONEHIEM:'ストーンヘイム',
+    TOWN_KHAZAN:'カザーヌ',TOWN_PORT_ARGON:'ポートアルゴン',TOWN_STONEHIEM:'ストーンヘイム',
     TOWN_ELSIA:'エルマリア',TOWN_VERDA:'ヴェルダ村',TOWN_RIMHOLM:'リムホルム',
     TOWN_MARAKAI:'マラカイ',TOWN_AL_RASHID:'アル・ラシード',TOWN_OASIS_FORT:'オアシス砦',
     TOWN_SAROON:'サルーン',TOWN_DUNA:'デュナ',TOWN_YELDUN:'イェルドゥン',
@@ -9045,7 +9057,7 @@ const TIME_COST = {
 const TOWNS = {
  khazan: {
  id:'khazan',
- name:'カザン',
+ name:'カザーヌ',
  nameEn:'KHAZAN',
  desc:'王国最大の都市。何でも揃う商業の中心地。冒険者ギルドも充実している。',
  scene:'town_khazan',
@@ -9264,7 +9276,7 @@ const ROUTES = {
  khazan_stonehiem: { days:{walk:15,coach:6,ship:null}, cost:{walk:0,coach:30,ship:null}, hasShip:false },
  port_argon_stonehiem:{ days:{walk:14,coach:5,ship:null}, cost:{walk:0,coach:30,ship:null}, hasShip:false },
  stonehiem_elsia: { days:{walk:60,coach:null,ship:null},cost:{walk:0,coach:null,ship:null}, hasShip:false },
- // カザン地方 → ザハラ地方
+ // カザーヌ地方 → ザハラ地方
  port_argon_al_rashid:{ days:{walk:70,coach:null,ship:null},cost:{walk:0,coach:null,ship:null}, hasShip:false },
  // ザハラ地方内（馬あり・船なし）
  al_rashid_oasis_fort:{ days:{walk:18,coach:7, ship:null}, cost:{walk:0,coach:25,ship:null}, hasShip:false },
@@ -9280,7 +9292,7 @@ const ROUTES = {
  verda_rimholm: { days:{walk:16,coach:6, ship:null},cost:{walk:0,coach:22,ship:null}, hasShip:false },
  verda_marakai: { days:{walk:18,coach:7, ship:null},cost:{walk:0,coach:25,ship:null}, hasShip:false },
  rimholm_marakai: { days:{walk:15,coach:6, ship:null},cost:{walk:0,coach:20,ship:null}, hasShip:false },
- // カザン地方 → ドラクリム山脈地方（カザンから50日）
+ // カザーヌ地方 → ドラクリム山脈地方（カザーヌから50日）
  khazan_yeldun: { days:{walk:50,coach:null,ship:null}, cost:{walk:0,coach:null,ship:null}, hasShip:false },
  // ドラクリム山脈地方内（山道・険しいため馬車は割高・短縮率低め）
  yeldun_frostpeak: { days:{walk:20,coach:12,ship:null}, cost:{walk:0,coach:30,ship:null}, hasShip:false },
@@ -9315,7 +9327,7 @@ const DELIVERY_DEST_TYPES = [
 
 // NPC名プール
 const NPC_NAMES = [
- // カザン系（北方・ゲルマン風）
+ // カザーヌ系（北方・ゲルマン風）
  'ガルム','ソーニャ','レイナ','ドルク','マリオン','ベック','ハンナ','トーレ',
  'エスター','ウルフ','セリア','バルド','ミラ','グンナル','リーラ','ヘルガ',
  'オスカル','ティナ','ブランド','エヴァ','ケルト','アルマ','ジョルン','カタリン',
@@ -9495,7 +9507,7 @@ function getRegionDistance(keyA, keyB){
 // baseCost: 地元での購入価格（GP）。売値は (1+地方間距離)×baseCost 前後
 const REGION_SPECIALTIES = {
  khazan_region: [
- {name:'王都の上等葡萄酒', icon:'', baseCost:90, weight:30, desc:'カザンの醸造所が誇る銘酒'},
+ {name:'王都の上等葡萄酒', icon:'', baseCost:90, weight:30, desc:'カザーヌの醸造所が誇る銘酒'},
  {name:'精製魔法石', icon:'', baseCost:110, weight:10, desc:'王都の魔法使いが加工した石'},
  {name:'王立印章の書状', icon:'', baseCost:80, weight:5, desc:'商取引を円滑にする証明書'},
  {name:'港町の塩漬け魚', icon:'', baseCost:95, weight:50, desc:'ポートアルゴン産の高品質干物'},
@@ -9541,7 +9553,7 @@ const REGION_SPECIALTIES = {
 </script>
 
 <script id="tt5-events">
-/* ── 街散策イベントテーブル・カザン街区イベント ── */
+/* ── 街散策イベントテーブル・カザーヌ街区イベント ── */
 
 // ══════════════════════════════════════════
 //  街散策イベント
@@ -9554,7 +9566,7 @@ const REGION_SPECIALTIES = {
 // onSuccess/onFail: SR結果に応じた処理＋返却テキスト
 
 // ══════════════════════════════════════════
-// カザン 街区イベントテーブル
+// カザーヌ 街区イベントテーブル
 // ══════════════════════════════════════════
 const KHAZAN_DISTRICT_EVENTS = {
  royal: [
@@ -9664,7 +9676,7 @@ const KHAZAN_DISTRICT_EVENTS = {
   }},
   // 7: 貴族の依頼（宅配）
   { id:'r07', fn:(ret)=>{
-   // 宛先はカザン以外からランダム
+   // 宛先はカザーヌ以外からランダム
    const regionTowns = Object.keys(TOWNS).filter(t=>t!=='khazan');
    const dest = regionTowns[Math.floor(Math.random()*regionTowns.length)];
    const destName = TOWNS[dest]?.name || dest;
@@ -9722,7 +9734,7 @@ const KHAZAN_DISTRICT_EVENTS = {
     failTxt:()=>{
      changeTrust('khazan', -10, 'scandal');
      updateHUD();
-     return `ボロが出て笑い者になった。<br><span class="red">カザンの信頼度 -10</span>`;
+     return `ボロが出て笑い者になった。<br><span class="red">カザーヌの信頼度 -10</span>`;
     },
     choicesFn:()=>[
      {label:' 散策を続ける', fn:()=>khazanGoDistrict('royal', ret)},
@@ -9819,7 +9831,7 @@ const KHAZAN_DISTRICT_EVENTS = {
       +`<div style="color:#d4c4a0">弁明は通じず、身に覚えのない罪で牢に入れられた。</div><br>`
       +`<div style="color:#d4c4a0">劣悪な環境の中、無実を証明するための手続きが続いた。</div><br>`
       +`<div style="color:#c05040">収監期間：<b>${months}ヶ月</b>（${months*30}日が経過した）</div><br>`
-      +`<div style="color:#c05040">劣悪な扱いの影響：<b>ST が恒久的に -${stLoss}</b></div>`
+      +`<div style="color:#c05040">劣悪な扱いの影響：<b>強さ が恒久的に -${stLoss}</b></div>`
       +`</div>`;
      renderChoices([{label:`▶ OK（${months}ヶ月後、釈放される）`, fn:()=>{
       renderChoices([{label:'← 街に戻る', go:'TOWN_KHAZAN'}]);
@@ -9874,9 +9886,9 @@ const KHAZAN_DISTRICT_EVENTS = {
     +`宮廷に出入りしていると思われる有力者と目が合った。CHRの高さで印象が決まる。`;
    dungeonTrySR({ attr:'chr', level:2,
     successFn:()=>{ changeTrust('khazan', 10); updateHUD(); },
-    successTxt:()=>`話が弾み、推薦の言葉をいただけた。<br><span class="grn">カザンの信頼度 +10</span>`,
+    successTxt:()=>`話が弾み、推薦の言葉をいただけた。<br><span class="grn">カザーヌの信頼度 +10</span>`,
     failFn:()=>{ changeTrust('khazan', -10); updateHUD(); },
-    failTxt:()=>`態度が悪いと思われたらしく、冷たくあしらわれた。<br><span class="red">カザンの信頼度 -10</span>`,
+    failTxt:()=>`態度が悪いと思われたらしく、冷たくあしらわれた。<br><span class="red">カザーヌの信頼度 -10</span>`,
     choicesFn:()=>[
      {label:' 散策を続ける', fn:()=>khazanGoDistrict('royal', ret)},
      {label:'← 街に戻る', go:'TOWN_KHAZAN'},
@@ -9956,7 +9968,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    story.innerHTML = `<span style="color:#c8a44a"> 王宮地区</span><br><br>`
     +`<b> 王族との直接接触</b><br><br>`
     +`なんと、${royal}と偶然にも言葉を交わす機会を得た。短い会話だったが、確かな印象を残すことができた。<br><br>`
-    +`<span class="grn">カザンの信頼度 +10</span>`;
+    +`<span class="grn">カザーヌの信頼度 +10</span>`;
    renderChoices([
     {label:' 散策を続ける', fn:()=>khazanGoDistrict('royal', ret)},
     {label:'← 街に戻る', go:'TOWN_KHAZAN'},
@@ -9967,7 +9979,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    const story = document.getElementById('story');
    story.innerHTML = `<span style="color:#c8a44a"> 王宮地区</span><br><br>`
     +`<b> 政変！都市封鎖</b><br><br>`
-    +`突然、王宮から緊急の布告が出た。政変の恐れにより、カザンは1ヶ月間の完全封鎖となる。`;
+    +`突然、王宮から緊急の布告が出た。政変の恐れにより、カザーヌは1ヶ月間の完全封鎖となる。`;
    GAME_TIME.totalDays += 30; updateTimebar(); checkAging();
    if(PC._food >= 30){ PC._food -= 30; }
    else {
@@ -10328,7 +10340,7 @@ const KHAZAN_DISTRICT_EVENTS = {
     }},
     {label:' 逃げる（CHR -1）', fn:()=>{
      PC.chr = Math.max(1,(PC.chr||5)-1); updateHUD();
-     story.innerHTML += `<br><br><span class="red">人々の目の前で逃げ去った。CHR -1</span>`;
+     story.innerHTML += `<br><br><span class="red">人々の目の前で逃げ去った。魅力 -1</span>`;
      renderChoices([
       {label:' 散策を続ける', fn:()=>khazanGoDistrict('market', ret)},
       {label:'← 街に戻る', go:'TOWN_KHAZAN'},
@@ -10492,7 +10504,7 @@ const KHAZAN_DISTRICT_EVENTS = {
   { id:'s12', fn:(ret)=>{
    const story = document.getElementById('story');
    const surgAttrs = ['st','iq','lk','con','dex','chr','spd'];
-   const surgNames = {st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+   const surgNames = {st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
    const hasGold = (PC.gold||0)>=3000;
    story.innerHTML = `<span style="color:var(--stone)"> 貧民地区</span><br><br>`
     +`<b> 闇医者の診療所</b><br><br>`
@@ -11371,7 +11383,7 @@ const EXPLORE_EVENTS = {
     const herb = herbs[Math.floor(Math.random()*herbs.length)];
     const destTowns = Object.keys(TOWNS).filter(t=>getRegionKey(t)!=='elmaria_region');
     const destId = destTowns[Math.floor(Math.random()*destTowns.length)]||'khazan';
-    const destTown = TOWNS[destId]||{name:'カザン'};
+    const destTown = TOWNS[destId]||{name:'カザーヌ'};
     const destPeople = ['薬師のアーマン','薬商ロデリック','治療師のエリス','錬金術師バルド'];
     const destPerson = destPeople[Math.floor(Math.random()*destPeople.length)];
     const reward = Math.floor((30+Math.floor(Math.random()*41))*1.5);
@@ -11412,7 +11424,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const ap=30+Math.floor(Math.random()*21); gainAPAll(ap); updateHUD();
     return `光の渦の中心で、古代の記憶のような映像が流れ込んだ。稀有な体験だ。<br><span class="grn">経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=1+Math.floor(Math.random()*6); PC.st=Math.max(1,(PC.st||1)-dmg); updateHUD();
-    return `魔法の奔流が体を貫いた。しばらく動けなかった。<br><span class="red">ST-${dmg}（残り${PC.st}）</span>`; }
+    return `魔法の奔流が体を貫いた。しばらく動けなかった。<br><span class="red">強さ-${dmg}（残り${PC.st}）</span>`; }
   },
   // e_r12: エルフ衛兵の検問
   { title:' エルフ衛兵の検問',
@@ -11592,7 +11604,7 @@ const EXPLORE_EVENTS = {
     const herb=herbs[Math.floor(Math.random()*herbs.length)];
     const destTowns=Object.keys(TOWNS).filter(t=>getRegionKey(t)!=='zahara_region');
     const destId=destTowns[Math.floor(Math.random()*destTowns.length)]||'khazan';
-    const destTown=TOWNS[destId]||{name:'カザン'};
+    const destTown=TOWNS[destId]||{name:'カザーヌ'};
     const destPeople=['薬師のエルダン','錬金術師バルド','治療師のエリス','薬商ロデリック'];
     const destPerson=destPeople[Math.floor(Math.random()*destPeople.length)];
     const reward=Math.floor((25+Math.floor(Math.random()*31))*1.5);
@@ -11878,7 +11890,7 @@ function fireExploreEvent(ev, returnNode){
  startCombat({...c, win:'__explore_win__', lose:'DEAD',
  _exploreWin: c._exploreWin, _returnNode: returnNode });
  }, go:'__travel__' },
- { label:` 逃げる（SPD Lv1 能力値テスト）`, fn:()=>{
+ { label:` 逃げる（素早さ Lv1 能力値テスト）`, fn:()=>{
  setupSavingRoll({
  attr:'spd', level:1,
  onSuccess:()=>{
@@ -11913,7 +11925,7 @@ function fireExploreEvent(ev, returnNode){
  }
 
  // ── SR型イベント ──
- const attrNames = {st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+ const attrNames = {st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
  setupSavingRoll({
  attr: ev.sr.attr,
  level: ev.sr.level,
@@ -11948,13 +11960,13 @@ function fireExploreEvent(ev, returnNode){
 </script>
 
 <script id="tt5-explore">
-/* ── アルバイト・街区散策システム（カザン・アル＝ラシード・エルマリア） ── */
+/* ── アルバイト・街区散策システム（カザーヌ・アル＝ラシード・エルマリア） ── */
 
 // ══════════════════════════════════════════
 // アルバイト（1週間・10GP・食料支給・16%事件）
 // ══════════════════════════════════════════
 const PARTTIME_JOBS = {
- khazan: { icon:'', name:'王都カザン',
+ khazan: { icon:'', name:'王都カザーヌ',
   jobs:['王城の荷物運び','市場の警備補助','商人ギルドの書類整理','冒険者ギルドの受付補助','酒場の給仕','露店の売り子'],
   incidents:[
    { txt:'市場で火事が発生した。炎の中に取り残された人がいる！', attr:'st', lv:2,
@@ -12238,7 +12250,7 @@ function doPartTimeJob(townId){ changeAlignment(0, 2); // アルバイト：秩�
  const job = data.jobs[Math.floor(Math.random()*data.jobs.length)];
  const storyEl = document.getElementById('story');
  const retNode = PARTTIME_RETURN_NODE[townId] || 'TOWN_KHAZAN';
- const attrNames = {st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+ const attrNames = {st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
 
  // 7日経過（食料消費なし：事前保存して戻す）
  const prevFood = PC._food || 0;
@@ -12285,7 +12297,7 @@ ${inc.ok}`;
     updateHUD();
     const penalty = dmg > 0
      ? (inc.ng.includes('所持金') || inc.ng.includes('弁償') ? `<br><span class="red"> 所持金 -${dmg}GP</span>`
-      : inc.ng.includes('DEX') || inc.ng.includes('指先') || inc.ng.includes('手先') ? `<br><span class="red">CON -${dmg}　DEX -1（後遺症）</span>`
+      : inc.ng.includes('器用さ') || inc.ng.includes('指先') || inc.ng.includes('手先') ? `<br><span class="red">CON -${dmg}　器用さ -1（後遺症）</span>`
       : `<br><span class="red">CON -${dmg}（残り${PC.con}）</span>`)
      : '';
     if(storyEl){
@@ -12314,7 +12326,7 @@ ${inc.ng}${penalty}`;
 
 // 散策を実行（1日消費、16%でイベント）
 function exploreCity(townId, returnNode){
- // カザンは専用の街区散策システムへ
+ // カザーヌは専用の街区散策システムへ
  if(townId === 'khazan'){
   exploreCityKhazan(returnNode);
   return;
@@ -12356,7 +12368,7 @@ function exploreCity(townId, returnNode){
 }
 
 // ══════════════════════════════════════════
-// カザン 街区散策システム
+// カザーヌ 街区散策システム
 // ══════════════════════════════════════════
 
 // ══════════════════════════════════════════
@@ -12437,7 +12449,7 @@ function alRashidExploreDistrict(district, returnNode){
    +`<span class="gold">${ev.title}</span><br><br>`
    +`${ev.intro}<br><br>`
    +`<span class="dim">散策回数：${PC._alRashidExploreCount} / 6回</span>`;
-  const attrNames = {st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+  const attrNames = {st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
   setupSavingRoll({
    attr: ev.sr.attr, level: ev.sr.level,
    onSuccess:()=>{
@@ -12557,7 +12569,7 @@ function elsiaExploreDistrict(district, returnNode){
     +`<span class="gold">${ev.title}</span><br><br>`
     +`${ev.intro}<br><br>`
     +`<span class="dim">散策回数：${PC._elsiaExploreCount} / 6回</span>`;
-   const attrNames = {st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+   const attrNames = {st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
    setupSavingRoll({
     attr: ev.sr.attr, level: ev.sr.level,
     onSuccess:()=>{
@@ -12616,7 +12628,7 @@ function exploreCityKhazan(returnNode){
  }
 
  const story = document.getElementById('story');
- story.innerHTML = `<span style="color:#c8a44a"> カザン中央広場</span><br><br>`
+ story.innerHTML = `<span style="color:#c8a44a"> カザーヌ中央広場</span><br><br>`
   +`<span class="dim">王都の中心に広がる広場。四方に伸びる大通りが各街区へと繋がっている。</span><br><br>`
   +`<span class="dim">本日の散策回数：${PC._khazanExploreCount||0} / 6回</span>`;
 
@@ -12669,7 +12681,7 @@ function khazanExploreDistrict(district, returnNode){
  // 6回超えたら宿に戻される
  if(PC._khazanExploreCount > 6){
   const story = document.getElementById('story');
-  story.innerHTML = `<span style="color:#c8a44a"> カザン</span><br><br>`
+  story.innerHTML = `<span style="color:#c8a44a"> カザーヌ</span><br><br>`
    +`<span class="dim">日が暮れた。今日はもう宿に戻る時間だ。</span>`;
   renderChoices([{label:' 宿に戻る', go: returnNode}]);
   return;
@@ -12863,7 +12875,7 @@ const RDUNG_ROOM_CONTENT = [
 // テーブルVII：特殊部屋（d6）
 const RDUNG_SPECIAL_ROOM = [
  {label:'泉がある', fn:()=>{ PC.con=Math.min(PC.maxCon,PC.con+Nd6(1)+1); updateHUD(); return `泉の水を飲んだ。CON+${Nd6(1)+1}`; }},
- {label:'祭壇がある（IQ 能力値テスト）', fn:()=>null},
+ {label:'祭壇がある（知力 能力値テスト）', fn:()=>null},
  {label:'宝箱がある（罠付き）', fn:()=>null},
  {label:'古い武器が壁に掛かっている', fn:()=>null},
  {label:'魔法陣が床に描かれている', fn:()=>null},
@@ -13568,7 +13580,7 @@ function ydGoNode(nodeId, floor){
   storyEl.innerHTML = `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-bottom:8px"> 松明が切れた！</div>
    <span style="color:#666688">完全な暗闇の中、壁を手探りで進む。出口まで帰り着けるか……</span>`;
   renderChoices([{
-   label:' 暗闇の中を出口へ向かう（LK Lv3 能力値テスト）',
+   label:' 暗闇の中を出口へ向かう（運 Lv3 能力値テスト）',
    fn:()=>{
     const sr = savingRoll('lk', 3);
     gainAPAll(sr.ap); updateHUD();
@@ -13576,7 +13588,7 @@ function ydGoNode(nodeId, floor){
     if(sr.success){
      stEl.innerHTML = `<span style="color:#6aaa60"> 脱出成功！</span><br><br>
       壁を伝いながら必死に出口を探した。かすかな外の光を頼りに、なんとか入口へたどり着いた！<br><br>
-      <span style="color:#6aaa60">LK 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
+      <span style="color:#6aaa60">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
      renderChoices([{label:' 入口へ戻る', fn:()=>{ if(entryId) ydGoNode(entryId, floor); }}]);
     } else {
      const dmg = 5;
@@ -13591,7 +13603,7 @@ function ydGoNode(nodeId, floor){
        出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>
        <span style="color:var(--danger)">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg}（残り ${PC.con}）</span><br><br>
        痛みをこらえながら、また出口を探す…`;
-      renderChoices([{label:' もう一度出口を探す（LK Lv3 能力値テスト）', fn:()=>{ ydGoNode(nodeId, floor); }}]);
+      renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{ ydGoNode(nodeId, floor); }}]);
      }
     }
     scrollToTop();
@@ -16441,7 +16453,7 @@ function renderQuestBoard(townId, board){
     ${isHere ? `<div style="font-size:calc(var(--font-sm)-1px);color:var(--dim);margin-top:4px">（その他の行動 → 賞金首を探す）</div>` : `<div style="font-size:calc(var(--font-sm)-1px);color:var(--dim);margin-top:4px">→ <b>${targetTownName}</b>へ移動して「賞金首を探す」</div>`}
     </div>`;
    } else if(q.type === 'purchase'){
-    const regionName = {khazan_region:'カザン地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方',marea_region:'マレア諸島'}[q.targetRegion]||q.targetRegion;
+    const regionName = {khazan_region:'カザーヌ地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方',marea_region:'マレア諸島'}[q.targetRegion]||q.targetRegion;
     html += `<div style="background:#0a1020;border:1px solid #334422;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
     ${q.specIcon} <span style="color:#88dd44">${regionName}</span>の特産品買い付け${crossBadge}<br>
     「${q.specName}」を購入して${(TOWNS[q.fromTownId]||{name:q.fromTownId}).name}に持ち帰る<br>
@@ -16504,7 +16516,7 @@ function renderQuestBoard(townId, board){
     ? `<button onclick="acceptQuest(${i})" style="margin-top:5px;width:100%;background:#110022;border:1px solid #5500aa;color:var(--gold3);font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px">${q.type==='purchase'?' 買い付けを引き受ける':' 受ける'}</button>`
     : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:var(--dim)">（受注上限${LIMIT}件）</div>`;
    if(q.type === 'purchase'){
-    const regionName = {khazan_region:'カザン地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方',marea_region:'マレア諸島'}[q.targetRegion]||q.targetRegion;
+    const regionName = {khazan_region:'カザーヌ地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方',marea_region:'マレア諸島'}[q.targetRegion]||q.targetRegion;
     html += `<div style="background:#130e08;border:1px solid #6b4c2a;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
     <span style="color:var(--leather)"> 買い付け依頼</span>　<span class="yel">${q.clientName}</span>から<br>
     ${q.specIcon} <span style="color:#88dd44">${regionName}</span>の「<b>${q.specName}</b>」を買ってきてほしい<br>
@@ -17006,7 +17018,7 @@ function startSeaEncounter(enemy){
    choices.innerHTML = '';
    const sr = savingRoll('spd', 2); gainAPAll(sr.ap); updateHUD();
    if(sr.success){
-    travelLog(`<span style="color:#6aaa60"> 全速で逃げ切った！（SPD 能力値テスト成功） 経験値+${sr.ap}</span>`);
+    travelLog(`<span style="color:#6aaa60"> 全速で逃げ切った！（素早さ 能力値テスト成功） 経験値+${sr.ap}</span>`);
     changeAlignment(0, -0.5); // 逃亡：混沌+0.5
     setTimeout(()=>travelTick(), ts.interval);
    } else {
@@ -17048,7 +17060,7 @@ function startSeaEncounter(enemy){
    choices.innerHTML = '';
    const sr = savingRoll('spd', 2); gainAPAll(sr.ap); updateHUD();
    if(sr.success){
-    travelLog(`<span style="color:#6aaa60"> 逃げ切った！（SPD 能力値テスト成功） 経験値+${sr.ap}</span>`);
+    travelLog(`<span style="color:#6aaa60"> 逃げ切った！（素早さ 能力値テスト成功） 経験値+${sr.ap}</span>`);
     changeAlignment(0, -0.5); // 逃亡：混沌+0.5
     setTimeout(()=>travelTick(), ts.interval);
    } else {
@@ -17479,7 +17491,7 @@ function startTravelTalk(enemy, ts){
  // 話術ボタン
  const talkBtn = document.createElement('button');
  talkBtn.className = 'choice-btn';
- talkBtn.innerHTML = ` 話術で切り抜ける（CHR Lv${srLevel} 能力値テスト　目標${target}）`;
+ talkBtn.innerHTML = ` 話術で切り抜ける（魅力 Lv${srLevel} 能力値テスト　目標${target}）`;
  talkBtn.onclick = () => {
  choices.innerHTML = '';
  document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
@@ -17531,7 +17543,7 @@ function startTravelTalk(enemy, ts){
  const fleeBtn = document.createElement('button');
  fleeBtn.className = 'choice-btn';
  fleeBtn.style.cssText = 'border-color:#886600;color:#ffcc33;background:#1a1000';
- fleeBtn.innerHTML = ` 逃げる（SPD Lv1 能力値テスト）`;
+ fleeBtn.innerHTML = ` 逃げる（素早さ Lv1 能力値テスト）`;
  fleeBtn.onclick = () => {
  choices.innerHTML = '';
  // UI状態をリセット（前の戦闘後の残留を解消）
@@ -17708,7 +17720,7 @@ function showTimePass(days, callback){
  if(aged.event === 'birthday')
  msg += `<br><span class="gold"> 誕生日！ ${aged.age}歳になった。</span>`;
  else if(aged.event === 'aging')
- msg += `<br><span class="ora"> 加齢：ST・IQ・LK・CHR・DEX・SPD・CON が各-1</span>`;
+ msg += `<br><span class="ora"> 加齢：強さ・知力・運・魅力・器用さ・素早さ・体力 が各-1</span>`;
  else if(aged.event === 'death')
  msg += `<br><span class="red"> 老衰により死亡…享年${aged.age}歳。</span>`;
  }
@@ -17737,31 +17749,31 @@ function applyRace(base, race){
 
 // ── SPELLS (Level 1) ───────────────────
 const SPELLS_L1 = [
- {name:'解錠', cost:2, level:1, desc:'施錠されたドアを開錠',fn:'knockKnock'},
- {name:'ともしび',cost:1,level:1, desc:'指または杖を1ターン照らす',fn:'wisp'},
- {name:'魔力弾',cost:6,level:1,desc:'IQ値分のヒットを与える',fn:'ttyf'},
- {name:'快刀', cost:5, level:1, desc:'次の1ラウンド武器ダイスを2倍',fn:'vorpal'},
+ {name:'Unlock', cost:2, level:1, desc:'施錠されたドアを開錠',fn:'knockKnock'},
+ {name:'Candle Light',cost:1,level:1, desc:'指または杖を1ターン照らす',fn:'wisp'},
+ {name:'Magic Bolt',cost:6,level:1,desc:'IQ値分のヒットを与える',fn:'ttyf'},
+ {name:'Keen Blade', cost:5, level:1, desc:'次の1ラウンド武器ダイスを2倍',fn:'vorpal'},
 ];
 
 // ── SPELLS (Level 2) ── IQ≥12, DEX≥9, 学習500GP ──
 const SPELLS_L2 = [
- {name:'鎮痛剤',cost:4, level:2, iqReq:12, dexReq:9, learnCost:500,
+ {name:'Soothe',cost:4, level:2, iqReq:12, dexReq:9, learnCost:500,
  desc:'2STで1CON回復（最大値まで）', fn:'poorBaby'},
- {name:'打撃増加', cost:10, level:2, iqReq:12, dexReq:9, learnCost:500,
+ {name:'Battle Surge', cost:10, level:2, iqReq:12, dexReq:9, learnCost:500,
  desc:'1ターン武器ダイスを3倍', fn:'whammy'},
- {name:'速度倍加',cost:8,level:2,iqReq:12,dexReq:9,learnCost:500,
+ {name:'Haste',cost:8,level:2,iqReq:12,dexReq:9,learnCost:500,
  desc:'1ターン速度2倍・戦闘2ラウンド分', fn:'littleFeets'},
 ];
 
 // ── SPELLS (Level 3) ── IQ≥14, DEX≥10, 学習1000GP ──
 const SPELLS_L3 = [
- {name:'睡魔', cost:11, level:3, iqReq:14, dexReq:10, learnCost:1000,
- desc:'ST+IQ+CHR > 敵MRなら1〜6ターン眠らせる', fn:'rockABye'},
- {name:'爆破',cost:8, level:3, iqReq:14, dexReq:10, learnCost:1000,
+ {name:'Deep Sleep', cost:11, level:3, iqReq:14, dexReq:10, learnCost:1000,
+ desc:'ST+IQ+CHR > 敵CombatRatingなら1〜6ターン眠らせる', fn:'rockABye'},
+ {name:'Detonate',cost:8, level:3, iqReq:14, dexReq:10, learnCost:1000,
  desc:'レベル数のダイス＋戦闘加算値の火炎ダメージ', fn:'blastingPower'},
- {name:'氷結', cost:8, level:3, iqReq:14, dexReq:10, learnCost:1000,
- desc:'レベル数のダイス＋戦闘加算値の氷結ダメージ', fn:'freezePleeze'},
- {name:'解毒',cost:14,level:3, iqReq:14, dexReq:10, learnCost:1000,
+ {name:'Ice Bind', cost:8, level:3, iqReq:14, dexReq:10, learnCost:1000,
+ desc:'レベル数のダイス＋戦闘加算値のIce Bindダメージ', fn:'freezePleeze'},
+ {name:'Purify',cost:14,level:3, iqReq:14, dexReq:10, learnCost:1000,
  desc:'あらゆる病気・毒を治癒する', fn:'healingFeeling'},
 ];
 
@@ -17957,7 +17969,7 @@ const SCENES = {
  cx.fillStyle='#4a4030';cx.fillRect(40,54,400,4);
  
  },
- // ── カザン（大都市）──
+ // ── カザーヌ（大都市）──
  town_khazan(cx){
  cx.fillStyle='#080810';cx.fillRect(0,0,W,H);
  cx.fillStyle='#101828';cx.fillRect(0,0,W,46);
@@ -18461,7 +18473,7 @@ function updateAddsPreview(){
  // 種族補正後のステータスを全表示
  const preview = document.getElementById('stat-after-race');
  if(preview){
- const labels={st:'ST',iq:'IQ',lk:'LK',con:'CON',dex:'DEX',chr:'CHR',spd:'SPD'};
+ const labels={st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
  preview.innerHTML = Object.keys(labels).map(k=>{
  const before = base[k], after = applied[k];
  const diff = after - before;
@@ -18478,7 +18490,7 @@ function updateAddsPreview(){
 });
 
 const RACE_INFO_TEXT = {
- human: 'Human: 全能力値 ×1（補正なし）',
+ human: '人間: 全能力値 ×1（補正なし）',
  elf: 'Elf: IQ・DEX ×3/2、CON ×2/3',
  dwarf: 'Dwarf: ST・CON ×2、CHR ×2/3',
  halfling: 'Halfling: ST ×1/2、CON ×2、DEX ×3/2',
@@ -18636,7 +18648,7 @@ function renderShop(){
  sec(' ARMOR',ARMOR_TABLE,(it,p)=>{
  const canUse=it.stReq<=PC.st;
  const div=document.createElement('div');div.className='shop-item';
- div.innerHTML=`<h4>${it.name} ${canUse?'':'<span style="color:var(--danger)">※ST不足</span>'}</h4>
+ div.innerHTML=`<h4>${it.name} ${canUse?'':'<span style="color:var(--danger)">※強さ不足</span>'}</h4>
  <p>防護:${it.hits}${PC.type==='warrior'?`(Warrior2倍→${it.hits*2})`:''}　ST≥${it.stReq}　Wgt:${it.weight}</p>
  <span class="price">${formatItemCost(it.cost)}</span>
  <button class="buy-btn" ${!canUse||totalCP()<it.cost*100||cartWeight+it.weight>weightPossible()?'disabled':''} onclick="buyArmor(${ARMOR_TABLE.indexOf(it)})">BUY</button>`;
@@ -18941,7 +18953,7 @@ function closeIngameShop(){
   setTimeout(travelTick, travelState.interval);
   return;
  }
- // townIdから正しい街ノードに戻る（カザンへの誤帰還を防ぐ）
+ // townIdから正しい街ノードに戻る（カザーヌへの誤帰還を防ぐ）
  const shopTownId = _igsTownId || PC.town;
  const shopNode = 'SHOP_' + shopTownId.toUpperCase();
  const townNode = 'TOWN_' + shopTownId.toUpperCase();
@@ -19266,7 +19278,7 @@ function renderIgsList(townId){
  aTable.forEach(it=>{
  const canUse = it.stReq<=PC.st;
  const div = document.createElement('div'); div.className='shop-item';
- div.innerHTML = `<h4>${it.name}${it.isShield?' <span style="color:#aaffaa;font-size:calc(var(--font-sm) - 3px)">盾</span>':''}${canUse?'':' <span style="color:var(--danger);font-size:calc(var(--font-sm) - 3px)">※ST不足</span>'}</h4>
+ div.innerHTML = `<h4>${it.name}${it.isShield?' <span style="color:#aaffaa;font-size:calc(var(--font-sm) - 3px)">盾</span>':''}${canUse?'':' <span style="color:var(--danger);font-size:calc(var(--font-sm) - 3px)">※強さ不足</span>'}</h4>
  <p>防護:${it.hits}${PC.type==='warrior'?`(×2→${it.hits*2})`:''}　ST≥${it.stReq}　Wgt:${it.weight}</p>
  <span class="price">${formatItemCost(it.cost)}</span>
  <button class="buy-btn" ${!canUse||totalCP(_shopActor||PC)<it.cost*100?'disabled':''} onclick="igsBuyArmor(${aTable.indexOf(it)},'${townId}')">BUY</button>`;
@@ -19430,7 +19442,7 @@ function renderIngameShop(townId){
  const isKhazan = townId === 'khazan';
  const isElsia2 = townId === 'elsia';
  const villageTitles = {verda:' ヴェルダ村の道具屋',rimholm:' リムホルムの武具屋',marakai:' マラカイの武器商',oasis_fort:' オアシス砦の道具屋',saroon:' サルーンの道具屋',duna:' デュナの道具屋',neria:' ネリアの武器屋',dorua:' ドルアの道具屋'};
- const shopTitle = townId==='__merchant__' ? ' 旅商人の荷台' : isKhazan ? ' カザン武器屋（全品揃え）' : townId==='al_rashid' ? ' アル・ラシードの武器屋' : isElsia2 ? ' エルマリアの道具屋' : villageTitles[townId] || ' 装備屋';
+ const shopTitle = townId==='__merchant__' ? ' 旅商人の荷台' : isKhazan ? ' カザーヌ武器屋（全品揃え）' : townId==='al_rashid' ? ' アル・ラシードの武器屋' : isElsia2 ? ' エルマリアの道具屋' : villageTitles[townId] || ' 装備屋';
 
  const {cur, max} = checkWeightPenalty();
  document.getElementById('igs-title').textContent = shopTitle + (_shopActor && _shopActor !== PC ? ` [${_shopActor.name}]` : '');
@@ -19725,8 +19737,8 @@ function updateMiniHUD(){
  const torch = (PC._torchStock||0) + (PC._torchTurns > 0 ? 1 : 0);
 
  barsEl.innerHTML = [
- {l:'CON', v:`${PC.con}/${PC.maxCon}`, cls: conClass},
- {l:'ST', v:PC.st, cls: PC.st <= 0 ? 'critical' : PC.st <= Math.floor(PC.maxSt*0.25) ? 'danger' : PC.st <= Math.floor(PC.maxSt*0.5) ? 'warn' : ''},
+ {l:'体力', v:`${PC.con}/${PC.maxCon}`, cls: conClass},
+ {l:'強さ', v:PC.st, cls: PC.st <= 0 ? 'critical' : PC.st <= Math.floor(PC.maxSt*0.25) ? 'danger' : PC.st <= Math.floor(PC.maxSt*0.5) ? 'warn' : ''},
  {l:'ADDS',v:(calcAdds()>=0?'+':'')+calcAdds(), cls:''},
  {l:'GP', v:gpLabel, cls:''},
  {l:'', v:food+'日', cls: food<=0?'danger':food<=3?'warn':''},
@@ -19854,13 +19866,13 @@ function renderNPCDetail(el, n, idx){
 
  // 能力値グリッド
  const attrRows = [
- ['ST 強さ', n.st, n.maxSt||n.st],
- ['IQ 知力', n.iq, null],
- ['LK 運', n.lk, null],
- ['CON 体力', n.con, n.maxCon],
- ['DEX 器用', n.dex, null],
- ['CHR 魅力', n.chr, null],
- ['SPD 速度', n.spd, null],
+ ['強さ', n.st, n.maxSt||n.st],
+ ['知力', n.iq, null],
+ ['運', n.lk, null],
+ ['体力', n.con, n.maxCon],
+ ['器用さ', n.dex, null],
+ ['魅力', n.chr, null],
+ ['素早さ', n.spd, null],
  ].map(([label,val,max])=>{
  const pct = max ? Math.max(0,val/max*100) : null;
  const color = max ? (pct>50?'var(--white)':pct>25?'var(--grn)':pct>0?'var(--yel)':'var(--red)') : 'var(--white)';
@@ -19905,7 +19917,7 @@ function renderNPCDetail(el, n, idx){
  const canUse = a.stReq<=n.st;
  return `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
- <div style="font-size:var(--font-sm);color:var(--dim)">${a.isShield?'':''} ${a.name}${canUse?'':' <span style="color:var(--danger);font-size:calc(var(--font-sm) - 3px)">※ST不足</span>'}</div>
+ <div style="font-size:var(--font-sm);color:var(--dim)">${a.isShield?'':''} ${a.name}${canUse?'':' <span style="color:var(--danger);font-size:calc(var(--font-sm) - 3px)">※強さ不足</span>'}</div>
  <div style="font-size:calc(var(--font-sm) - 2px);color:#334444">防護 ${a.hits}hits</div>
  </div>
  <button onclick="npcEquipArmor(${idx},${ai})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#6aaa60;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>
@@ -19922,7 +19934,7 @@ function renderNPCDetail(el, n, idx){
    ${canCast?'':'disabled'}> 使う</button>` : '';
   return `<div style="background:#100c06;border:1px solid #330066;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
   <div>
-   <div style="font-size:var(--font-sm);color:var(--gold3)"> ${s.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${s.cost}</span></div>
+   <div style="font-size:var(--font-sm);color:var(--gold3)"> ${s.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">強さ-${s.cost}</span></div>
    <div style="font-size:calc(var(--font-sm) - 1px);color:#7a6030">${s.desc}</div>
   </div>
   ${useBtn}
@@ -20114,13 +20126,13 @@ function renderStatusPanel(){
  const attrEl = document.getElementById('sp-attrs');
  attrEl.innerHTML = '';
  [
- ['ST 強さ', PC.st, PC.maxSt],
- ['IQ 知力', PC.iq, null],
- ['LK 運', PC.lk, null],
- ['CON 体力', PC.con, PC.maxCon],
- ['DEX 器用', PC.dex, null],
- ['CHR 魅力', PC.chr, null],
- ['SPD 速度', PC.spd, null],
+ ['強さ', PC.st, PC.maxSt],
+ ['知力', PC.iq, null],
+ ['運', PC.lk, null],
+ ['体力', PC.con, PC.maxCon],
+ ['器用さ', PC.dex, null],
+ ['魅力', PC.chr, null],
+ ['素早さ', PC.spd, null],
  ].forEach(([label, val, max])=>{
  const pct = max ? Math.max(0, val/max*100) : null;
  const color = max ? (pct>50?'var(--white)':pct>25?'var(--grn)':pct>0?'var(--yel)':'var(--red)') : 'var(--white)';
@@ -20137,9 +20149,9 @@ function renderStatusPanel(){
  const cbtEl = document.getElementById('sp-combat');
  cbtEl.innerHTML = '';
  [
- ['ADDS', (adds>=0?'+':'')+adds, 'var(--white)'],
- ['ARMOR', effectiveArmor()+'hits','var(--white)'],
- ['CARRY', wtMax+'wu', 'var(--white)'],
+ ['戦闘力修正', (adds>=0?'+':'')+adds, 'var(--white)'],
+ ['防護値', effectiveArmor()+'hits','var(--white)'],
+ ['積載量', wtMax+'wu', 'var(--white)'],
  ].forEach(([l,v,c])=>{
  const d = document.createElement('div');
  d.style.cssText = 'background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:6px 8px;text-align:center';
@@ -20457,7 +20469,7 @@ function renderStatusPanel(){
  spWrap.style.display = '';
  document.getElementById('sp-spells').innerHTML = PC.spells.map(s=>
  `<div style="background:#100c06;border:1px solid #330066;border-radius:3px;padding:8px;margin-bottom:5px">
- <div style="font-size:var(--font-sm);color:var(--gold3);margin-bottom:3px"> ${s.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${s.cost}</span></div>
+ <div style="font-size:var(--font-sm);color:var(--gold3);margin-bottom:3px"> ${s.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">強さ-${s.cost}</span></div>
  <div style="font-size:calc(var(--font-sm) - 1px);color:#7a6030">${s.desc}</div>
  </div>`
  ).join('');
@@ -20492,7 +20504,7 @@ function renderStatusPanel(){
   </div>`;
  }
  if(q.type==='purchase'){
-  const regionName = {khazan_region:'カザン',elmaria_region:'エルマリア',zahara_region:'ザハラ',draklim_region:'ドラクリム'}[q.targetRegion]||q.targetRegion;
+  const regionName = {khazan_region:'カザーヌ',elmaria_region:'エルマリア',zahara_region:'ザハラ',draklim_region:'ドラクリム'}[q.targetRegion]||q.targetRegion;
   return `<div style="background:#0a1020;border:1px solid #223344;border-radius:3px;padding:9px;margin-bottom:6px">
   <div style="font-size:var(--font-sm);color:var(--yel);margin-bottom:4px">${q.specIcon||''} ${regionName}の買い付け</div>
   <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:2px">「${q.specName}」を購入して持ち帰る</div>
@@ -20744,7 +20756,7 @@ function setupSavingRollFor(actor, sr){
  // rollPendingにactorを持たせる
  const srWithActor = {...sr, _actor: actor};
  rollPending = srWithActor;
- const attrNames={st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+ const attrNames={st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
  const target = sr.level*5+15;
  const attrVal = actor[sr.attr] || 0;
  const actorLabel = isPC ? PC.name : actor.name;
@@ -21086,14 +21098,14 @@ const DUNGEON_EVENTS = [
     }, 2000);
     return;
    } else if(roll <= 4){
-    // 幻覚：幸運SR、失敗でST-3
+    // 幻覚：幸運SR、失敗で強さ-3
     const sr = savingRoll('lk', 1);
     gainAPAll(sr.ap);
     if(!sr.success){
      PC.st = Math.max(1, PC.st - 3); PC.maxSt = Math.max(1, (PC.maxSt||PC.st) - 3);
      story.innerHTML += `<div style="color:var(--leather);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幻覚・神経の緊張。</b>LK 能力値テスト失敗（${sr.total}）——ダンジョンを出るまでST -3（残り${PC.st}）　経験値+${sr.ap}</div>`;
     } else {
-     story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px"> 神経が張り詰めたが、気のせいだった。LK 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px"> 神経が張り詰めたが、気のせいだった。運 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
     }
    } else {
     story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px"> 小さな地下生物がそっと逃げていった。何も起こらなかった。</div>`;
@@ -21146,7 +21158,7 @@ const DUNGEON_EVENTS = [
      PC.lk = Math.max(1, PC.lk - 5);
      story.innerHTML += `<div style="color:#aa44ff;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪いの残滓。</b>この場に死の気配が漂う。LK 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr.ap}</div>`;
     } else {
-     story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px">冷たい気配を感じたが、LK 能力値テスト成功。何も起こらなかった。経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px">冷たい気配を感じたが、運 能力値テスト成功。何も起こらなかった。経験値+${sr.ap}</div>`;
     }
    }
    updateHUD();
@@ -21251,7 +21263,7 @@ const DUNGEON_EVENTS = [
      PC.lk = Math.max(1, PC.lk - 5);
      story.innerHTML += `<div style="color:#aa44ff;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた傷。</b>傷口が黒ずんでくる。LK 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr.ap}</div>`;
     } else {
-     story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px">傷は気になるが、LK 能力値テスト成功。呪いは感じない。経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px">傷は気になるが、運 能力値テスト成功。呪いは感じない。経験値+${sr.ap}</div>`;
     }
    } else {
     PC.lk += 5;
@@ -21779,7 +21791,7 @@ function darkRoomChoices(nodeId){
   if(nodeId.startsWith(prefix)){ escapeNode = escape; break; }
  }
  return [
-  {label:' 暗闇の中を出口へ向かう（LK Lv3 能力値テスト）', go:escapeNode},
+  {label:' 暗闇の中を出口へ向かう（運 Lv3 能力値テスト）', go:escapeNode},
  ];
 }
 
@@ -22134,7 +22146,8 @@ function _appendMagicChoice(choices, node, nodeId){
   || nodeId.startsWith('TRAVEL_FROM') || nodeId.startsWith('SHOP_')
   || nodeId.startsWith('TAVERN_') || nodeId.startsWith('RECRUIT_')
   || nodeId.startsWith('WIZARDS_GUILD')
-  || nodeId.startsWith('ROGUES_GUILD');
+  || nodeId.startsWith('ROGUES_GUILD')
+  || nodeId.startsWith('TOWN_');
  if(skip) return choices;
  const spellEffects = node.spellEffects || null;
  const context = node.spellContext || '';
@@ -22511,7 +22524,7 @@ function scrollToTop(){
 // ──────────────────────────────────────
 function setupSavingRoll(sr){
  rollPending=sr;
- const attrNames={st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+ const attrNames={st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
  const target=sr.level*5+15;
  const attrVal=PC[sr.attr];
  document.getElementById('dd').innerHTML=
@@ -22591,7 +22604,7 @@ function setupMultiSR(msr){
 function showMultiSRPhase(){
  const m=multiRollState;
  const r=m.rolls[m.phase];
- const attrNames={st:'ST',iq:'IQ',lk:'LK',con:'CON',dex:'DEX',chr:'CHR',spd:'SPD'};
+ const attrNames={st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
  const target=r.level*5+15;
  document.getElementById('dd').innerHTML=
  `[${m.phase+1}/${m.rolls.length}] Lv${r.level} <span style="color:#ffee44">${attrNames[r.attr]}(${PC[r.attr]})</span><br>目標 ≥ ${target}`;
@@ -22824,7 +22837,7 @@ function _magicPhaseSpellSelect(npcIdx, magicParty){
   const b = document.createElement('button');
   b.className='choice-btn';
   b.style.cssText='border-color:#553377;color:'+(canAfford?'#c89aff':'#665577');
-  b.innerHTML=`${sp.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${sp.cost}</span>`;
+  b.innerHTML=`${sp.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>`;
   b.disabled=!canAfford;
   b.onclick=()=>{
    document.getElementById('npc-action-panel').style.display='none';
@@ -22857,7 +22870,7 @@ function _magicPhaseNPCSpellSelect(npc, npcIdx, magicParty){
   const b=document.createElement('button');
   b.className='choice-btn';
   b.style.cssText='border-color:#553377;color:'+(canAfford?'#c89aff':'#665577');
-  b.innerHTML=`${sp.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${sp.cost}</span>`;
+  b.innerHTML=`${sp.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>`;
   b.disabled=!canAfford;
   b.onclick=()=>{
    cbtState[`_npcDidCast_${partyIdx}`]=true;
@@ -22895,7 +22908,7 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp){
   cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + dmg;
   cbtState._spellCaster = true;
   const cl = document.getElementById('clog');
-  const spName = sp.fn==='blastingPower' ? '爆破' : '氷結';
+  const spName = sp.fn==='blastingPower' ? 'Detonate' : 'Ice Bind';
   cl.innerHTML += `<span style="color:#c89aff"> ${npc.name}が${spName}を詠唱！${dice}D+${adds}=${dmg}ヒット追加！</span><br>`;
   onDone();
   return;
@@ -22904,7 +22917,7 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp){
  // その他の呪文：ST消費してログ出力
  npc.st = Math.max(0,(npc.st||0)-sp.cost);
  const cl = document.getElementById('clog');
- cl.innerHTML += `<span style="color:#c89aff"> ${npc.name}が${sp.name}を詠唱した！（ST-${sp.cost}）</span><br>`;
+ cl.innerHTML += `<span style="color:#c89aff"> ${npc.name}が${sp.name}を詠唱した！（強さ-${sp.cost}）</span><br>`;
  onDone();
 }
 
@@ -22923,7 +22936,7 @@ function _npcTtyfSelectLevel(npc, npcIdx, magicParty, sp, onDone){
   const b=document.createElement('button');
   b.className='choice-btn';
   b.style.cssText='border-color:#553377;color:#c89aff';
-  b.innerHTML=`Lv${lv} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${stCost}</span>`;
+  b.innerHTML=`Lv${lv} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">強さ-${stCost}</span>`;
   b.onclick=()=>{ _npcTtyfCast(npc, npcIdx, magicParty, sp, lv, stCost, onDone); };
   btns.appendChild(b);
  }
@@ -22947,7 +22960,7 @@ function _npcTtyfCast(npc, npcIdx, magicParty, sp, lv, stCost, onDone){
   b.className='choice-btn';
   b.style.cssText='border-color:#553377;color:#c89aff';
   const hpVal = isNPCCbt ? e.curCon : e.curMR;
-  const hpLabel = isNPCCbt ? 'CON' : 'CombatRating';
+  const hpLabel = isNPCCbt ? '体力' : 'CombatRating';
   b.textContent=`${e.name}（${hpLabel} ${hpVal}）`;
   b.onclick=()=>{ _npcTtyfApply(npc, sp, lv, stCost, e, onDone); };
   btns.appendChild(b);
@@ -22962,9 +22975,9 @@ function _npcTtyfApply(npc, sp, lv, stCost, target, onDone){
  if(isNPCCbt){ target.curCon = Math.max(0, target.curCon - dmg); }
  else { target.curMR = Math.max(0, target.curMR - dmg); }
  const afterHp = isNPCCbt ? target.curCon : target.curMR;
- const hpLabel = isNPCCbt ? 'CON' : 'CombatRating';
+ const hpLabel = isNPCCbt ? '体力' : 'CombatRating';
  const cl = document.getElementById('clog');
- cl.innerHTML+=`<span style="color:#c89aff"> ${npc.name}が魔力弾 Lv${lv}を詠唱！</span><br>`;
+ cl.innerHTML+=`<span style="color:#c89aff"> ${npc.name}がMagic Bolt Lv${lv}を詠唱！</span><br>`;
  cl.innerHTML+=`<span style="color:#44ffaa"> ${target.name}に${dmg}ダメージ！（IQ${npc.iq||10}×Lv${lv}）${hpLabel}: ${prevHp}→${afterHp}</span><br>`;
  cbtState._npcTtyfMagicHit = (cbtState._npcTtyfMagicHit||0) + dmg;
  // HPバーのみ更新（_showPCActionChoicesは呼ばない）
@@ -23179,7 +23192,7 @@ function _pcRangedAttack(target, onDone){
    const dmg = Math.max(0, hit - armor);
    if(cbtState.isNPC){ target.curCon=Math.max(0,target.curCon-dmg); } else { target.curMR=Math.max(0,target.curMR-dmg); }
    cbtState._rangedHitTotal = (cbtState._rangedHitTotal||0) + hit;
-   cl.innerHTML += `<span style="color:#88ccff"> 命中！${w.dice}D=${diceRoll} adds=${rangedAdds}（DEX×2） hit=${hit} → ${target.name} ${cbtState.isNPC?'CON':'CombatRating'}-${dmg}${armor>0?`（防護-${armor}）`:''}</span><br>`;
+   cl.innerHTML += `<span style="color:#88ccff"> 命中！${w.dice}D=${diceRoll} adds=${rangedAdds}（DEX×2） hit=${hit} → ${target.name} ${cbtState.isNPC?'体力':'CombatRating'}-${dmg}${armor>0?`（防護-${armor}）`:''}</span><br>`;
    updateCombatUI();
    if(onDone) onDone(); else _showPCActionChoices();
   },
@@ -23307,7 +23320,7 @@ function doFightNPC(){
  if(cs.chaosMode && !cs._spellCaster){
   const attrs = ['dex','lk','iq'];
   const attr = attrs[Math.floor(Math.random()*attrs.length)];
-  const attrNames = {dex:'DEX',lk:'LK',iq:'IQ'};
+  const attrNames = {dex:'器用さ',lk:'運',iq:'知力'};
   const cl = document.getElementById('clog');
   cl.innerHTML += `<span style="color:#997744"> 時間の歪みを読む（${attrNames[attr]} 能力値テスト）——</span><br>`;
   _hidePCActionChoices();
@@ -23475,7 +23488,7 @@ function resolveRoundNPC(pRoll, npcActions){
   ttyfRolls.forEach(r=>{
    const ttyfDmg = r.ttyf; // 防護値無視
    PC.con = Math.max(0, PC.con - ttyfDmg);
-   cl.innerHTML += `<span style="color:#c89a60"> ${r.enemy.name}が魔力弾！</span> `
+   cl.innerHTML += `<span style="color:#c89a60"> ${r.enemy.name}がMagic Bolt！</span> `
     +`<span class="red">PC CON-${ttyfDmg}（防護値無視・残り${PC.con}）</span><br>`;
   });
   updateHUD();
@@ -23595,7 +23608,7 @@ function resolveRoundNPC(pRoll, npcActions){
 function doFlee(){
  if(!cbtState || !cbtState.canFlee) return;
  const cl = document.getElementById('clog');
- cl.innerHTML += `<span class="yel"> 逃走を試みる…（SPD Lv1 能力値テスト）</span><br>`;
+ cl.innerHTML += `<span class="yel"> 逃走を試みる…（素早さ Lv1 能力値テスト）</span><br>`;
 
  // cbt-areaを隠してtext-winを復元 → dice-areaが見えるようになる
  document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
@@ -23863,7 +23876,7 @@ function _showSpellChoices(){
   const b = document.createElement('button');
   b.className = 'choice-btn';
   b.style.cssText = 'border-color:#553377;color:' + (canAfford ? '#c89aff' : '#665577');
-  b.innerHTML = `${sp.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${sp.cost}</span>`;
+  b.innerHTML = `${sp.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>`;
   b.disabled = !canAfford;
   b.onclick = ()=>{
    _hidePCActionChoices();
@@ -24017,7 +24030,7 @@ function showNPCActionPhase(idx, aliveParty){
    if(cbtState?.chaosMode && act.key === 'attack'){
     const attrs = ['dex','lk','iq'];
     const attr = attrs[Math.floor(Math.random()*attrs.length)];
-    const attrNames = {dex:'DEX',lk:'LK',iq:'IQ'};
+    const attrNames = {dex:'器用さ',lk:'運',iq:'知力'};
     const cl = document.getElementById('clog');
     cl.innerHTML += `<span style="color:#997744"> ${npc.name}：時間の歪みを読む（${attrNames[attr]} 能力値テスト）——</span><br>`;
     panel.style.display = 'none';
@@ -24506,7 +24519,7 @@ function _ttyfSelectLevel(spell){
   const btn = document.createElement('button');
   btn.className = 'choice-btn';
   btn.style.cssText = 'border-color:#553377;color:#c89aff';
-  btn.innerHTML = `Lv${lv} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">ST-${stCost}</span>`;
+  btn.innerHTML = `Lv${lv} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">強さ-${stCost}</span>`;
   btn.addEventListener('click', ()=>{ _ttyfSelectTarget(spell, lv, stCost); });
   btns.appendChild(btn);
  }
@@ -24555,7 +24568,7 @@ function _ttyfApply(spell, ttyfLv, stCost, target){
   target.curMR = Math.max(0, target.curMR - dmg);
  }
  const afterHp = isNPCCbt ? target.curCon : target.curMR;
- const hpLabel = isNPCCbt ? 'CON' : 'CombatRating';
+ const hpLabel = isNPCCbt ? '体力' : 'CombatRating';
 
  // cbtStateにttyf情報を記録（resolveRoundで参照）
  cbtState._spellCaster = true;
@@ -24563,9 +24576,9 @@ function _ttyfApply(spell, ttyfLv, stCost, target){
  cbtState._ttyfTarget = target;
  cbtState._ttyfPRoll = dmg;
 
- result.innerHTML = ` <span class="wizard-c">魔力弾</span> Lv${ttyfLv}<br>
+ result.innerHTML = ` <span class="wizard-c">Magic Bolt</span> Lv${ttyfLv}<br>
   <span style="color:#44ffaa">${target.name}に ${dmg}ダメージ！（IQ${PC.iq} × Lv${ttyfLv}）</span><br>
-  <span style="color:#c05040;font-size:calc(var(--font-sm) - 2px)">${hpLabel}: ${prevHp} → ${afterHp}　ST-${stCost}</span><br>
+  <span style="color:#c05040;font-size:calc(var(--font-sm) - 2px)">${hpLabel}: ${prevHp} → ${afterHp}　強さ-${stCost}</span><br>
   <span style="color:#aaa;font-size:calc(var(--font-sm) - 2px)">近接戦闘では詠唱者の攻撃ヒット＝${dmg}として処理</span>`;
 
  // 魔法フェーズ中（_magicPhaseNextがある）なら先に処理
@@ -24638,7 +24651,7 @@ function renderSpellList(ctx){
  PC.spells.forEach(sp=>{
  const canAfford=PC.st>sp.cost;
  const btn=document.createElement('button');btn.className='spell-btn';
- btn.innerHTML=`${sp.name} <span class="sp-cost">ST-${sp.cost}</span><br><span style="color:#8866aa;font-size:calc(var(--font-lg) + 4px)">${sp.desc}</span>`;
+ btn.innerHTML=`${sp.name} <span class="sp-cost">強さ-${sp.cost}</span><br><span style="color:#8866aa;font-size:calc(var(--font-lg) + 4px)">${sp.desc}</span>`;
  btn.disabled=!canAfford;
  btn.onclick=()=>castSpell(sp,ctx);
  el.appendChild(btn);
@@ -24663,23 +24676,23 @@ function castSpell(spell,ctx){
   _ttyfSelectLevel(spell);
  } else {result.textContent='戦闘中のみ使用可';}break;
  case 'vorpal':
- if(cbtState){cbtState.vorpalActive=true;result.innerHTML=' <span class="wizard-c">快刀</span>: 次のラウンド武器ダイス2倍！';}
+ if(cbtState){cbtState.vorpalActive=true;result.innerHTML=' <span class="wizard-c">Keen Blade</span>: 次のラウンド武器ダイス2倍！';}
  else result.textContent='戦闘中のみ使用可';break;
  case 'wisp':
  if(DUNGEON_NODES && DUNGEON_NODES.has && DUNGEON_NODES.has(currentNodeId)){
  // ダンジョン内：松明1ターン分として処理
  PC._torchTurns = Math.max(PC._torchTurns||0, 1);
- result.innerHTML=' <span class="wizard-c">ともしび</span>: 指先が明るく輝いた！ダンジョンを1ターン照らす。';
+ result.innerHTML=' <span class="wizard-c">Candle Light</span>: 指先が明るく輝いた！ダンジョンを1ターン照らす。';
  // 暗闇状態だった場合はノードを再描画
  if(document.getElementById('story').textContent.includes('暗闇')){
  go(currentNodeId);
  return;
  }
  } else {
- result.innerHTML=' <span class="wizard-c">ともしび</span>: 指先が明るく輝いた！（1ターン）';
+ result.innerHTML=' <span class="wizard-c">Candle Light</span>: 指先が明るく輝いた！（1ターン）';
  }
  break;
- case 'knockKnock':result.innerHTML=' <span class="wizard-c">解錠</span>: 錠前が開いた！';break;
+ case 'knockKnock':result.innerHTML=' <span class="wizard-c">Unlock</span>: 錠前が開いた！';break;
  case 'ohGoAway':
  if(cbtState){
  const power=PC.iq+PC.lk+PC.chr;
@@ -24749,10 +24762,10 @@ function castSpell(spell,ctx){
  const sleepTurns = Nd6(1);
  cbtState.sleeping = sleepTurns;
  cbtState._spellCaster = true;
- result.innerHTML=` <span class="wizard-c">睡魔</span><br>ST+IQ+CHR = ${power} ＞ CombatRating ${enemyMR}<br><span class="grn"> 魔法が効いた！敵が${sleepTurns}ターン眠り込んだ！</span>`;
+ result.innerHTML=` <span class="wizard-c">Deep Sleep</span><br>ST+IQ+CHR = ${power} ＞ CombatRating ${enemyMR}<br><span class="grn"> 魔法が効いた！敵が${sleepTurns}ターン眠り込んだ！</span>`;
  updateCombatUI();
  } else {
- result.innerHTML=` <span class="wizard-c">睡魔</span><br>ST+IQ+CHR = ${power} ≤ CombatRating ${enemyMR}<br><span class="red"> 魔法が効かなかった！敵は眠らない。</span>`;
+ result.innerHTML=` <span class="wizard-c">Deep Sleep</span><br>ST+IQ+CHR = ${power} ≤ CombatRating ${enemyMR}<br><span class="red"> 魔法が効かなかった！敵は眠らない。</span>`;
  updateCombatUI();
  }
  } else result.textContent='戦闘中のみ使用可';
@@ -24763,7 +24776,7 @@ function castSpell(spell,ctx){
  const adds = Math.max(0, calcAdds()); const dmg = Nd6(dice) + adds;
  cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + dmg;
  cbtState._spellCaster = true; // 詠唱済み→近接戦闘スキップ
- result.innerHTML=` <span class="wizard-c">爆破</span>: ${dice}Dの火炎！${dmg}ヒット追加！<br><span style="color:#aaa;font-size:calc(var(--font-sm) - 2px)">近接戦闘のヒットに加算されます</span>`;
+ result.innerHTML=` <span class="wizard-c">Detonate</span>: ${dice}Dの火炎！${dmg}ヒット追加！<br><span style="color:#aaa;font-size:calc(var(--font-sm) - 2px)">近接戦闘のヒットに加算されます</span>`;
  updateCombatUI();
  } else result.textContent='戦闘中のみ使用可';
  break;
@@ -24774,13 +24787,13 @@ function castSpell(spell,ctx){
  const adds = Math.max(0, calcAdds()); const dmg = Nd6(dice) + adds;
  cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + dmg;
  cbtState._spellCaster = true; // 詠唱済み→近接戦闘スキップ
- result.innerHTML=` <span class="wizard-c">氷結</span>: ${dice}Dの氷結！${dmg}ヒット追加！<br><span style="color:#aaa;font-size:calc(var(--font-sm) - 2px)">近接戦闘のヒットに加算されます</span>`;
+ result.innerHTML=` <span class="wizard-c">Ice Bind</span>: ${dice}Dの氷結！${dmg}ヒット追加！<br><span style="color:#aaa;font-size:calc(var(--font-sm) - 2px)">近接戦闘のヒットに加算されます</span>`;
  updateCombatUI();
  } else result.textContent='戦闘中のみ使用可';
  break;
  }
  case 'healingFeeling':
- result.innerHTML=' <span class="wizard-c">解毒</span>: 体内の毒・病が浄化された！';
+ result.innerHTML=' <span class="wizard-c">Purify</span>: 体内の毒・病が浄化された！';
  PC._poisoned = false; PC._diseased = false;
  break;
  default:result.innerHTML=` ${spell.name} 使用。`;
@@ -24855,7 +24868,7 @@ function dbgStartCombat(){
 }
 
 function dungeonTrySR(cfg){
- const attrNames={st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+ const attrNames={st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
  const aliveParty = (PC.party||[]).filter(n=>n.con>0);
  const story = document.getElementById('story');
 
@@ -24932,7 +24945,7 @@ function dungeonTrySR(cfg){
 }
 
 function selectActorForSR(attr, level, callback){
- const attrNames={st:'ST 強さ',iq:'IQ 知力',lk:'LK 運',con:'CON 体力',dex:'DEX 器用',chr:'CHR 魅力',spd:'SPD 速度'};
+ const attrNames={st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
  const attrLabel = attrNames[attr] || attr;
  const aliveParty = (PC.party||[]).filter(n=>n.con>0);
 
@@ -25564,8 +25577,8 @@ const NODES = {
  txt:()=>{
  const bg = PC.background || {};
  const params = AGING_PARAMS[PC.race] || AGING_PARAMS.human;
- const townNames = {khazan:'カザン',port_argon:'ポートアルゴン',stonehiem:'ストーンヘイム',elsia:'エルマリア',verda:'ヴェルダ村',rimholm:'リムホルム',marakai:'マラカイ',al_rashid:'アル・ラシード',oasis_fort:'オアシス砦',saroon:'サルーン',duna:'デュナ',neria:'ネリア港',dorua:'ドルアの村',sarpe:'サルペ',nebra:'ネブラ'};
- const startTownName = townNames[PC._startTown] || 'カザン';
+ const townNames = {khazan:'カザーヌ',port_argon:'ポートアルゴン',stonehiem:'ストーンヘイム',elsia:'エルマリア',verda:'ヴェルダ村',rimholm:'リムホルム',marakai:'マラカイ',al_rashid:'アル・ラシード',oasis_fort:'オアシス砦',saroon:'サルーン',duna:'デュナ',neria:'ネリア港',dorua:'ドルアの村',sarpe:'サルペ',nebra:'ネブラ'};
+ const startTownName = townNames[PC._startTown] || 'カザーヌ';
  return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${PC.name}の生い立ち ──</span><br><br>
  <span class="dim" style="font-size:calc(var(--font-sm) - 1px)"> 家族・身分</span><br>
  ${bg.family||''}<br><br>
@@ -25608,7 +25621,7 @@ const NODES = {
 
  TRAVEL_FROM_KHAZAN:{
  scene:'travel',
- txt:()=>`<span class="gold">カザン</span>からの旅立ち<br><br>
+ txt:()=>`<span class="gold">カザーヌ</span>からの旅立ち<br><br>
  
  <span class="dim">どこへ向かいますか？</span>`,
  choices:()=>makeTravelChoices(PC.town||'khazan'),
@@ -26997,7 +27010,7 @@ const NODES = {
  PC._darkEscaped = true;
  return `<span class="gold"></span><br><br>
  壁を伝いながら必死に出口を探した。冷や汗をかきながらも、かすかな外の光を頼りにやっと入口へたどり着いた！<br><br>
- <span class="grn">LK 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
+ <span class="grn">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
  } else {
  PC._darkEscaped = false;
  const dmg = 5;
@@ -27018,7 +27031,7 @@ const NODES = {
  choices:()=>{
  if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
  if(PC._darkEscaped) return [{label:' 入口の光の方へ歩いた', go:'RUIN_ENTRANCE'}];
- return [{label:' もう一度出口を探す（LK Lv3 能力値テスト）', go:'RUIN_DARK_ESCAPE'}];
+ return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'RUIN_DARK_ESCAPE'}];
  },
  },
 
@@ -27588,7 +27601,7 @@ const NODES = {
  const _hqHtml = renderHeroQuestOffer('khazan', _hqOffer);
  const html = renderQuestBoard('khazan', board);
  const partyHtml = renderPartyStatus();
- return ` <span class="gold">カザンの大酒場</span><br><br>冒険者たちが賑わっている。<br><br>${partyHtml}${_hqHtml}${html}`;
+ return ` <span class="gold">カザーヌの大酒場</span><br><br>冒険者たちが賑わっている。<br><br>${partyHtml}${_hqHtml}${html}`;
  },
  choices:()=>[...getQuestBoardChoices('TOWN_KHAZAN'), {label:' 客に話しかける', fn:()=>talkToPatron('khazan')}, {label:' 仲間を探す', go:'RECRUIT_KHAZAN'}],
  },
@@ -27623,7 +27636,7 @@ const NODES = {
 
  SHOP_KHAZAN:{
  scene:'town_khazan',
- txt:()=>` <span class="gold">カザン武器屋</span><br><br>王都随一の品揃えだ。珍しい武器や高品質な防具が並んでいる。`,
+ txt:()=>` <span class="gold">カザーヌ武器屋</span><br><br>王都随一の品揃えだ。珍しい武器や高品質な防具が並んでいる。`,
  choices:[
  {label:' 買い物をする', fn:()=>showIngameShop('khazan'), go:'__travel__'},
  {label:'← 戻る', go:'TOWN_KHAZAN'},
@@ -27770,7 +27783,7 @@ const NODES = {
  },
  choices:()=>{
   if(PC._darkEscaped) return [{label:' 外の光の方へ', go:'SHRINE_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（LK Lv3 能力値テスト）', go:'SHRINE_DARK_ESCAPE'}];
+  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'SHRINE_DARK_ESCAPE'}];
  },
  },
 
@@ -28230,7 +28243,7 @@ const NODES = {
  },
  choices:()=>PC._iskaldEscaped
   ? [{label:' 出口へ',go:'ISKALD_ENTRANCE'}]
-  : [{label:' 再度出口を探す（LK Lv3 能力値テスト）',go:'ISKALD_DARK_ESCAPE'}],
+  : [{label:' 再度出口を探す（運 Lv3 能力値テスト）',go:'ISKALD_DARK_ESCAPE'}],
  },
 
  ISKALD_C1:{
@@ -28546,7 +28559,7 @@ const NODES = {
  },
 
  // ══════════════════════════════════════════
- //  カザン「王城地下牢」
+ //  カザーヌ「王城地下牢」
  // 地図: 9部屋 + 通路 a/c/e/i/m/n/r/s/u/v
  // 入口c（北東階段）→ 部屋2 → 部屋7 → 部屋1（ボス）
  //          ↓               ↑
@@ -28566,7 +28579,7 @@ const NODES = {
    ? `<span class="grn"> 松明を ${torches}本 持っている。</span>`
    : `<span class="red"> 松明を持っていない！暗闇の中を進むことになる。</span>`;
   return ` <span class="gold" style="font-size:var(--font-base)">王城地下牢</span><br><br>
-   カザン王城の北塔裏手、草に埋もれた石段が地下へ続いている。<br>
+   カザーヌ王城の北塔裏手、草に埋もれた石段が地下へ続いている。<br>
    かつては政治犯を収容していたと伝わるが、今は誰も使っていない。<br>
    石扉の鉄環は錆びついているが、力を込めると重く軋んで開く。<br>
    冷たく湿った空気と、かすかな血と黴の匂いが漂ってくる。<br><br>
@@ -28575,7 +28588,7 @@ const NODES = {
  },
  choices:[
   {label:' 地下へ降りる', fn:()=>{ initTorch(); cryptMove('CRYPT_P1'); }},
-  {label:'← カザンへ戻る', go:'TOWN_KHAZAN'},
+  {label:'← カザーヌへ戻る', go:'TOWN_KHAZAN'},
  ],
  },
 
@@ -28603,7 +28616,7 @@ const NODES = {
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
   if(PC._darkEscaped) return [{label:' 光の差す方へ', go:'CRYPT_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（LK Lv3 能力値テスト）', go:'CRYPT_DARK_ESCAPE'}];
+  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'CRYPT_DARK_ESCAPE'}];
  },
  },
 
@@ -28974,7 +28987,7 @@ const NODES = {
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
   if(PC._darkEscaped) return [{label:' B1Fの光の方へ', go:'CRYPT2_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（LK Lv3 能力値テスト）', go:'CRYPT2_DARK_ESCAPE'}];
+  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'CRYPT2_DARK_ESCAPE'}];
  },
  },
 
@@ -29510,7 +29523,7 @@ const NODES = {
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）',go:'DEAD'}];
   if(PC._darkEscaped) return [{label:' B2Fの灯りの方へ',go:'CRYPT3_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（LK Lv3 能力値テスト）',go:'CRYPT3_DARK_ESCAPE'}];
+  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）',go:'CRYPT3_DARK_ESCAPE'}];
  },
  },
 
@@ -29838,7 +29851,7 @@ const NODES = {
   const cleared=PC._crypt3_7cleared;
   return ` <span class="gold">B3F 部屋7 — 深淵の螺旋廊</span><br><br>
    右下に向かって螺旋状に下降する巨大な石廊下。s通路→v通路→x通路（Arch）へ続き、<br>
-   Archは地上——カザン城外壁近くに繋がる緊急脱出口だ。<br>
+   Archは地上——カザーヌ城外壁近くに繋がる緊急脱出口だ。<br>
    ${cleared?'<span class="dim">（螺旋廊の番人は倒されている）</span>':'<span style="color:#ff4444">螺旋廊の中央に、巨大な蜘蛛の魔物が待ち構えている……</span>'}<br><br>
    <span class="dim">━ 出口: 上（u通路→部屋3/4）/ 螺旋→x（Arch→地上出口） ━</span>`;
  },
@@ -29860,7 +29873,7 @@ const NODES = {
     attr:'iq', level:1,
     successTxt:()=>`螺旋廊を難なく通過。x通路のArchから地上の光が見えた！`,
     failTxt:()=>`廊下で迷ったが、なんとかArchを見つけた。`,
-    choicesFn:()=>[{label:' 地上（カザン）へ出る',go:'TOWN_KHAZAN'}],
+    choicesFn:()=>[{label:' 地上（カザーヌ）へ出る',go:'TOWN_KHAZAN'}],
    })});
   }
   return ch;
@@ -29887,7 +29900,7 @@ const NODES = {
  choices:()=>{
   if(PC._crypt3_4cleared){
    return [
-    {label:' 玉座を調べる（LK Lv3 能力値テスト）', fn:()=>dungeonTrySR({
+    {label:' 玉座を調べる（運 Lv3 能力値テスト）', fn:()=>dungeonTrySR({
      attr:'lk', level:3,
      successFn:()=>{ if(!PC._crypt3_4searched){ const gp=250+Math.floor(Math.random()*251); gainGPAll(gp); gainAPAll(100); updateHUD(); PC._crypt3_4gp=gp; PC._crypt3_4searched=true; } },
      successTxt:()=>PC._crypt3_4gp?`玉座の玉石の下に封印された隠し金庫！古代の宝が眠っていた。+${PC._crypt3_4gp}GP　経験値+100`:`すでに調べ済みだ。`,
@@ -29966,7 +29979,7 @@ const NODES = {
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）',go:'DEAD'}];
   if(PC._darkEscaped) return [{label:' B1Fの光の方へ',go:'SHR2_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（LK Lv3 能力値テスト）',go:'SHR2_DARK_ESCAPE'}];
+  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）',go:'SHR2_DARK_ESCAPE'}];
  },
  },
 
