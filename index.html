@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062601</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062602</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -3893,7 +3893,7 @@ function propertyPropose(townId){
    +`<b> ${npc.name}への求婚</b><br><br>`
    +`<span class="dim">${typeJa}　信頼度：<span style="color:${canPropose?'#c8a44a':'#c05040'}">${trust}/100（${trustLabel}）</span></span><br><br>`
    +(canPropose
-    ? `<span class="dim">拠点の一室で、二人きりの時間が流れている。<br>CHR Lv3 能力値テストに成功すれば、${npc.name}は申し込みを受け入れてくれるだろう。</span>`
+    ? `<span class="dim">拠点の一室で、二人きりの時間が流れている。<br>魅力 Lv3 能力値テストに成功すれば、${npc.name}は申し込みを受け入れてくれるだろう。</span>`
     : `<span style="color:#c05040">信頼度が90以上のときに申し込むことができる。</span>`
    );
 
@@ -8893,26 +8893,36 @@ function rollLifespan(race){
 
 function checkAging(){
  const newAge = calcAge();
+ const params = AGING_PARAMS[PC.race] || AGING_PARAMS.human;
+ const lifespan = PC.lifespan || params.lifespan;
+
+ // 寿命超過後：毎日死亡判定（年間確率を日割り）
+ if(newAge >= lifespan){
+  const overYears = newAge - lifespan + 1;
+  const yearlyChance = 1 - Math.pow(0.8, overYears); // 毎年死亡確率が増加（上限なし）
+  const dailyChance = 1 - Math.pow(1 - yearlyChance, 1/365);
+  if(Math.random() < dailyChance){
+   return { event:'death', age:newAge };
+  }
+ }
+
+ // 以下は誕生日のみ処理
  if(newAge <= PC.age) return null;
  PC.age = newAge;
- const params = AGING_PARAMS[PC.race] || AGING_PARAMS.human;
- // PC.lifespanが設定されていれば使用、なければ基準値
- const lifespan = PC.lifespan || params.lifespan;
- if(newAge >= lifespan) return { event:'death', age:newAge };
  if(newAge > params.declineStart){
- const yearsDeclined = newAge - params.declineStart;
- if(yearsDeclined % 5 === 0){
- PC.st = Math.max(1, PC.st - 1);
- PC.iq = Math.max(1, PC.iq - 1);
- PC.lk = Math.max(1, PC.lk - 1);
- PC.chr = Math.max(1, PC.chr - 1);
- PC.dex = Math.max(1, PC.dex - 1);
- PC.spd = Math.max(1, PC.spd - 1);
- PC.con = Math.max(1, PC.con - 1);
- PC.maxCon = Math.max(1, PC.maxCon - 1);
- updateHUD();
- return { event:'aging', age:newAge };
- }
+  const yearsDeclined = newAge - params.declineStart;
+  if(yearsDeclined % 5 === 0){
+   PC.st = Math.max(1, PC.st - 1);
+   PC.iq = Math.max(1, PC.iq - 1);
+   PC.lk = Math.max(1, PC.lk - 1);
+   PC.chr = Math.max(1, PC.chr - 1);
+   PC.dex = Math.max(1, PC.dex - 1);
+   PC.spd = Math.max(1, PC.spd - 1);
+   PC.con = Math.max(1, PC.con - 1);
+   PC.maxCon = Math.max(1, PC.maxCon - 1);
+   updateHUD();
+   return { event:'aging', age:newAge };
+  }
  }
  return { event:'birthday', age:newAge };
 }
@@ -13596,12 +13606,12 @@ function ydGoNode(nodeId, floor){
      if(PC.con <= 0){
       stEl.innerHTML = `<span style="color:var(--danger)"> 力尽きた……</span><br><br>
        闇の中で足を踏み外し、石の床に叩きつけられた。動けない……<br><br>
-       <span style="color:var(--danger)">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`;
+       <span style="color:var(--danger)">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`;
       renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
      } else {
       stEl.innerHTML = `<span style="color:var(--danger)"> 脱出失敗</span><br><br>
        出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>
-       <span style="color:var(--danger)">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り ${PC.con}）</span><br><br>
+       <span style="color:var(--danger)">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り ${PC.con}）</span><br><br>
        痛みをこらえながら、また出口を探す…`;
       renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{ ydGoNode(nodeId, floor); }}]);
      }
@@ -15081,7 +15091,7 @@ function ydStatueEffect(floor, nodeId, statueKey){
 function ydFountainEffect(floor){
  const r = ydD(100);
  if(r<=30) return '何も起きなかった。（魔力は尽きているようだ）';
- if(r<=35){ PC.con=Math.max(0,PC.con-999); updateHUD(); return '即死の毒！（LK SRで回避判定）'; }
+ if(r<=35){ PC.con=Math.max(0,PC.con-999); updateHUD(); return '即死の毒！（運 能力値テストで回避判定）'; }
  if(r<=40) return '毒や病気が治癒した！';
  if(r<=55){ const v=ydDn(6,1)*floor; PC.con=Math.min(PC.maxCon,PC.con+v); updateHUD(); return `清涼な水でCON+${v}回復！`; }
  if(r<=62){ const v=ydDn(6,2)*floor; gainGPAll(v*5); updateHUD(); return `泉の底にコインがあった！+${v*5}GP`; }
@@ -17022,7 +17032,7 @@ function startSeaEncounter(enemy){
     changeAlignment(0, -0.5); // 逃亡：混沌+0.5
     setTimeout(()=>travelTick(), ts.interval);
    } else {
-    travelLog(`<span style="color:var(--danger)"> 逃げ遅れた！（SPD 能力値テスト失敗） 経験値+${sr.ap}</span>`);
+    travelLog(`<span style="color:var(--danger)"> 逃げ遅れた！（素早さ 能力値テスト失敗） 経験値+${sr.ap}</span>`);
     startCombat({
      enemies: enemy.enemies, canFlee:false, isHuman:true,
      win:'__noop__', lose:'DEAD',
@@ -17064,7 +17074,7 @@ function startSeaEncounter(enemy){
     changeAlignment(0, -0.5); // 逃亡：混沌+0.5
     setTimeout(()=>travelTick(), ts.interval);
    } else {
-    travelLog(`<span style="color:var(--danger)"> 逃げ遅れた！（SPD 能力値テスト失敗） 経験値+${sr.ap}</span>`);
+    travelLog(`<span style="color:var(--danger)"> 逃げ遅れた！（素早さ 能力値テスト失敗） 経験値+${sr.ap}</span>`);
     startCombat({
      enemies: enemy.enemies, canFlee:false, isHuman:false,
      win:'__noop__', lose:'DEAD',
@@ -17507,7 +17517,7 @@ function startTravelTalk(enemy, ts){
  const success = total>=5 && grandTotal>=target;
  const ap = total * srLevel;
  gainAPAll(ap); updateHUD();
- const resHtml = ` CHR SR: <span style="color:var(--log);font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=${total}+${chrVal}=${grandTotal} vs ${target}　${success?`<span class="grn"> 成功 経験値+${ap}</span>`:`<span class="red"> 失敗 経験値+${ap}</span>`}`;
+ const resHtml = ` 魅力 能力値テスト: <span style="color:var(--log);font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=${total}+${chrVal}=${grandTotal} vs ${target}　${success?`<span class="grn"> 成功 経験値+${ap}</span>`:`<span class="red"> 失敗 経験値+${ap}</span>`}`;
  travelLog(resHtml);
  if(success){
   travelLog(`<span class="grn"> うまく言いくるめた！ ${enemy.name}は立ち去っていった。</span>`);
@@ -17751,7 +17761,7 @@ function applyRace(base, race){
 const SPELLS_L1 = [
  {name:'Unlock', cost:2, level:1, desc:'施錠されたドアを開錠',fn:'knockKnock'},
  {name:'Candle Light',cost:1,level:1, desc:'指または杖を1ターン照らす',fn:'wisp'},
- {name:'Magic Bolt',cost:6,level:1,desc:'IQ値分のヒットを与える',fn:'ttyf'},
+ {name:'Magic Bolt',cost:6,level:1,desc:'知力値分のヒットを与える',fn:'ttyf'},
  {name:'Keen Blade', cost:5, level:1, desc:'次の1ラウンド武器ダイスを2倍',fn:'vorpal'},
 ];
 
@@ -17768,7 +17778,7 @@ const SPELLS_L2 = [
 // ── SPELLS (Level 3) ── IQ≥14, DEX≥10, 学習1000GP ──
 const SPELLS_L3 = [
  {name:'Deep Sleep', cost:11, level:3, iqReq:14, dexReq:10, learnCost:1000,
- desc:'ST+IQ+CHR > 敵CombatRatingなら1〜6ターン眠らせる', fn:'rockABye'},
+ desc:'強さ+知力+魅力 > 敵CombatRatingなら1〜6ターン眠らせる', fn:'rockABye'},
  {name:'Detonate',cost:8, level:3, iqReq:14, dexReq:10, learnCost:1000,
  desc:'レベル数のダイス＋戦闘加算値の火炎ダメージ', fn:'blastingPower'},
  {name:'Ice Bind', cost:8, level:3, iqReq:14, dexReq:10, learnCost:1000,
@@ -18639,7 +18649,7 @@ function renderShop(){
  const canUse=it.stReq<=PC.st&&it.dexReq<=PC.dex&&(PC.type==='warrior'||PC.type==='rogue'||it.dice<=2);
  const div=document.createElement('div');div.className='shop-item';
  div.innerHTML=`<h4>${it.name} ${canUse?'':'<span style="color:var(--danger)">※要件未満</span>'}</h4>
- <p>${it.dice}D+${it.adds} / ST≥${it.stReq} DEX≥${it.dexReq} ${it.twoHand?'両手':''}　Wgt:${it.weight}</p>
+ <p>${it.dice}D+${it.adds} / 強さ≥${it.stReq} 器用さ≥${it.dexReq} ${it.twoHand?'両手':''}　Wgt:${it.weight}</p>
  <span class="price">${formatItemCost(it.cost)}</span>
  <button class="buy-btn" ${!canUse||totalCP()<it.cost*100||cartWeight+it.weight>weightPossible()?'disabled':''} onclick="buyWeapon(${WEAPONS_TABLE.indexOf(it)})">BUY</button>`;
  p.appendChild(div);
@@ -18649,7 +18659,7 @@ function renderShop(){
  const canUse=it.stReq<=PC.st;
  const div=document.createElement('div');div.className='shop-item';
  div.innerHTML=`<h4>${it.name} ${canUse?'':'<span style="color:var(--danger)">※強さ不足</span>'}</h4>
- <p>防護:${it.hits}${PC.type==='warrior'?`(Warrior2倍→${it.hits*2})`:''}　ST≥${it.stReq}　Wgt:${it.weight}</p>
+ <p>防護:${it.hits}${PC.type==='warrior'?`(Warrior2倍→${it.hits*2})`:''}　強さ≥${it.stReq}　重量:${it.weight}</p>
  <span class="price">${formatItemCost(it.cost)}</span>
  <button class="buy-btn" ${!canUse||totalCP()<it.cost*100||cartWeight+it.weight>weightPossible()?'disabled':''} onclick="buyArmor(${ARMOR_TABLE.indexOf(it)})">BUY</button>`;
  p.appendChild(div);
@@ -19269,7 +19279,7 @@ function renderIgsList(townId){
  const canUse = it.stReq<=_sa.st && it.dexReq<=_sa.dex && (_sa.type==='warrior'||_sa.type==='rogue'||it.dice<=2);
  const div = document.createElement('div'); div.className='shop-item';
  div.innerHTML = `<h4>${it.name}${it.twoHand?' <span style="color:#aaaaff;font-size:calc(var(--font-sm) - 3px)">両手</span>':''}${canUse?'':' <span style="color:var(--danger);font-size:calc(var(--font-sm) - 3px)">※要件未満</span>'}</h4>
- <p>${it.dice}D${it.adds>=0?'+':''}${it.adds} / ST≥${it.stReq} DEX≥${it.dexReq}　Wgt:${it.weight}</p>
+ <p>${it.dice}D${it.adds>=0?'+':''}${it.adds} / 強さ≥${it.stReq} 器用さ≥${it.dexReq}　Wgt:${it.weight}</p>
  <span class="price">${formatItemCost(it.cost)}</span>
  <button class="buy-btn" ${!canUse||totalCP(_shopActor||PC)<it.cost*100?'disabled':''} onclick="igsBuyWeapon(${wTable.indexOf(it)},'${townId}')">BUY</button>`;
  el.appendChild(div);
@@ -19279,7 +19289,7 @@ function renderIgsList(townId){
  const canUse = it.stReq<=PC.st;
  const div = document.createElement('div'); div.className='shop-item';
  div.innerHTML = `<h4>${it.name}${it.isShield?' <span style="color:#aaffaa;font-size:calc(var(--font-sm) - 3px)">盾</span>':''}${canUse?'':' <span style="color:var(--danger);font-size:calc(var(--font-sm) - 3px)">※強さ不足</span>'}</h4>
- <p>防護:${it.hits}${PC.type==='warrior'?`(×2→${it.hits*2})`:''}　ST≥${it.stReq}　Wgt:${it.weight}</p>
+ <p>防護:${it.hits}${PC.type==='warrior'?`(×2→${it.hits*2})`:''}　強さ≥${it.stReq}　重量:${it.weight}</p>
  <span class="price">${formatItemCost(it.cost)}</span>
  <button class="buy-btn" ${!canUse||totalCP(_shopActor||PC)<it.cost*100?'disabled':''} onclick="igsBuyArmor(${aTable.indexOf(it)},'${townId}')">BUY</button>`;
  el.appendChild(div);
@@ -21103,7 +21113,7 @@ const DUNGEON_EVENTS = [
     gainAPAll(sr.ap);
     if(!sr.success){
      PC.st = Math.max(1, PC.st - 3); PC.maxSt = Math.max(1, (PC.maxSt||PC.st) - 3);
-     story.innerHTML += `<div style="color:var(--leather);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幻覚・神経の緊張。</b>LK 能力値テスト失敗（${sr.total}）——ダンジョンを出るまでST -3（残り${PC.st}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--leather);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幻覚・神経の緊張。</b>運 能力値テスト失敗（${sr.total}）——ダンジョンを出るまでST -3（残り${PC.st}）　経験値+${sr.ap}</div>`;
     } else {
      story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px"> 神経が張り詰めたが、気のせいだった。運 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
     }
@@ -24698,7 +24708,7 @@ function castSpell(spell,ctx){
  const power=PC.iq+PC.lk+PC.chr;
  const totalCurMR=cbtState.enemies.reduce((s,e)=>s+e.curMR,0);
  if(power>totalCurMR){
- result.innerHTML=` <span class="wizard-c">退散</span><br>IQ+LK+CHR = ${power} ＞ 合計MR ${totalCurMR}<br><span class="grn"> 魔法が効いた！全ての敵が恐怖で逃げ出した！</span>`;
+ result.innerHTML=` <span class="wizard-c">退散</span><br>知力+運+魅力 = ${power} ＞ 合計MR ${totalCurMR}<br><span class="grn"> 魔法が効いた！全ての敵が恐怖で逃げ出した！</span>`;
  showCombatOK(()=>{
   if(cbtState && cbtState.win === '__noop__'){
    document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
@@ -24711,7 +24721,7 @@ function castSpell(spell,ctx){
   }
  });
  } else {
- result.innerHTML=` <span class="wizard-c">退散</span><br>IQ+LK+CHR = ${power} ≤ 合計MR ${totalCurMR}<br><span class="red"> 魔法が効かなかった！敵はひるまない。</span>`;
+ result.innerHTML=` <span class="wizard-c">退散</span><br>知力+運+魅力 = ${power} ≤ 合計MR ${totalCurMR}<br><span class="red"> 魔法が効かなかった！敵はひるまない。</span>`;
  updateCombatUI();
  }
  }break;
@@ -24762,10 +24772,10 @@ function castSpell(spell,ctx){
  const sleepTurns = Nd6(1);
  cbtState.sleeping = sleepTurns;
  cbtState._spellCaster = true;
- result.innerHTML=` <span class="wizard-c">Deep Sleep</span><br>ST+IQ+CHR = ${power} ＞ CombatRating ${enemyMR}<br><span class="grn"> 魔法が効いた！敵が${sleepTurns}ターン眠り込んだ！</span>`;
+ result.innerHTML=` <span class="wizard-c">Deep Sleep</span><br>強さ+知力+魅力 = ${power} ＞ CombatRating ${enemyMR}<br><span class="grn"> 魔法が効いた！敵が${sleepTurns}ターン眠り込んだ！</span>`;
  updateCombatUI();
  } else {
- result.innerHTML=` <span class="wizard-c">Deep Sleep</span><br>ST+IQ+CHR = ${power} ≤ CombatRating ${enemyMR}<br><span class="red"> 魔法が効かなかった！敵は眠らない。</span>`;
+ result.innerHTML=` <span class="wizard-c">Deep Sleep</span><br>強さ+知力+魅力 = ${power} ≤ CombatRating ${enemyMR}<br><span class="red"> 魔法が効かなかった！敵は眠らない。</span>`;
  updateCombatUI();
  }
  } else result.textContent='戦闘中のみ使用可';
@@ -25983,7 +25993,7 @@ const NODES = {
  PC._darkEscaped = true;
  return `<span class="gold"></span><br><br>
  砂岩の壁を伝いながら必死に出口を探した。砂漠の熱気が強まる方向を頼りに、やっと入口へたどり着いた！<br>
- <span class="grn">LK SR 成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
+ <span class="grn">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
  } else {
  PC._darkEscaped = false;
  const dmg = 5;
@@ -25991,11 +26001,11 @@ const NODES = {
  if(PC.con <= 0){ PC._darkDead = true;
  return `<span class="gold"></span><br><br>
  砂の床に足を取られ倒れ込んだ。動けない……<br>
- <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
+ <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
  PC._darkDead = false;
  return `<span class="gold"></span><br><br>
  砂の段差に気づかず転倒した。砂岩に激しく打ちつける。<br>
- <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span><br><br>
+ <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span><br><br>
  痛みをこらえながら、また出口を探す…`;
  }
  },
@@ -26039,7 +26049,7 @@ const NODES = {
  先ほど解錠した扉が開いている。`;
  return `<span class="gold"></span>　<span style="color:#ffcc44">── Locked ──</span><br><br>
  頑丈な錠前がかかった砂岩の石扉だ。鍵穴は細く精巧で、巧みに操作すれば開けられそうだ。<br>
- <span class="dim">（DEX 能力値テスト Lv2）</span>`;
+ <span class="dim">（器用さ Lv2 能力値テスト）</span>`;
  },
 
  spellContext:'ザール・カノン廟の錠前扉（1-3）',
@@ -26306,7 +26316,7 @@ const NODES = {
  解錠済みの扉が開いている。`;
  return `<span class="gold"></span>　<span style="color:#ffcc44">── Locked ──</span><br><br>
  重厚な錠前がついた石扉。扉の縁に「試練なき者、進む勿れ」と刻まれている。<br>
- <span class="dim">（DEX 能力値テスト Lv3）</span>`;
+ <span class="dim">（器用さ Lv3 能力値テスト）</span>`;
  },
 
  spellContext:'ザール・カノン廟の錠前扉（7-9）',
@@ -26472,7 +26482,7 @@ const NODES = {
  解錠済みの扉が開いている。`;
  return `<span class="gold"></span>　<span style="color:#ffcc44">── Locked ──</span><br><br>
  精緻な錠前の扉。砂漠の神の顔が扉全面に彫られており、目の部分が鍵穴になっている。<br>
- <span class="dim">（DEX 能力値テスト Lv3）</span>`;
+ <span class="dim">（器用さ Lv3 能力値テスト）</span>`;
  },
 
  spellContext:'ザール・カノン廟の錠前扉（11-13）',
@@ -26770,8 +26780,8 @@ const NODES = {
  txt += actor !== PC ? ` <span style="color:#aaa;font-size:calc(var(--font-sm) - 2px)">[${actor.name}]</span>` : '';
  txt += `<br><br><span class="dim">魔法の書物が並ぶ静かな部屋。ギルドマスターが迎える。</span><br><br>`;
  txt += `<b>習得条件：</b><br>
-  Lv2呪文: IQ≥12・DEX≥9・各500GP　${iqOk2&&dexOk2?'<span class="grn"> 条件達成</span>':'<span class="red"> 未達成</span>'}<br>
-  Lv3呪文: IQ≥14・DEX≥10・各1000GP　${iqOk3&&dexOk3?'<span class="grn"> 条件達成</span>':'<span class="red"> 未達成</span>'}<br>
+  Lv2呪文: 知力≥12・器用さ≥9・各500GP　${iqOk2&&dexOk2?'<span class="grn"> 条件達成</span>':'<span class="red"> 未達成</span>'}<br>
+  Lv3呪文: 知力≥14・器用さ≥10・各1000GP　${iqOk3&&dexOk3?'<span class="grn"> 条件達成</span>':'<span class="red"> 未達成</span>'}<br>
   所持金: ${actor.gold||0}GP ${actor.sp||0}SP ${actor.cp||0}CP<br><br>`;
 
  // 呪文一覧をtxt内に表示（choicesではなくstory内でスクロール可能に）
@@ -26820,7 +26830,7 @@ const NODES = {
    const mIqOk2=( m.iq||0)>=12, mDexOk2=(m.dex||0)>=9;
    const mIqOk3=(m.iq||0)>=14, mDexOk3=(m.dex||0)>=10;
    txt += `<div style="background:#110c06;border:1px solid #442266;border-radius:4px;padding:8px;margin-bottom:8px">`;
-   txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:#c89a60;margin-bottom:6px"> ${m.name}（Lv${m.level||1}・IQ${m.iq}・DEX${m.dex}）</div>`;
+   txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:#c89a60;margin-bottom:6px"> ${m.name}（Lv${m.level||1}・知力${m.iq}・器用さ${m.dex}）</div>`;
    if(ml2.length+ml3.length===0){
     txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim)">習得可能な呪文はすべて習得済み</div>`;
    }
@@ -26872,9 +26882,9 @@ const NODES = {
   txt += actor !== PC ? ` <span style="color:#aaa;font-size:calc(var(--font-sm) - 2px)">[${actor.name}]</span>` : '';
   txt += `<br><br><span class="dim">薄暗い隠し部屋。ギルドマスターが低い声で迎える。「呪文の知識を売ろう——ただし二倍の値だ」</span><br><br>`;
   txt += `<b>習得費用：</b><br>
-  Lv1呪文: IQ≥10・DEX≥8・各500GP　${iqOk1&&dexOk1?'<span class="grn"></span>':'<span class="red"></span>'}<br>
-  Lv2呪文: IQ≥12・DEX≥9・各1000GP　${iqOk2&&dexOk2?'<span class="grn"></span>':'<span class="red"></span>'}<br>
-  Lv3呪文: IQ≥14・DEX≥10・各2000GP　${iqOk3&&dexOk3?'<span class="grn"></span>':'<span class="red"></span>'}<br>
+  Lv1呪文: 知力≥10・器用さ≥8・各500GP　${iqOk1&&dexOk1?'<span class="grn"></span>':'<span class="red"></span>'}<br>
+  Lv2呪文: 知力≥12・器用さ≥9・各1000GP　${iqOk2&&dexOk2?'<span class="grn"></span>':'<span class="red"></span>'}<br>
+  Lv3呪文: 知力≥14・器用さ≥10・各2000GP　${iqOk3&&dexOk3?'<span class="grn"></span>':'<span class="red"></span>'}<br>
   所持金: ${actor.gold||0}GP ${actor.sp||0}SP ${actor.cp||0}CP<br><br>`;
 
   const spellRow = (sp, lv, cost, canLearn, reason) =>
@@ -26894,7 +26904,7 @@ const NODES = {
    txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:#669966;margin-bottom:6px">── Level 1 呪文 ──</div>`;
    l1avail.forEach(sp=>{
     const can = iqOk1&&dexOk1&&totalCP(actor)>=500*100;
-    const reason = !can?((!iqOk1||!dexOk1)?'能力値不足（IQ≥10・DEX≥8）':'GP不足'):'';
+    const reason = !can?((!iqOk1||!dexOk1)?'能力値不足（知力≥10・器用さ≥8）':'GP不足'):'';
     txt += spellRow(sp,1,500,can,reason);
    });
    txt += '<br>';
@@ -26931,7 +26941,7 @@ const NODES = {
     const ml2=SPELLS_L2.filter(s=>!mKnown.has(s.name));
     const ml3=SPELLS_L3.filter(s=>!mKnown.has(s.name));
     txt += `<div style="background:#060e06;border:1px solid #336633;border-radius:4px;padding:8px;margin-bottom:8px">`;
-    txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:#80cc80;margin-bottom:6px"> ${m.name}（Lv${m.level||1}・IQ${m.iq}・DEX${m.dex}）</div>`;
+    txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:#80cc80;margin-bottom:6px"> ${m.name}（Lv${m.level||1}・知力${m.iq}・器用さ${m.dex}）</div>`;
     if(ml1.length+ml2.length+ml3.length===0){
      txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim)">習得可能な呪文はすべて習得済み</div>`;
     }
@@ -27019,12 +27029,12 @@ const NODES = {
  PC._darkDead = true;
  return `<span class="gold"></span><br><br>
  闇の中で足を踏み外し、石の床に叩きつけられた。動けない……<br><br>
- <span class="red">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`;
+ <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`;
  }
  PC._darkDead = false;
  return `<span class="gold"></span><br><br>
  出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>
- <span class="red">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}　（残り ${PC.con}）</span><br><br>
+ <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}　（残り ${PC.con}）</span><br><br>
  痛みをこらえながら、また出口を探す…`;
  }
  },
@@ -27144,7 +27154,7 @@ const NODES = {
  return `<span class="gold"></span><br><br>
  太い鉄の棒が格子状に組まれた扉だ。鍵穴はあるが、鍵はない。<br>
  格子の向こうに小さな部屋が見える。何か置かれているようだが暗くて見えない。<br><br>
- <span class="dim">力ずくでこじ開けますか？（ST 能力値テスト Lv1）</span>`;
+ <span class="dim">力ずくでこじ開けますか？（強さ Lv1 能力値テスト）</span>`;
  },
  choices:()=>[
  ...(PC._ruinWestGateOpen
@@ -27221,7 +27231,7 @@ const NODES = {
  return `<span class="gold"></span><br><br>
  錆びた鉄格子がはまった扉だ。向こうに小さな石室が見える。<br>
  格子の間から冷たい風が吹いてくる。<br><br>
- <span class="dim">力ずくでこじ開けますか？（ST 能力値テスト Lv1）</span>`;
+ <span class="dim">力ずくでこじ開けますか？（強さ Lv1 能力値テスト）</span>`;
  },
  choices:()=>[
  ...(PC._ruinSouthGateOpen
@@ -28600,16 +28610,16 @@ const NODES = {
    PC._darkEscaped = true;
    return ` <span class="gold">暗闇を手探りで進む</span><br><br>
     冷たい石壁を伝いながら出口を探した。足音が上から聞こえる方向を頼りに、なんとか階段口へたどり着いた！<br>
-    <span class="grn">LK SR 成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
+    <span class="grn">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
   } else {
    PC._darkEscaped = false;
    const dmg = 5;
    PC.con = Math.max(0, PC.con - dmg); updateHUD();
    if(PC.con <= 0){ PC._darkDead = true;
-    return `<span class="red">石段で足を踏み外し、深みへ落ちた。動けない……<br>LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
+    return `<span class="red">石段で足を踏み外し、深みへ落ちた。動けない……<br>運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
    PC._darkDead = false;
    return ` 石壁に頭をぶつけ、よろめいた。まだ出口が見つからない。<br>
-    <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
+    <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
   }
  },
  choices:()=>{
@@ -28972,16 +28982,16 @@ const NODES = {
    PC._darkEscaped = true;
    return ` <span class="gold">暗闇の深牢を手探りで進む</span><br><br>
     古い石壁を伝い、上へ続く空気の流れを頼りに階段を見つけた！<br>
-    <span class="grn">LK SR 成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
+    <span class="grn">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
   }
   PC._darkEscaped = false;
   const dmg = 6;
   PC.con = Math.max(0, PC.con - dmg); updateHUD();
   if(PC.con <= 0){ PC._darkDead = true;
-   return `<span class="red">深い穴に落ちた。動けない……<br>LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
+   return `<span class="red">深い穴に落ちた。動けない……<br>運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
   PC._darkDead = false;
   return `石壁に激突し、よろめいた。まだ出口が見つからない。<br>
-   <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
+   <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
  },
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
@@ -29509,7 +29519,7 @@ const NODES = {
   if(sr.success){
    PC._darkEscaped=true;
    return ` 石壁を這いずりながら上への空気の流れを探した。凍えながらも階段口に辿り着いた！<br>
-    <span class="grn">LK SR 成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
+    <span class="grn">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
   }
   PC._darkEscaped=false;
   const dmg=7; PC.con=Math.max(0,PC.con-dmg); updateHUD();
@@ -29517,7 +29527,7 @@ const NODES = {
    return `<span class="red">深みに落ちた。もう動けない……<br>LK SR 失敗　体力-${dmg} → 死亡</span>`; }
   PC._darkDead=false;
   return `濡れた石に足を滑らせ壁に叩き付けられた。まだ出口が見つからない。<br>
-   <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
+   <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
  },
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）',go:'DEAD'}];
@@ -29969,11 +29979,11 @@ const NODES = {
  scene:'dungeon',
  txt:()=>{
   const sr=savingRoll('lk',3); gainAPAll(sr.ap); updateHUD();
-  if(sr.success){ PC._darkEscaped=true; return ` 石壁を伝い上への気流を頼りに石段口にたどり着いた！<br><span class="grn">LK SR 成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`; }
+  if(sr.success){ PC._darkEscaped=true; return ` 石壁を伝い上への気流を頼りに石段口にたどり着いた！<br><span class="grn">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`; }
   PC._darkEscaped=false; const dmg=6; PC.con=Math.max(0,PC.con-dmg); updateHUD();
   if(PC.con<=0){ PC._darkDead=true; return `<span class="red">段差に落ちた。動けない……<br>LK SR 失敗　体力-${dmg} → 死亡</span>`; }
   PC._darkDead=false;
-  return `壁に激突しよろめいた。<br><span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
+  return `壁に激突しよろめいた。<br><span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
  },
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）',go:'DEAD'}];
