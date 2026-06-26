@@ -602,7 +602,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062701</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062702</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -8541,6 +8541,10 @@ const _GUIDE_PAGES = [
  {
   title:'2. 戦闘システム',
   body:`戦闘は「HPの削り合い」ではなく、<b>互いの戦闘総力を競う</b>形式です。<br><br>
+<b>戦闘のフェーズ</b><br>1ラウンドは3つのフェーズで構成されます。<br>
+① <b>魔法フェーズ</b>：魔法使いが呪文を詠唱します。<br>
+② <b>遠距離フェーズ</b>：弓などの遠距離武器で攻撃します。<br>
+③ <b>近接フェーズ</b>：武器を交えた白兵戦です。双方がロールし、高い方が勝ちます。<br><br>
 <b>戦闘総力（Combat Power）</b><br>「武器のダイス＋戦闘力修正」の合計で決まります。双方がロールし、高い方が勝ちます。<br><br>
 <b>戦闘力修正</b><br>強さ・運・器用さが12を超えるとボーナス（＋）が加算されます。逆に低いとマイナスになります。<br><br>
 <b>防護値（Armor）</b><br>鎧や盾を装備すると防護値を得ます。敵から受けたダメージを直接差し引きます。<b>戦士はこの防護値が2倍</b>になります。`
