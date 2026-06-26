@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062602</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062603</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -4489,7 +4489,6 @@ function goOtherActions(townId){
   khazan:    {label:' 王城地下牢へ',           go:'CRYPT_ENTRANCE'},
   stonehiem: {label:' 郊外の古代遺跡へ',       go:'RUIN_ENTRANCE'},
   rimholm:   {label:' 郊外の封じられた神殿へ', go:'SHRINE_ENTRANCE'},
-  duna:      {label:' 郊外の封印廟へ',         go:'TOMB_ENTRANCE'},
   al_rashid: {label:' 東方の地下迷宮へ',       go:'AL_DNG_ENTRANCE'},
   frostpeak: {label:' 山麓の迷宮へ',           go:'FP_ENTRANCE'},
   iskald:    {label:' 古代遺跡の地下へ',       go:'ISKALD_ENTRANCE'},
@@ -7950,16 +7949,16 @@ const DUNGEON_NODES = new Set([
  'RUIN_ROOM5','RUIN_ROOM6','RUIN_ROOM7','RUIN_ROOM8',
  'RUIN_ROOM9','RUIN_ROOM10','RUIN_ROOM11',
  // 砂漠ダンジョン「ザハラの封印廟」(拡張版)
- 'TOMB_1','TOMB_2','TOMB_3','TOMB_4','TOMB_5','TOMB_6','TOMB_7','TOMB_8',
- 'TOMB_9','TOMB_10','TOMB_11','TOMB_12','TOMB_13','TOMB_14','TOMB_15','TOMB_16',
- 'TOMB_DOOR_12','TOMB_DOOR_57','TOMB_DOOR_911','TOMB_DOOR_1112','TOMB_DOOR_1516',
- 'TOMB_LOCK_13','TOMB_LOCK_13_TRY','TOMB_LOCK_79','TOMB_LOCK_79_TRY',
- 'TOMB_LOCK_1113','TOMB_LOCK_1113_TRY',
- 'TOMB_TRAP_25','TOMB_TRAP_810','TOMB_TRAP_1215',
- 'TOMB_PORT_58','TOMB_PORT_58_TRY','TOMB_PORT_1316','TOMB_PORT_1316_TRY',
- 'TOMB_SECRET_24_SEARCH','TOMB_SECRET_24_TRY',
- 'TOMB_SECRET_1114_SEARCH','TOMB_SECRET_1114_TRY',
- 'TOMB_3_6','TOMB_5_6','TOMB_10_11',
+'TOMB_2','TOMB_3','TOMB_4','TOMB_5','TOMB_6','TOMB_7','TOMB_8',
+'TOMB_10','TOMB_11','TOMB_12','TOMB_13','TOMB_14','TOMB_15','TOMB_16',
+'TOMB_DOOR_57','TOMB_DOOR_911','TOMB_DOOR_1112','TOMB_DOOR_1516',
+'TOMB_LOCK_13_TRY','TOMB_LOCK_79','TOMB_LOCK_79_TRY',
+'TOMB_LOCK_1113_TRY',
+'TOMB_TRAP_810','TOMB_TRAP_1215',
+'TOMB_PORT_58_TRY','TOMB_PORT_1316','TOMB_PORT_1316_TRY',
+'TOMB_SECRET_24_TRY',
+'TOMB_SECRET_1114_TRY',
+'TOMB_5_6','TOMB_10_11',
  // リムホルム「封じられた神殿」B1F（再設計版）
  'SHRINE_P1','SHRINE_CROSS1','SHRINE_P2','SHRINE_P4','SHRINE_P6',
  'SHRINE_ROOM1','SHRINE_P3','SHRINE_ROOM2','SHRINE_ROOM2_TELEPORT',
@@ -8067,7 +8066,7 @@ const DUNGEON_NODES = new Set([
 // 入口・出口など松明消費・暗闇判定を除外するノード
 const DUNGEON_SAFE_NODES = new Set([
  'RUIN_ENTRANCE','RUIN_DARK_ESCAPE',
- 'TOMB_ENTRANCE','TOMB_DARK_ESCAPE','TOMB_EXIT',
+'TOMB_DARK_ESCAPE','TOMB_EXIT',
  'SHRINE_ENTRANCE','SHRINE_DARK_ESCAPE',
  'ISKALD_ENTRANCE','ISKALD_DARK_ESCAPE',
  'SHR2_ENTRANCE','SHR2_DARK_ESCAPE',
@@ -13685,7 +13684,7 @@ const YD_STYLE_ATM = {
   '採掘で崩れた岩が天井まで積み上がっている。かつてはこの先に続く通路があったはずだ。',
   '通路の途中に小さな祠の跡がある。坑夫たちが安全を祈った場所か、今はその石が崩れて残るだけだ。',
   '岩の割れ目から温かい風が吹いてくる。地熱があることを示しており、この下はかなり深い。',
-  '古い坑内電話の箱が壁に取り付けられている。蔓草に覆われ、線は切れているが、かつての設備の名残だ。',
+  '壁に古い燭台の台座が残っている。蔓草に覆われ、蝋の跡だけがかつて灯りがあったことを示している。',
   '坑道が急に広くなった。採掘現場の中心部だったらしく、四方から坑道が伸びている。',
   '天井の高い箇所に足場の残骸がある。上部を掘るための作業台で、誰かがここで高いところの岩を切り出した。',
   '金属を打つ音が遠くから聞こえてくる。反響が複雑で方向が分かりにくいが、確かに音がしている。',
@@ -21780,7 +21779,6 @@ function darkRoomTxt(nodeId){
 function darkRoomChoices(nodeId){
  // ノードIDのプレフィクスから正しい脱出ノードを決定
  const escapeMap = [
-  { prefix:'TOMB_',         escape:'TOMB_DARK_ESCAPE' },
   { prefix:'SHRINE_',       escape:'SHRINE_DARK_ESCAPE' },
   { prefix:'SHR2_',         escape:'SHR2_DARK_ESCAPE' },
   { prefix:'CRYPT3_',       escape:'CRYPT3_DARK_ESCAPE' },
@@ -23677,7 +23675,7 @@ function doFlee(){
  }
  // ダンジョン内逃走 → 入口へ戻る・松明1本消費
  } else {
- const isDungeon = savedState.win && (savedState.win.startsWith('RUIN_') || savedState.win.startsWith('TOMB_'));
+ const isDungeon = savedState.win && savedState.win.startsWith('RUIN_');
  if(isDungeon){
  // 点灯中の松明を1本消耗（残りターンをリセット）
  // 予備があれば次の1本を点火、なければ暗闇
@@ -23692,9 +23690,7 @@ function doFlee(){
  PC._pendingMsg = `<div style="color:#ff4444;font-size:var(--font-sm);margin-bottom:6px"> 逃げる際に松明を1本消耗した。もう松明がない…</div>`;
  }
  }
- if(savedState.win && (savedState.win.startsWith('TOMB_') || savedState.win === 'TOMB_EXIT')){
- go('TOMB_ENTRANCE');
- } else if(savedState.win && savedState.win.startsWith('SHR2_')){
+ if(savedState.win && savedState.win.startsWith('SHR2_')){
  go('SHR2_ENTRANCE');
  } else if(savedState.win && savedState.win.startsWith('CRYPT3_')){
  go('CRYPT3_ENTRANCE');
