@@ -591,7 +591,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062502</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026062601</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:#554477;margin-top:4px;text-align:center;display:none"></div>
@@ -830,11 +830,11 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div class="stat-cell" hidden><span class="sl">運</span><span class="sv" id="d-lk">-</span></div>
  <div class="stat-cell" hidden><span class="sl">器用さ</span><span class="sv" id="d-dex">-</span></div>
  <div class="stat-cell" hidden><span class="sl">戦闘力修正</span><span class="sv" id="d-adds">-</span></div>
- <div class="stat-cell"><span class="sl">ARMOR</span><span class="sv" id="d-armor">-</span></div>
- <div class="stat-cell" id="sc-wt"><span class="sl">WT</span><span class="sv" id="d-wt">-</span></div>
- <div class="stat-cell"><span class="sl">MONEY</span><span class="sv" id="d-gp" style="font-size:calc(var(--font-sm) - 3px)">-</span></div>
+ <div class="stat-cell"><span class="sl">防護値</span><span class="sv" id="d-armor">-</span></div>
+ <div class="stat-cell" id="sc-wt"><span class="sl">重量</span><span class="sv" id="d-wt">-</span></div>
+ <div class="stat-cell"><span class="sl">所持金</span><span class="sv" id="d-gp" style="font-size:calc(var(--font-sm) - 3px)">-</span></div>
  <div class="stat-cell"><span class="sl">LV</span><span class="sv" id="d-lv">1</span></div>
- <div class="stat-cell" id="sc-food"><span class="sl">FOOD</span><span class="sv" id="d-food">-</span></div>
+ <div class="stat-cell" id="sc-food"><span class="sl">食料</span><span class="sv" id="d-food">-</span></div>
  <div class="stat-cell" id="sc-ap" style="cursor:pointer" onclick="showInventory()"><span class="sl">経験値</span><span class="sv" id="d-ap">0</span></div>
  </div>
  <div id="scene-wrap"><canvas id="sc" width="480" height="78"></canvas></div>
@@ -893,7 +893,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <!-- 味方エリア -->
   <div id="cbt-ally" style="flex:1;background:#060c18;border:1px solid #2a3a6a;border-radius:3px;padding:6px;min-width:0">
    <div style="font-size:calc(var(--font-sm) - 2px);color:#6688cc;margin-bottom:4px"> 味方</div>
-   <div class="hp-lbl" id="p-lbl" style="color:#8899ff">YOU: CON -/-</div>
+   <div class="hp-lbl" id="p-lbl" style="color:#8899ff">YOU: 体力 -/-</div>
    <div class="hp-bar-wrap"><div class="hp-bar-fill" id="p-bar" style="width:100%;background:linear-gradient(90deg,#3060c0,#6090e0)"></div></div>
    <div id="party-combat-ui"></div>
   </div>
@@ -1323,7 +1323,7 @@ const HERO_QUEST_TEMPLATES = [
   clientLine:(town)=>`「${town}の周辺の村々が壊滅的な被害を受けている。大型のモンスターの群れだ。普通の傭兵では歯が立たない。あなたにしか頼めない」`,
   mrType:true,
   nodes:[
-   { txt:'村の外れで獣道を辿ると、踏み荒らされた跡が続いていた。木々が根こそぎ倒され、巨大な何かが通り抜けた痕跡が生々しい。奥から低い唸り声が聞こえてくる。', sr:{attr:'lk', level:2, reason:'罠や奇襲を避けながら巣へ近づく。', fail:{attr:'con', dmg:2}, failTxt:'踏み込んだ瞬間、隠された罠に引っかかった。CON-2'} },
+   { txt:'村の外れで獣道を辿ると、踏み荒らされた跡が続いていた。木々が根こそぎ倒され、巨大な何かが通り抜けた痕跡が生々しい。奥から低い唸り声が聞こえてくる。', sr:{attr:'lk', level:2, reason:'罠や奇襲を避けながら巣へ近づく。', fail:{attr:'con', dmg:2}, failTxt:'踏み込んだ瞬間、隠された罠に引っかかった。体力-2'} },
    { txt:'唸り声が大きくなった。茂みを抜けると開けた場所に出た。地面には白骨が散乱し、獣の臭いが充満している。ここが巣だ。中心に大きな影が動いている。', sr:null },
   ],
   bossDesc:'巣の主',
@@ -1336,7 +1336,7 @@ const HERO_QUEST_TEMPLATES = [
   mrType:true,
   nodes:[
    { txt:'洞窟の入口に傭兵の装備が散乱していた。血の跡が奥へ続いている。壁を伝う冷たい水の音に混じって、何かが動く気配がする。', sr:{attr:'dex', level:2, reason:'滑りやすい岩場を慎重に進む必要がある。', fail:{attr:'st', dmg:2}, failTxt:'足を滑らせて壁に激突した。強さ-2'} },
-   { txt:'奥へ進むほど水音が大きくなる。光が届かない暗闇の中、何かの眼が光った。一つではない。', sr:{attr:'lk', level:3, reason:'暗闇の中、何かの気配を感じながら進む。', fail:{attr:'con', dmg:3}, failTxt:'暗闇で体を掴まれた。CON-3'} },
+   { txt:'奥へ進むほど水音が大きくなる。光が届かない暗闇の中、何かの眼が光った。一つではない。', sr:{attr:'lk', level:3, reason:'暗闇の中、何かの気配を感じながら進む。', fail:{attr:'con', dmg:3}, failTxt:'暗闇で体を掴まれた。体力-3'} },
   ],
   bossDesc:'洞窟の主',
   winTxt:'洞窟の主を倒した。水源は守られた。',
@@ -1348,7 +1348,7 @@ const HERO_QUEST_TEMPLATES = [
   mrType:true,
   nodes:[
    { txt:'街道を外れた茂みに、壊れた荷車が捨てられていた。積み荷は食い荒らされ、御者の姿はない。新しい足跡が獣道の奥へと続いている。', sr:{attr:'lk', level:2, reason:'怪物の気配を感じながら茂みを進む。', fail:{attr:'lk', dmg:2}, failTxt:'嫌な予感が当たった。不意打ちを受ける。LK-2'} },
-   { txt:'足跡が突然消えた。上だ——と気づいたとき、木の上から何かが飛びかかってきた。間一髪でかわし、体勢を整える。', sr:{attr:'dex', level:3, reason:'木の上から飛びかかってきた怪物をかわす。', fail:{attr:'con', dmg:3}, failTxt:'着地に失敗して体を痛めた。CON-3'} },
+   { txt:'足跡が突然消えた。上だ——と気づいたとき、木の上から何かが飛びかかってきた。間一髪でかわし、体勢を整える。', sr:{attr:'dex', level:3, reason:'木の上から飛びかかってきた怪物をかわす。', fail:{attr:'con', dmg:3}, failTxt:'着地に失敗して体を痛めた。体力-3'} },
   ],
   bossDesc:'街道に潜む怪物',
   winTxt:'怪物を倒した。街道の安全が戻るだろう。',
@@ -1358,7 +1358,7 @@ const HERO_QUEST_TEMPLATES = [
   title:'廃屋に棲みつくものの討伐',
   clientLine:(town)=>`「街外れの廃屋に何かが棲みついた。近づく者を襲い、住民が怯えている。衛兵を送ったが二度と戻らなかった。あなたにしか頼めない」`,
   nodes:[
-   { txt:'廃屋の玄関に衛兵の武具が転がっていた。扉は内側から壊されており、暗闇から腐敗した臭いが漂ってくる。床が軋む。何かがいる。', sr:{attr:'lk', level:2, reason:'朽ちた床を踏み抜かないよう慎重に歩く。', fail:{attr:'con', dmg:2}, failTxt:'床が抜けて落下した。CON-2'} },
+   { txt:'廃屋の玄関に衛兵の武具が転がっていた。扉は内側から壊されており、暗闇から腐敗した臭いが漂ってくる。床が軋む。何かがいる。', sr:{attr:'lk', level:2, reason:'朽ちた床を踏み抜かないよう慎重に歩く。', fail:{attr:'con', dmg:2}, failTxt:'床が抜けて落下した。体力-2'} },
    { txt:'二階から物音がした。階段を上がると壁に奇妙な紋様が刻まれている。魔法的な何かの気配だ。部屋の奥で影が動いた。', sr:null },
   ],
   bossDesc:'廃屋の主',
@@ -1393,7 +1393,7 @@ const HERO_QUEST_TEMPLATES = [
   title:'凶悪な逃亡犯の捕縛',
   clientLine:(town)=>`「重大な犯罪を犯した男が近郊に潜伏している。抵抗するなら倒して構わない。逃がすな。あなたの判断に任せる」`,
   nodes:[
-   { txt:'情報屋から聞き出した潜伏場所へ向かう。廃坑の入口に人の気配がある。中から声が聞こえた。複数いる。事前の情報より多い。', sr:{attr:'iq', level:2, reason:'潜伏先に仕掛けられた罠を見抜く。', fail:{attr:'con', dmg:2}, failTxt:'罠を見抜けなかった。CON-2'} },
+   { txt:'情報屋から聞き出した潜伏場所へ向かう。廃坑の入口に人の気配がある。中から声が聞こえた。複数いる。事前の情報より多い。', sr:{attr:'iq', level:2, reason:'潜伏先に仕掛けられた罠を見抜く。', fail:{attr:'con', dmg:2}, failTxt:'罠を見抜けなかった。体力-2'} },
    { txt:'「来ると思っていたぞ」逃亡犯が奥から姿を現した。その目は追い詰められた獣のように光っている。「生きて捕まる気はない」', sr:null },
   ],
   bossDesc:'凶悪な逃亡犯',
@@ -4191,7 +4191,7 @@ function doPropertyRest(townId, days, costPerDay){
  PC.con = Math.min(PC.maxCon, PC.con + conHeal);
  PC.st  = PC.maxSt;
  const msgs = [];
- msgs.push(`CON +${conHeal}`);
+ msgs.push(`体力+${conHeal}`);
 
  // 毒治癒（3日以上）
  if(days >= 3 && PC._poisoned){
@@ -4878,7 +4878,7 @@ function npcRecruitDesc(npc){
  const w = npc.equippedWeapons?.[0];
  const dmg = w ? `${w.dice}D+${(w.adds||0)+adds}` : '素手';
  const armor = calcNPCArmor(npc);
- return `${raceJa}の${typeJa}　CON:${npc.con}/${npc.maxCon} 攻:${dmg} 防:${armor}`;
+ return `${raceJa}の${typeJa}　体力:${npc.con}/${npc.maxCon} 攻:${dmg} 防:${armor}`;
 }
 
 // 酒場で出会えるNPCプール（町ごとに毎回生成）
@@ -4921,7 +4921,7 @@ function renderPartyStatus(){
    <span style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;margin-left:6px">${typeJa} Lv${n.level||1}</span>
    ${alive?`<div style="width:80px;height:4px;background:#1a1a1a;border-radius:2px;margin-top:3px"><div style="width:${barW}%;height:100%;background:${col};border-radius:2px"></div></div>`:''}
   </div>
-  <div style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;text-align:right">CON ${n.con}/${n.maxCon}</div>
+  <div style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;text-align:right">体力 ${n.con}/${n.maxCon}</div>
  </div>
  ${alive?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px">
   <div style="width:70px;height:3px;background:#1a1a1a;border-radius:2px"><div style="width:${trustW}%;height:100%;background:${trustCol};border-radius:2px"></div></div>
@@ -6173,7 +6173,7 @@ const extra = {
   { name:'山岳ガイドのシナ', icon:'',
     intro:'日焼けした顔の女性が地形図を広げて飲んでいる。',
     type:'tip',
-    line:'「霜峰を越えるには装備以上に体力が必要だ。STとCONは高いほうがいい。低いまま挑むと途中で動けなくなる」',
+    line:'「霜峰を越えるには装備以上に体力が必要だ。強さと体力は高いほうがいい。低いまま挑むと途中で動けなくなる」',
     ap:0 },
   { name:'山岳隊員のパウル', icon:'',
     intro:'ザイルを腰に巻いた男が仲間と飲んでいる。',
@@ -6738,7 +6738,7 @@ function talkToPatron(townId){
     changeAlignment(0, -3); // brawl負け：混沌+3
     _appendPatronPanel(
      msgBox(ev.lose_line, '#ff8866', '#441111') +
-     resultLine(`CON -${lose_con}`)
+     resultLine(`体力-${lose_con}`)
     );
     closeBtn.disabled = false; closeBtn.style.opacity = '';
    },
@@ -9623,7 +9623,7 @@ const KHAZAN_DISTRICT_EVENTS = {
       story.innerHTML += `<br><br><span class="red">無礼者として罰金10GPを徴収された。</span>`;
      } else {
       const dmg = 5; PC.con = Math.max(1, PC.con - dmg); updateHUD();
-      story.innerHTML += `<br><br><span class="red">支払えず、従者たちにタコ殴りにされた。CON-${dmg}（残り${PC.con}）</span>`;
+      story.innerHTML += `<br><br><span class="red">支払えず、従者たちにタコ殴りにされた。体力-${dmg}（残り${PC.con}）</span>`;
      }
      renderChoices([
       {label:' 散策を続ける', fn:()=>khazanGoDistrict('royal', ret)},
@@ -9769,7 +9769,7 @@ const KHAZAN_DISTRICT_EVENTS = {
     +`<b> 怪しい密談</b><br><br>`
     +`路地の奥で何者かが密かに言葉を交わしているのを目撃した。追跡するか？`;
    renderChoices([
-    {label:' 追跡する（LK 能力値テスト）', fn:()=>{
+    {label:' 追跡する（運 能力値テスト）', fn:()=>{
      dungeonTrySR({ attr:'lk', level:2,
       successTxt:()=>`うまく隠れながら追ったが、相手は迷路のような路地に消えた。尾行には失敗したが、発見されずに済んだ。`,
       failFn:()=>{},
@@ -9945,7 +9945,7 @@ const KHAZAN_DISTRICT_EVENTS = {
      });
      window._exploreReturnNode = ret;
     }},
-    {label:' 逃げる（SPD 能力値テスト）', fn:()=>{
+    {label:' 逃げる（素早さ 能力値テスト）', fn:()=>{
      setupSavingRoll({ attr:'spd', level:1,
       onSuccess:()=>{ story.innerHTML+=`<br><span class="grn">間一髪で逃げ切った！</span>`;
        renderChoices([
@@ -10338,7 +10338,7 @@ const KHAZAN_DISTRICT_EVENTS = {
      });
      window._exploreReturnNode = ret;
     }},
-    {label:' 逃げる（CHR -1）', fn:()=>{
+    {label:' 逃げる（魅力-1）', fn:()=>{
      PC.chr = Math.max(1,(PC.chr||5)-1); updateHUD();
      story.innerHTML += `<br><br><span class="red">人々の目の前で逃げ去った。魅力 -1</span>`;
      renderChoices([
@@ -10454,7 +10454,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    dungeonTrySR({attr:'con',level:1,
     successTxt:()=>`劣悪な環境だったが、なんとか踏みとどまった。`,
     failFn:()=>{ const dmg=1+Math.floor(Math.random()*6); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-     document.getElementById('story').innerHTML+=`<br><span class="red">汚水にやられた。CON-${dmg}（残り${PC.con}）</span>`; return true; },
+     document.getElementById('story').innerHTML+=`<br><span class="red">汚水にやられた。体力-${dmg}（残り${PC.con}）</span>`; return true; },
     failTxt:()=>`汚水が溢れた路地に踏み込んでしまった。`,
     choicesFn:()=>[{label:' 散策を続ける',fn:()=>khazanGoDistrict('slum',ret)},{label:'← 街に戻る',go:'TOWN_KHAZAN'}],
    });
@@ -10678,7 +10678,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    dungeonTrySR({attr:'lk',level:2,
     successTxt:()=>`煙の中を駆け抜け、間一髪で逃げ出した。`,
     failFn:()=>{ const dmg=3+Math.floor(Math.random()*16); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-     document.getElementById('story').innerHTML+=`<br><span class="red">炎に巻き込まれた！CON-${dmg}（残り${PC.con}）</span>`; return true; },
+     document.getElementById('story').innerHTML+=`<br><span class="red">炎に巻き込まれた！体力-${dmg}（残り${PC.con}）</span>`; return true; },
     failTxt:()=>``,
     choicesFn:()=>[{label:' 散策を続ける',fn:()=>khazanGoDistrict('slum',ret)},{label:'← 街に戻る',go:'TOWN_KHAZAN'}],
    });
@@ -10723,7 +10723,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    dungeonTrySR({attr:'lk',level:2,
     successTxt:()=>`間一髪で飛び退いた。瓦礫がすぐ脇に落ちた。`,
     failFn:()=>{ const dmg=6+Math.floor(Math.random()*31); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-     document.getElementById('story').innerHTML+=`<br><span class="red">瓦礫の下敷きに！CON-${dmg}（残り${PC.con}）</span>`; return true; },
+     document.getElementById('story').innerHTML+=`<br><span class="red">瓦礫の下敷きに！体力-${dmg}（残り${PC.con}）</span>`; return true; },
     failTxt:()=>``,
     choicesFn:()=>[{label:' 散策を続ける',fn:()=>khazanGoDistrict('slum',ret)},{label:'← 街に戻る',go:'TOWN_KHAZAN'}],
    });
@@ -10849,7 +10849,7 @@ const EXPLORE_EVENTS = {
  gainGPAll(gp); gainAPAll(ap); updateHUD();
  return `咄嗟に手首を掴んだ。衛兵に引き渡すと、懸賞金が出た。身のこなしが褒められた。<br><span class="grn">+${gp}GP　経験値+${ap}</span>`; },
  onFail:()=>{ const dmg=1+Math.floor(Math.random()*4); PC.con=Math.max(1,PC.con-dmg); updateHUD();
- return `払いのけたが揉み合いになり怪我をした。財布は辛うじて守った。<br><span class="red">CON -${dmg}（残り${PC.con}）</span>`; }
+ return `払いのけたが揉み合いになり怪我をした。財布は辛うじて守った。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
  },
  //  噂
  { title:' 市場で噂を耳にした',
@@ -10895,9 +10895,9 @@ const EXPLORE_EVENTS = {
  intro:`「顔色が悪い」と旅の薬師が声をかけてきた。薬を処方してもらえそうだ。`,
  sr:{attr:'con', level:1},
  onSuccess:()=>{ const heal=3; PC.con=Math.min(PC.maxCon||99,PC.con+heal); const ap=8+Math.floor(Math.random()*8); gainAPAll(ap); updateHUD();
- return `体が薬に良く反応した。みるみる回復し、薬師も驚いた。<br><span class="grn">CON +${heal}　経験値+${ap}</span>`; },
+ return `体が薬に良く反応した。みるみる回復し、薬師も驚いた。<br><span class="grn">体力+${heal}　経験値+${ap}</span>`; },
  onFail:()=>{ const heal=1; PC.con=Math.min(PC.maxCon||99,PC.con+heal); updateHUD();
- return `薬の効きは弱かったが、少し楽になった。<br><span class="grn">CON +${heal}</span>`; }
+ return `薬の効きは弱かったが、少し楽になった。<br><span class="grn">体力+${heal}</span>`; }
  },
  //  路地の暗殺者
  { title:' 路地裏で暗殺者に狙われた',
@@ -11014,7 +11014,7 @@ const EXPLORE_EVENTS = {
  onSuccess:()=>{ const ap=12+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
  return `歯を食いしばって耐えた。倒れそうになったが踏みとどまった。この経験が体を鍛えた。<br><span class="grn">経験値+${ap}（鍛錬）</span>`; },
  onFail:()=>{ const dmg=1+Math.floor(Math.random()*3); PC.con=Math.max(1,PC.con-dmg); updateHUD();
- return `日差しを侮っていた。強烈な熱波に倒れそうになり、しばらく動けなかった。<br><span class="red">CON -${dmg}（残り${PC.con}）</span>`; }
+ return `日差しを侮っていた。強烈な熱波に倒れそうになり、しばらく動けなかった。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
  },
  //  大道芸人
  { title:' 大道芸人の帽子が飛んだ',
@@ -11091,9 +11091,9 @@ const EXPLORE_EVENTS = {
  intro:`エルフの薬師が葉を煎じている。「顔を見せて」と優しく声をかけてきた。`,
  sr:{attr:'con', level:1},
  onSuccess:()=>{ const heal=5; PC.con=Math.min(PC.maxCon||99,PC.con+heal); const ap=10+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
- return `体が薬を完全に吸収した。傷も疲れも嘘のように消えた。薬師は微笑んで「丈夫な体だ」と言った。<br><span class="grn">CON +${heal}　経験値+${ap}</span>`; },
+ return `体が薬を完全に吸収した。傷も疲れも嘘のように消えた。薬師は微笑んで「丈夫な体だ」と言った。<br><span class="grn">体力+${heal}　経験値+${ap}</span>`; },
  onFail:()=>{ const heal=2; PC.con=Math.min(PC.maxCon||99,PC.con+heal); updateHUD();
- return `薬を飲むと少し楽になった。エルフの薬師は「もう少し休みなさい」と言った。<br><span class="grn">CON +${heal}</span>`; }
+ return `薬を飲むと少し楽になった。エルフの薬師は「もう少し休みなさい」と言った。<br><span class="grn">体力+${heal}</span>`; }
  },
  //  蜜蜂の巣
  { title:' 蜜蜂の巣を見つけた',
@@ -11140,7 +11140,7 @@ const EXPLORE_EVENTS = {
  onSuccess:()=>{ const ap=12+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
  return `素早く飛び退いて難を逃れた。咄嗟の判断と俊敏さが自信になった。<br><span class="grn">経験値+${ap}</span>`; },
  onFail:()=>{ const dmg=1+Math.floor(Math.random()*3); PC.con=Math.max(1,PC.con-dmg); updateHUD();
- return `間に合わず手を噛まれた。毒は薄かったが、しばらく腫れた。<br><span class="red">CON -${dmg}（残り${PC.con}）</span>`; }
+ return `間に合わず手を噛まれた。毒は薄かったが、しばらく腫れた。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
  },
  //  エルフ図書館
  { title:' エルフの図書館に迷い込んだ',
@@ -11218,7 +11218,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const ap=30+Math.floor(Math.random()*16); gainAPAll(ap); updateHUD();
      return `力を振り絞って旅人を救出した。礼に山岳の地図を受け取り、経験を積んだ。<br><span class="grn">経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=Math.floor(Math.random()*4)+1; PC.con=Math.max(1,PC.con-dmg); updateHUD();
-     return `岩は動かせず、旅人は自力で這い出た。無理に力んで体を痛めた。<br><span class="red">CON-${dmg}</span>`; }
+     return `岩は動かせず、旅人は自力で這い出た。無理に力んで体を痛めた。<br><span class="red">体力-${dmg}</span>`; }
  },
  { title:' 山賊の先遣隊に絡まれた',
    intro:`石畳の市場で粗野な男たちが「通行税を払え」と囲んできた。山賊崩れだ。`,
@@ -11252,7 +11252,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const ap=35+Math.floor(Math.random()*21); PC.st=Math.min(30,(PC.st||10)+1); gainAPAll(ap); updateHUD();
      return `老人の技を受け流し、一本取った。老人は「まだまだだが筋はある」と山岳流の一撃を教えてくれた。<br><span class="grn">ST+1　経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=2+Math.floor(Math.random()*3); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-     return `老人の素早い一撃をもらった。「もっと鍛えろ」と言われ、体が痛む。<br><span class="red">CON-${dmg}</span>`; }
+     return `老人の素早い一撃をもらった。「もっと鍛えろ」と言われ、体が痛む。<br><span class="red">体力-${dmg}</span>`; }
  },
  { title:' 霧の中の雪豹',
    intro:`城壁の外で霧に紛れた雪豹が迷い込んでいた。住民が逃げ惑っている。追い払えるか？`,
@@ -11280,7 +11280,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const gp=30+Math.floor(Math.random()*21); gainGPAll(gp); updateHUD();
      return `うまく採取できた。鍛冶師は約束通りの報酬と、上質な刃の手入れをしてくれた。<br><span class="grn">+${gp}GP　経験値+${Math.round(gp*0.5)}</span>`; },
    onFail:()=>{ const dmg=3+Math.floor(Math.random()*4); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-     return `火山ガスを吸って体調を崩した。ろくな灰も取れず、鍛冶師にも呆れられた。<br><span class="red">CON-${dmg}</span>`; }
+     return `火山ガスを吸って体調を崩した。ろくな灰も取れず、鍛冶師にも呆れられた。<br><span class="red">体力-${dmg}</span>`; }
  },
  { title:' 黒曜石の鑑定を任された',
    intro:`村の加工職人が大量の黒曜石を前に唸っている。「どれが武器に向く？」と聞いてきた。`,
@@ -11334,7 +11334,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const ap=30+Math.floor(Math.random()*21); gainAPAll(ap); updateHUD();
     return `通路を歩くと淡い光に包まれた。心が静まり、視界が澄んでいく感覚があった。<br><span class="grn">経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=1+Math.floor(Math.random()*3); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-    return `通路の途中で突然、体が重くなった。精霊の気に当てられたのか。<br><span class="red">CON-${dmg}（残り${PC.con}）</span>`; }
+    return `通路の途中で突然、体が重くなった。精霊の気に当てられたのか。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
   },
   // e_r04: 遺跡発掘調査団
   { title:' 遺跡発掘調査団',
@@ -11343,7 +11343,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const j=generateJewel(); const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
     return `重い石材を動かすと、その下から小さな宝石が顔を出した。調査団のエルフが礼として分けてくれた。<br><span class="grn">宝石取得　経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=1+Math.floor(Math.random()*3); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-    return `力を入れすぎて石材が崩れ、破片が体をかすめた。<br><span class="red">CON-${dmg}（残り${PC.con}）</span>`; }
+    return `力を入れすぎて石材が崩れ、破片が体をかすめた。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
   },
   // e_r05: エルフの弓師の試練
   { title:' エルフの弓師の試練',
@@ -11463,7 +11463,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const ap=30+Math.floor(Math.random()*21); gainAPAll(ap); changeTrust('elsia',5); updateHUD();
     return `暗殺者を追い詰め、衛兵と協力して捕らえた。評議会から正式に感謝された。<br><span class="grn">信頼度+5　経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=1+Math.floor(Math.random()*6); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-    return `追跡中に返り討ちに遭った。暗殺者は闇に消えた。<br><span class="red">CON-${dmg}（残り${PC.con}）</span>`; }
+    return `追跡中に返り討ちに遭った。暗殺者は闇に消えた。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
   },
   // e_r16: 森の祭儀
   { title:' 森の祭儀',
@@ -11554,7 +11554,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
     return `素早く近くの天幕に飛び込んだ。砂嵐はすぐ過ぎ去った。<br><span class="grn">経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=1+Math.floor(Math.random()*6); PC.con=Math.max(1,PC.con-dmg); PC._alRashidExploreCount=99; updateHUD();
-    return `避難が遅れ、砂嵐に巻き込まれた。砂が目と口に入り、体力を削られた。<br><span class="red">CON-${dmg}（残り${PC.con}）　散策終了</span>`; }
+    return `避難が遅れ、砂嵐に巻き込まれた。砂が目と口に入り、体力を削られた。<br><span class="red">体力-${dmg}（残り${PC.con}）　散策終了</span>`; }
   },
   // a_r07: 遺跡の地図
   { title:' 遺跡の地図売り',
@@ -11582,7 +11582,7 @@ const EXPLORE_EVENTS = {
          document.getElementById('story').innerHTML+=`<br><span class="grn">+${gp}GP</span>`;
         } else {
          const dmg=PC._ar07dmg||0;
-         document.getElementById('story').innerHTML+=`<br><span class="red">CON-${dmg}（残り${PC.con}）</span>`;
+         document.getElementById('story').innerHTML+=`<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`;
         }
         return [{label:' 続けて散策する',fn:()=>alRashidGoDistrict('caravanSq',ret)},{label:'← 街に戻る',go:'TOWN_AL_RASHID'}];
        },
@@ -11634,7 +11634,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const ap=25+Math.floor(Math.random()*16); gainAPAll(ap); changeTrust('al_rashid',3); updateHUD();
     return `剣士の攻撃を見切り、一本取った。「見事」と剣士は頭を下げた。<br><span class="grn">信頼度+3　経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=1+Math.floor(Math.random()*6); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-    return `打ち負かされた。砂漠の剣技は速く鋭かった。<br><span class="red">CON-${dmg}（残り${PC.con}）</span>`; }
+    return `打ち負かされた。砂漠の剣技は速く鋭かった。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
   },
   // a_r11: 密偵との接触
   { title:' 密偵との接触',
@@ -11741,7 +11741,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const gp=10+Math.floor(Math.random()*11); const ap=10+Math.floor(Math.random()*11); gainGPAll(gp); gainAPAll(ap); updateHUD();
     return `重い絨毯を難なく運んだ。商人は感心して報酬を弾んでくれた。<br><span class="grn">+${gp}GP　経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=1+Math.floor(Math.random()*3); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-    return `重さに耐えきれず絨毯を落としてしまった。腰を痛めた。<br><span class="red">CON-${dmg}（残り${PC.con}）</span>`; }
+    return `重さに耐えきれず絨毯を落としてしまった。腰を痛めた。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
   },
   // a_m06: 他地方の商人
   { title:' 他地方からの商人',
@@ -11769,7 +11769,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const ap=10+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
     return `怪しい色と匂いで偽物だと見抜いた。老人は舌打ちして引っ込んだ。<br><span class="grn">経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=1+Math.floor(Math.random()*6); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-    return `信じて飲んでしまった。腹が痛くなり体力が削られた。<br><span class="red">CON-${dmg}（残り${PC.con}）</span>`; }
+    return `信じて飲んでしまった。腹が痛くなり体力が削られた。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
   },
   // a_m08: バザールのスリ
   { title:' バザールのスリ',
@@ -11828,7 +11828,7 @@ const EXPLORE_EVENTS = {
    intro:`「顔色が悪い、診てやろう」と薬草師の老婆が声をかけてきた。`,
    sr:{attr:'con', level:1},
    onSuccess:()=>{ const heal=2+Math.floor(Math.random()*5); PC.con=Math.min(PC.maxCon,PC.con+heal); updateHUD();
-    return `体に薬草を貼り、砂漠の薬を飲んだ。じわじわと体力が戻ってきた。<br><span class="grn">CON+${heal}回復（現在${PC.con}）</span>`; },
+    return `体に薬草を貼り、砂漠の薬を飲んだ。じわじわと体力が戻ってきた。<br><span class="grn">体力+${heal}回復（現在${PC.con}）</span>`; },
    onFail:()=>{ const ap=8+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
     return `体が薬草を受け付けなかった。効果はなかったが、老婆の心遣いは嬉しかった。<br><span class="grn">経験値+${ap}</span>`; }
   },
@@ -11848,7 +11848,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const gp=5+Math.floor(Math.random()*11); const ap=15+Math.floor(Math.random()*11); gainGPAll(gp); gainAPAll(ap); updateHUD();
     return `荷物を難なく運んだ。商人はほっとした顔で報酬を渡した。<br><span class="grn">+${gp}GP　経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=1+Math.floor(Math.random()*3); PC.con=Math.max(1,PC.con-dmg); updateHUD();
-    return `途中で荷崩れを起こし、重いものが体に当たった。<br><span class="red">CON-${dmg}（残り${PC.con}）</span>`; }
+    return `途中で荷崩れを起こし、重いものが体に当たった。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`; }
   },
   // a_m15: 砂漠の地図商
   { title:' 砂漠の地図商',
@@ -11908,7 +11908,7 @@ function fireExploreEvent(ev, returnNode){
  <span class="gold">${ev.title}</span><br><br>
  <span style="color:var(--danger)"> 逃走失敗…</span><br><br>
  ${ev.intro}<br>逃げようとしたが追いつかれ、一撃を食らった。<br>
- <span class="red">CON -${dmg}（残り${PC.con}）</span><br><br>
+ <span class="red">体力-${dmg}（残り${PC.con}）</span><br><br>
  `;
  renderChoices([{label:'← 街に戻る', go:returnNode}]);
  },
@@ -12297,8 +12297,8 @@ ${inc.ok}`;
     updateHUD();
     const penalty = dmg > 0
      ? (inc.ng.includes('所持金') || inc.ng.includes('弁償') ? `<br><span class="red"> 所持金 -${dmg}GP</span>`
-      : inc.ng.includes('器用さ') || inc.ng.includes('指先') || inc.ng.includes('手先') ? `<br><span class="red">CON -${dmg}　器用さ -1（後遺症）</span>`
-      : `<br><span class="red">CON -${dmg}（残り${PC.con}）</span>`)
+      : inc.ng.includes('器用さ') || inc.ng.includes('指先') || inc.ng.includes('手先') ? `<br><span class="red">体力-${dmg}　器用さ -1（後遺症）</span>`
+      : `<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`)
      : '';
     if(storyEl){
      storyEl.innerHTML = baseHtml +
@@ -13596,12 +13596,12 @@ function ydGoNode(nodeId, floor){
      if(PC.con <= 0){
       stEl.innerHTML = `<span style="color:var(--danger)"> 力尽きた……</span><br><br>
        闇の中で足を踏み外し、石の床に叩きつけられた。動けない……<br><br>
-       <span style="color:var(--danger)">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg} → 死亡</span>`;
+       <span style="color:var(--danger)">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`;
       renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
      } else {
       stEl.innerHTML = `<span style="color:var(--danger)"> 脱出失敗</span><br><br>
        出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>
-       <span style="color:var(--danger)">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg}（残り ${PC.con}）</span><br><br>
+       <span style="color:var(--danger)">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り ${PC.con}）</span><br><br>
        痛みをこらえながら、また出口を探す…`;
       renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{ ydGoNode(nodeId, floor); }}]);
      }
@@ -14689,7 +14689,7 @@ function ydActionChoices(node, floor){
      }});
     } else {
      // 気づいている：解除を試みるか無視して進むか
-     ch.push({label:' 罠を解除する（DEX 能力値テスト）', fn:()=>{
+     ch.push({label:' 罠を解除する（器用さ 能力値テスト）', fn:()=>{
       selectActorForSR('dex', floor, actor=>{
        setupSavingRollFor(actor,{attr:'dex', level:floor,
         onSuccess:()=>{
@@ -14830,7 +14830,7 @@ function ydActionChoices(node, floor){
 
   case 'dead_end':
    if(node.hiddenDoor && !PC[node.hiddenDoorKey]){
-    ch.push({label:' 壁を調べる（LK 能力値テスト）', fn:()=>{
+    ch.push({label:' 壁を調べる（運 能力値テスト）', fn:()=>{
      selectActorForSR('lk', floor, actor=>{
       setupSavingRollFor(actor,{attr:'lk', level:floor,
        onSuccess:()=>{ PC[node.hiddenDoorKey]=true;
@@ -15375,7 +15375,7 @@ function _rdungMakeDoorData(step){
    if(PC[flagKey]) return [];
    const ch=[];
    if(door.locked){
-    ch.push({label:' 力で開ける（ST Lv1 能力値テスト）', fn:()=>{
+    ch.push({label:' 力で開ける（強さ Lv1 能力値テスト）', fn:()=>{
      setupSavingRoll({attr:'st',level:1,
       onSuccess:()=>{ PC[flagKey]=true; updateHUD();
        document.getElementById('story').innerHTML+=`<br><span style="color:#6aaa60">扉をこじ開けた！</span>`;
@@ -15384,7 +15384,7 @@ function _rdungMakeDoorData(step){
       onFail:()=>{ document.getElementById('story').innerHTML+=`<br><span style="color:var(--danger)">開かなかった。</span>`; },
      });
     }});
-    ch.push({label:' 鍵を探す（LK Lv1 能力値テスト）', fn:()=>{
+    ch.push({label:' 鍵を探す（運 Lv1 能力値テスト）', fn:()=>{
      setupSavingRoll({attr:'lk',level:1,
       onSuccess:()=>{ PC[flagKey]=true; updateHUD();
        document.getElementById('story').innerHTML+=`<br><span style="color:#6aaa60">鍵を見つけて開けた！</span>`;
@@ -15400,7 +15400,7 @@ function _rdungMakeDoorData(step){
      document.getElementById('story').innerHTML+=`<br><span style="color:var(--danger)">罠発動！${res}</span>`;
      const nd=window._currentHuntNode; if(nd) _huntGoNode(nd._idx);
     }});
-    ch.push({label:' 罠を調べる（DEX Lv1 能力値テスト）', fn:()=>{
+    ch.push({label:' 罠を調べる（器用さ Lv1 能力値テスト）', fn:()=>{
      setupSavingRoll({attr:'dex',level:1,
       onSuccess:()=>{ PC[flagKey]=true; updateHUD();
        document.getElementById('story').innerHTML+=`<br><span style="color:#6aaa60">罠を解除して開けた！</span>`;
@@ -15438,7 +15438,7 @@ function _rdungMakeTrapData(step){
      PC[flagKey]=true; const res=trap.fn(PC); updateHUD();
      document.getElementById('story').innerHTML+=`<br><span style="color:var(--danger)">罠発動！${res}</span>`;
     }},
-    {label:' 慎重に調べる（DEX Lv1 能力値テスト）', fn:()=>{
+    {label:' 慎重に調べる（器用さ Lv1 能力値テスト）', fn:()=>{
      setupSavingRoll({attr:'dex',level:1,
       onSuccess:()=>{ PC[flagKey]=true; updateHUD();
        document.getElementById('story').innerHTML+=`<br><span style="color:#6aaa60">罠を発見・解除！</span>`;
@@ -17013,7 +17013,7 @@ function startSeaEncounter(enemy){
    setTimeout(()=>travelTick(), ts.interval);
   };
   const flee = document.createElement('button'); flee.className='choice-btn';
-  flee.textContent = ' 全速逃走（SPD Lv2 能力値テスト）';
+  flee.textContent = ' 全速逃走（素早さ Lv2 能力値テスト）';
   flee.onclick = ()=>{
    choices.innerHTML = '';
    const sr = savingRoll('spd', 2); gainAPAll(sr.ap); updateHUD();
@@ -17055,7 +17055,7 @@ function startSeaEncounter(enemy){
    });
   };
   const flee = document.createElement('button'); flee.className='choice-btn';
-  flee.textContent = ' 全速逃走（SPD Lv2 能力値テスト）';
+  flee.textContent = ' 全速逃走（素早さ Lv2 能力値テスト）';
   flee.onclick = ()=>{
    choices.innerHTML = '';
    const sr = savingRoll('spd', 2); gainAPAll(sr.ap); updateHUD();
@@ -17326,7 +17326,7 @@ function travelTick(){
  if((PC.party||[]).length<3){
  const join = document.createElement('button'); join.className='choice-btn';
  const _tSrLv = Math.min(5, (npc.level||1) * 2);
- join.textContent=` ${npc.epithet?npc.epithet+' ':''}${npc.name} を仲間に誘う（CHR Lv${_tSrLv} 能力値テスト）`;
+ join.textContent=` ${npc.epithet?npc.epithet+' ':''}${npc.name} を仲間に誘う（魅力 Lv${_tSrLv} 能力値テスト）`;
  join.onclick=()=>{
   ts._pendingNPC=null;
   choices.innerHTML='';
@@ -17563,7 +17563,7 @@ function startTravelTalk(enemy, ts){
  const dmg = Math.max(1, Math.floor(enemy.mr / 10));
  PC.con = Math.max(0, PC.con - dmg);
  updateHUD();
- travelLog(`<span class="grn"> 逃走成功！（背中に攻撃 CON-${dmg}）</span>`);
+ travelLog(`<span class="grn"> 逃走成功！（背中に攻撃 体力-${dmg}）</span>`);
  changeAlignment(0, -0.5); // 逃亡：混沌+0.5
  if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 800); return; }
  renderChoices([{label:'▶ 旅を続ける', fn:()=>{
@@ -17676,7 +17676,7 @@ function innRest(cost){
  const msgs = [];
  // PC自身の回復メッセージ
  const _conHealed = Math.min(PC.maxCon, PC.con + Math.floor(PC.maxCon * 0.5)) - (PC.con - Math.floor(PC.maxCon * 0.5));
- msgs.push(`体力が回復した（CON +${Math.floor(PC.maxCon * 0.5)}）`);
+ msgs.push(`体力が回復した（体力+${Math.floor(PC.maxCon * 0.5)}）`);
  // 毒治癒
  if(PC._poisoned){
  PC._poisoned = false;
@@ -17758,7 +17758,7 @@ const SPELLS_L1 = [
 // ── SPELLS (Level 2) ── IQ≥12, DEX≥9, 学習500GP ──
 const SPELLS_L2 = [
  {name:'Soothe',cost:4, level:2, iqReq:12, dexReq:9, learnCost:500,
- desc:'2STで1CON回復（最大値まで）', fn:'poorBaby'},
+ desc:'2強さで1体力回復（最大値まで）', fn:'poorBaby'},
  {name:'Battle Surge', cost:10, level:2, iqReq:12, dexReq:9, learnCost:500,
  desc:'1ターン武器ダイスを3倍', fn:'whammy'},
  {name:'Haste',cost:8,level:2,iqReq:12,dexReq:9,learnCost:500,
@@ -18491,10 +18491,10 @@ function updateAddsPreview(){
 
 const RACE_INFO_TEXT = {
  human: '人間: 全能力値 ×1（補正なし）',
- elf: 'Elf: IQ・DEX ×3/2、CON ×2/3',
- dwarf: 'Dwarf: ST・CON ×2、CHR ×2/3',
- halfling: 'Halfling: ST ×1/2、CON ×2、DEX ×3/2',
- fairy: 'Fairy: ST・CON ×1/4、LK・DEX ×3/2、CHR ×2',
+ elf: 'エルフ: 知力・器用さ ×3/2、体力 ×2/3',
+ dwarf: 'ドワーフ: 強さ・体力 ×2、魅力 ×2/3',
+ halfling: 'ハーフリング: 強さ ×1/2、体力 ×2、器用さ ×3/2',
+ fairy: 'フェアリー: 強さ・体力 ×1/4、運・器用さ ×3/2、魅力 ×2',
  leprechaun: 'Leprechaun: ST ×1/2、IQ・LK・DEX ×3/2',
 };
 function updateRaceInfo(){
@@ -19744,7 +19744,7 @@ function updateMiniHUD(){
  {l:'', v:food+'日', cls: food<=0?'danger':food<=3?'warn':''},
  {l:'WT', v:wtCur, cls: wtClass},
  {l:'経験値', v:PC.ap, cls:''},
- {l:'ARMOR',v:effectiveArmor()+'H', cls:''},
+ {l:'防護値',v:effectiveArmor()+'H', cls:''},
  {l:'', v:torch+'本', cls: torch===0 && (currentNodeId||'').includes('TOMB') && !['TOMB_ENTRANCE','TOMB_EXIT'].includes(currentNodeId) ? 'warn' : ''},
  {l:'毒', v:PC._poisoned?'あり':'なし', cls: PC._poisoned?'danger':''},
  ].map(c=>`<div class="mh-cell ${c.cls}"><span class="lbl">${c.l}</span><span class="val">${c.v}</span></div>`).join('');
@@ -19802,7 +19802,7 @@ function renderPartyList(el, party){
  </div>
  <span style="font-size:calc(var(--font-sm) - 2px);color:#554466">詳細 ▶</span>
  </div>
- <div style="font-size:calc(var(--font-sm) - 1px);color:#7a6030">CON ${n.con}/${n.maxCon}</div>
+ <div style="font-size:calc(var(--font-sm) - 1px);color:#7a6030">体力 ${n.con}/${n.maxCon}</div>
  ${alive?`<div style="height:3px;background:#1a1a1a;border-radius:2px;margin-top:4px"><div style="width:${barW}%;height:100%;background:${col};border-radius:2px"></div></div>`:''}
  ${alive?`<div style="display:flex;align-items:center;gap:5px;margin-top:5px">
   <div style="flex:1;height:3px;background:#1a1a1a;border-radius:2px"><div style="width:${trust}%;height:100%;background:${trustCol};border-radius:2px"></div></div>
@@ -19955,7 +19955,7 @@ function renderNPCDetail(el, n, idx){
 
  <!-- CONバー -->
  <div style="margin-bottom:10px">
- <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:3px">CON 体力　${n.con} / ${n.maxCon}</div>
+ <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:3px">体力　${n.con} / ${n.maxCon}</div>
  <div style="height:8px;background:#1a1a1a;border-radius:4px">
  <div style="width:${conPct}%;height:100%;background:${conCol};border-radius:4px;transition:width 0.3s"></div>
  </div>
@@ -19976,7 +19976,7 @@ function renderNPCDetail(el, n, idx){
  <div style="font-size:var(--font-base);color:var(--yel)">${adds>=0?'+':''}${adds}</div>
  </div>
  <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:6px 8px;text-align:center">
- <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:3px">ARMOR</div>
+ <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:3px">防護値</div>
  <div style="font-size:var(--font-base);color:var(--cyn)">${armor}hits</div>
  </div>
  <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:6px 8px;text-align:center">
@@ -20549,10 +20549,10 @@ function renderStatusPanel(){
 
  const raceInfoMap = {
  human: '全能力値 ×1（補正なし）。寿命80年前後。',
- elf: 'IQ・DEX ×3/2、CON ×2/3。寿命800年前後。',
- dwarf: 'ST・CON ×2、CHR ×2/3。寿命200年前後。',
- halfling: 'ST ×1/2、CON ×2、DEX ×3/2。寿命100年前後。',
- fairy: 'ST・CON ×1/4、LK・DEX ×3/2、CHR ×2。寿命200年前後。',
+ elf: '知力・器用さ ×3/2、体力 ×2/3。寿命800年前後。',
+ dwarf: '強さ・体力 ×2、魅力 ×2/3。寿命200年前後。',
+ halfling: '強さ ×1/2、体力 ×2、器用さ ×3/2。寿命100年前後。',
+ fairy: '強さ・体力 ×1/4、運・器用さ ×3/2、魅力 ×2。寿命200年前後。',
  leprechaun: 'ST ×1/2、IQ・LK・DEX ×3/2。寿命300年前後。',
  };
  const alEl = document.getElementById('sp-alignment');
@@ -20660,7 +20660,7 @@ const TRAP_TABLE = [
  onFail: (pc)=>{
  const dmg = Nd6(2);
  pc.con = Math.max(0, pc.con - dmg);
- return `穴に落ちた！ CON -${dmg}（落下ダメージ）`;
+ return `穴に落ちた！ 体力-${dmg}（落下ダメージ）`;
  },
  onPass: ()=>'間一髪で飛び退いた！',
  },
@@ -20674,7 +20674,7 @@ const TRAP_TABLE = [
  const dmg = Nd6(1);
  pc.con = Math.max(0, pc.con - dmg);
  pc._poisoned = true;
- return `矢が刺さった！ CON -${dmg}、毒状態になった（毎ターンCON-1）`;
+ return `矢が刺さった！ 体力-${dmg}、毒状態になった（毎ターン体力-1）`;
  },
  onPass: ()=>'矢をかわした！',
  },
@@ -20689,7 +20689,7 @@ const TRAP_TABLE = [
  const armor = effectiveArmor();
  const actual = Math.max(1, dmg - armor);
  pc.con = Math.max(0, pc.con - actual);
- return `石に当たった！ ${dmg}ダメージ（防具-${armor}）→ CON -${actual}`;
+ return `石に当たった！ ${dmg}ダメージ（防具-${armor}）→ 体力-${actual}`;
  },
  onPass: ()=>'間に合った！石を避けた！',
  },
@@ -20704,8 +20704,8 @@ const TRAP_TABLE = [
  pc.con = Math.max(0, pc.con - dmg);
  if(pc.type==='wizard') pc.st = Math.max(0, pc.st - Nd6(1));
  return pc.type==='wizard'
- ? `魔力が逆流した！ CON -${dmg}、ST -${Nd6(1)}（魔法使いは影響大）`
- : `魔法の雷撃を受けた！ CON -${dmg}`;
+ ? `魔力が逆流した！ 体力-${dmg}、ST -${Nd6(1)}（魔法使いは影響大）`
+ : `魔法の雷撃を受けた！ 体力-${dmg}`;
  },
  onPass: ()=>'魔法陣を踏み越えた！なぜか発動しなかった…',
  },
@@ -20845,7 +20845,7 @@ const DUNGEON_EVENTS = [
  desc: '壁一面に砂岩の古代文字が刻まれている。読み解けそうだが時間がかかる。',
  choices: (ev) => [
  {
- label: ' 解読を試みる（IQ Lv2 能力値テスト）',
+ label: ' 解読を試みる（知力 Lv2 能力値テスト）',
  fn: () => {
  const story = document.getElementById('story');
  const sr = savingRoll('iq', 2);
@@ -20885,7 +20885,7 @@ const DUNGEON_EVENTS = [
  desc: '床の砂の中に、装飾された骨壺が半分埋もれている。中に何か入っているかもしれない。',
  choices: (ev) => [
  {
- label: ' 骨壺を開ける（LK Lv1 能力値テスト）',
+ label: ' 骨壺を開ける（運 Lv1 能力値テスト）',
  fn: () => {
  const story = document.getElementById('story');
  const sr = savingRoll('lk', 1);
@@ -20897,7 +20897,7 @@ const DUNGEON_EVENTS = [
  } else {
  const dmg = 1 + Math.floor(Math.random()*4);
  PC.con = Math.max(1, PC.con - dmg); updateHUD();
- story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 呪いの煙が噴き出した！<br><span style="color:var(--danger)">CON -${dmg}（残り${PC.con}）　経験値+${sr.ap}</span></div>`;
+ story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 呪いの煙が噴き出した！<br><span style="color:var(--danger)">体力-${dmg}（残り${PC.con}）　経験値+${sr.ap}</span></div>`;
  }
  _restoreNodeChoices();
  },
@@ -20998,9 +20998,9 @@ const DUNGEON_EVENTS = [
     gainAPAll(sr.ap);
     if(!sr.success){
      const torchMsg2 = extinguishTorch();
-     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>罠のコイン！</b>触れた瞬間に粉状の毒が舞った。CON 能力値テスト失敗（${sr.total}）——気絶した。<br><span style="color:var(--fire);font-size:var(--font-sm)">${torchMsg2}</span><br><span style="color:#6aaa60">経験値+${sr.ap}</span></div>`;
+     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>罠のコイン！</b>触れた瞬間に粉状の毒が舞った。体力 能力値テスト失敗（${sr.total}）——気絶した。<br><span style="color:var(--fire);font-size:var(--font-sm)">${torchMsg2}</span><br><span style="color:#6aaa60">経験値+${sr.ap}</span></div>`;
     } else {
-     story.innerHTML += `<div style="color:var(--reward);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>罠のコインだった！</b>毒粉が舞ったが、耐えた。CON 能力値テスト成功（${sr.total}）<br><span style="color:#6aaa60">経験値+${sr.ap}</span></div>`;
+     story.innerHTML += `<div style="color:var(--reward);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>罠のコインだった！</b>毒粉が舞ったが、耐えた。体力 能力値テスト成功（${sr.total}）<br><span style="color:#6aaa60">経験値+${sr.ap}</span></div>`;
     }
    } else if(roll <= 4){
     gainGPAll(1); updateHUD();
@@ -21053,7 +21053,7 @@ const DUNGEON_EVENTS = [
     if(!sr.success){
      const dmg = d6();
      PC.con = Math.max(0, PC.con - dmg); updateHUD();
-     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>小規模な崩落！</b>天井の一部が崩れた。DEX 能力値テスト失敗——CON -${dmg}（残り${PC.con}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>小規模な崩落！</b>天井の一部が崩れた。DEX 能力値テスト失敗——体力-${dmg}（残り${PC.con}）　経験値+${sr.ap}</div>`;
     } else {
      story.innerHTML += `<div style="color:var(--reward);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 天井が少し崩れたが、素早く避けた。経験値+${sr.ap}</div>`;
     }
@@ -21212,9 +21212,9 @@ const DUNGEON_EVENTS = [
     gainAPAll(sr.ap);
     if(!sr.success){
      PC.con = Math.max(1, PC.con - 5); updateHUD();
-     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>毒性のガス！</b>腐敗した空気が溜まっていた。CON 能力値テスト失敗——ダンジョンを出るまでCON -5（残り${PC.con}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>毒性のガス！</b>腐敗した空気が溜まっていた。体力 能力値テスト失敗——ダンジョンを出るまで体力-5（残り${PC.con}）　経験値+${sr.ap}</div>`;
     } else {
-     story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px"> 腐敗ガスを吸ったが、耐えた。CON 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px"> 腐敗ガスを吸ったが、耐えた。体力 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
     }
    } else {
     story.innerHTML += `<div style="color:var(--slate);font-size:var(--font-sm);margin-top:8px"> <b>死の痕跡。</b>最近何かが殺されたらしい。床に血や骨が散乱している。</div>`;
@@ -21283,7 +21283,7 @@ const DUNGEON_EVENTS = [
  desc: '壁の内側から「ドン……ドン……」と鈍い叩く音が聞こえる。まるで誰かが中から壁を叩いているようだ。',
  choices: (ev) => [
   {
-  label: ' 壁を壊して助ける（ST Lv1 能力値テスト）',
+  label: ' 壁を壊して助ける（強さ Lv1 能力値テスト）',
   fn: () => {
    const story = document.getElementById('story');
    const sr = savingRoll('st', 1);
@@ -21320,7 +21320,7 @@ const DUNGEON_EVENTS = [
   },
   },
   {
-  label: ' 無視して進む（CHR -1）',
+  label: ' 無視して進む（魅力-1）',
   fn: () => {
    PC.chr = Math.max(1, PC.chr - 1);
    const story = document.getElementById('story');
@@ -21397,9 +21397,9 @@ const DUNGEON_EVENTS = [
     PC.lk = Math.max(1, PC.lk - 5);
     if(!sr.success){
      const torchMsg3 = extinguishTorch();
-     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>崩れる宝と毒ガス！</b>黄金の山が崩れ、毒ガスが噴き出した。CON 能力値テスト失敗（${sr.total}）——気絶した。宝も消えた。LK -5（残り${PC.lk}）　経験値+${sr.ap}<br><span style="color:var(--fire);font-size:var(--font-sm)">${torchMsg3}</span></div>`;
+     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>崩れる宝と毒ガス！</b>黄金の山が崩れ、毒ガスが噴き出した。体力 能力値テスト失敗（${sr.total}）——気絶した。宝も消えた。LK -5（残り${PC.lk}）　経験値+${sr.ap}<br><span style="color:var(--fire);font-size:var(--font-sm)">${torchMsg3}</span></div>`;
     } else {
-     story.innerHTML += `<div style="color:var(--torch);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 毒ガスが噴き出したが耐えた。宝は消えた。LK -5（残り${PC.lk}）　CON 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--torch);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 毒ガスが噴き出したが耐えた。宝は消えた。LK -5（残り${PC.lk}）　体力 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
     }
     updateHUD();
    } else if(roll === 5){
@@ -21441,7 +21441,7 @@ const DUNGEON_EVENTS = [
    const story = document.getElementById('story');
    const roll = d6();
    const effects = [
-    ()=>{ PC.con = Math.max(1, Math.floor(PC.con/2)); PC.maxCon = Math.max(1, Math.floor(PC.maxCon/2)); return `<span style="color:var(--danger)"> <b>生命の吸収。</b>体力が奪われる。CON 1/2（残り${PC.con}/${PC.maxCon}）</span>`; },
+    ()=>{ PC.con = Math.max(1, Math.floor(PC.con/2)); PC.maxCon = Math.max(1, Math.floor(PC.maxCon/2)); return `<span style="color:var(--danger)"> <b>生命の吸収。</b>体力が奪われる。体力 1/2（残り${PC.con}/${PC.maxCon}）</span>`; },
     ()=>{ PC.st = Math.max(1, Math.floor(PC.st/2)); PC.maxSt = Math.max(1, Math.floor((PC.maxSt||PC.st)/2)); return `<span style="color:var(--danger)"> <b>弱体化。</b>体が重くなる。ST 1/2（残り${PC.st}）</span>`; },
     ()=>{ PC.iq = Math.max(1, Math.floor(PC.iq/2)); return `<span style="color:var(--danger)"> <b>精神の揺らぎ。</b>不安と幻覚。IQ 1/2（残り${PC.iq}）</span>`; },
     ()=>{ PC.dex *= 2; return `<span style="color:#6aaa60"> <b>奇妙な活力。</b>体が軽くなる。DEX ×2（${PC.dex}）</span>`; },
@@ -21736,7 +21736,7 @@ function initTorch(){
 function torchIndicator(){
  const stock = PC._torchStock || 0;
  const poisonBadge = PC._poisoned
- ? `<div style="font-family:monospace;font-size:calc(var(--font-sm) - 1px);color:#cc44ff;margin-bottom:4px;padding:4px 6px;background:#110c06;border:1px solid #550077;border-radius:3px"> 毒状態 ── 移動ごとにCON-1　治療: 宿屋で休む</div>`
+ ? `<div style="font-family:monospace;font-size:calc(var(--font-sm) - 1px);color:#cc44ff;margin-bottom:4px;padding:4px 6px;background:#110c06;border:1px solid #550077;border-radius:3px"> 毒状態 ── 移動ごとに体力-1　治療: 宿屋で休む</div>`
  : '';
  const frostLvl = getFrostbiteLevel();
  const frostBadge = frostLvl > 0
@@ -21958,7 +21958,7 @@ function go(nodeId){
  }
  }
 
- // 毒ダメージ（移動ごとにCON-1）
+ // 毒ダメージ（移動ごとに体力-1）
  if(PC._poisoned){
  PC.con = Math.max(0, PC.con - 1);
  if(PC.con <= 0){
@@ -23278,7 +23278,7 @@ function startCombatNPC(en){
 // NPC型戦闘UI更新
 function updateCombatUINPC(){
  const cs = cbtState;
- document.getElementById('p-lbl').textContent = `YOU: CON ${Math.max(0,PC.con)}/${PC.maxCon}`;
+ document.getElementById('p-lbl').textContent = `YOU: 体力 ${Math.max(0,PC.con)}/${PC.maxCon}`;
  document.getElementById('p-bar').style.width = Math.max(0,PC.con/PC.maxCon*100)+'%';
 
  const party = (PC.party||[]).filter(n=>n.con>0);
@@ -23286,7 +23286,7 @@ function updateCombatUINPC(){
   const pct = Math.max(0,n.con/n.maxCon*100);
   const col = pct>50?'#4488ff':pct>25?'#ffcc00':'#ff4444';
   return `<div style="margin-top:3px">
-  <div class="hp-lbl" style="color:#8899ff;font-size:calc(var(--font-sm) - 2px)"> ${n.name}: CON ${n.con}/${n.maxCon}</div>
+  <div class="hp-lbl" style="color:#8899ff;font-size:calc(var(--font-sm) - 2px)"> ${n.name}: 体力 ${n.con}/${n.maxCon}</div>
   <div class="hp-bar-wrap"><div class="hp-bar-fill" style="width:${pct}%;background:${col}"></div></div>
   </div>`;
  }).join('');
@@ -23299,7 +23299,7 @@ function updateCombatUINPC(){
   const dead = e.curCon <= 0;
   const col  = dead ? '#333' : '#cc2222';
   // 1ターン目以降にCON表示
-  const hpLabel = cs.turn>=1 ? `CON ${Math.max(0,e.curCon)}/${e.maxCon}` : `CON ?`;
+  const hpLabel = cs.turn>=1 ? `体力 ${Math.max(0,e.curCon)}/${e.maxCon}` : `体力 ?`;
   const typeJa  = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[e.type]||'';
   const w = e.equippedWeapons?.[0];
   const wLabel = w ? w.name : '素手';
@@ -23498,7 +23498,7 @@ function resolveRoundNPC(pRoll, npcActions){
   const eTotalRollNoTtyf = eTotalRoll - ttyfTotal;
   // 死亡チェック（TTYF一発KO）
   if(PC.con <= 0){
-   cl.innerHTML += `<span class="red"> CON 0！死亡！</span><br>`;
+   cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
    updateHUD();
    showCombatOK(()=>{
     const _onLose = cbtState ? cbtState.onLose : null;
@@ -23528,7 +23528,7 @@ function resolveRoundNPC(pRoll, npcActions){
    const dmgRaw = perEnemy+(idx===0?remainder:0);
    const actualDmg = Math.max(0, dmgRaw - calcNPCArmor(e));
    e.curCon = Math.max(0, e.curCon - actualDmg);
-   detail += `　<span class="dim">→ ${e.name}: -${actualDmg} [残CON${e.curCon}]</span>${e.curCon<=0?' <span class="grn"></span>':''}<br>`;
+   detail += `　<span class="dim">→ ${e.name}: -${actualDmg} [残体力${e.curCon}]</span>${e.curCon<=0?' <span class="grn"></span>':''}<br>`;
   });
 
  } else if(eTotalRollFinal > totalPlayerRoll){
@@ -23564,7 +23564,7 @@ function resolveRoundNPC(pRoll, npcActions){
 
  // 死亡チェック
  if(PC.con<=0){
-  cl.innerHTML += `<span class="red"> CON 0！死亡！</span><br>`;
+  cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
   showCombatOK(()=>{
    const _onLose = cs.onLose;
    cbtState = null;
@@ -23739,10 +23739,10 @@ function doFlee(){
  const myArmor = effectiveArmor();
  const dmg = Math.max(1, eTotal - myArmor);
  PC.con -= dmg;
- cl.innerHTML += `<span class="red"> 逃走失敗！ 背中に攻撃を受けた！ CON-${dmg}</span><br>`;
+ cl.innerHTML += `<span class="red"> 逃走失敗！ 背中に攻撃を受けた！ 体力-${dmg}</span><br>`;
  updateCombatUI(); updateHUD();
  if(PC.con <= 0){
- cl.innerHTML += `<span class="red"> CON 0！死亡！</span><br>`;
+ cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
  showCombatOK(()=>go(cbtState.lose));
  } else {
  showCombatOK(()=>{
@@ -23757,7 +23757,7 @@ function _updateCombatBars(){
  if(cbtState?.isNPC){ updateCombatUINPC(); return; }
  const cs = cbtState;
  if(!cs) return;
- document.getElementById('p-lbl').textContent = `YOU: CON ${Math.max(0,PC.con)}/${PC.maxCon}`;
+ document.getElementById('p-lbl').textContent = `YOU: 体力 ${Math.max(0,PC.con)}/${PC.maxCon}`;
  document.getElementById('p-bar').style.width = Math.max(0,PC.con/PC.maxCon*100)+'%';
  const party = (PC.party||[]).filter(n=>n.con>0);
  const partyEl = document.getElementById('party-combat-ui');
@@ -23765,7 +23765,7 @@ function _updateCombatBars(){
   const pct = Math.max(0,n.con/n.maxCon*100);
   const col = pct>50?'#4488ff':pct>25?'#ffcc00':'#ff4444';
   return `<div style="margin-top:3px">
-  <div class="hp-lbl" style="color:#8899ff;font-size:calc(var(--font-sm) - 2px)"> ${n.name}: CON ${n.con}/${n.maxCon}</div>
+  <div class="hp-lbl" style="color:#8899ff;font-size:calc(var(--font-sm) - 2px)"> ${n.name}: 体力 ${n.con}/${n.maxCon}</div>
   <div class="hp-bar-wrap"><div class="hp-bar-fill" style="width:${pct}%;background:${col}"></div></div>
   </div>`;
  }).join('');
@@ -23785,7 +23785,7 @@ function _updateCombatBars(){
 function updateCombatUI(){
  if(cbtState?.isNPC){ updateCombatUINPC(); return; }
  const cs = cbtState;
- document.getElementById('p-lbl').textContent = `YOU: CON ${Math.max(0,PC.con)}/${PC.maxCon}`;
+ document.getElementById('p-lbl').textContent = `YOU: 体力 ${Math.max(0,PC.con)}/${PC.maxCon}`;
  document.getElementById('p-bar').style.width = Math.max(0,PC.con/PC.maxCon*100)+'%';
 
  // パーティNPCバー
@@ -23794,7 +23794,7 @@ function updateCombatUI(){
  const pct = Math.max(0,n.con/n.maxCon*100);
  const col = pct>50?'#4488ff':pct>25?'#ffcc00':'#ff4444';
  return `<div style="margin-top:3px">
- <div class="hp-lbl" style="color:#8899ff;font-size:calc(var(--font-sm) - 2px)"> ${n.name}: CON ${n.con}/${n.maxCon}</div>
+ <div class="hp-lbl" style="color:#8899ff;font-size:calc(var(--font-sm) - 2px)"> ${n.name}: 体力 ${n.con}/${n.maxCon}</div>
  <div class="hp-bar-wrap"><div class="hp-bar-fill" style="width:${pct}%;background:${col}"></div></div>
  </div>`;
  }).join('');
@@ -24019,7 +24019,7 @@ function showNPCActionPhase(idx, aliveParty){
  // NPC行動選択中はPCボタンを隠す
  _hidePCActionChoices();
  const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[npc.type]||npc.type;
- title.innerHTML = `<span style="font-size:var(--font-sm)"> <span style="color:#c89a60">${npc.name}</span>（${typeJa} CON:${npc.con}/${npc.maxCon}）の行動を選択:</span>`;
+ title.innerHTML = `<span style="font-size:var(--font-sm)"> <span style="color:#c89a60">${npc.name}</span>（${typeJa} 体力:${npc.con}/${npc.maxCon}）の行動を選択:</span>`;
  btns.innerHTML = '';
  NPC_ACTIONS.forEach(act=>{
   const b = document.createElement('button');
@@ -24309,7 +24309,7 @@ function resolveRound(pRoll, npcActions){
 
  // 死亡チェック
  if(PC.con <= 0){
- cl.innerHTML += `<span class="red"> CON 0！死亡！</span><br>`;
+ cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
  _hidePCActionChoices();
  document.getElementById('npc-action-panel').style.display = 'none';
  showCombatOK(()=>{
@@ -24542,7 +24542,7 @@ function _ttyfSelectTarget(spell, ttyfLv, stCost){
   const btn = document.createElement('button');
   btn.className = 'choice-btn';
   btn.style.cssText = 'border-color:#553377;color:#c89aff';
-  const hpLabel = isNPC ? `CON${e.curCon}` : `CombatRating${e.curMR}`;
+  const hpLabel = isNPC ? `体力${e.curCon}` : `CombatRating${e.curMR}`;
   btn.innerHTML = `${e.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">${hpLabel}</span>`;
   btn.addEventListener('click', ()=>{ _ttyfApply(spell, ttyfLv, stCost, e); });
   btns.appendChild(btn);
@@ -24733,7 +24733,7 @@ function castSpell(spell,ctx){
  if(PC.con >= PC.maxCon){
  // STを返還して失敗
  PC.st += spell.cost;
- result.innerHTML=' <span class="wizard-c">鎮痛剤</span>: CONはすでに最大値です。';
+ result.innerHTML=' <span class="wizard-c">鎮痛剤</span>: 体力はすでに最大値です。';
  updateHUD(); break;
  }
  // 追加2ST消費で1CON回復を繰り返す
@@ -24741,7 +24741,7 @@ function castSpell(spell,ctx){
  while(PC.st >= 2 && PC.con < PC.maxCon){
  PC.st -= 2; PC.con++; healed++;
  }
- result.innerHTML=` <span class="wizard-c">鎮痛剤</span>: CON +${healed}回復！（CON ${PC.con}/${PC.maxCon}）`;
+ result.innerHTML=` <span class="wizard-c">鎮痛剤</span>: 体力+${healed}回復！（体力 ${PC.con}/${PC.maxCon}）`;
  updateHUD(); break;
  }
  case 'whammy':
@@ -25541,7 +25541,7 @@ const NODES = {
  <div style="color:var(--gold2);font-size:var(--font-base)">${gold}GP</div>
  </div>
  <div style="background:#130e09;border:1px solid #3a2818;border-radius:3px;padding:6px;text-align:center">
- <div style="color:var(--dim);margin-bottom:3px">ST / CON</div>
+ <div style="color:var(--dim);margin-bottom:3px">強さ / 体力</div>
  <div style="color:var(--text);font-size:var(--font-base)">${PC.st} / ${PC.con}</div>
  </div>
  </div>
@@ -25991,18 +25991,18 @@ const NODES = {
  if(PC.con <= 0){ PC._darkDead = true;
  return `<span class="gold"></span><br><br>
  砂の床に足を取られ倒れ込んだ。動けない……<br>
- <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg} → 死亡</span>`; }
+ <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
  PC._darkDead = false;
  return `<span class="gold"></span><br><br>
  砂の段差に気づかず転倒した。砂岩に激しく打ちつける。<br>
- <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg}（残り${PC.con}）</span><br><br>
+ <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span><br><br>
  痛みをこらえながら、また出口を探す…`;
  }
  },
  choices:()=>{
  if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
  if(PC._darkEscaped) return [{label:' 砂漠の光の方へ', go:'TOMB_ENTRANCE'}];
- return [{label:' もう一度出口を探す（LK Lv3）', go:'TOMB_DARK_ESCAPE'}];
+ return [{label:' もう一度出口を探す（運 Lv3）', go:'TOMB_DARK_ESCAPE'}];
  },
  },
 
@@ -26068,7 +26068,7 @@ const NODES = {
      const dmg=1+Math.floor(Math.random()*3);
      const target=actor===PC?PC:actor; target.con=Math.max(1,target.con-dmg);
      const an=actor===PC?PC.name:actor.name;
-     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：仕掛けが弾けて手を傷つけた。CON -${dmg}</div>`;
+     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：仕掛けが弾けて手を傷つけた。体力-${dmg}</div>`;
      updateHUD(); setTimeout(()=>go('TOMB_LOCK_13_TRY'),600);
     },
    });
@@ -26095,7 +26095,7 @@ const NODES = {
  scene:'dungeon',
  txt:()=>{
   if(PC._tombTrap25Triggered) return `<span class="gold"></span>　<span style="color:#ff6644">── Trapped ──</span><br><br>すでに罠は作動した扉が開いている。`;
-  return `<span class="gold"></span>　<span style="color:#ff6644">── Trapped ──</span><br><br>扉を開けようとすると、何か仕掛けがありそうだ。<span class="dim">（SPD Lv2 能力値テスト）</span>`;
+  return `<span class="gold"></span>　<span style="color:#ff6644">── Trapped ──</span><br><br>扉を開けようとすると、何か仕掛けがありそうだ。<span class="dim">（素早さ Lv2 能力値テスト）</span>`;
  },
  choices:()=>{
   if(PC._tombTrap25Triggered) return [{label:'⬇ 南へ進む', go:'TOMB_5'},{label:'⬆ 北へ進む', go:'TOMB_2'}];
@@ -26110,7 +26110,7 @@ const NODES = {
     onFail(){
      const dmg=Nd6(2); const target=actor===PC?PC:actor; target.con=Math.max(1,target.con-dmg);
      const an=actor===PC?PC.name:actor.name;
-     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：砂と石が直撃した！CON -${dmg}</div>`;
+     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：砂と石が直撃した！体力-${dmg}</div>`;
      updateHUD(); setTimeout(()=>go('TOMB_TRAP_25'),600);
     },
    });
@@ -26264,7 +26264,7 @@ const NODES = {
     onFail(){
      const dmg=1+Math.floor(Math.random()*4); const target=actor===PC?PC:actor; target.con=Math.max(1,target.con-dmg);
      const an=actor===PC?PC.name:actor.name;
-     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：格子はびくともしない。腕を傷めた。CON -${dmg}</div>`;
+     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：格子はびくともしない。腕を傷めた。体力-${dmg}</div>`;
      updateHUD(); setTimeout(()=>go('TOMB_PORT_58_TRY'),600);
     },
    });
@@ -26333,7 +26333,7 @@ const NODES = {
     onFail(){
      const dmg=1+Math.floor(Math.random()*4); const target=actor===PC?PC:actor; target.con=Math.max(1,target.con-dmg);
      const an=actor===PC?PC.name:actor.name;
-     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：仕掛けが跳ねて手を傷めた。CON -${dmg}</div>`;
+     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：仕掛けが跳ねて手を傷めた。体力-${dmg}</div>`;
      updateHUD(); setTimeout(()=>go('TOMB_LOCK_79_TRY'),600);
     },
    });
@@ -26359,7 +26359,7 @@ const NODES = {
  scene:'dungeon',
  txt:()=>{
   if(PC._tombTrap810Triggered) return `<span class="gold"></span>　<span style="color:#ff6644">── Trapped ──</span><br><br>罠はすでに作動している。扉は開いたままだ。`;
-  return `<span class="gold"></span>　<span style="color:#ff6644">── Trapped ──</span><br><br>扉の前に立つと、壁の細い穴が目につく。何か仕掛けがありそうだ。<span class="dim">（LK Lv2 能力値テスト）</span>`;
+  return `<span class="gold"></span>　<span style="color:#ff6644">── Trapped ──</span><br><br>扉の前に立つと、壁の細い穴が目につく。何か仕掛けがありそうだ。<span class="dim">（運 Lv2 能力値テスト）</span>`;
  },
  choices:()=>{
   if(PC._tombTrap810Triggered) return [{label:'⬇ 南へ進む', go:'TOMB_10'},{label:'⬆ 北へ進む', go:'TOMB_8'}];
@@ -26374,7 +26374,7 @@ const NODES = {
     onFail(){
      const dmg=Nd6(1); const target=actor===PC?PC:actor; target.con=Math.max(1,target.con-dmg); target._poisoned=true;
      const an=actor===PC?PC.name:actor.name;
-     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：毒矢が命中！CON -${dmg}、毒状態</div>`;
+     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：毒矢が命中！体力-${dmg}、毒状態</div>`;
      updateHUD(); setTimeout(()=>go('TOMB_TRAP_810'),600);
     },
    });
@@ -26418,9 +26418,9 @@ const NODES = {
  const story=document.getElementById('story');
  const r=Math.random();
  if(r<0.15){ PC.con=Math.min(PC.maxCon||99,PC.con+5); updateHUD();
- story.innerHTML+=`<div style="color:#6aaa60;margin-top:8px"> 聖なる水だった！CON +5 回復</div>`; }
+ story.innerHTML+=`<div style="color:#6aaa60;margin-top:8px"> 聖なる水だった！体力+5 回復</div>`; }
  else if(r<0.25){ PC.con=Math.max(1,PC.con-3); PC._poisoned=true; updateHUD();
- story.innerHTML+=`<div style="color:#ff4444;margin-top:8px"> 毒の水だった！CON -3、毒状態</div>`; }
+ story.innerHTML+=`<div style="color:#ff4444;margin-top:8px"> 毒の水だった！体力-3、毒状態</div>`; }
  else { story.innerHTML+=`<div style="color:#aaaaff;margin-top:8px"> 冷たく澄んだ水だった。特に何も感じない。</div>`; }
  updateHUD();
  }, go:'__travel__'},
@@ -26499,7 +26499,7 @@ const NODES = {
     onFail(){
      const dmg=1+Math.floor(Math.random()*4); const target=actor===PC?PC:actor; target.con=Math.max(1,target.con-dmg);
      const an=actor===PC?PC.name:actor.name;
-     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：神の目の仕掛けが弾けた。罰のように痛みが走った。CON -${dmg}</div>`;
+     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：神の目の仕掛けが弾けた。罰のように痛みが走った。体力-${dmg}</div>`;
      updateHUD(); setTimeout(()=>go('TOMB_LOCK_1113_TRY'),600);
     },
    });
@@ -26562,7 +26562,7 @@ const NODES = {
  scene:'dungeon',
  txt:()=>{
   if(PC._tombTrap1215Triggered) return `<span class="gold"></span>　<span style="color:#ff6644">── Trapped ──</span><br><br>罠はすでに作動した扉が開いている。`;
-  return `<span class="gold"></span>　<span style="color:#ff6644">── Trapped ──</span><br><br>扉の前の床がわずかに浮いているように見える。<span class="dim">（DEX Lv2 能力値テスト）</span>`;
+  return `<span class="gold"></span>　<span style="color:#ff6644">── Trapped ──</span><br><br>扉の前の床がわずかに浮いているように見える。<span class="dim">（器用さ Lv2 能力値テスト）</span>`;
  },
  choices:()=>{
   if(PC._tombTrap1215Triggered) return [{label:'⬇ 南へ進む', go:'TOMB_15'},{label:'⬆ 北へ進む', go:'TOMB_12'}];
@@ -26628,7 +26628,7 @@ const NODES = {
     onFail(){
      const dmg=2+Math.floor(Math.random()*4); const target=actor===PC?PC:actor; target.con=Math.max(1,target.con-dmg);
      const an=actor===PC?PC.name:actor.name;
-     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：格子は重すぎた。砂岩の縁で体を傷つけた。CON -${dmg}</div>`;
+     document.getElementById('story').innerHTML+=`<div style="color:#ff6644;margin-top:8px">${an}：格子は重すぎた。砂岩の縁で体を傷つけた。体力-${dmg}</div>`;
      updateHUD(); setTimeout(()=>go('TOMB_PORT_1316_TRY'),600);
     },
    });
@@ -27019,12 +27019,12 @@ const NODES = {
  PC._darkDead = true;
  return `<span class="gold"></span><br><br>
  闇の中で足を踏み外し、石の床に叩きつけられた。動けない……<br><br>
- <span class="red">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg} → 死亡</span>`;
+ <span class="red">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`;
  }
  PC._darkDead = false;
  return `<span class="gold"></span><br><br>
  出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>
- <span class="red">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg}　（残り ${PC.con}）</span><br><br>
+ <span class="red">LK 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}　（残り ${PC.con}）</span><br><br>
  痛みをこらえながら、また出口を探す…`;
  }
  },
@@ -27149,7 +27149,7 @@ const NODES = {
  choices:()=>[
  ...(PC._ruinWestGateOpen
  ? [{label:' 小部屋を調べる', go:'RUIN_E_WEST_ROOM'}]
- : [{label:' 力ずくでこじ開ける（ST Lv1 能力値テスト）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_ruinWestGateOpen', successTxt:()=>`<b>鉄格子をこじ開けた</b><br>全体重をかけて押し続けると、錆びた蝶番が悲鳴を上げ、鉄格子がゆっくり倒れた。`, failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,actor.con-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._westForceDmg=dmg; }, failTxt:()=>`<b>鉄格子は動かない</b><br>力いっぱい押したが、びくともしない。手を痛めた。CON -${PC._westForceDmg||0}`, choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]:[{label:' もう一度こじ開ける（ST Lv1 能力値テスト）',fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinWestGateOpen',successTxt:()=>`<b>鉄格子をこじ開けた</b><br>倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._westForceDmg=dmg;},failTxt:()=>`<b>まだ動かない</b><br>CON -${PC._westForceDmg||0}`,choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 大広間へ',go:'RUIN_E'}]:[{label:' 再挑戦',go:'RUIN_E_WEST_FORCE'},{label:'⬅ 大広間へ',go:'RUIN_E'}]}),},{label:'⬅ 西の大広間へ',go:'RUIN_E'}] })}]
+ : [{label:' 力ずくでこじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_ruinWestGateOpen', successTxt:()=>`<b>鉄格子をこじ開けた</b><br>全体重をかけて押し続けると、錆びた蝶番が悲鳴を上げ、鉄格子がゆっくり倒れた。`, failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,actor.con-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._westForceDmg=dmg; }, failTxt:()=>`<b>鉄格子は動かない</b><br>力いっぱい押したが、びくともしない。手を痛めた。CON -${PC._westForceDmg||0}`, choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinWestGateOpen',successTxt:()=>`<b>鉄格子をこじ開けた</b><br>倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._westForceDmg=dmg;},failTxt:()=>`<b>まだ動かない</b><br>CON -${PC._westForceDmg||0}`,choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 大広間へ',go:'RUIN_E'}]:[{label:' 再挑戦',go:'RUIN_E_WEST_FORCE'},{label:'⬅ 大広間へ',go:'RUIN_E'}]}),},{label:'⬅ 西の大広間へ',go:'RUIN_E'}] })}]
  ),
  {label:'⬅ 西の大広間へ', go:'RUIN_E'},
  ],
@@ -27165,7 +27165,7 @@ const NODES = {
    failTxt:()=>`<span class="gold">鉄格子は動かない</span><br><br>力いっぱい押したが、鉄格子はびくともしない。手を痛めてしまった。CON -${PC._ruinWestDmg||0}`,
    choicesFn:(ok)=> ok
     ? [{label:' 小部屋を調べる', go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ', go:'RUIN_E'}]
-    : [{label:' もう一度こじ開ける（ST Lv1 能力値テスト）', fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinWestGateOpen',successTxt:()=>`<b>鉄格子をこじ開けた</b><br>全体重をかけると、錆びた蝶番が悲鳴を上げ、鉄格子が倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._westForceDmg=dmg;},failTxt:()=>`<b>鉄格子は動かない</b><br>CON -${PC._westForceDmg||0}`,choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]:[{label:' もう一度こじ開ける（ST Lv1 能力値テスト）',go:'RUIN_E_WEST_FORCE'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]})},{label:'⬅ 西の大広間へ', go:'RUIN_E'}],
+    : [{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinWestGateOpen',successTxt:()=>`<b>鉄格子をこじ開けた</b><br>全体重をかけると、錆びた蝶番が悲鳴を上げ、鉄格子が倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._westForceDmg=dmg;},failTxt:()=>`<b>鉄格子は動かない</b><br>CON -${PC._westForceDmg||0}`,choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',go:'RUIN_E_WEST_FORCE'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]})},{label:'⬅ 西の大広間へ', go:'RUIN_E'}],
   }); return '';
  },
  choices:()=>[
@@ -27226,7 +27226,7 @@ const NODES = {
  choices:()=>[
  ...(PC._ruinSouthGateOpen
  ? [{label:'⬇ 石室へ進む', go:'RUIN_F_SOUTH_ROOM'}]
- : [{label:' 力ずくでこじ開ける（ST Lv1 能力値テスト）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_ruinSouthGateOpen', successTxt:()=>`<b>格子をこじ開けた</b><br>格子に肩を当てて体重をかけると、腐食した蝶番が外れ、扉が倒れた。`, failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,actor.con-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._southForceDmg=dmg; }, failTxt:()=>`<b>格子は動かない</b><br>渾身の力で押したが、格子はびくともしない。CON -${PC._southForceDmg||0}`, choicesFn:(ok)=>ok?[{label:'⬇ 石室へ進む',go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]:[{label:' もう一度こじ開ける（ST Lv1 能力値テスト）',go:'RUIN_F_SOUTH_FORCE'},{label:'⬆ 北の石室へ',go:'RUIN_F'}] })}]
+ : [{label:' 力ずくでこじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_ruinSouthGateOpen', successTxt:()=>`<b>格子をこじ開けた</b><br>格子に肩を当てて体重をかけると、腐食した蝶番が外れ、扉が倒れた。`, failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,actor.con-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._southForceDmg=dmg; }, failTxt:()=>`<b>格子は動かない</b><br>渾身の力で押したが、格子はびくともしない。CON -${PC._southForceDmg||0}`, choicesFn:(ok)=>ok?[{label:'⬇ 石室へ進む',go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',go:'RUIN_F_SOUTH_FORCE'},{label:'⬆ 北の石室へ',go:'RUIN_F'}] })}]
  ),
  {label:'⬆ 北の石室へ', go:'RUIN_F'},
  ],
@@ -27242,7 +27242,7 @@ const NODES = {
    failTxt:()=>`<span class="gold">格子は動かない</span><br><br>渾身の力で押したが、格子はびくともしない。壁に手をぶつけてしまった。CON -${PC._ruinSouthDmg||0}`,
    choicesFn:(ok)=> ok
     ? [{label:'⬇ 石室へ進む', go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ', go:'RUIN_F'}]
-    : [{label:' もう一度こじ開ける（ST Lv1 能力値テスト）', fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinSouthGateOpen',successTxt:()=>`<b>格子をこじ開けた</b><br>格子に肩を当てると、腐食した蝶番が外れ、扉が倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._southForceDmg=dmg;},failTxt:()=>`<b>格子は動かない</b><br>CON -${PC._southForceDmg||0}`,choicesFn:(ok)=>ok?[{label:'⬇ 石室へ進む',go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]:[{label:' もう一度こじ開ける（ST Lv1 能力値テスト）',go:'RUIN_F_SOUTH_FORCE'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]})},{label:'⬆ 北の石室へ', go:'RUIN_F'}],
+    : [{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinSouthGateOpen',successTxt:()=>`<b>格子をこじ開けた</b><br>格子に肩を当てると、腐食した蝶番が外れ、扉が倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._southForceDmg=dmg;},failTxt:()=>`<b>格子は動かない</b><br>CON -${PC._southForceDmg||0}`,choicesFn:(ok)=>ok?[{label:'⬇ 石室へ進む',go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',go:'RUIN_F_SOUTH_FORCE'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]})},{label:'⬆ 北の石室へ', go:'RUIN_F'}],
   }); return '';
  },
  choices:()=>[
@@ -27661,8 +27661,7 @@ const NODES = {
  SHOP_ELSIA:{
  scene:'town_elsia',
  txt:()=>` <span style="color:#44dd66">エルマリアの道具屋</span><br><br>
- <span class="dim">蔦の絡まる石造りの小屋。エルフの職人が作った弓や軽装備、古代遺跡から掘り出された武具が並ぶ。</span><br><br>
- <span style="color:#88ff44;font-size:calc(var(--font-sm) - 1px)"> エルフ製弓・古代武器・密林の防具を取り扱っています</span>`,
+ <span class="dim">蔦の絡まる石造りの小屋。武具や冒険の備品が並んでいる。</span>`,
  choices:[
  {label:' 買い物をする', fn:()=>showIngameShop('elsia'), go:'__travel__'},
  {label:'← 戻る', go:'TOWN_ELSIA'},
@@ -27830,7 +27829,7 @@ const NODES = {
   if(PC._shrineN_p2_open){
    ch.push({label:'➡ 東（礼拝の間）へ入る', go:'SHRINE_ROOM1'});
   } else {
-   ch.push({label:' 扉を解錠する（DEX Lv2 能力値テスト）', fn:()=>{
+   ch.push({label:' 扉を解錠する（器用さ Lv2 能力値テスト）', fn:()=>{
     dungeonTrySR({
      attr:'dex', level:2,
      successTxt:'手先を器用に動かすと、複雑な錠前が外れた。扉が開く。',
@@ -27947,7 +27946,7 @@ const NODES = {
       const dmg = 3 + Math.floor(Math.random()*4);
       PC.con = Math.max(0, PC.con - dmg);
       updateHUD();
-      return `床石が崩れ、深い穴に落下した。なんとか這い上がったが体に応えた。<span class="red"> CON-${dmg}</span>`;
+      return `床石が崩れ、深い穴に落下した。なんとか這い上がったが体に応えた。<span class="red"> 体力-${dmg}</span>`;
      },
      choicesFn:()=>[{label:'⬅ 中央の広間へ戻る', go:'SHRINE_ROOM5'}],
     });
@@ -28018,7 +28017,7 @@ const NODES = {
   if(PC._shrineN_room8_open){
    ch.push({label:'⬅ 西（冷えた通路）の扉へ', go:'SHRINE_P9'});
   } else {
-   ch.push({label:' 扉を解錠する（DEX Lv2 能力値テスト）', fn:()=>{
+   ch.push({label:' 扉を解錠する（器用さ Lv2 能力値テスト）', fn:()=>{
     dungeonTrySR({
      attr:'dex', level:2,
      successTxt:'鎖が床に落ちる音が響いた。扉が軋みながら開く。',
@@ -28130,7 +28129,7 @@ const NODES = {
   if(PC._shrineN_secret4){
    ch.push({label:' 西壁の隠し扉を開けて隠し部屋へ', go:'SHRINE_ROOM3'});
   } else {
-   ch.push({label:' 西壁を調べる（LK Lv2 能力値テスト）', fn:()=>{
+   ch.push({label:' 西壁を調べる（運 Lv2 能力値テスト）', fn:()=>{
     dungeonTrySR({
      attr:'lk', level:2,
      successTxt:'石材の隙間に指を入れると、壁の一部がゆっくりと回転した。隠し扉を発見した！',
@@ -28607,10 +28606,10 @@ const NODES = {
    const dmg = 5;
    PC.con = Math.max(0, PC.con - dmg); updateHUD();
    if(PC.con <= 0){ PC._darkDead = true;
-    return `<span class="red">石段で足を踏み外し、深みへ落ちた。動けない……<br>LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg} → 死亡</span>`; }
+    return `<span class="red">石段で足を踏み外し、深みへ落ちた。動けない……<br>LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
    PC._darkDead = false;
    return ` 石壁に頭をぶつけ、よろめいた。まだ出口が見つからない。<br>
-    <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg}（残り${PC.con}）</span>`;
+    <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
   }
  },
  choices:()=>{
@@ -28642,7 +28641,7 @@ const NODES = {
   東西65mの長い通路。西端は行き止まりで、北壁に落とし格子がある。
   通路の真ん中あたりの南壁に扉がある。東端は北へ折れている。`,
  choices:[
-  {label:'↙ 西端・落とし格子（ST Lv3 能力値テスト）', fn:()=>{
+  {label:'↙ 西端・落とし格子（強さ Lv3 能力値テスト）', fn:()=>{
    setupSavingRoll({attr:'st', level:3,
     passTxt:'全力で持ち上げると、錆びた格子がゆっくり上がった！',
     failTxt:'格子はびくともしない。腕が痺れた。',
@@ -28861,7 +28860,7 @@ const NODES = {
    {label:'← 西壁・南寄りの扉', fn:()=>cryptMove('CRYPT_P5')},
    {label:'← 西壁・中央のアーチ', fn:()=>cryptMove('CRYPT_P6')},
   ];
-  ch.push({label:'↓ 南壁を調べる（IQ Lv2 能力値テスト）', fn:()=>{
+  ch.push({label:'↓ 南壁を調べる（知力 Lv2 能力値テスト）', fn:()=>{
    setupSavingRoll({attr:'iq', level:2,
     passTxt:'石材の一部が他と継ぎ目が違う。押すと壁が静かに動いた——隠し扉だ！',
     failTxt:'壁を叩いてみるが異変は感じられない。その時、背後から気配が——',
@@ -28979,10 +28978,10 @@ const NODES = {
   const dmg = 6;
   PC.con = Math.max(0, PC.con - dmg); updateHUD();
   if(PC.con <= 0){ PC._darkDead = true;
-   return `<span class="red">深い穴に落ちた。動けない……<br>LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg} → 死亡</span>`; }
+   return `<span class="red">深い穴に落ちた。動けない……<br>LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
   PC._darkDead = false;
   return `石壁に激突し、よろめいた。まだ出口が見つからない。<br>
-   <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg}（残り${PC.con}）</span>`;
+   <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
  },
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
@@ -29515,10 +29514,10 @@ const NODES = {
   PC._darkEscaped=false;
   const dmg=7; PC.con=Math.max(0,PC.con-dmg); updateHUD();
   if(PC.con<=0){ PC._darkDead=true;
-   return `<span class="red">深みに落ちた。もう動けない……<br>LK SR 失敗　CON -${dmg} → 死亡</span>`; }
+   return `<span class="red">深みに落ちた。もう動けない……<br>LK SR 失敗　体力-${dmg} → 死亡</span>`; }
   PC._darkDead=false;
   return `濡れた石に足を滑らせ壁に叩き付けられた。まだ出口が見つからない。<br>
-   <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON -${dmg}（残り${PC.con}）</span>`;
+   <span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
  },
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）',go:'DEAD'}];
@@ -29558,7 +29557,7 @@ const NODES = {
  choices:()=>{
   const ch=[];
   if(!PC._crypt3_8cleared){
-   ch.push({label:' 祭壇を調べる（IQ Lv2 能力値テスト）', fn:()=>dungeonTrySR({
+   ch.push({label:' 祭壇を調べる（知力 Lv2 能力値テスト）', fn:()=>dungeonTrySR({
     attr:'iq', level:2, flagKey:'_crypt3_8cleared',
     successFn:()=>{ const gp=50+Math.floor(Math.random()*51); gainGPAll(gp); gainAPAll(40); updateHUD(); PC._crypt3_8gp=gp; },
     successTxt:()=>`古代文字を解読し、祭壇の隠し格納庫を発見。聖水と金貨が眠っていた。+${PC._crypt3_8gp||0}GP　経験値+40`,
@@ -29673,7 +29672,7 @@ const NODES = {
   重い格子が右下の通路を塞いでいる。${PC._crypt3_port13?'格子は上がっている。':'格子の向こうに広い石室が見える。'}`,
  choices:()=>[
   ...(!PC._crypt3_port13
-   ?[{label:' 格子を持ち上げる（ST Lv3 能力値テスト）', fn:()=>dungeonTrySR({
+   ?[{label:' 格子を持ち上げる（強さ Lv3 能力値テスト）', fn:()=>dungeonTrySR({
       attr:'st', level:3, flagKey:'_crypt3_port13',
       successTxt:()=>`渾身の力で格子を引き上げた！部屋3への道が開いた。`,
       failTxt:()=>`格子は重すぎて持ち上がらない。`,
@@ -29721,7 +29720,7 @@ const NODES = {
   } else if(PC._crypt3_lock_m){
    ch.push({label:' 東（r通路→部屋2）へ進む', go:'CRYPT3_LOCK_M'});
   } else {
-   ch.push({label:' m通路の錠前を壊す（DEX Lv3 能力値テスト）', fn:()=>dungeonTrySR({
+   ch.push({label:' m通路の錠前を壊す（器用さ Lv3 能力値テスト）', fn:()=>dungeonTrySR({
     attr:'dex', level:3, flagKey:'_crypt3_lock_m',
     successTxt:()=>`三重の錠前を解除した！r通路を通って部屋2へ続く道が開いた。`,
     failTxt:()=>`精巧な錠前には歯が立たない。鍵か、より高い技術が必要だ。`,
@@ -29777,7 +29776,7 @@ const NODES = {
   ch.push({label:'⬆ 北へ進む', go:'CRYPT3_1'});
   ch.push({label:'⬇ 南（u通路→部屋7）へ進む', go:'CRYPT3_7'});
   if(PC._crypt3_3cleared){
-   ch.push({label:' 牢の中を探索（LK Lv2 能力値テスト）', fn:()=>dungeonTrySR({
+   ch.push({label:' 牢の中を探索（運 Lv2 能力値テスト）', fn:()=>dungeonTrySR({
     attr:'lk', level:2,
     successFn:()=>{ if(!PC._crypt3_3searched){ const gp=40+Math.floor(Math.random()*41); gainGPAll(gp); updateHUD(); PC._crypt3_3gp=gp; PC._crypt3_3searched=true; } },
     successTxt:()=>PC._crypt3_3gp?`牢の床石の下に隠された財布を発見。+${PC._crypt3_3gp}GP`:`すでに探索済みだ。`,
@@ -29828,7 +29827,7 @@ const NODES = {
   } else if(PC._crypt3_lock24){
    ch.push({label:'⬇ 南（部屋4・最奥）へ進む', go:'CRYPT3_4'});
   } else {
-   ch.push({label:' Locked Doorを壊す（ST Lv3 能力値テスト）', fn:()=>dungeonTrySR({
+   ch.push({label:' Locked Doorを壊す（強さ Lv3 能力値テスト）', fn:()=>dungeonTrySR({
     attr:'st', level:3, flagKey:'_crypt3_lock24',
     successTxt:()=>`渾身の力で鍵を叩き壊した！最奥への扉が開いた。`,
     failTxt:()=>`扉はびくともしない。鍵か、より大きな力が必要だ。`,
@@ -29928,7 +29927,7 @@ const NODES = {
      }
     },'CRYPT3_4');
    }, go:'__travel__'},
-   {label:' 逃げる（SPD Lv3 能力値テスト）', fn:()=>{
+   {label:' 逃げる（素早さ Lv3 能力値テスト）', fn:()=>{
     const sr=savingRoll('spd',3);
     if(!sr.success){ const d=15; PC.con=Math.max(0,PC.con-d); updateHUD(); showSaveToast(`逃げ損ねた！CON-${d}`); }
    }, go:'CRYPT3_2'},
@@ -29972,9 +29971,9 @@ const NODES = {
   const sr=savingRoll('lk',3); gainAPAll(sr.ap); updateHUD();
   if(sr.success){ PC._darkEscaped=true; return ` 石壁を伝い上への気流を頼りに石段口にたどり着いた！<br><span class="grn">LK SR 成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`; }
   PC._darkEscaped=false; const dmg=6; PC.con=Math.max(0,PC.con-dmg); updateHUD();
-  if(PC.con<=0){ PC._darkDead=true; return `<span class="red">段差に落ちた。動けない……<br>LK SR 失敗　CON-${dmg} → 死亡</span>`; }
+  if(PC.con<=0){ PC._darkDead=true; return `<span class="red">段差に落ちた。動けない……<br>LK SR 失敗　体力-${dmg} → 死亡</span>`; }
   PC._darkDead=false;
-  return `壁に激突しよろめいた。<br><span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　CON-${dmg}（残り${PC.con}）</span>`;
+  return `壁に激突しよろめいた。<br><span class="red">LK SR 失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
  },
  choices:()=>{
   if(PC._darkDead) return [{label:'…（力尽きた）',go:'DEAD'}];
@@ -30004,7 +30003,7 @@ const NODES = {
   重い石製の格子が通路を塞いでいる。${PC._shr2_port15?'格子は上がっている。':'格子の向こうに広い部屋が見える。'}`,
  choices:()=>[
   ...(!PC._shr2_port15
-   ?[{label:' 格子を持ち上げる（ST Lv2 能力値テスト）', fn:()=>dungeonTrySR({
+   ?[{label:' 格子を持ち上げる（強さ Lv2 能力値テスト）', fn:()=>dungeonTrySR({
       attr:'st',level:2,flagKey:'_shr2_port15',
       successTxt:()=>`渾身の力で格子を引き上げた！`,
       failTxt:()=>`格子は重すぎて動かない。`,
@@ -30035,7 +30034,7 @@ const NODES = {
     },'SHR2_15');
    },go:'__travel__'});
   } else {
-   ch.push({label:' 魔法陣を調べる（IQ Lv2 能力値テスト）', fn:()=>dungeonTrySR({
+   ch.push({label:' 魔法陣を調べる（知力 Lv2 能力値テスト）', fn:()=>dungeonTrySR({
     attr:'iq',level:2,
     successFn:()=>{ if(!PC._shr2_15s){ const gp=40+Math.floor(Math.random()*41); gainGPAll(gp); updateHUD(); PC._shr2_15gp=gp; PC._shr2_15s=true; } },
     successTxt:()=>PC._shr2_15gp?`魔法陣の中心に封印された宝珠を発見！+${PC._shr2_15gp}GP`:`調べ済みだ。`,
@@ -30086,7 +30085,7 @@ const NODES = {
  choices:()=>{
   const ch=[];
   if(!PC._shr2_16cleared){
-   ch.push({label:' 石板を調べる（IQ Lv2 能力値テスト）', fn:()=>dungeonTrySR({
+   ch.push({label:' 石板を調べる（知力 Lv2 能力値テスト）', fn:()=>dungeonTrySR({
     attr:'iq',level:2,flagKey:'_shr2_16cleared',
     successFn:()=>{ const gp=50+Math.floor(Math.random()*51); gainGPAll(gp); gainAPAll(45); updateHUD(); PC._shr2_16gp=gp; },
     successTxt:()=>`星の配列が鍵だった！石板の下の格納庫から古の秘宝が！+${PC._shr2_16gp||0}GP　経験値+45`,
@@ -30295,7 +30294,7 @@ const NODES = {
   <span class="dim">━ 出口: 東（w/x通路→部屋5） ━</span>`,
  choices:()=>{
   const ch=[];
-  ch.push({label:' 巻物を調べる（IQ Lv1 能力値テスト）', fn:()=>dungeonTrySR({
+  ch.push({label:' 巻物を調べる（知力 Lv1 能力値テスト）', fn:()=>dungeonTrySR({
    attr:'iq',level:1,
    successFn:()=>{ if(!PC._shr2_14s){ const gp=60+Math.floor(Math.random()*61); gainGPAll(gp); updateHUD(); PC._shr2_14gp=gp; PC._shr2_14s=true; } },
    successTxt:()=>PC._shr2_14gp?`古代の魔法公式が書かれた巻物！換金価値が高い。+${PC._shr2_14gp}GP`:`調べ済みだ。`,
@@ -30348,7 +30347,7 @@ const NODES = {
  choices:()=>{
   const ch=[];
   if(!PC._shr2_13cleared){
-   ch.push({label:' 宝物庫を探索する（DEX Lv2 能力値テスト）', fn:()=>dungeonTrySR({
+   ch.push({label:' 宝物庫を探索する（器用さ Lv2 能力値テスト）', fn:()=>dungeonTrySR({
     attr:'dex',level:2,flagKey:'_shr2_13cleared',
     successFn:()=>{ const gp=90+Math.floor(Math.random()*91); gainGPAll(gp); gainAPAll(60); updateHUD(); PC._shr2_13gp=gp; },
     successTxt:()=>`罠を見抜き安全に探索！隠された宝箱を発見。+${PC._shr2_13gp||0}GP　経験値+60`,
@@ -30419,7 +30418,7 @@ const NODES = {
   <span class="dim">━ 出口: 北（→部屋1）/ 南西（z通路→部屋14）/ 東（→部屋9） ━</span>`,
  choices:()=>{
   const ch=[];
-  ch.push({label:' 泉の水を飲む（LK Lv1 能力値テスト）', fn:()=>dungeonTrySR({
+  ch.push({label:' 泉の水を飲む（運 Lv1 能力値テスト）', fn:()=>dungeonTrySR({
    attr:'lk',level:1,
    successFn:()=>{ if(!PC._shr2_8drank){ PC.con=Math.min(PC.maxCon,PC.con+5); PC.st=Math.min(PC.maxSt,PC.st+3); updateHUD(); PC._shr2_8drank=true; } },
    successTxt:()=>PC._shr2_8drank?`清涼な水が力を与えた！CON+5・ST+3`:`もう飲んだ。`,
@@ -30496,7 +30495,7 @@ const NODES = {
  choices:()=>{
   if(PC._shr2_11cleared){
    return [
-    {label:' 玉座を調べる（LK Lv2 能力値テスト）', fn:()=>dungeonTrySR({
+    {label:' 玉座を調べる（運 Lv2 能力値テスト）', fn:()=>dungeonTrySR({
      attr:'lk',level:2,
      successFn:()=>{ if(!PC._shr2_11s){ const gp=150+Math.floor(Math.random()*151); gainGPAll(gp); gainAPAll(90); updateHUD(); PC._shr2_11gp=gp; PC._shr2_11s=true; } },
      successTxt:()=>PC._shr2_11gp?`玉座の下に隠し格納庫！古代の財宝が眠っていた。+${PC._shr2_11gp}GP　経験値+90`:`調べ済みだ。`,
@@ -30519,7 +30518,7 @@ const NODES = {
      }
     },'SHR2_11');
    },go:'__travel__'},
-   {label:' 逃げる（SPD Lv3 能力値テスト）', fn:()=>{
+   {label:' 逃げる（素早さ Lv3 能力値テスト）', fn:()=>{
     const sr=savingRoll('spd',3);
     if(!sr.success){ const d=12; PC.con=Math.max(0,PC.con-d); updateHUD(); showSaveToast(`逃げ損ねた！CON-${d}`); }
    },go:'SHR2_9'},
@@ -30804,12 +30803,12 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
       const dmg = rollNd6(6).total;
       PC.con = Math.max(0, PC.con - dmg); updateHUD();
       if(PC.con <= 0){
-       s.innerHTML = `<span class="red"> 北へ踏み出した瞬間、壁から巨大な斧が飛び出し、直撃した。CON -${dmg} → 死亡</span>`;
+       s.innerHTML = `<span class="red"> 北へ踏み出した瞬間、壁から巨大な斧が飛び出し、直撃した。体力-${dmg} → 死亡</span>`;
        renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
       } else {
        s.innerHTML = `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
         北へ踏み込んだ瞬間、壁から巨大な斧が飛び出した。<br>
-        <span class="red"> かわしきれず、脇腹に直撃を受けた。CON -${dmg}（残り${PC.con}）</span>`;
+        <span class="red"> かわしきれず、脇腹に直撃を受けた。体力-${dmg}（残り${PC.con}）</span>`;
        renderChoices([{label:'↑ 北へ', fn:()=>shm2Move('SHM2_ROOM1')}]);
       }
       scrollToTop();
@@ -30962,7 +30961,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  choices:()=>{
   const ch = [];
   if(!PC._shm2_winch_done){
-   ch.push({label:` 巻き上げ機を回す（ST Lv2 能力値テスト）`, fn:()=>{
+   ch.push({label:` 巻き上げ機を回す（強さ Lv2 能力値テスト）`, fn:()=>{
     const s = document.getElementById('story');
     s.innerHTML = `<span class="gold">ザールカノンの墓所 B2F</span><br><br>
      巻き上げ機に全力をかける——`;
@@ -31261,7 +31260,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
   const ch=[];
   ch.push({label:'↓ 南のアーチ', fn:()=>alMove('AL_PASSAGE2')});
   if(!PC._alDng_secret_found){
-   ch.push({label:' 西の壁を調べる（IQ Lv1 能力値テスト）', fn:()=>{
+   ch.push({label:' 西の壁を調べる（知力 Lv1 能力値テスト）', fn:()=>{
     const s=document.getElementById('story');
     s.innerHTML=`<span class="gold">アル・ラシード東方の地下迷宮</span><br><br>西の壁を押し確かめていく——`;
     document.getElementById('dice-area').classList.remove('hidden');
@@ -32145,7 +32144,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
   北の壁をよく調べると、石の継ぎ目が他と微妙に違う箇所がある。`,
  choices:[
   {label:'↙ 南端・西へ', fn:()=>fpB2Move('FP_B2_P9')},
-  {label:' 北の壁を調べる（IQ Lv2 能力値テスト）', fn:()=>{
+  {label:' 北の壁を調べる（知力 Lv2 能力値テスト）', fn:()=>{
    setupSavingRoll({attr:'iq', level:2,
     passTxt:'石の継ぎ目に指をかけると、壁がゆっくり動いた。部屋への隠し扉だ！',
     failTxt:'壁を叩いてみるが、どこが違うのか分からない。',
@@ -32210,7 +32209,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
   北の壁の石材が一部だけ色が違う。触れると他の壁より滑らかだ。`,
  choices:[
   {label:'↙ 南端・西へ', fn:()=>fpB2Move('FP_B2_P13')},
-  {label:' 北の壁を調べる（IQ Lv2 能力値テスト）', fn:()=>{
+  {label:' 北の壁を調べる（知力 Lv2 能力値テスト）', fn:()=>{
    setupSavingRoll({attr:'iq', level:2,
     passTxt:'石の板が内側に倒れるように動いた。隠し扉だ——部屋への入口！',
     failTxt:'壁を押したり引いたりするが、動く気配がない。',
@@ -33098,7 +33097,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  choices:()=>{
   const ch=[];
   if((PC._ruin_winch_count||0)<3){
-   ch.push({label:' 巻き上げ機を操作する（ST Lv3 能力値テスト）', fn:()=>{
+   ch.push({label:' 巻き上げ機を操作する（強さ Lv3 能力値テスト）', fn:()=>{
     setupSavingRoll({attr:'st', level:3,
      passTxt:`渾身の力で巻き上げた！（${(PC._ruin_winch_count||0)+1}/3回成功）`,
      failTxt:'機械は動かなかった。腕が痺れた。',
