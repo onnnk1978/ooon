@@ -249,6 +249,9 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  font-family:system-ui,sans-serif;font-size:calc(var(--font-base) + 1px);
  width:70px;padding:7px;text-align:center;border-radius:3px;
 }
+.cg-row input[type=number][readonly]{
+ background:#0a0a1a;color:#667788;border-color:#223344;cursor:default;
+}
 .cg-row select{
  background:#000033;border:2px solid var(--border);color:var(--white2);
  font-family:system-ui,sans-serif;font-size:var(--font-base);
@@ -620,13 +623,21 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 
  <div class="cg-section">
  <h3> 能力値</h3>
- <div class="cg-row"><label>強さ</label><input type="number" id="a-st" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>知力</label><input type="number" id="a-iq" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>運　</label><input type="number" id="a-lk" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>体力</label><input type="number" id="a-con" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>器用さ</label><input type="number" id="a-dex" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>魅力</label><input type="number" id="a-chr" value="10" min="1" max="99"></div>
- <div class="cg-row"><label>素早さ</label><input type="number" id="a-spd" value="10" min="1" max="99"></div>
+ <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:8px">
+  <span style="font-size:calc(var(--font-sm) - 1px);color:var(--dim)" id="stat-edit-label">手動入力：オフ</span>
+  <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+   <input type="checkbox" id="stat-edit-toggle" onchange="toggleStatEdit()" style="opacity:0;width:0;height:0;position:absolute">
+   <span id="stat-edit-track" style="position:absolute;inset:0;border-radius:12px;background:#2a1a0a;border:1px solid #554422;transition:background 0.2s"></span>
+   <span id="stat-edit-thumb" style="position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#665533;transition:left 0.2s,background 0.2s"></span>
+  </label>
+ </div>
+ <div class="cg-row"><label>強さ</label><input type="number" id="a-st" value="10" min="1" max="99" readonly></div>
+ <div class="cg-row"><label>知力</label><input type="number" id="a-iq" value="10" min="1" max="99" readonly></div>
+ <div class="cg-row"><label>運　</label><input type="number" id="a-lk" value="10" min="1" max="99" readonly></div>
+ <div class="cg-row"><label>体力</label><input type="number" id="a-con" value="10" min="1" max="99" readonly></div>
+ <div class="cg-row"><label>器用さ</label><input type="number" id="a-dex" value="10" min="1" max="99" readonly></div>
+ <div class="cg-row"><label>魅力</label><input type="number" id="a-chr" value="10" min="1" max="99" readonly></div>
+ <div class="cg-row"><label>素早さ</label><input type="number" id="a-spd" value="10" min="1" max="99" readonly></div>
  <div class="stat-preview" id="adds-preview">
  <div class="sp-cell">戦闘力修正<span id="prev-adds">0</span></div>
  <div class="sp-cell">積載量<span id="prev-wt">1000</span></div>
@@ -7676,13 +7687,13 @@ function showLevelUpPanel(lv, pc){
 
  // 選択肢定義（対象pcに適用）
  const opts = [
-  { label:`A. ST + ${lv}`,                   fn:()=>{ pc.st+=lv; pc.maxSt=(pc.maxSt||pc.st)+lv; } },
-  { label:`B. IQ + ${half}`,                 fn:()=>{ pc.iq+=half; } },
-  { label:`C. LK + ${lv*2}`,                 fn:()=>{ pc.lk+=lv*2; } },
-  { label:`D. CON + ${lv}`,                  fn:()=>{ pc.con+=lv; pc.maxCon=(pc.maxCon||pc.con)+lv; } },
-  { label:`E. DEX + ${half}`,                fn:()=>{ pc.dex+=half; } },
-  { label:`F. CHR + ${half}`,                fn:()=>{ pc.chr+=half; } },
-  { label:`G. ST + ${half} / CON + ${half}`, fn:()=>{ pc.st+=half; pc.maxSt=(pc.maxSt||pc.st)+half; pc.con+=half; pc.maxCon=(pc.maxCon||pc.con)+half; } },
+  { label:`A. 強さ + ${lv}`,                       fn:()=>{ pc.st+=lv; pc.maxSt=(pc.maxSt||pc.st)+lv; } },
+  { label:`B. 知力 + ${half}`,                     fn:()=>{ pc.iq+=half; } },
+  { label:`C. 運 + ${lv*2}`,                       fn:()=>{ pc.lk+=lv*2; } },
+  { label:`D. 体力 + ${lv}`,                       fn:()=>{ pc.con+=lv; pc.maxCon=(pc.maxCon||pc.con)+lv; } },
+  { label:`E. 器用さ + ${half}`,                   fn:()=>{ pc.dex+=half; } },
+  { label:`F. 魅力 + ${half}`,                     fn:()=>{ pc.chr+=half; } },
+  { label:`G. 強さ + ${half} / 体力 + ${half}`,   fn:()=>{ pc.st+=half; pc.maxSt=(pc.maxSt||pc.st)+half; pc.con+=half; pc.maxCon=(pc.maxCon||pc.con)+half; } },
  ];
 
  const el = document.getElementById('lu-options');
@@ -18460,6 +18471,21 @@ function selectType(t){
  document.getElementById('card-rogue')?.classList.toggle('selected', t==='rogue');
 }
 
+function toggleStatEdit(){
+ const on = document.getElementById('stat-edit-toggle').checked;
+ const ids = ['a-st','a-iq','a-lk','a-con','a-dex','a-chr','a-spd'];
+ ids.forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) on ? el.removeAttribute('readonly') : el.setAttribute('readonly','');
+ });
+ document.getElementById('stat-edit-label').textContent = on ? '手動入力：オン' : '手動入力：オフ';
+ document.getElementById('stat-edit-label').style.color = on ? '#ccaa44' : 'var(--dim)';
+ document.getElementById('stat-edit-track').style.background = on ? '#4a3200' : '#2a1a0a';
+ document.getElementById('stat-edit-track').style.borderColor = on ? '#ccaa44' : '#554422';
+ document.getElementById('stat-edit-thumb').style.left = on ? '22px' : '2px';
+ document.getElementById('stat-edit-thumb').style.background = on ? '#ffcc44' : '#665533';
+}
+
 function rollStats(){
  ['a-st','a-iq','a-lk','a-con','a-dex','a-chr','a-spd'].forEach(id=>{
  document.getElementById(id).value = Nd6(3);
@@ -18785,6 +18811,7 @@ function unequipRanged(){
  if(!PC.equippedRanged) return;
  const w = PC.equippedRanged;
  PC.equippedRanged = null;
+ PC.invWeapons.push(w);
  updateHUD(); renderStatusPanel(); showSaveToast(`${w.name}を外した`);
 }
 function equipWeapon(idx){
