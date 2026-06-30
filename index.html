@@ -837,6 +837,8 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:6px">── 種族特性 ──</div>
  <div id="sp-race-info" style="margin-bottom:10px"></div>
  <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-bottom:6px">── ライフイベント ──</div>
+ <button onclick="toggleLifeNarrative()" id="life-narrative-btn" style="width:100%;margin-bottom:8px;padding:8px;background:#0a0800;border:1px solid #554422;border-radius:3px;color:#c4a870;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);cursor:pointer"> 人生を振り返る</button>
+ <div id="sp-life-narrative" style="display:none;margin-bottom:12px;padding:10px;background:#07060e;border:1px solid #332244;border-radius:4px;font-size:calc(var(--font-sm) - 1px);color:#b8a8d0;line-height:2"></div>
  <div id="sp-life-events"></div>
  </div>
 
@@ -15800,9 +15802,12 @@ function searchBountyTarget(townId){
      const s = document.getElementById('story');
      s.innerHTML = ` <span class="gold">賞金首討伐完了</span><br><br>`
       +`<span class="grn"> ${npc.name}を討伐した！</span>`;
+     const _bPartyCount = 1 + (PC.party||[]).filter(n=>n.con>0).length;
+     const _bShare = Math.floor(q.reward / _bPartyCount);
+     const _bShareTxt = _bPartyCount > 1 ? `　<span style="color:var(--dim);font-size:calc(var(--font-sm) - 1px)">${_bPartyCount}人で山分け：${_bShare}GP/人</span>` : '';
      s.innerHTML += `<div style="margin-top:12px;padding:10px;background:#001800;border:1px solid var(--rust);border-radius:4px">
       <div style="color:#6aaa60;font-size:var(--font-base)"> 賞金首討伐完了！</div>
-      <div style="color:var(--reward);font-size:calc(var(--font-sm) + 1px);margin-top:4px">+${q.reward}GP　${(TOWNS[q.fromTownId]||{name:''}).name}の信頼度+5（→${trustNow}）</div>
+      <div style="color:var(--reward);font-size:calc(var(--font-sm) + 1px);margin-top:4px">+${q.reward}GP${_bShareTxt}　${(TOWNS[q.fromTownId]||{name:''}).name}の信頼度+5（→${trustNow}）</div>
      </div>`;
      addLifeEvent('',`賞金首${npc.name}を討伐。報酬${q.reward}GP。`);
      showSaveToast(` 賞金首討伐完了！+${q.reward}GP　信頼度+5`);
@@ -16094,9 +16099,12 @@ function huntQuestComplete(q){
  updateHUD();
  const story = document.getElementById('story');
  const trustNow = getTrust(q.fromTownId);
+ const _huntPartyCount = 1 + (PC.party||[]).filter(n=>n.con>0).length;
+ const _huntShare = Math.floor(q.reward / _huntPartyCount);
+ const _huntShareTxt = _huntPartyCount > 1 ? `　<span style="color:var(--dim);font-size:calc(var(--font-sm) - 1px)">${_huntPartyCount}人で山分け：${_huntShare}GP/人</span>` : '';
  story.innerHTML += `<div style="margin-top:12px;padding:10px;background:#001800;border:1px solid var(--rust);border-radius:4px">
   <div style="color:#6aaa60;font-size:var(--font-base)"> 討伐完了！</div>
-  <div style="color:var(--reward);font-size:calc(var(--font-sm) + 1px);margin-top:4px">+${q.reward}GP　${q.fromTownId ? (TOWNS[q.fromTownId]||{}).name||'' : ''}の信頼度 +2（→${trustNow}）</div>
+  <div style="color:var(--reward);font-size:calc(var(--font-sm) + 1px);margin-top:4px">+${q.reward}GP${_huntShareTxt}　${q.fromTownId ? (TOWNS[q.fromTownId]||{}).name||'' : ''}の信頼度 +2（→${trustNow}）</div>
  </div>`;
  const townNode = Object.entries({
   khazan:'TOWN_KHAZAN', port_argon:'TOWN_PORT_ARGON', stonehiem:'TOWN_STONEHIEM',
@@ -16590,7 +16598,7 @@ function renderQuestBoard(townId, board){
    html += `<div style="background:#0d0800;border:1px solid var(--mud);border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
    <span style="color:var(--torch)"> 討伐依頼</span>　<span class="yel">${q.clientName}</span>から<br>
    ${q.caveName}に棲み着いた<span style="color:var(--hit)"><b>${q.monsterName} ×${totalCount}</b></span>を討伐してほしい<br>
-   <span style="color:var(--mid);font-size:calc(var(--font-sm) - 1px)">総MR：${q.totalMR}</span>　報酬: <span class="gold">${q.reward}GP</span> + <span style="color:var(--success)">信頼度+2</span>　期限: ${q.deadlineDays}日以内
+   <span style="color:var(--mid);font-size:calc(var(--font-sm) - 1px)">総CR：${q.totalMR}</span>　報酬: <span class="gold">${q.reward}GP</span> + <span style="color:var(--success)">信頼度+2</span>　期限: ${q.deadlineDays}日以内
    ${btn}</div>`;
   });
  }
@@ -20613,6 +20621,258 @@ function renderStatusPanel(){
  <div style="font-size:calc(var(--font-sm) - 1px);color:var(--dim);margin-top:6px">衰え開始: ${params.declineStart}歳〜（5年毎に全能力値-1）</div>`;
 }
 
+function toggleLifeNarrative(){
+ const panel = document.getElementById('sp-life-narrative');
+ const btn = document.getElementById('life-narrative-btn');
+ if(panel.style.display !== 'none'){
+  panel.style.display = 'none';
+  btn.innerHTML = ' 人生を振り返る';
+  return;
+ }
+ panel.innerHTML = generateLifeNarrative();
+ panel.style.display = '';
+ btn.innerHTML = '▲ 閉じる';
+}
+
+function generateLifeNarrative(){
+ const DAYS_PER_YEAR = 365;
+ const events = (PC.lifeEvents||[]).slice().reverse(); // 古い順
+ if(!events.length) return '<span style="color:var(--dim)">まだ語るべき物語はない。</span>';
+
+ const name = PC.name || '冒険者';
+ const raceMap = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'};
+ const typeMap = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'};
+ const race = raceMap[PC.race]||PC.race;
+ const type = typeMap[PC.type]||PC.type;
+
+ // イベントカテゴリ分類
+ // personal=個別記述, aggregate=集約カウント
+ function categorize(text){
+  if(/結婚/.test(text))                          return {cat:'marriage',   mode:'personal'};
+  if(/生まれた/.test(text))                       return {cat:'birth',      mode:'personal'};
+  if(/パーティ.*加わ|パーティに加わ/.test(text))  return {cat:'join',       mode:'personal'};
+  if(/パーティを離れ|去った/.test(text))          return {cat:'leave',      mode:'personal'};
+  if(/亡くな|老衰/.test(text))                    return {cat:'death',      mode:'personal'};
+  if(/埋葬/.test(text))                           return {cat:'burial',     mode:'personal'};
+  if(/英雄|祝福|認められ/.test(text))             return {cat:'hero',       mode:'personal'};
+  if(/大飢饉/.test(text))                         return {cat:'famine',     mode:'personal'};
+  if(/壊疽|疫病|感染/.test(text))                 return {cat:'injury',     mode:'personal'};
+  if(/逮捕|勾留|労働|罰金/.test(text))            return {cat:'crime',      mode:'personal'};
+  if(/賞金首/.test(text))                         return {cat:'bounty',     mode:'aggregate'};
+  if(/討伐完了|討伐.*依頼|討伐した/.test(text))   return {cat:'hunt',       mode:'aggregate'};
+  if(/依頼.*達成|英雄依頼/.test(text))            return {cat:'quest',      mode:'aggregate'};
+  if(/購入|拡張|拠点/.test(text))                 return {cat:'property',   mode:'aggregate'};
+  if(/離れ|去っていった/.test(text))              return {cat:'farewell',   mode:'personal'};
+  return {cat:'other', mode:'personal'};
+ }
+
+ // 集約カウントから文章生成
+ function aggregateToText(counts){
+  const parts = [];
+  if(counts.bounty > 0)   parts.push(counts.bounty+'人の賞金首を討伐した');
+  if(counts.hunt > 0)     parts.push(counts.hunt+'件の討伐依頼を達成した');
+  if(counts.quest > 0)    parts.push(counts.quest+'件の英雄依頼を果たした');
+  if(counts.property > 0) parts.push(counts.property+'件の拠点整備を行った');
+  if(!parts.length) return '';
+  return parts.join('。')+'。';
+ }
+
+ // 個別イベントのテンプレート（各3種類）
+ const T = {
+  marriage: [
+   '{t}。運命の出会いが、その後の人生を変えた。',
+   '{t}——新たな絆が結ばれた。',
+   'やがて{t}。共に歩む者を得た。',
+  ],
+  birth: [
+   '{t}。新しい命が、その人生に彩りを添えた。',
+   '{t}——喜びの知らせだった。',
+   '{t}。この世界に、また一つの物語が始まった。',
+  ],
+  join: [
+   '新たな旅の仲間を得た。{t}',
+   '{t}——心強い同行者だった。',
+   '{t}。以来、その背中を隣で見てきた。',
+  ],
+  leave: [
+   '{t}。別れは常に突然にやってくる。',
+   '{t}——そうして道は分かれた。',
+   '{t}。その後の消息は、風のうわさでしか聞かなかった。',
+  ],
+  death: [
+   '{t}。悲しみの中、前へと進むほかなかった。',
+   '{t}——その喪失は深い傷を残した。',
+   '{t}。その死を、長く心に抱えて歩き続けた。',
+  ],
+  burial: [
+   '{t}。',
+   '{t}——せめてもの弔いだった。',
+   '{t}。土に還るその日まで、忘れることはないだろう。',
+  ],
+  hero: [
+   '{t}——長い旅の果てに掴んだ栄誉だった。',
+   '{t}。この功績は各地で語られることになる。',
+   '{t}——冒険者として一つの頂に辿り着いた。',
+   '{t}。その名は酒場でも噂されるようになった。',
+   '{t}。人々はその勇気を称えた。',
+  ],
+  famine: [
+   '大地が荒れた年があった。{t}',
+   '{t}——過酷な時代だった。',
+   '{t}。飢えと渇きの中で、それでも前へ歩んだ。',
+  ],
+  injury: [
+   'だが、{t}。それでも歩みを止めなかった。',
+   '苦境に立たされた。{t}',
+   '{t}——傷を抱えながら、旅は続いた。',
+  ],
+  crime: [
+   'しかし、{t}。試練の日々が続いた。',
+   '苦難の時が訪れた。{t}',
+   '{t}。その代償は、決して小さくなかった。',
+  ],
+  farewell: [
+   '{t}。',
+   '{t}——そうして道は分かれた。',
+   '{t}。去りゆく背中を、しばらく見送った。',
+  ],
+  other: [
+   '{t}',
+   'ある時、{t}',
+   'ある時、{t}',
+  ],
+ };
+ function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+ // 連続するotherの「ある時」に「また」「そして」を付加
+ function buildPersonalSentences(evList){
+  const sentences = [];
+  let consecutiveAru = 0;
+  evList.forEach(ev=>{
+   const tmpl = T[ev.cat];
+   if(!tmpl){ sentences.push({text: ev.text+'。', isAru: false}); return; }
+   const chosen = pick(tmpl).replace('{t}', ev.text);
+   const isAru = chosen.startsWith('ある時、');
+   sentences.push({text: chosen, isAru});
+  });
+  // 連続する「ある時」に接頭語を付与
+  const ruigoArr = ['またある時、', 'やがて、', 'その後、'];
+  let ruigoIdx = 0;
+  const result = [];
+  let aruRun = 0;
+  sentences.forEach((s)=>{
+   if(s.isAru){
+    aruRun++;
+    if(aruRun === 2){
+     result.push(ruigoArr[ruigoIdx % ruigoArr.length] + s.text.replace(/^ある時、/, ''));
+     ruigoIdx++;
+    } else if(aruRun >= 3){
+     result.push('そして' + s.text);
+    } else {
+     result.push(s.text);
+    }
+   } else {
+    aruRun = 0;
+    result.push(s.text);
+   }
+  });
+  return result.join('');
+ }
+
+ // 冒険開始日・現在日から章幅を計算
+ const startDay = events[0].day;
+ const endDay   = events[events.length-1].day;
+ const totalYears = Math.max(1, Math.ceil((endDay - startDay) / DAYS_PER_YEAR));
+ const periodYears = Math.max(1, Math.round(totalYears / 5));
+
+ // イベントを章ごとにグループ化
+ function getChapterIdx(day){
+  const yr = Math.floor((day - startDay) / DAYS_PER_YEAR);
+  return Math.floor(yr / periodYears);
+ }
+ const chapters = [];
+ events.forEach(ev=>{
+  const idx = getChapterIdx(ev.day);
+  if(!chapters[idx]) chapters[idx] = {events:[], counts:{bounty:0,hunt:0,quest:0,property:0}};
+  const {cat, mode} = categorize(ev.text);
+  if(mode === 'personal'){
+   chapters[idx].events.push({cat, text:ev.text});
+  } else {
+   if(chapters[idx].counts[cat] !== undefined) chapters[idx].counts[cat]++;
+  }
+ });
+
+ // 出力構築
+ const html = [];
+ // 冒頭
+ const openings = [
+  name+'は'+race+'の'+type+'だった。',
+  'これは'+race+'の'+type+'、'+name+'の物語である。',
+  race+'の'+type+'——'+name+'の歩んだ道のりを、ここに記す。',
+ ];
+ html.push('<p style="margin:0 0 12px 0;color:#d4c4a0">'+pick(openings)+'</p>');
+
+ chapters.forEach((ch, idx)=>{
+  if(!ch) return;
+  const chapStartYr = idx * periodYears + 1;
+  const chapEndYr   = chapStartYr + periodYears - 1;
+  const label = chapStartYr === chapEndYr
+   ? '出立後'+chapStartYr+'年'
+   : '出立後'+chapStartYr+'〜'+chapEndYr+'年';
+  let body = '';
+
+  // 集約テキスト
+  const agg = aggregateToText(ch.counts);
+  if(agg) body += agg;
+
+  // 個別イベント（連続「ある時」処理込み）
+  body += buildPersonalSentences(ch.events);
+
+  if(!body) return;
+  html.push(
+   '<div style="margin:0 0 14px 0">'
+   +'<div style="font-size:calc(var(--font-sm) - 2px);color:#887755;margin-bottom:4px;letter-spacing:1px">── '+label+' ──</div>'
+   +'<p style="margin:0;line-height:2">'+body+'</p>'
+   +'</div>'
+  );
+ });
+
+ // 締め
+ const closings = [
+  'そして今も、'+name+'の旅は続いている。',
+  'この物語に、まだ終わりはない。',
+  name+'の歩みは、まだ止まっていない。',
+ ];
+ html.push('<p style="margin:8px 0 12px 0;color:#887755;font-style:italic">'+pick(closings)+'</p>');
+
+ // まとめパネル
+ const totalBounty = (PC.lifeEvents||[]).filter(e=>/賞金首/.test(e.text)&&/討伐/.test(e.text)).length;
+ const totalHeroQ  = (PC.lifeEvents||[]).filter(e=>/英雄依頼/.test(e.text)&&/達成/.test(e.text)).length;
+ const totalChildren = Object.values(PC.properties||{}).reduce((s,p)=>s+(p.children||[]).length, 0);
+ const currentAge = PC.age || 0;
+ const summaryRows = [];
+ summaryRows.push(['名前', name]);
+ summaryRows.push(['年齢', currentAge+'歳']);
+ summaryRows.push([type+' Lv', PC.level||1]);
+ if(totalBounty > 0)    summaryRows.push(['討伐した賞金首', totalBounty+'人']);
+ if(totalHeroQ > 0)     summaryRows.push(['達成した英雄依頼', totalHeroQ+'件']);
+ if(totalChildren > 0)  summaryRows.push(['子ども', totalChildren+'人']);
+ html.push(
+  '<div style="margin-top:4px;padding:10px;background:#0a0a1a;border:1px solid #443322;border-radius:4px">'
+  +'<div style="font-size:calc(var(--font-sm) - 2px);color:#887755;margin-bottom:6px;letter-spacing:1px">── 記録 ──</div>'
+  +summaryRows.map(([k,v])=>
+   '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #221a0e">'
+   +'<span style="color:#887755;font-size:calc(var(--font-sm) - 1px)">'+k+'</span>'
+   +'<span style="color:#c4a870;font-size:calc(var(--font-sm) - 1px)">'+v+'</span>'
+   +'</div>'
+  ).join('')
+  +'</div>'
+ );
+
+ return html.join('');
+}
+
+
 function closeInventory(){
  if(window.innerWidth >= 860) return; // デスクトップは常時表示
  const inv = document.getElementById('inv-panel');
@@ -21912,8 +22172,10 @@ function go(nodeId){
   changeTrust(fromTownId, 5);
   clearTavernBoard(fromTownId);
   const trustNow = getTrust(fromTownId);
+  const _brPartyCount = 1 + (PC.party||[]).filter(n=>n.con>0).length;
+  const _brShare = Math.floor(reward / _brPartyCount);
   // 結果をグローバルに保存してノード遷移
-  window._bountyResult = {npcName, reward, trustNow, backNode};
+  window._bountyResult = {npcName, reward, trustNow, backNode, partyCount: _brPartyCount, share: _brShare};
   go('__bounty_report__');
  }}]);
  return;
@@ -21929,6 +22191,7 @@ function go(nodeId){
   +`<div style="background:#0a1008;border:1px solid #336622;border-radius:4px;padding:10px;margin:6px 0">`
   +`<div style="color:#6aaa60;font-size:var(--font-sm)"> 報酬</div>`
   +`<div style="color:#c8a44a;font-size:calc(var(--font-lg) + 2px);margin-top:4px">${r.reward||0} GP</div>`
+  +`${(r.partyCount||1) > 1 ? `<div style="color:var(--dim);font-size:calc(var(--font-sm) - 1px);margin-top:2px">${r.partyCount}人で山分け：${r.share}GP/人</div>` : ''}`
   +`<div style="color:var(--success);font-size:calc(var(--font-sm) - 1px);margin-top:4px">信頼度+5（→${r.trustNow||0}）</div>`
   +`</div>`;
  renderChoices([{label:'← 街に戻る', go: r.backNode||'TOWN_KHAZAN'}]);
