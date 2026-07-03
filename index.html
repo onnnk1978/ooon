@@ -22,7 +22,7 @@
  --bg:#0d0a07;--screen:#130f0a;
  --border:#6b4c2a;--border2:#8a6642;
  --gold:#c8a44a;--gold2:#e0c070;--white:#f0e8d8;
- --text:#d4c4a0;--dim:#7a6449;
+ --text:#d4c4a0;--dim:#a08860;
  --red:#c05040;--grn:var(--nature2);--cyn:var(--white2);--yel:#c8b040;--ora:#c07838;
  --warrior:#c06838;--wizard:var(--white2);
  --font-base:14px;
@@ -38,8 +38,8 @@
  --shadow:rgba(0,0,0,.4);--deep:#100b06;--void:#060402;
  --earth:#4a3620;--mud:#2e2114;--steel:var(--info);
  --heal:var(--nature);--rust:#8a4a28;
- --bark:#5a4028;--dim2:#8a7550;--arcane:var(--info2);
- --stone:#786a58;--mid:#8a7a5c;--slate:var(--info2);
+ --bark:#5a4028;--dim2:#aa8e62;--arcane:var(--info2);
+ --stone:#786a58;--mid:#b09870;--slate:var(--info2);
  --magic:var(--info);--ice:var(--info2);--success:var(--nature2);
  --leather:#6b4a28;--gray:#746a5c;--mist:#a89a82;
  --gold3:#d4b05a;--copper:#a8703a;--bronze:#8a6030;
@@ -200,7 +200,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 }
 #cbt-log-header{
  flex-shrink:0;padding:4px 8px;border-bottom:1px solid #3a2010;
- font-size:calc(var(--font-sm) - 2px);color:#6a4828;
+ font-size:calc(var(--font-sm) - 2px);color:#9a7040;
 }
 .cbt-log{
  flex:1;min-height:0;padding:6px 8px;
@@ -262,7 +262,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  font-family:system-ui,sans-serif;font-size:var(--font-base);
  padding:7px;border-radius:3px;min-width:130px;
 }
-.race-info{font-size:calc(var(--font-lg) + 4px);color:#7a6030;margin-top:4px;line-height:2;padding:0 4px}
+.race-info{font-size:calc(var(--font-lg) + 4px);color:#a08840;margin-top:4px;line-height:2;padding:0 4px}
 .type-card{
  background:#150f08;border:2px solid var(--border);border-radius:4px;
  padding:12px;cursor:pointer;margin-bottom:7px;
@@ -272,7 +272,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 .type-card.warrior h4{color:var(--warrior)}
 .type-card.wizard h4{color:var(--wizard)}
 .type-card.rogue h4{color:var(--white2)}
-.type-card p{font-size:calc(var(--font-lg) + 4px);color:#7a6449;line-height:2.1}
+.type-card p{font-size:calc(var(--font-lg) + 4px);color:#a08860;line-height:2.1}
 .cg-btn{
  font-family:system-ui,sans-serif;font-size:var(--font-base);
  padding:15px;cursor:pointer;width:100%;border-radius:4px;min-height:54px;border:2px solid;
@@ -311,7 +311,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 .inv-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
 .inv-item{background:#180e06;border:1px solid #4a3018;border-radius:3px;padding:7px;font-size:calc(var(--font-lg) + 4px);line-height:2}
 .inv-item .ii-name{color:#c8a44a}
-.inv-item .ii-stat{color:#7a6040}
+.inv-item .ii-stat{color:#a08848}
 
 /* ── EQUIP SHOP ── */
 #shop-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px}
@@ -321,7 +321,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  padding:10px;margin-bottom:7px;
 }
 .shop-item h4{font-size:var(--font-base);color:#c4a870;margin-bottom:4px;font-family:system-ui,sans-serif}
-.shop-item p{font-size:var(--font-sm);color:#7a6030;line-height:2;font-family:system-ui,sans-serif}
+.shop-item p{font-size:var(--font-sm);color:#a08840;line-height:2;font-family:system-ui,sans-serif}
 .shop-item .price{color:var(--gold);font-size:var(--font-sm);font-family:system-ui,sans-serif}
 .buy-btn{
  background:#150f06;border:1px solid var(--rust);color:var(--nature2);
@@ -414,7 +414,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  padding: 6px 8px 5px;
  background: #0c0906;
  border-bottom: 2px solid var(--border);
- font-family: 'Press Start 2P', monospace;
+ font-family: system-ui, sans-serif;
  }
  #dt-mini-hud .mh-top {
  display: flex;
@@ -598,6 +598,14 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 #left-pane, #right-pane { display: contents; }
 @media (min-width: 860px) {
  #left-pane, #right-pane { display: flex; }
+ #title-img-area {
+  width: min(520px, 80vw) !important;
+  max-width: 600px;
+ }
+ #title-img {
+  max-height: 360px !important;
+  object-fit: contain !important;
+ }
 }
 </style>
 </head>
@@ -610,7 +618,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#c8a44a;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#6a5a3a;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026070301</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#9a8050;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026070301</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:var(--white2);margin-top:4px;text-align:center;display:none"></div>
@@ -896,7 +904,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div class="node-id" id="node-label"></div>
  <!-- 酒場会話パネル -->
  <div id="patron-panel" class="hidden" style="margin:0 0 8px;flex-shrink:0">
- <div style="background:#130e08;border:2px solid #7a6040;border-radius:4px;padding:14px">
+ <div style="background:#130e08;border:2px solid #a08848;border-radius:4px;padding:14px">
   <div id="patron-panel-content"></div>
   <button id="patron-panel-close" onclick="closePatronPanel()"
    style="display:none;width:100%;margin-top:12px;font-size:calc(var(--font-sm) - 2px);padding:10px;background:var(--panel);border:1px solid #554433;color:#cc9966;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px">
@@ -983,7 +991,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <button class="igs-tab" data-tab="jewel" onclick="igsSetTab('jewel')" style="flex:1;font-size:calc(var(--font-sm) - 2px);padding:6px 2px;background:var(--info-bg);border:1px solid var(--steel);color:var(--slate);border-radius:3px;cursor:pointer"> 宝飾</button>
  <button class="igs-tab" data-tab="sell" onclick="igsSetTab('sell')" style="flex:1;font-size:calc(var(--font-sm) - 2px);padding:6px 2px;background:var(--info-bg);border:1px solid var(--steel);color:var(--slate);border-radius:3px;cursor:pointer"> 売却</button>
  <button class="igs-tab" data-tab="forge" onclick="igsSetTab('forge')" style="flex:1;font-size:calc(var(--font-sm) - 2px);padding:6px 2px;background:var(--info-bg);border:1px solid var(--steel);color:var(--slate);border-radius:3px;cursor:pointer"> 鍛錬</button>
- <button onclick="closeIngameShop()" style="flex-shrink:0;background:#0a0a0a;border:1px solid #554433;color:#887755;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px 10px;cursor:pointer;border-radius:3px" title="閉じる">✕</button>
+ <button onclick="closeIngameShop()" style="flex-shrink:0;background:#0a0a0a;border:1px solid #554433;color:#aa9966;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px 10px;cursor:pointer;border-radius:3px" title="閉じる">✕</button>
  </div>
  <div id="igs-list" style="max-height:380px;overflow-y:auto"></div>
  <button class="cg-btn rand" style="margin-top:10px;font-size:calc(var(--font-sm) - 1px);padding:12px;width:100%" onclick="closeIngameShop()"> 閉じる</button>
@@ -4575,7 +4583,7 @@ function goExchangeBank(townId){
    +`<span class="dim">預け入れ手数料：25%（100GPを預けると75GPが保管されます）</span><br><br>`
    +`<span style="color:#d4c4a0">口座残高：${acc.gold||0}GP ${acc.sp||0}SP ${acc.cp||0}CP</span><br>`
    +`<span class="dim">所持中：${PC.gold||0}GP ${PC.sp||0}SP ${PC.cp||0}CP</span>`
-   +(otherBalances?`<br><br><span style="color:#7a6449;font-size:calc(var(--font-sm) - 2px)">他口座（出金不可）：<br>${otherBalances}</span>`:'');
+   +(otherBalances?`<br><br><span style="color:#a08860;font-size:calc(var(--font-sm) - 2px)">他口座（出金不可）：<br>${otherBalances}</span>`:'');
  };
 
  // トップ
@@ -4957,10 +4965,10 @@ function renderPartyStatus(){
  <div style="display:flex;justify-content:space-between;align-items:center">
   <div>
    <span style="font-size:calc(var(--font-sm) - 1px);color:${alive?'var(--gold3)':'var(--dim2)'}">${alive?'':''} ${n.epithet?n.epithet+' ':''}${n.name}</span>
-   <span style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;margin-left:6px">${typeJa} Lv${n.level||1}</span>
+   <span style="font-size:calc(var(--font-sm) - 2px);color:#a08840;margin-left:6px">${typeJa} Lv${n.level||1}</span>
    ${alive?`<div style="width:80px;height:4px;background:#1a1a1a;border-radius:2px;margin-top:3px"><div style="width:${barW}%;height:100%;background:${col};border-radius:2px"></div></div>`:''}
   </div>
-  <div style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;text-align:right">体力 ${n.con}/${n.maxCon}</div>
+  <div style="font-size:calc(var(--font-sm) - 2px);color:#a08840;text-align:right">体力 ${n.con}/${n.maxCon}</div>
  </div>
  ${alive?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px">
   <div style="width:70px;height:3px;background:#1a1a1a;border-radius:2px"><div style="width:${trustW}%;height:100%;background:${trustCol};border-radius:2px"></div></div>
@@ -7402,7 +7410,7 @@ function makeRecruitNodes(){
    : '';
   html += `<div style="background:var(--panel);border:1px solid ${already?'var(--nature-border)':invited?'#333':'var(--void)'};border-radius:3px;padding:8px;margin-bottom:6px">
   <span style="color:${already?'var(--nature2)':invited?'var(--dim2)':'var(--gold3)'};font-size:var(--font-sm)"> ${n.name}</span>${badge}
-  <span style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;margin-left:6px">${npcRecruitDesc(n)}</span>
+  <span style="font-size:calc(var(--font-sm) - 2px);color:#a08840;margin-left:6px">${npcRecruitDesc(n)}</span>
   </div>`;
  });
  return html;
@@ -8384,7 +8392,7 @@ function _showFontSettings(){
  panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--info-bg);border:2px solid var(--info-border);border-radius:6px;padding:16px;z-index:9998;min-width:280px;box-shadow:0 0 30px #000a;font-family:system-ui,sans-serif';
  panel.innerHTML = `
   <div style="color:var(--magic);font-size:var(--font-sm);margin-bottom:12px;text-align:center"> フォントサイズ設定</div>
-  <div style="color:#7a6449;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">テキストサイズ</div>
+  <div style="color:#a08860;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">テキストサイズ</div>
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
    <button id="fsp-minus" style="background:#100808;border:1px solid #553322;color:#c05040;font-family:system-ui,sans-serif;font-size:var(--font-sm);width:32px;height:32px;cursor:pointer;border-radius:3px">－</button>
    <div style="flex:1;text-align:center">
@@ -19880,11 +19888,11 @@ function renderPartyList(el, party){
  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
  <div>
  <span style="font-size:calc(var(--font-sm) + 1px);color:${alive?'var(--gold3)':'#555'}">${alive?'':''} ${n.epithet?'<span style="font-size:calc(var(--font-sm) - 2px);color:var(--reward)">'+n.epithet+'</span> ':''}${n.name}</span>${mb}
- <span style="font-size:calc(var(--font-sm) - 2px);color:#7a6030;margin-left:6px">${raceJa(n.race)}の${typeJa(n.type)} Lv${n.level||1}　${Math.floor((GAME_TIME.totalDays-(n.birthDay||(-(400-380)*365)))/365)}歳</span>
+ <span style="font-size:calc(var(--font-sm) - 2px);color:#a08840;margin-left:6px">${raceJa(n.race)}の${typeJa(n.type)} Lv${n.level||1}　${Math.floor((GAME_TIME.totalDays-(n.birthDay||(-(400-380)*365)))/365)}歳</span>
  </div>
  <span style="font-size:calc(var(--font-sm) - 2px);color:var(--info-border)">詳細 ▶</span>
  </div>
- <div style="font-size:calc(var(--font-sm) - 1px);color:#7a6030">体力 ${n.con}/${n.maxCon}</div>
+ <div style="font-size:calc(var(--font-sm) - 1px);color:#a08840">体力 ${n.con}/${n.maxCon}</div>
  ${alive?`<div style="height:3px;background:#1a1a1a;border-radius:2px;margin-top:4px"><div style="width:${barW}%;height:100%;background:${col};border-radius:2px"></div></div>`:''}
  ${alive?`<div style="display:flex;align-items:center;gap:5px;margin-top:5px">
   <div style="flex:1;height:3px;background:#1a1a1a;border-radius:2px"><div style="width:${trust}%;height:100%;background:${trustCol};border-radius:2px"></div></div>
@@ -19927,7 +19935,7 @@ function renderNPCDetail(el, n, idx){
  const trustLabel = trust>=90?'篤い信頼':trust>=70?'信頼':trust>=50?'友好':trust>=30?'普通':trust>=10?'様子見':'不信';
  const trustHtml = '<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:8px;margin-bottom:12px">'
   + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">'
-  + `<span style="font-size:calc(var(--font-sm) - 1px);color:#7a6449"> あなたへの信頼度</span>`
+  + `<span style="font-size:calc(var(--font-sm) - 1px);color:#a08860"> あなたへの信頼度</span>`
   + `<span style="font-size:calc(var(--font-sm) + 1px);color:${trustCol}">${trust}/100　${trustLabel}</span>`
   + '</div>'
   + `<div style="height:5px;background:#1a1a1a;border-radius:2px">`
@@ -20017,7 +20025,7 @@ function renderNPCDetail(el, n, idx){
   return `<div style="background:#100c06;border:1px solid var(--white2);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
   <div>
    <div style="font-size:var(--font-sm);color:var(--gold3)"> ${s.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">強さ-${s.cost}</span></div>
-   <div style="font-size:calc(var(--font-sm) - 1px);color:#7a6030">${s.desc}</div>
+   <div style="font-size:calc(var(--font-sm) - 1px);color:#a08840">${s.desc}</div>
   </div>
   ${useBtn}
   </div>`;
@@ -20552,7 +20560,7 @@ function renderStatusPanel(){
  document.getElementById('sp-spells').innerHTML = PC.spells.map(s=>
  `<div style="background:#100c06;border:1px solid var(--white2);border-radius:3px;padding:8px;margin-bottom:5px">
  <div style="font-size:var(--font-sm);color:var(--gold3);margin-bottom:3px"> ${s.name} <span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">強さ-${s.cost}</span></div>
- <div style="font-size:calc(var(--font-sm) - 1px);color:#7a6030">${s.desc}</div>
+ <div style="font-size:calc(var(--font-sm) - 1px);color:#a08840">${s.desc}</div>
  </div>`
  ).join('');
  } else {
@@ -20854,7 +20862,7 @@ function generateLifeNarrative(){
   if(!body) return;
   html.push(
    '<div style="margin:0 0 14px 0">'
-   +'<div style="font-size:calc(var(--font-sm) - 2px);color:#887755;margin-bottom:4px;letter-spacing:1px">── '+label+' ──</div>'
+   +'<div style="font-size:calc(var(--font-sm) - 2px);color:#aa9966;margin-bottom:4px;letter-spacing:1px">── '+label+' ──</div>'
    +'<p style="margin:0;line-height:2">'+body+'</p>'
    +'</div>'
   );
@@ -20866,7 +20874,7 @@ function generateLifeNarrative(){
   'この物語に、まだ終わりはない。',
   name+'の歩みは、まだ止まっていない。',
  ];
- html.push('<p style="margin:8px 0 12px 0;color:#887755;font-style:italic">'+pick(closings)+'</p>');
+ html.push('<p style="margin:8px 0 12px 0;color:#aa9966;font-style:italic">'+pick(closings)+'</p>');
 
  // まとめパネル
  const totalBounty = (PC.lifeEvents||[]).filter(e=>/賞金首/.test(e.text)&&/討伐/.test(e.text)).length;
@@ -20882,10 +20890,10 @@ function generateLifeNarrative(){
  if(totalChildren > 0)  summaryRows.push(['子ども', totalChildren+'人']);
  html.push(
   '<div style="margin-top:4px;padding:10px;background:var(--ink);border:1px solid #443322;border-radius:4px">'
-  +'<div style="font-size:calc(var(--font-sm) - 2px);color:#887755;margin-bottom:6px;letter-spacing:1px">── 記録 ──</div>'
+  +'<div style="font-size:calc(var(--font-sm) - 2px);color:#aa9966;margin-bottom:6px;letter-spacing:1px">── 記録 ──</div>'
   +summaryRows.map(([k,v])=>
    '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #221a0e">'
-   +'<span style="color:#887755;font-size:calc(var(--font-sm) - 1px)">'+k+'</span>'
+   +'<span style="color:#aa9966;font-size:calc(var(--font-sm) - 1px)">'+k+'</span>'
    +'<span style="color:#c4a870;font-size:calc(var(--font-sm) - 1px)">'+v+'</span>'
    +'</div>'
   ).join('')
@@ -23892,7 +23900,7 @@ function resolveRoundNPC(pRoll, npcActions){
  }
 
  // detailブロック挿入
- log += `<div id="${detailId}" style="display:none;font-size:calc(var(--font-sm) - 3px);color:#7a6449;margin:2px 0 4px 8px;line-height:1.8">${detail}</div>`;
+ log += `<div id="${detailId}" style="display:none;font-size:calc(var(--font-sm) - 3px);color:#a08860;margin:2px 0 4px 8px;line-height:1.8">${detail}</div>`;
  cl.innerHTML += log;
  cl.scrollTop = 9999;
 
