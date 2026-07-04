@@ -4738,12 +4738,12 @@ function generateJewel(){
  if(sizeRoll === 6){
   const itemType = TREASURE_ITEM_TYPES[d6()-1];
   let setting = TREASURE_SETTINGS[d6()-1];
-  if(itemType==='Weapon' && setting==='革製') setting='Steel';
+  if(itemType==='武器' && setting==='革製') setting='Steel';
   let sr2 = d6(); if(sr2===6) sr2=d6();
   const gemCount = sr2<=1?5 : sr2<=2?4 : sr2<=3?3 : sr2<=4?2 : 1;
   const priceGP = gem.base * 10 * gemCount;
 
-  if(itemType === 'Weapon'){
+  if(itemType === '武器'){
    // カザーヌ装備屋のテーブルからランダムに武器を選ぶ
    const baseWeapon = WEAPONS_TABLE_KHAZAN[Math.floor(Math.random()*WEAPONS_TABLE_KHAZAN.length)];
    // 売値の1/10を攻撃修整として加算（切り捨て）
@@ -4757,6 +4757,8 @@ function generateJewel(){
     twoHand: baseWeapon.twoHand,
     stReq: baseWeapon.stReq,
     dexReq: baseWeapon.dexReq || 0,
+    weight: baseWeapon.weight || 0,
+    cost: Math.floor(priceGP * 0.5),
     _isMagic: true,
     _priceGP: priceGP,
    };
@@ -18934,7 +18936,7 @@ function generateShopJewel(){
   const itemType = TREASURE_ITEM_TYPES[d6()-1];
   let setting = TREASURE_SETTINGS[d6()-1];
   // 店では武器は出さない（装身具のみ）
-  const shopItemType = itemType === 'Weapon' ? '首飾り' : itemType;
+  const shopItemType = itemType === '武器' ? '首飾り' : itemType;
   let sr2 = d6(); if(sr2===6) sr2=d6();
   const gemCount = sr2<=1?5 : sr2<=2?4 : sr2<=3?3 : sr2<=4?2 : 1;
   const priceGP = gem.base * 10 * gemCount;
