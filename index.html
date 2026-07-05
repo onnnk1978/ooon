@@ -21,8 +21,8 @@
 :root{
  --bg:#0d0a07;--screen:#130f0a;
  --border:#6b4c2a;--border2:#8a6642;
- --gold:#c8a44a;--gold2:#e0c070;--white:#f0e8d8;
- --text:#d4c4a0;--dim:#a08860;
+ --gold:#c8a44a;--gold2:#e0c070;--white:#f0e0c0;
+ --text:#dcc090;--dim:#b8924a;
  --red:#c05040;--grn:var(--nature2);--cyn:var(--white2);--yel:#c8b040;--ora:#c07838;
  --warrior:#c06838;--wizard:var(--white2);
  --font-base:14px;
@@ -46,7 +46,7 @@
  --log:#b8a888;--danger:#c04030;--hit:#d85040;
  --slash:#e06848;--fire:#d8702a;--torch:#e0902a;
  --gold4:#b89040;--amber:#c8862e;--reward:#d8b840;
- --white2:#e8ddc8;
+ --white2:#e8d4a8;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;image-rendering:pixelated}
 html,body{width:100%;height:100%;background:var(--bg);overflow:hidden}
@@ -4761,6 +4761,8 @@ function generateJewel(){
     cost: Math.floor(priceGP * 0.5),
     _isMagic: true,
     _priceGP: priceGP,
+    ...(baseWeapon.isRanged  ? { isRanged:  true, range: baseWeapon.range||50 } : {}),
+    ...(baseWeapon.rangedOk  ? { rangedOk:  true } : {}),
    };
    PC.invWeapons = PC.invWeapons || [];
    PC.invWeapons.push(magicWeapon);
@@ -6717,14 +6719,14 @@ function talkToPatron(townId){
  if(harvestRumor && Math.random() < 0.30){
   const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#c8a44a;margin-bottom:8px"> 酒場の客</div>
    <div style="font-size:var(--font-sm);color:var(--dim);line-height:1.8;margin-bottom:10px">近くの席の客が食料事情について話している。</div>`;
-  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#aaaaaa;line-height:1.8;padding:8px;background:#06060f;border-radius:3px;border-left:2px solid var(--white2)">${text}</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#c4a060;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
   _showPatronPanel(header + msgBox(harvestRumor), ()=>{ updateHUD(); _restoreNodeChoices(); });
   return;
  }
  if(chaosRumor && Math.random() < 0.10){
   const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#c8a44a;margin-bottom:8px"> 酒場の客</div>
    <div style="font-size:var(--font-sm);color:var(--dim);line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
-  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#aaaaaa;line-height:1.8;padding:8px;background:#06060f;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#c4a060;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
   _showPatronPanel(header + msgBox(chaosRumor), ()=>{ updateHUD(); });
   return;
  }
@@ -6738,7 +6740,7 @@ function talkToPatron(townId){
 
  // 共通ヘッダーHTML
  const header = `
-  <div style="font-size:calc(var(--font-sm) + 1px);color:#ffcc88;margin-bottom:8px">${ev.icon} <b>${ev.name}</b></div>
+  <div style="font-size:calc(var(--font-sm) + 1px);color:#d4a84a;margin-bottom:8px">${ev.icon} <b>${ev.name}</b></div>
   <div style="font-size:var(--font-sm);color:var(--dim);line-height:1.8;margin-bottom:10px">${ev.intro}</div>`;
 
  const msgBox = (text, color='var(--info2)', border='var(--info-border)') =>
@@ -6833,7 +6835,7 @@ function talkToPatron(townId){
    if(ev.bad_lk){ PC.lk = Math.max(1, PC.lk + ev.bad_lk); results.push(`LK${ev.bad_lk}`); }
    if(ev.bad_gp){ gainGPAll(ev.bad_gp); results.push(`${ev.bad_gp}GP`); }
    body = msgBox(ev.line_bad, '#886655', '#6b4c2a');
-   if(results.length) body += `<div style="font-size:calc(var(--font-sm) - 1px);color:#ff8866;margin-top:8px">${results.join('　')}</div>`;
+   if(results.length) body += `<div style="font-size:calc(var(--font-sm) - 1px);color:#c89040;margin-top:8px">${results.join('　')}</div>`;
   }
   _showPatronPanel(header + body, onClose);
  }
@@ -7358,7 +7360,7 @@ function sendNPCMessage(idx){
  input.value = '';
 
  const reply = generateNPCReply(npc, msg);
- log.innerHTML += `<div style="color:var(--info2);margin-bottom:2px">あなた: ${msg}</div>`;
+ log.innerHTML += `<div style="color:#b89050;margin-bottom:2px">あなた: ${msg}</div>`;
  log.innerHTML += `<div style="color:var(--gold3);margin-bottom:8px">${npc.name}: ${reply}</div>`;
  log.scrollTop = 9999;
 }
@@ -15605,14 +15607,14 @@ const HUNT_MONSTER_TABLE = {
   {name:'スケルトン', mr:22, minApp:2, maxApp:6},
   {name:'ゾンビ', mr:28, minApp:2, maxApp:5},
   {name:'ジャイアントスパイダー', mr:32, minApp:1, maxApp:4},
-  {name:'ゴール', mr:50, minApp:1, maxApp:3},
+  {name:'グール', mr:50, minApp:1, maxApp:3},
   {name:'トロル', mr:70, minApp:1, maxApp:2},
  ],
  zahara_region: [
   {name:'砂漠の盗賊', mr:20, minApp:3, maxApp:7},
   {name:'スコーピオン', mr:25, minApp:2, maxApp:5},
   {name:'マミー', mr:40, minApp:1, maxApp:3},
-  {name:'ゴール', mr:50, minApp:1, maxApp:3},
+  {name:'グール', mr:50, minApp:1, maxApp:3},
   {name:'サンドワーム', mr:65, minApp:1, maxApp:2},
   {name:'トロル', mr:70, minApp:1, maxApp:2},
  ],
@@ -15923,7 +15925,7 @@ function startHuntQuest(questId){
  const torches = countTorches();
  const storyEl = document.getElementById('story');
  const torchMsg = torches > 0
-  ? `<span style="color:var(--nature2)"> 松明を ${torches}本 持っている。</span>`
+  ? `<span style="color:var(--gold3)"> 松明を ${torches}本 持っている。</span>`
   : `<span style="color:var(--danger)"> 松明を持っていない！暗闇の中を進むことになる。</span>`;
 
  // 討伐進捗
@@ -15933,10 +15935,10 @@ function startHuntQuest(questId){
 
  storyEl.innerHTML = `
   <div style="border:1px solid #554400;border-radius:4px;padding:12px;background:#0c0900">
-   <div style="color:var(--amber);font-size:var(--font-base);margin-bottom:8px"> 討伐出撃：${q.caveName}</div>
-   <div style="color:#aaaaaa;font-size:var(--font-sm);margin-bottom:4px">依頼主：<span style="color:#ffee88">${q.clientName}</span></div>
-   <div style="color:#888888;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">目標：<span style="color:var(--torch)">${q.monsterName}</span>
-    　討伐：<span style="color:${killed>=total?'var(--nature2)':'var(--amber)'}">${killed}/${total}体</span></div>
+   <div style="color:var(--gold);font-size:var(--font-base);margin-bottom:8px"> 討伐出撃：${q.caveName}</div>
+   <div style="color:var(--dim);font-size:var(--font-sm);margin-bottom:4px">依頼主：<span style="color:var(--gold)">${q.clientName}</span></div>
+   <div style="color:var(--dim);font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">目標：<span style="color:var(--gold2)">${q.monsterName}</span>
+    　討伐：<span style="color:${killed>=total?'var(--gold2)':'var(--dim)'}">${killed}/${total}体</span></div>
    <div style="font-size:var(--font-sm)">${torchMsg}</div>
   </div>`;
 
@@ -16444,8 +16446,8 @@ function popHeroMsg(){
  PC._pendingHeroMsg = null;
  return `<br><br><div style="background:#1a1400;border:1px solid #c8a44a;border-radius:4px;padding:10px;margin-top:6px">
   <div style="color:#c8a44a;font-size:calc(var(--font-sm) + 1px);margin-bottom:6px"> ${h.townName}の英雄</div>
-  <div style="color:#aaaaaa;font-size:var(--font-sm);line-height:1.8">${h.msg}</div>
-  <div style="color:#888888;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
+  <div style="color:#c4a060;font-size:var(--font-sm);line-height:1.8">${h.msg}</div>
+  <div style="color:#a08050;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
  </div>`;
 }
 
@@ -16456,7 +16458,7 @@ function popRegionHeroMsg(){
  return `<br><br><div style="background:var(--ink);border:2px solid #c8a44a;border-radius:4px;padding:12px;margin-top:6px">
   <div style="color:#c8a44a;font-size:var(--font-base);margin-bottom:8px"> 地方英雄 ── ${h.regionName}</div>
   <div style="color:#ddccaa;font-size:var(--font-sm);line-height:1.8">${h.msg}</div>
-  <div style="color:#888888;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
+  <div style="color:#a08050;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
  </div>`;
 }
 
@@ -21397,7 +21399,7 @@ const DUNGEON_EVENTS = [
     if(!sr.success){
      const dmg = d6();
      PC.con = Math.max(0, PC.con - dmg); updateHUD();
-     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>小規模な崩落！</b>天井の一部が崩れた。DEX 能力値テスト失敗——体力-${dmg}（残り${PC.con}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>小規模な崩落！</b>天井の一部が崩れた。器用さ 能力値テスト失敗——体力-${dmg}（残り${PC.con}）　経験値+${sr.ap}</div>`;
     } else {
      story.innerHTML += `<div style="color:var(--reward);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 天井が少し崩れたが、素早く避けた。経験値+${sr.ap}</div>`;
     }
@@ -21500,7 +21502,7 @@ const DUNGEON_EVENTS = [
     gainAPAll(sr.ap);
     if(!sr.success){
      PC.lk = Math.max(1, PC.lk - 5);
-     story.innerHTML += `<div style="color:var(--info2);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪いの残滓。</b>この場に死の気配が漂う。LK 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--info2);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪いの残滓。</b>この場に死の気配が漂う。運 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr.ap}</div>`;
     } else {
      story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px">冷たい気配を感じたが、運 能力値テスト成功。何も起こらなかった。経験値+${sr.ap}</div>`;
     }
@@ -21594,7 +21596,7 @@ const DUNGEON_EVENTS = [
     gainAPAll(sr.ap);
     if(!sr.success){
      PC.con = Math.max(0, PC.con - 1); updateHUD();
-     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>見えない刃。</b>空間に見えない罠の残骸がある。DEX 能力値テスト失敗——追加でCON -1（残り${PC.con}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--danger);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>見えない刃。</b>空間に見えない罠の残骸がある。器用さ 能力値テスト失敗——追加でCON -1（残り${PC.con}）　経験値+${sr.ap}</div>`;
     } else {
      story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px"> 見えない刃の残骸があったが、素早く避けた。経験値+${sr.ap}</div>`;
     }
@@ -21605,7 +21607,7 @@ const DUNGEON_EVENTS = [
     gainAPAll(sr.ap);
     if(!sr.success){
      PC.lk = Math.max(1, PC.lk - 5);
-     story.innerHTML += `<div style="color:var(--info2);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた傷。</b>傷口が黒ずんでくる。LK 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--info2);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた傷。</b>傷口が黒ずんでくる。運 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr.ap}</div>`;
     } else {
      story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px">傷は気になるが、運 能力値テスト成功。呪いは感じない。経験値+${sr.ap}</div>`;
     }
@@ -21654,7 +21656,7 @@ const DUNGEON_EVENTS = [
     gainAPAll(sr2.ap);
     if(!sr2.success){
      PC.lk = Math.max(1, PC.lk - 5);
-     story.innerHTML += `<div style="color:var(--info2);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた空洞。</b>中には何もない。しかし不吉な気配に取り憑かれた。LK 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr2.ap}</div>`;
+     story.innerHTML += `<div style="color:var(--info2);font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた空洞。</b>中には何もない。しかし不吉な気配に取り憑かれた。運 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr2.ap}</div>`;
     } else {
      story.innerHTML += `<div style="color:var(--mist);font-size:var(--font-sm);margin-top:8px">空洞には何もなかった。不思議な冷気が漂うだけだ。経験値+${sr2.ap}</div>`;
     }
@@ -22880,6 +22882,22 @@ function setupSavingRoll(sr){
  document.getElementById('dice-area').classList.remove('hidden');
 }
 
+// パーティがいれば誰が挑むか選ばせてから共通SRUIへ
+function setupSavingRollWithParty(sr){
+ const aliveParty = (PC.party||[]).filter(n=>n.con>0);
+ if(!aliveParty.length){ setupSavingRoll(sr); return; }
+ const attrNames={st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
+ const attrLabel = attrNames[sr.attr]||sr.attr;
+ const target = sr.level*5+15;
+ const story = document.getElementById('story');
+ story.innerHTML += `<div style="margin-top:10px;padding:8px;background:var(--info-bg);border:1px solid var(--info-border);border-radius:4px;font-size:var(--font-sm);color:var(--info2)"> <b>${attrLabel} 能力値テスト Lv${sr.level}</b>　誰が挑みますか？</div>`;
+ const actors = [PC, ...aliveParty];
+ renderChoices(actors.map(actor=>({
+  label:`${actor.name}　${attrLabel} ${actor[sr.attr]||0}　（目標値 ${target}）`,
+  fn:()=>{ setupSavingRollFor(actor, sr); },
+ })));
+}
+
 function doRoll(){
  if(multiRollState){doMultiSRStep();return;}
  if(!rollPending)return;
@@ -24013,7 +24031,9 @@ function doFlee(){
  }
  // ダンジョン内逃走 → 入口へ戻る・松明1本消費
  } else {
- const isDungeon = savedState.win && savedState.win.startsWith('RUIN_');
+ const dungeonPrefixes = ['RUIN_','CRYPT_','CRYPT2_','CRYPT3_','SHR2_','SHM2_','SHM3_','AL_DNG_','AL_W_','ISKALD_','FP_'];
+ const isDungeon = dungeonPrefixes.some(p => currentNodeId.startsWith(p)) ||
+  (savedState.win && savedState.win.startsWith('RUIN_'));
  if(isDungeon){
  // 点灯中の松明を1本消耗（残りターンをリセット）
  // 予備があれば次の1本を点火、なければ暗闇
@@ -24028,17 +24048,25 @@ function doFlee(){
  PC._pendingMsg = `<div style="color:#ff4444;font-size:var(--font-sm);margin-bottom:6px"> 逃げる際に松明を1本消耗した。もう松明がない…</div>`;
  }
  }
- if(savedState.win && savedState.win.startsWith('SHR2_')){
- go('SHR2_ENTRANCE');
- } else if(savedState.win && savedState.win.startsWith('CRYPT3_')){
- go('CRYPT3_ENTRANCE');
- } else if(savedState.win && savedState.win.startsWith('CRYPT2_')){
- go('CRYPT2_ENTRANCE');
- } else if(savedState.win && savedState.win.startsWith('CRYPT_')){
- go('CRYPT_ENTRANCE');
- } else {
- go('RUIN_ENTRANCE');
+ const fleeEscapeMap = [
+  { prefix:'CRYPT3_',  dest:'CRYPT3_ENTRANCE' },
+  { prefix:'CRYPT2_',  dest:'CRYPT2_ENTRANCE' },
+  { prefix:'CRYPT_',   dest:'CRYPT_ENTRANCE'  },
+  { prefix:'SHR2_',    dest:'SHR2_ENTRANCE'   },
+  { prefix:'SHM3_',    dest:'SHM3_STAIRS'     },
+  { prefix:'SHM2_',    dest:'SHM2_STAIRS'     },
+  { prefix:'FP_B3_',   dest:'FP_B3_ENTRANCE'  },
+  { prefix:'FP_B2_',   dest:'FP_B2_ENTRANCE'  },
+  { prefix:'FP_',      dest:'FP_ENTRANCE'     },
+  { prefix:'AL_W_',    dest:'AL_DNG_ENTRANCE' },
+  { prefix:'AL_DNG_',  dest:'AL_DNG_ENTRANCE' },
+  { prefix:'RUIN_',    dest:'RUIN_ENTRANCE'   },
+ ];
+ let fleeDestNode = 'RUIN_ENTRANCE';
+ for(const {prefix, dest} of fleeEscapeMap){
+  if(currentNodeId.startsWith(prefix)){ fleeDestNode = dest; break; }
  }
+ go(fleeDestNode);
  } else if(savedState.isNPC && savedState.win==='__noop__'){
  // NPC型戦闘（旅中）からの逃走成功 → 旅を再開
  if(travelState){
@@ -26471,7 +26499,7 @@ const NODES = {
  return `<span class="gold"></span><br><br>
  壁を注意深く調べると、砂岩のパターンがわずかに不自然な箇所がある。<br>
  隠し扉があるかもしれない。<br>
- <span class="dim">（IQ 能力値テスト Lv2）</span>`;
+ <span class="dim">（知力 能力値テスト Lv2）</span>`;
  },
  choices:()=>PC._tombSecret24Found
  ? [{label:' 東の隠し扉へ', go:'TOMB_4'},{label:'⬅ 西へ進む', go:'TOMB_2'}]
@@ -26586,7 +26614,7 @@ const NODES = {
  持ち上げた格子が固定されている。通れる。`;
  return `<span class="gold"></span>　<span style="color:#ff88aa">── Portcullis ──</span><br><br>
  床から天井まで届く重い鉄格子が通路を塞いでいる。格子の下端に指をかければ持ち上げられそうだが……<br>
- <span class="dim">（ST 能力値テスト Lv2）</span>`;
+ <span class="dim">（強さ 能力値テスト Lv2）</span>`;
  },
  choices:()=>PC._tombPort58Open
  ? [{label:'⬇ 南へ進む', go:'TOMB_8'},{label:'⬆ 北へ進む', go:'TOMB_5'}]
@@ -26859,7 +26887,7 @@ const NODES = {
  以前見つけた隠し扉が開いている。`;
  return `<span class="gold"></span><br><br>
  石棺の南側の壁。一見ただの石壁だが、砂のつき方がわずかに不自然だ。<br>
- <span class="dim">（LK 能力値テスト Lv2）</span>`;
+ <span class="dim">（運 能力値テスト Lv2）</span>`;
  },
  choices:()=>PC._tombSecret1114Found
  ? [{label:'⬇ 南の隠し扉へ', go:'TOMB_14'},{label:'⬆ 北へ進む', go:'TOMB_11'}]
@@ -26950,7 +26978,7 @@ const NODES = {
  持ち上げた格子が固定されている。通れる。`;
  return `<span class="gold"></span>　<span style="color:#ff88aa">── Portcullis ──</span><br><br>
  石造りの重い格子が道を塞いでいる。砂岩に傷をつけながら持ち上げれば何とかなりそうだ。<br>
- <span class="dim">（ST 能力値テスト Lv3）</span>`;
+ <span class="dim">（強さ 能力値テスト Lv3）</span>`;
  },
  choices:()=>PC._tombPort1316Open
  ? [{label:'⬇ 南へ進む', go:'TOMB_16'},{label:'⬆ 北へ進む', go:'TOMB_13'}]
@@ -28986,7 +29014,7 @@ const NODES = {
   通路の真ん中あたりの南壁に扉がある。東端は北へ折れている。`,
  choices:[
   {label:'↙ 西端・落とし格子（強さ Lv3 能力値テスト）', fn:()=>{
-   setupSavingRoll({attr:'st', level:3,
+   setupSavingRollWithParty({attr:'st', level:3,
     passTxt:'全力で持ち上げると、錆びた格子がゆっくり上がった！',
     failTxt:'格子はびくともしない。腕が痺れた。',
     onSuccess(){ renderChoices([
@@ -29198,14 +29226,14 @@ const NODES = {
  scene:'dungeon',
  txt:()=>`<span class="gold">王城地下牢 — 部屋</span><br><br>
   南北40m、東西35mの部屋。壁に古い尋問記録の断片が貼り付けられたままになっている。
-  西壁の南寄りに扉、西壁の真ん中あたりにアーチ、南壁に隠し扉がある。`,
+  西壁の南寄りに扉、西壁の真ん中あたりにアーチ、南壁に向かって何かを引きずったような跡がある。`,
  choices:()=>{
   const ch = [
    {label:'← 西壁・南寄りの扉', fn:()=>cryptMove('CRYPT_P5')},
    {label:'← 西壁・中央のアーチ', fn:()=>cryptMove('CRYPT_P6')},
   ];
   ch.push({label:'↓ 南壁を調べる（知力 Lv2 能力値テスト）', fn:()=>{
-   setupSavingRoll({attr:'iq', level:2,
+   setupSavingRollWithParty({attr:'iq', level:2,
     passTxt:'石材の一部が他と継ぎ目が違う。押すと壁が静かに動いた——隠し扉だ！',
     failTxt:'壁を叩いてみるが異変は感じられない。その時、背後から気配が——',
     onSuccess(){ renderChoices([
@@ -29440,7 +29468,7 @@ const NODES = {
  choices:[
   {label:'↘ 東端・南へ', fn:()=>cryptMove('CRYPT2_P8')},
   {label:'↓ 西端・南壁の落とし格子', fn:()=>{
-   setupSavingRoll({attr:'st', level:3,
+   setupSavingRollWithParty({attr:'st', level:3,
     passTxt:'全力で持ち上げると格子が動いた！',
     failTxt:'格子はびくともしない。',
     onSuccess(){ renderChoices([
@@ -29688,7 +29716,7 @@ const NODES = {
  choices:[
   {label:'← 西壁・南寄りの扉', fn:()=>cryptMove('CRYPT2_P6')},
   {label:'↑ 北壁・落とし格子', fn:()=>{
-   setupSavingRoll({attr:'st', level:3,
+   setupSavingRollWithParty({attr:'st', level:3,
     passTxt:'格子が上がった！',
     failTxt:'格子は動かない。',
     onSuccess(){ renderChoices([
