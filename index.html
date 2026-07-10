@@ -7498,9 +7498,13 @@ function startAssassinEncounter(ts){
     const gp = assassinLevel * 20;
     gainGPAll(gp);
     updateHUD();
+    // ログを退避（text-win表示でstoryがリセットされる前に）
+    const savedLog = document.getElementById('travel-log-wrap');
+    const savedLogHTML = savedLog ? savedLog.outerHTML : '';
     document.getElementById('text-win').style.display = '';
+    drawScene('travel');
     const s = document.getElementById('story');
-    s.innerHTML = `<div id="travel-log-wrap" style="border-top:1px solid var(--panel2);margin-top:8px;padding-top:8px;font-size:var(--font-base)"><div id="travel-events"></div></div>`;
+    s.innerHTML = savedLogHTML || `<div id="travel-log-wrap" style="border-top:1px solid var(--panel2);margin-top:8px;padding-top:8px;font-size:var(--font-base)"><div id="travel-events"></div></div>`;
     travelLog(`<span style="color:var(--nature2)"> ${ts.daysDone}日目：暗殺者を撃退した。懐に${gp}GPの路銀があった。</span>`);
     renderChoices([{label:'▶ 旅を続ける', fn:()=>{
      renderChoices([]);
@@ -17306,17 +17310,15 @@ function travelLog(html){
  }
  const evEl = document.getElementById('travel-events');
  if(!evEl) return;
- // 既存の子要素をすべてグレーに
- Array.from(evEl.children).forEach(ch=>{
- ch.style.color = 'var(--white)';
- ch.querySelectorAll('span,[style]').forEach(el=>{
- el.style.color = 'var(--white)';
- });
- });
- // 新しいメッセージを先頭に挿入
+ // 既存の子要素（過去ログ）はそのままの色を維持、最新だけ目立たせる
+ // 新しいメッセージを先頭に挿入してから既存を薄くする
  const d = document.createElement('div');
  d.innerHTML = html;
  evEl.prepend(d);
+ // 先頭以外（過去ログ）を薄くする
+ Array.from(evEl.children).slice(1).forEach(ch=>{
+  ch.style.opacity = '0.45';
+ });
 
  // 最新イベント行を更新（テキストのみ抽出してプレーンに）
  const latest = document.getElementById('travel-latest');
@@ -17440,7 +17442,20 @@ function travelTick(){
    const enemy = pickTravelEnemy();
    const countTxt = enemy.count > 1 ? `（${enemy.count}体）` : '';
    travelLog(`<span style="color:var(--log)"> ${ts.daysDone}日目：${enemy.desc}${countTxt}</span>`);
-   if(enemy.isHuman){ startTravelTalk(enemy, ts); } else { startTravelCombat(enemy); }
+   if(enemy.isHuman){
+    startTravelTalk(enemy, ts);
+   } else {
+    // 遭遇テキストを表示してから戦闘ボタンを出す
+    const choices = document.getElementById('choices');
+    if(choices){
+     choices.innerHTML = '';
+     const fightBtn = document.createElement('button');
+     fightBtn.className = 'choice-btn';
+     fightBtn.textContent = ` 迎え撃つ`;
+     fightBtn.onclick = ()=>{ choices.innerHTML=''; startTravelCombat(enemy); };
+     choices.appendChild(fightBtn);
+    }
+   }
    return;
   }
  }
@@ -17781,6 +17796,7 @@ function startTravelCombat(enemy){
  canFlee: true,
  win: '__noop__',
  lose: 'DEAD',
+ _isTravelCombat: true,
  onWin: ()=>{
   // travel-log-wrapを退避（text-win表示でstoryがリセットされる前に）
   const savedLog = document.getElementById('travel-log-wrap');
@@ -17803,7 +17819,7 @@ function startTravelCombat(enemy){
    gainGPAll(reward);
    rewardMsg = `　謝礼: ${reward}GP`;
   } else {
-   const treasureDesc = generateTreasure(enemy.mr);
+   const treasureDesc = cbtState?._treasureDesc || '';
    if(treasureDesc) rewardMsg = `　${treasureDesc}`;
   }
   updateHUD();
@@ -24810,9 +24826,10 @@ function resolveRound(pRoll, npcActions){
  if(allDead){
  const memberCount = 1 + (PC.party||[]).filter(n=>n.con>0).length;
  const share = gainAPCombat(cs.totalMR); updateHUD();
- // 旅中戦闘は__TRAVEL_WIN__のtxt()で宝物生成するのでここではスキップ
- const isTravelCombat = cs.win === '__TRAVEL_WIN__';
+ // 旅中戦闘は onWin で宝物生成するのでここではスキップ
+ const isTravelCombat = cs.win === '__noop__' && typeof cs.onWin === 'function' && cs._isTravelCombat;
  const treasureDesc = isTravelCombat ? null : generateTreasure(cs.totalMR);
+ if(isTravelCombat) cs._treasureDesc = generateTreasure(cs.totalMR);
  let victoryMsg = memberCount > 1
   ? `<span style="color:#ccccaa"> 全敵を倒した！ 経験値+${share}（CombatRating${cs.totalMR}÷${memberCount}人）</span>`
   : `<span style="color:#ccccaa"> 全敵を倒した！ 経験値+${share}</span>`;
