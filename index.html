@@ -626,7 +626,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026071201</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026071202</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:var(--white2);margin-top:4px;text-align:center;display:none"></div>
@@ -18537,6 +18537,9 @@ function travelTick(){
  renderTravelEvents(ts.events);
  hideTravelProgress();
  document.querySelectorAll('.choice-btn').forEach(b=>b.disabled=false);
+ // 到着メッセージを旅ログの最新部分に表示（PC.townは出発時点で目的地に更新済み）
+ const destTownName = (TOWNS[PC.town]||{}).name || PC.town;
+ travelLog(`<span style="color:#f0ece0"> ${destTownName}に到着した。</span>`);
  // 自動遷移せず、旅ログを確認してから「町に入る」ボタンで進めるようにする
  const choices = document.getElementById('choices');
  if(choices){
