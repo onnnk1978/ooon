@@ -665,7 +665,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div class="sp-cell">開始所持金<span id="prev-gp">?</span></div>
  <div class="sp-cell">レベル<span>1</span></div>
  </div>
- <div style="font-size:calc(var(--font-lg) + 4px);color:#c8b8a0;margin:6px 4px 2px">◆ 種族補正後ステータス</div>
+ <div style="font-size:calc(var(--font-lg) + 4px);color:#c8b8a0;margin:6px 4px 2px" id="stat-after-race-label">◆ 種族補正後ステータス</div>
  <div class="stat-preview" id="stat-after-race" style="grid-template-columns:repeat(7,1fr)"></div>
  <button class="cg-btn rand" onclick="rollStats()" style="margin-top:10px"> サイコロを振る（3D6）</button>
  </div>
@@ -19542,12 +19542,16 @@ function toggleStatEdit(){
   const el = document.getElementById(id);
   if(el) on ? el.removeAttribute('readonly') : el.setAttribute('readonly','');
  });
- document.getElementById('stat-edit-label').textContent = on ? '手動入力：オン' : '手動入力：オフ';
+ document.getElementById('stat-edit-label').textContent = on ? '手動入力：オン（種族補正後の値を直接入力）' : '手動入力：オフ';
  document.getElementById('stat-edit-label').style.color = on ? '#e8e0d0' : 'var(--dim)';
  document.getElementById('stat-edit-track').style.background = on ? '#4a3200' : '#2a1a0a';
  document.getElementById('stat-edit-track').style.borderColor = on ? '#e8e0d0' : '#554422';
  document.getElementById('stat-edit-thumb').style.left = on ? '22px' : '2px';
  document.getElementById('stat-edit-thumb').style.background = on ? '#ffcc44' : '#665533';
+ // 手動入力時は上の入力欄がそのまま最終ステータスになるため見出しを切り替える
+ const rlabel = document.getElementById('stat-after-race-label');
+ if(rlabel) rlabel.textContent = on ? '◆ 最終ステータス（手動入力のため種族補正は適用されません）' : '◆ 種族補正後ステータス';
+ updateAddsPreview();
 }
 
 function rollStats(){
@@ -19577,7 +19581,8 @@ function getBaseStats(){
 function updateAddsPreview(){
  const race = document.getElementById('a-race').value;
  const base = getBaseStats();
- const applied = applyRace(base, race);
+ // 手動入力時は入力値を「種族補正後」の値としてそのまま扱う（再度の補正はしない）
+ const applied = window._manualStatEdit ? base : applyRace(base, race);
  const st = applied.st, lk = applied.lk, dex = applied.dex;
  let adds=0;
  [st,lk,dex].forEach(v=>{if(v>12)adds+=v-12;else if(v<9)adds+=v-9;});
@@ -19628,7 +19633,8 @@ function startGame(){
  spd:+document.getElementById('a-spd').value||10,
  };
  const race=document.getElementById('a-race').value;
- const applied=applyRace(base,race);
+ // 手動入力時は入力値を「種族補正後」の値としてそのまま扱う（再度の補正はしない）
+ const applied = window._manualStatEdit ? base : applyRace(base,race);
 
  // Wizard check
  const warn=document.getElementById('type-warn');
