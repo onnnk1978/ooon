@@ -626,7 +626,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026071401</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026071801</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:var(--white2);margin-top:4px;text-align:center;display:none"></div>
@@ -2852,7 +2852,7 @@ function getChaosNestRumor(){
 
  // 根城が存在する場合の噂
  if(nest.nestTownId && !nest.defeatedByNPC && !nest.cleared){
-  if(Math.random() > 0.25) return null; // 25%で噂が出る
+  if(Math.random() > 0.40) return null; // 40%で噂が出る
   const townName = (TOWNS[nest.nestTownId]||{}).name || nest.nestTownId;
   const rumors = [
    `「${townName}の近くに怪しい集まりができているらしい。魔術師の根城だという話だ」`,
@@ -2865,7 +2865,7 @@ function getChaosNestRumor(){
 
  // NPCが倒した場合の噂（最大3回まで）
  if(nest.defeatedByNPC && nest.npcRumorShown < 3 && !nest.cleared){
-  if(Math.random() > 0.3) return null;
+  if(Math.random() > 0.40) return null;
   const townName = (TOWNS[nest.nestTownId]||{}).name || nest.nestTownId;
   nest.npcRumorShown++;
   if(nest.npcRumorShown >= 3){
@@ -4542,6 +4542,10 @@ function goOtherActions(townId){
  const exploreCities = ['khazan','al_rashid','elsia','yeldun'];
  if(exploreCities.includes(townId)){
   choices.push({label:' 街を散策する（1日）', fn:()=>exploreCity(townId,'TOWN_'+townId.toUpperCase()), go:'__travel__'});
+ }
+ // 両替所（金庫サービス）：散策都市＋ヴァルドヘイム
+ const bankTowns = ['khazan','al_rashid','elsia','yeldun','valdheim'];
+ if(bankTowns.includes(townId)){
   choices.push({label:' 両替所（金庫サービス）', fn:()=>goExchangeBank(townId)});
  }
  // アルバイト
@@ -4607,6 +4611,7 @@ const EXCHANGE_BANK_NAMES = {
  al_rashid: 'アル＝ラシード砂漠金融組合',
  elsia:     'エルシア王立両替所',
  yeldun:    'イェルドゥン山岳交易銀行',
+ valdheim:  'ヴァルドヘイム氷原交易所',
 };
 
 // PC.bankAccounts[townId] = { gold:0, sp:0, cp:0 }
@@ -4945,7 +4950,7 @@ function generateNPC(level=1){
 
 // NPC戦闘ロール（プレイヤーと同じ算出方法）
 function calcNPCRoll(npc){
- const adds = Math.floor((npc.st + npc.lk + npc.dex - 30) / 2);
+ const adds = calcAdds(npc);
  const equipped = npc.equippedWeapons||[];
  const vorpal = npc._vorpalNext;
  const whammy = npc._whammyNext;
@@ -4978,7 +4983,7 @@ function partyRollTotal(){
 function npcRecruitDesc(npc){
  const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[npc.type]||npc.type;
  const raceJa = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[npc.race]||npc.race;
- const adds = Math.floor((npc.st+npc.lk+npc.dex-30)/2);
+ const adds = calcAdds(npc);
  const w = npc.equippedWeapons?.[0];
  const dmg = w ? `${w.dice}D+${(w.adds||0)+adds}` : '素手';
  const armor = calcNPCArmor(npc);
@@ -6776,7 +6781,7 @@ function talkToPatron(townId){
   _showPatronPanel(header + msgBox(harvestRumor), ()=>{ updateHUD(); _restoreNodeChoices(); });
   return;
  }
- if(chaosRumor && Math.random() < 0.10){
+ if(chaosRumor && Math.random() < 0.20){
   const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
    <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
   const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
@@ -7204,6 +7209,7 @@ function dismissNPC(idx){
  if(!npc) return;
  if(!confirm(`${npc.name} を解散しますか？`)) return;
  PC.party.splice(idx,1);
+ addFormerCompanion(npc);
  _partyDetailIdx = null;
  addLifeEvent('', `${npc.name}がパーティを離れた。`);
  updateHUD(); renderPartyTab();
@@ -7512,7 +7518,7 @@ function makeRecruitNodes(){
  (PC.party||[]).forEach((n,i)=>{
   choices.push({
    label:` ${n.name}を解散させる`,
-   fn:()=>{ addLifeEvent('', `${n.name}がパーティを離れた。`); PC.party.splice(i,1); showSaveToast(`${n.name}が去った。`); },
+   fn:()=>{ addLifeEvent('', `${n.name}がパーティを離れた。`); addFormerCompanion(n); PC.party.splice(i,1); showSaveToast(`${n.name}が去った。`); },
    go: key,
   });
  });
@@ -7703,7 +7709,8 @@ function playerCombatRoll(weaponIdx=0){
 function monsterCombatRoll(mr){
  const dice = Math.floor(mr/10)+1;
  const adds = Math.ceil(mr/2);
- return Nd6(dice) + adds;
+ const rv = rollNd6(dice);
+ return {total: rv.total + adds, dice: rv.dice};
 }
 
 // ── SAVING ROLL ────────────────────────
@@ -7737,23 +7744,6 @@ function checkLevel(pc=PC){
  }
  return lv;
 }
-function gainAP(amount){
- PC.ap = (PC.ap||0) + amount;
- const newLv = checkLevel();
- if(newLv > PC.level){
- PC.level = newLv;
- // レベルアップパネルを表示（次のフレームで）
- setTimeout(()=>showLevelUpPanel(newLv), 100);
- return true;
- }
- // levelが下がることは絶対にない
- if(newLv < PC.level){
- // apがlevelに見合っていない場合はapを修正する
- PC.ap = Math.max(PC.ap, LEVEL_THRESHOLDS[PC.level-1]||0);
- }
- return false;
-}
-
 // NPC（またはPC）に直接APを加算する
 function gainAPFor(pc, amount){
  if(!pc || amount <= 0) return;
@@ -9157,7 +9147,204 @@ function rollLifespan(race){
  return Math.max(base - 18, base + plus - minus); // 最低でも基準値-18
 }
 
-function checkAging(){
+// ── かつての仲間NPC（パーティを離れて世界に散った者たち）の管理 ──
+// このPC（世代）限定の記録。PCが交代（死亡・引退）すると破棄される。
+function addFormerCompanion(npc){
+ PC._formerCompanions = PC._formerCompanions || [];
+ const snapshot = JSON.parse(JSON.stringify(npc));
+ snapshot._leftPartyDay = GAME_TIME.totalDays;
+ const idx = PC._formerCompanions.findIndex(c=>c._npcId===npc._npcId);
+ if(idx !== -1) PC._formerCompanions[idx] = snapshot;
+ else PC._formerCompanions.push(snapshot);
+}
+
+// 毎日の経過チェック：老衰死・事故死（0.01%/日）。生きていれば true を配列に残す。
+function checkFormerCompanionDeaths(){
+ if(!PC._formerCompanions || !PC._formerCompanions.length) return;
+ const survivors = [];
+ PC._formerCompanions.forEach(npc=>{
+  let dead = false, byAge = false;
+  const birthDay = npc.birthDay != null ? npc.birthDay : (GAME_TIME.totalDays - 30*365);
+  const ageYears = Math.floor((GAME_TIME.totalDays - birthDay) / 365);
+  const lifespanYrs = Math.floor((npc.lifespan || 29200) / 365);
+  if(ageYears >= lifespanYrs){
+   const overYears = ageYears - lifespanYrs + 1;
+   const yearlyChance = 1 - Math.pow(0.8, overYears);
+   const dailyChance = 1 - Math.pow(1 - yearlyChance, 1/365);
+   if(Math.random() < dailyChance){ dead = true; byAge = true; }
+  }
+  if(!dead && Math.random() < 0.0001){ dead = true; } // 事故死 0.01%/日
+  if(dead){
+   addLifeEvent('', `風の噂で、かつての仲間 ${npc.name} が${byAge?'老衰で':'不慮の事故で'}亡くなったと聞いた。`);
+  } else {
+   survivors.push(npc);
+  }
+ });
+ PC._formerCompanions = survivors;
+}
+
+// ── 九死に一生：後遺症データ（5系統×3種）──
+const AFTERMATH_INJURIES = [
+ { id:'caved_skull', system:'頭部', name:'陥没した頭蓋',
+  flavor:'かつて頭部に受けた強烈な一撃により、額が不自然に歪んでいる。頻繁に視界が歪むほどの激しい偏頭痛が、こめかみを襲うようになった。',
+  stats:['con'] },
+ { id:'cauliflower_ear', system:'頭部', name:'潰れた片耳',
+  flavor:'引きちぎられ、不格好に塞がった耳。風の音や敵の忍び寄る足音を正確に聞き取ることが難しくなった。',
+  stats:['dex'] },
+ { id:'one_eye', system:'頭部', name:'片目の喪失',
+  flavor:'敵の鋭い攻撃は眼球を貫いた。失われた半身の視界は、空間把握を大きく狂わせることとなった。',
+  stats:['dex'] },
+ { id:'shattered_wrist', system:'腕・手', name:'砕かれた手首',
+  flavor:'骨折した箇所が歪に接合してしまい、手首を完全にひねることができなくなった。武器を握る力も以前の半分となった。',
+  stats:['dex'], noHeavyWeapon:true },
+ { id:'missing_fingers', system:'腕・手', name:'欠損した指',
+  flavor:'指を数本失った手は、滑りやすい柄や繊細な道具をうまく掴めなくなった。手袋の隙間から常に冷気が忍び寄るようになった。',
+  stats:['dex'] },
+ { id:'torn_tendon', system:'腕・手', name:'引き裂かれた腱',
+  flavor:'腕の腱を深く切られたことで、重い金属製の装備を扱うと、耐え難い痙攣が走るようになった。',
+  stats:['st'], noHeavyWeapon:true },
+ { id:'punctured_lung', system:'胴体・内臓', name:'肺穿孔の痕',
+  flavor:'胸を深く刺された傷跡。運動をすると、肺がひび割れたふいごのように喘ぎ、呼吸が続かなくなった。',
+  stats:['st','spd'] },
+ { id:'ruptured_gut', system:'胴体・内臓', name:'裂かれた胃腑',
+  flavor:'腹部への凄惨な傷から、内臓が滑り落ちかけたあの夜。生き延びたものの、消化器は安物の酒や腐りかけの食料を拒絶するようになった。',
+  stats:['con'] },
+ { id:'ruptured_kidney', system:'胴体・内臓', name:'潰れた腎臓',
+  flavor:'腰の背後から受けた強烈な衝撃。毒素を濾過する器官が半死半生となり、毒液や病魔への耐性が極端に脆くなった。',
+  stats:['con'] },
+ { id:'the_drag', system:'脚・足', name:'引きずる脚',
+  flavor:'大腿部の肉をえぐり取られ、膝を真っ直ぐ伸ばせなくなった。足音は常に「引きずる音」を伴うようになった。',
+  stats:['spd'] },
+ { id:'shattered_toes', system:'脚・足', name:'砕かれた足の指',
+  flavor:'重い鈍器で踏み潰された爪先。バランスを保つことが難しく、濡れた床や斜面で容易に足元をすくわれるようになった。',
+  stats:['spd'] },
+ { id:'chill_in_bone', system:'脚・足', name:'骨を蝕む悪寒',
+  flavor:'冷たい水に浸かりながら何日も放置された右脚。冬や夜が訪れるたび、骨の芯から感覚が失われ、鉛のように重くなるようになった。',
+  stats:['spd'] },
+ { id:'abyssal_mirror', system:'精神・恐怖', name:'深淵の幻視',
+  flavor:'死の淵を覗き込んだ際、混沌の最奥にある「何か」と目が合ってしまった。光のない暗闇を極端に恐れるようになった。',
+  stats:['iq'] },
+ { id:'death_knell_panic', system:'精神・恐怖', name:'死線の硬直',
+  flavor:'目の前で仲間が倒れたあの凄惨な瞬間が頭から離れない。再び窮地に陥ったとき、体が金縛りに遭ったように動かなくなることとなった。',
+  stats:[], deathKnellPanic:true },
+ { id:'phantom_pain', system:'精神・恐怖', name:'幻痛',
+  flavor:'かつて致命傷を受けた部位は、完全に治癒している。しかし戦闘の緊張が高まると、存在しない傷口から灼熱の痛みが脳を焼くようになった。',
+  stats:['con'] },
+];
+
+function applyInjury(injury){
+ const effects = [];
+ (injury.stats||[]).forEach(stat=>{
+  const n = Nd6(2);
+  const before = PC[stat];
+  PC[stat] = Math.max(1, Math.floor(before / n));
+  effects.push({stat, n, before, after:PC[stat]});
+ });
+ if(injury.noHeavyWeapon) PC._noHeavyWeapon = true;
+ if(injury.deathKnellPanic) PC._deathKnellPanic = true;
+ PC._injuries = PC._injuries || [];
+ PC._injuries.push({id:injury.id, name:injury.name, flavor:injury.flavor, effects});
+ return effects;
+}
+
+// 体力0到達時に呼ぶ。運11以上ならtrueを返し選択肢を表示する（呼び出し元は通常の死亡処理をせず、ここに処理を委ねる）。
+// 運が足りなければ何もせずfalseを返す（呼び出し元はこれまで通り死亡処理を行う）。
+function offerLuckSave(enemyName){
+ if((PC.lk||0) < 11) return false;
+ const area = document.getElementById('cbt-ok-area');
+ if(!area) return false;
+ const cl = document.getElementById('clog');
+ area.innerHTML = '';
+ const msg = document.createElement('div');
+ msg.style.cssText = 'color:#e0d0d0;font-size:var(--font-sm);margin-bottom:10px;text-align:center';
+ msg.textContent = '死の淵で、何かが体を引き戻そうとしている……';
+ area.appendChild(msg);
+
+ const saveBtn = document.createElement('button');
+ saveBtn.className = 'choice-btn';
+ saveBtn.style.cssText = 'width:100%;margin-bottom:8px;background:#150f06;border-color:#b0a080;color:#f0ece0';
+ saveBtn.textContent = `▶ 運を10消費して生き延びる（運 ${PC.lk} → ${PC.lk-10}）`;
+ saveBtn.onclick = ()=>{
+  area.innerHTML=''; area.style.display='none';
+  startLuckSaveSequence(enemyName);
+ };
+ area.appendChild(saveBtn);
+
+ const dieBtn = document.createElement('button');
+ dieBtn.className = 'choice-btn';
+ dieBtn.style.cssText = 'width:100%;background:#150f06;border-color:#663322;color:#cc8866';
+ dieBtn.textContent = '▶ このまま力尽きる';
+ dieBtn.onclick = ()=>{
+  area.innerHTML=''; area.style.display='none';
+  go((cbtState && cbtState.lose) || 'DEAD');
+ };
+ area.appendChild(dieBtn);
+
+ area.style.display = 'block';
+ if(cl) cl.scrollTop = 9999;
+ return true;
+}
+
+function startLuckSaveSequence(enemyName){
+ PC.lk -= 10;
+ cbtState = null;
+ const cbtArea = document.getElementById('cbt-area');
+ if(cbtArea) cbtArea.classList.add('hidden');
+ const scrollArea = document.getElementById('scroll-area');
+ if(scrollArea) scrollArea.classList.remove('in-combat');
+ const textWin = document.getElementById('text-win');
+ if(textWin) textWin.style.display = '';
+
+ // 旅の途中・ダンジョン内どちらで倒れても、残った画像・状態を確実にクリアする
+ hideTravelImage();
+ hideTravelProgress();
+ hideDungeonImage();
+ travelState = null;
+ PC._yeldunDungeon = null;
+ _huntState = null;
+
+ const hasAliveAlly = (PC.party||[]).some(n=>n.con>0);
+ const rescueTxt = hasAliveAlly
+  ? '意識が遠のく中、仲間が体を支え、庇いながら必死に町まで撤退してくれた。'
+  : '敵はすでに事切れたものと見て、その場に打ち捨てていった。しばらくして、たまたま通りかかった旅人が虫の息のその体を見つけ、町まで担ぎ運んでくれた。';
+
+ const story = document.getElementById('story');
+ if(story){
+  story.innerHTML = `<div style="color:#e0d0d0;font-size:var(--font-sm)">
+   ${enemyName}との死闘の中、意識が完全に途切れた。<br><br>${rescueTxt}
+  </div>`;
+ }
+ renderChoices([{label:'▶ ……目を覚ます', fn:()=>_finishLuckSave(enemyName)}]);
+}
+
+function _finishLuckSave(enemyName){
+ // 1〜3ヶ月経過（食料消費・混沌の巣判定・かつての仲間の生死判定はスキップ）
+ const monthsOut = 1 + Math.floor(Math.random()*3);
+ GAME_TIME.totalDays += monthsOut * 30;
+ updateTimebar();
+ checkAging(true); // 加齢・寿命チェックは実行、かつての仲間の死亡判定はスキップ
+ checkQuestDeadlines(); // クエスト期限切れチェックは実行
+
+ // 所持品を全て喪失（呪文・技能・拠点・不動産は残る）
+ PC.gold = 0; PC.sp = 0; PC.cp = 0;
+ PC.equippedWeapons = []; PC.equippedArmors = []; PC.equippedBoots = false; PC.equippedClothing = false;
+ PC.invWeapons = []; PC.invArmors = []; PC.invBoots = false; PC.invBootsName = null; PC.invEquip = []; PC.invSpecialties = [];
+
+ PC.con = 1;
+
+ const injury = AFTERMATH_INJURIES[Math.floor(Math.random()*AFTERMATH_INJURIES.length)];
+ applyInjury(injury);
+
+ addLifeEvent('', `${enemyName}との戦いで瀕死の重傷を負い、九死に一生を得た。<br>${injury.flavor}`);
+
+ updateHUD();
+ showSaveToast(` 九死に一生を得た……「${injury.name}」の後遺症が残った。`);
+ const destTown = 'TOWN_' + (PC.town||'khazan').toUpperCase();
+ go(destTown);
+}
+
+function checkAging(skipCompanionCheck){
+ if(!skipCompanionCheck) checkFormerCompanionDeaths();
  const newAge = calcAge();
  const params = AGING_PARAMS[PC.race] || AGING_PARAMS.human;
  const lifespan = PC.lifespan || params.lifespan;
@@ -13757,17 +13944,17 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
   }
   case 'trap':{
    const trapTypes = [
-    {name:'落とし穴',   attr:'dex', desc:'床に不自然なひびがある。'},
-    {name:'毒矢の罠',   attr:'lk',  desc:'壁に小さな穴が開いている。'},
-    {name:'落石の罠',   attr:'dex', desc:'天井の岩が不安定に見える。'},
-    {name:'毒ガスの罠', attr:'con', desc:'空気がわずかに変な臭いがする。'},
-    {name:'炎の罠',     attr:'spd', desc:'床に古い油の染みがある。'},
+    {name:'落とし穴',   attr:'dex', descs:['床に不自然なひびがある。','床の一部だけ色がわずかに違う。踏むと沈み込みそうな気配がある。','床石の継ぎ目が不自然に浮いている。']},
+    {name:'毒矢の罠',   attr:'lk',  descs:['壁に小さな穴が開いている。','壁の高さの違う位置に、等間隔で小さな穴が並んでいる。','壁際の床に、細い矢じりのようなものが一本落ちている。']},
+    {name:'落石の罠',   attr:'dex', descs:['天井の岩が不安定に見える。','天井の一角に亀裂が走り、細かい砂がぱらぱらと落ちてくる。','支えとなる岩が一つだけ、明らかに他と組み方が違う。']},
+    {name:'毒ガスの罠', attr:'con', descs:['空気がわずかに変な臭いがする。','床の隙間から、うっすらと緑がかった靄が漂い出ている。','壁の小さな穴から、かすかにシュウシュウという音がする。']},
+    {name:'炎の罠',     attr:'spd', descs:['床に古い油の染みがある。','壁際に煤の跡が扇状に広がっている。過去にも作動したことがあるようだ。','床の一角に、焦げた跡と共に小さな金具が埋め込まれている。']},
    ];
    const t = trapTypes[Math.floor(Math.random()*trapTypes.length)];
    node.type = 'trap';
    node.trapName = t.name;
    node.trapAttr = t.attr;
-   node.trapDesc = t.desc;
+   node.trapDesc = t.descs[Math.floor(Math.random()*t.descs.length)];
    node.trapKey  = 'yd_tr_' + id;
    node.pending  = ['forward'];
    break;
@@ -13858,7 +14045,9 @@ function ydGoNode(nodeId, floor){
  // ── 松明切れ：LK SR ──
  const ydIsLit = dung.design?.isNaturalLight;
  if(!ydIsLit && node.type !== 'entrance' && (PC._torchTurns||0) <= 0){
-  const entryId = dung.floors?.[floor]?.entryNodeId;
+  // entryNodeIdが何らかの理由で失われていても、既知の命名規則で復元できるようにする
+  const entryId = dung.floors?.[floor]?.entryNodeId || ('YD_F' + floor + '_entrance');
+  const fallbackTown = dung.heroQuestBackNode || (dung.huntTownId ? ('TOWN_' + dung.huntTownId.toUpperCase()) : 'TOWN_KHAZAN');
   const storyEl = document.getElementById('story');
   storyEl.innerHTML = `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-bottom:8px"> 松明が切れた！</div>
    <span style="color:var(--white2)">完全な暗闇の中、壁を手探りで進む。出口まで帰り着けるか……</span>`;
@@ -13873,7 +14062,13 @@ function ydGoNode(nodeId, floor){
      stEl.innerHTML = `<span style="color:#f0ece0"> 脱出成功！</span><br><br>
       壁を伝いながら必死に出口を探した。かすかな外の光を頼りに、なんとか入口へたどり着いた！<br><br>
       <span style="color:#f0ece0">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
-     renderChoices([{label:' 入口へ戻る', fn:()=>{ if(entryId) ydGoNode(entryId, floor); }}]);
+     renderChoices([
+      {label:' 入口へ戻る', fn:()=>{
+       try{ ydGoNode(entryId, floor); }
+       catch(e){ console.warn('YD entry return failed, falling back to town', e); PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }
+      }},
+      {label:' （反応しない場合）諦めて地上へ戻る', fn:()=>{ PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }},
+     ]);
     } else {
      const dmg = 5;
      PC.con = Math.max(0, PC.con - dmg); updateHUD();
@@ -14316,6 +14511,10 @@ function ydNodeTxt(node, floor){
      '左手の通路の入口に古い松明ホルダーがある。使われた跡があり、誰かがここを定期的に訪れていた。',
      '左に伸びる通路から冷たい風が吹いてくる。その先に空間があることは確かだ。',
      '左手の通路の床に引きずった跡がある。重いものを運んだ痕で、この先に何かが持ち込まれた。',
+     '左に折れる通路の入口に、崩れた木戸の残骸が転がっている。かつてここを塞ぐ扉があったようだ。',
+     '左手に開いた通路の壁際に、古い足跡が乾いた泥となって残っている。かなり大きな足だ。',
+     '左へ続く道の天井から、細い根が幾筋も垂れ下がっている。地上がそう遠くない証拠かもしれない。',
+     '左に分かれる通路の奥から、規則的な滴りの音が聞こえてくる。何か液体が絶えず落ちているようだ。',
     ],
     right90:[
      '右手に支通路が続いている。こちらは主通路よりも古く、壁の石組みの様式が違う。',
@@ -14324,6 +14523,10 @@ function ydNodeTxt(node, floor){
      '右手の通路から獣の臭いがする。何かがこちらを縄張りにしているらしく、その気配が漂っている。',
      '右に伸びる通路の壁に誰かが書き残した記号がある。意味は分からないが、警告のようにも見える。',
      '右手の通路の奥で水の滴る音がする。地下水が近いか、別の空洞と繋がっているのかもしれない。',
+     '右へ分かれる道の入口に、朽ちた縄の切れ端が結び付けられている。かつて何かの目印だったようだ。',
+     '右手に開く通路の床だけが妙に平らに均されている。何度も往来があったことを物語っている。',
+     '右に続く通路から、乾いた砂がさらさらと流れ落ちる音が聞こえる。',
+     '右手の分岐の壁一面に、古い手形が幾つも押し付けられている。同じ手のものか、複数のものかは分からない。',
     ],
     tee:[
      'T字路に出た。左右どちらの通路も等しく暗く、どちらから臭いが来るかも判別できない。',
@@ -14332,11 +14535,17 @@ function ydNodeTxt(node, floor){
      'T字路の天井に古い滑車の跡がある。ここで何かを引き上げるか下ろすかしていたらしい。',
      '三叉路の中央の床だけが他より磨り減っている。多くの者がここで立ち止まり、どちらへ行くか迷ったのだろう。',
      'T字路の壁に三方向を指す矢印が刻まれている。それぞれの方向に記号があるが、意味は分からない。',
+     'T字路の分岐点に小さな祠が据えられている。旅の安全を祈るためのものか、風化して原形が分からない。',
+     '三方向に分かれる地点の壁に、それぞれ異なる色の顔料で印がつけられている。誰かの独自の目印らしい。',
+     'T字路の中心に、崩れた石柱の根元だけが残っている。かつては何か目印になる柱があったのだろう。',
     ],
     cross:[
      '十字路に出た。四方向すべてから微かな気配がする。どれが正しい道かは分からない。',
      '十字路の天井に古い滑車の残骸が付いている。かつてここで重いものを吊り上げていたのだろう。',
      '四方に通路が延びる十字路だ。中央の床だけが他と色が違い、長年ここに何かが置かれていた跡がある。',
+     '十字路の中心に古い井戸のような穴が開いている。覗き込んでも底は見えず、冷たい風だけが吹き上がる。',
+     '四方向へ道が分かれる地点に、朽ちた道標が四本まとめて倒れている。それぞれ違う方角を指していたようだ。',
+     '十字路の壁四面すべてに、同じ記号が繰り返し刻まれている。何かへの警告か、あるいは道しるべか。',
     ],
    };
    const arr = sideAtms[node.sideDir] || ['通路が分岐している。'];
@@ -14350,38 +14559,61 @@ function ydNodeTxt(node, floor){
     empty:[
      `${posDesc[node.alcovePos]||''}の壁龕は空だ。内側に何かを置いていた痕跡が残るが、今は何もない。`,
      `${posDesc[node.alcovePos]||''}の小さな窪みには何もない。それでも、この窪みが作られた理由があるはずだ。`,
+     `${posDesc[node.alcovePos]||''}の壁龕の底に、うっすらと四角い跡が残っている。かつて何かが置かれ、後に持ち去られたらしい。`,
+     `${posDesc[node.alcovePos]||''}に彫り込まれた窪みがあるが、中は空っぽだ。表面には無数の細かい傷がついている。`,
+     `${posDesc[node.alcovePos]||''}の壁龕を覗き込むが、埃が薄く積もっているだけだ。誰かが先にここを空にしたのだろう。`,
     ],
     statue:[
      `${posDesc[node.alcovePos]||''}の壁龕に石像が安置されている。どの神の像かは判然としないが、顔の部分だけが意図的に削られている。`,
      `${posDesc[node.alcovePos]||''}に石像がある。表面が黒く変色しており、長年にわたって油か血のようなものが塗られてきた跡がある。`,
+     `${posDesc[node.alcovePos]||''}の窪みに小さな木像が立てられている。虫食いだらけだが、両手を組んだ姿だけは分かる。`,
+     `${posDesc[node.alcovePos]||''}に佇む像は、片腕が根本から折れて足元に転がっている。誰が、いつ折ったのかは分からない。`,
+     `${posDesc[node.alcovePos]||''}の壁龕に据えられた像の目に、小さな宝石がはめ込まれている。片方だけ、すでに抉り取られていた。`,
     ],
     fountain:[
      `${posDesc[node.alcovePos]||''}の岩から清水が染み出し、小さな水盤に溜まっている。水は透明だが、底が妙に深い。`,
      `${posDesc[node.alcovePos]||''}に石造りの泉がある。水面が静止しているのに、底から規則的に気泡が上がってくる。`,
+     `${posDesc[node.alcovePos]||''}の窪みに水を湛えた石鉢がある。触れた指先がわずかにひりつくが、毒かどうかは分からない。`,
+     `${posDesc[node.alcovePos]||''}から滴る水が石を穿ち、小さな水たまりを作っている。長い年月をかけて刻まれた溝が美しい。`,
+     `${posDesc[node.alcovePos]||''}の泉の水面に、自分以外の何かが映り込んだ気がした。振り返っても誰もいない。`,
     ],
     chest:[
      `${posDesc[node.alcovePos]||''}の壁龕に木箱が押し込まれている。蓋の上に埃が積もっているが、鍵穴だけが新しく磨かれている。`,
      `${posDesc[node.alcovePos]||''}の窪みに古い箱がある。金具は錆びているが、箱自体は頑丈そうだ。何かが中で動いた気がした。`,
+     `${posDesc[node.alcovePos]||''}に鉄帯で補強された小箱がある。持ち上げてみると、見た目より軽い——中身は少ないのかもしれない。`,
+     `${posDesc[node.alcovePos]||''}の壁龕に木箱が隠すように置かれている。表面に爪で引っ掻いたような跡が幾筋も残っている。`,
+     `${posDesc[node.alcovePos]||''}の窪みに古い革袋と木箱が並んでいる。革袋はすでに朽ちて、中身が床にこぼれ出していた。`,
     ],
     device:[
      `${posDesc[node.alcovePos]||''}に金属製の仕掛けがある。用途は分からないが、どこかに繋がっているらしく、細い鎖が壁に消えている。`,
      `${posDesc[node.alcovePos]||''}の壁龕に奇妙な機械仕掛けがある。歯車と棒で構成されており、動かすと何かが起きそうだ。`,
+     `${posDesc[node.alcovePos]||''}に錘と滑車を組み合わせた装置がある。錆びついているが、まだ動く余地は残っていそうだ。`,
+     `${posDesc[node.alcovePos]||''}の窪みに、ぜんまい仕掛けらしき小さな箱がある。耳を近づけると微かに歯車の音がする。`,
+     `${posDesc[node.alcovePos]||''}に据えられた仕掛けから、細い真鍮の管が壁の奥へと伸びている。何かを送るための管かもしれない。`,
     ],
     clothing:[
      `${posDesc[node.alcovePos]||''}に衣類が丸めて押し込まれている。布は変色しているが形はある程度保たれており、防護目的の何かだったらしい。`,
      `${posDesc[node.alcovePos]||''}の窪みに革製の装備品が畳んで置かれている。主が置いて行ったのか、誰かがここに隠したのか。`,
+     `${posDesc[node.alcovePos]||''}にマントのようなものが掛けられている。裾がぼろぼろに擦り切れ、色も判別できないほど褪せている。`,
+     `${posDesc[node.alcovePos]||''}の壁龕に古い外套が丁寧に畳まれている。誰かがここへ戻ってくるつもりだったのかもしれない。`,
     ],
     paper:[
      `${posDesc[node.alcovePos]||''}の壁龕に羊皮紙の束がある。湿気でかなり傷んでおり、文字の判読は難しい。`,
      `${posDesc[node.alcovePos]||''}に折り畳んだ紙が挟まっている。文字は読めるが、何かの暗号か略語で意味が分からない。`,
+     `${posDesc[node.alcovePos]||''}の窪みに巻物が数本立てかけられている。封蝋は既に割れており、中身は誰かが先に読んだ後らしい。`,
+     `${posDesc[node.alcovePos]||''}に古びた手紙が一通残されている。宛名の部分だけが虫に食われて読めなくなっていた。`,
     ],
     food:[
      `${posDesc[node.alcovePos]||''}に食べ物の残骸がある。腐りかけており、ここに誰かがいたのはさほど昔のことではない。`,
      `${posDesc[node.alcovePos]||''}の窪みに干し肉と思しき固形物がある。乾燥しているので保存状態はいいが、誰のものかは分からない。`,
+     `${posDesc[node.alcovePos]||''}に硬く干からびたパンの塊が置かれている。かじった跡が残っているが、歯型は人のものではなさそうだ。`,
+     `${posDesc[node.alcovePos]||''}の壁龕に木の実の殻が山積みになっている。誰か、あるいは何かがここで長く食事を続けていたようだ。`,
     ],
     trash:[
      `${posDesc[node.alcovePos]||''}にガラクタが詰め込まれている。骨、布切れ、壊れた道具——誰かがここを物置として使っていたようだ。`,
      `${posDesc[node.alcovePos]||''}の窪みにがらくたが積まれている。よく見ると、一見ゴミに見えるものの中に意図的に配置された何かがある気がする。`,
+     `${posDesc[node.alcovePos]||''}に壊れた武具の破片が捨てられている。折れた刃、ひしゃげた兜——ここで何かが決着したらしい。`,
+     `${posDesc[node.alcovePos]||''}の壁龕に動物の骨が乱雑に積まれている。かじった跡から見て、大型の生き物の仕業だろう。`,
     ],
    };
    const descArr = contDescs[node.alcoveType] || [`${posDesc[node.alcovePos]||''}に小さな壁龕がある。`];
@@ -14409,18 +14641,24 @@ function ydNodeTxt(node, floor){
    const visited = PC[node.stairsKey];
    const stairAtms = {
     staircase: up
-     ? ['石段が上へ続いている。踏み面は磨り減り、手すりの金具だけが辛うじて残っている。','上り石段の壁に、かつてここを通った者たちが残した刻み印がある。何人が通り、何人が戻ったのか。']
-     : ['下り石段が続いている。深くなるにつれて空気が冷たく重くなる。','石段の向こうに暗闇が広がっている。一段降りるごとに、外の世界が遠ざかっていく感覚がある。'],
+     ? ['石段が上へ続いている。踏み面は磨り減り、手すりの金具だけが辛うじて残っている。','上り石段の壁に、かつてここを通った者たちが残した刻み印がある。何人が通り、何人が戻ったのか。','石段を見上げると、上方からわずかに光が差し込んでいるのが分かる。地上が近いのかもしれない。','摩耗した石段の端に、滑り止めの溝が刻まれている。かなり急な角度だったことがうかがえる。']
+     : ['下り石段が続いている。深くなるにつれて空気が冷たく重くなる。','石段の向こうに暗闇が広がっている。一段降りるごとに、外の世界が遠ざかっていく感覚がある。','下りの石段の縁に、滑り落ちた跡のような擦り傷が残っている。慎重に降りる必要がありそうだ。','石段を降りるたび、足音の反響が変わっていく。かなり広い空間が下に控えているようだ。'],
     chimney: up
-     ? ['岩壁に足場が打ち込まれた縦穴が上へ続いている。上端は暗くて見えないが、風が吹き降りてくる。','鉄製の梯子が垂直に伸びている。錆びているが体重を支えられそうだ——たぶん。']
-     : ['足場を使って降りる縦穴だ。底までどれくらいあるのか、投げた小石の音でおよその深さを測る。','縦穴の縁から覗くと深い暗闇が広がっている。下から冷たい空気が吹き上がってくる。'],
+     ? ['岩壁に足場が打ち込まれた縦穴が上へ続いている。上端は暗くて見えないが、風が吹き降りてくる。','鉄製の梯子が垂直に伸びている。錆びているが体重を支えられそうだ——たぶん。','縦穴の岩肌に手がかりとなる窪みが連続して彫られている。誰かがここを何度も昇り降りした跡だ。','上へ続く縦穴から、かすかに鳥の声のようなものが聞こえてくる。地上が近い証だろうか。']
+     : ['足場を使って降りる縦穴だ。底までどれくらいあるのか、投げた小石の音でおよその深さを測る。','縦穴の縁から覗くと深い暗闇が広がっている。下から冷たい空気が吹き上がってくる。','縦穴の壁に打ち込まれた杭が所々朽ちている。体重をかける前に確かめた方がよさそうだ。','縦穴の底からかすかな水音が聞こえる。かなりの深さまで続いているようだ。'],
     magic_stair:[
      '空中に浮かぶ光の踏み板が一列に続いている。踏み板は透明で、下が透けて見えそうだが実際には見えない。',
      '石段の形をした光の残像が階段状に並んでいる。魔法の階段だ。踏むと足元が固まるが、踏まなければ何もない空間だ。',
+     '虚空に淡く光る紋様が階段状に浮かんでいる。触れると指先がぴりりと痺れ、確かな力の存在を感じさせる。',
+     '床から浮き上がるように、半透明の光の段差が連なっている。一歩ごとに周囲の空気がわずかに震える。',
+     '古い魔法陣の残光が階段の形を保ったまま宙に留まっている。今も術が生きている証拠だ。',
     ],
     magic_room:[
      '部屋全体が魔法の移動装置になっているようだ。床に刻まれた複雑な魔法陣が微かに光っている。',
      '壁から壁まで魔法陣が広がっている。その中心に立つと、奇妙な浮遊感と共に別の場所へ移動しそうな気配がある。',
+     '部屋の四隅に埋め込まれた宝石が呼応するように明滅している。中央の床にも同じ紋様が描かれている。',
+     '天井から床まで、金色の線で幾何学模様が描かれている。歩くたびに線がわずかに輝きを増していく。',
+     '空気そのものが薄く発光しているような部屋だ。ここに立つだけで、体がどこかへ引かれる感覚がある。',
     ],
    };
    const stairArr = stairAtms[node.stairsType] || (up ? ['上へ続く道がある。'] : ['下へ続く道がある。']);
@@ -14441,13 +14679,23 @@ function ydNodeTxt(node, floor){
     ${darkWarn}`;
   }
 
-  case 'encounter':
+  case 'encounter':{
+   const tenseAtms = [
+    '空気が急に張り詰めた。何かがこちらの気配を察知したように、先の暗闇が静まり返っている。',
+    '奥から低いうなり声のようなものが聞こえてくる。足を止めて耳を澄ますと、それは規則的な呼吸音だと分かった。',
+    '床に新しい足跡が残っている。まだ乾ききっていない——ついさっきまで、何かがここにいた証拠だ。',
+    '壁に引っ掻いたような新しい傷が走っている。爪の間隔からして、かなりの大きさの生き物のものだ。',
+    '先の暗がりから、獣とも人ともつかない臭いが漂ってくる。近づくほどにその臭いは強くなる。',
+    '前方の闇の中で、何かがこちらをじっと見ているような気配がする。目を凝らしても輪郭は見えない。',
+    '静寂の中に、かすかな金属音が混じっている。何かが武装しているのかもしれない。',
+   ];
    return `${tBar}${fLabel}<br><br>
-    <span style="color:#b8a890">${ydStyleAtm(design)}</span>
+    <span style="color:#b8a890">${!PC[node.monsterKey] ? tenseAtms[Math.floor(Math.random()*tenseAtms.length)] : ydStyleAtm(design)}</span>
     ${!PC[node.monsterKey]
      ? `<br><br><span style="color:var(--white)"> <b>${node.monster.name}</b>が<b>${node.monster.count}体</b>、この先にいる！</span>`
      : `<br><br><span style="color:#b0a080">ここは静寂が戻っている。</span>`}
     ${darkWarn}`;
+  }
 
   case 'dead_end':{
    const deadEndAtms = [
@@ -14456,6 +14704,13 @@ function ydNodeTxt(node, floor){
     '行き止まりの壁に文字が刻まれている。「ここで終わり」という意味の古語だ——あるいはそれは警告だったのかもしれない。',
     '通路が袋小路になっている。天井の一か所だけ他より黒く煤けており、かつてここで長時間松明が焚かれていたことを示している。',
     '行き止まりだ。壁際に古い荷物の残骸がある。ここを最後の場所として選んだ者がいたらしい。',
+    '通路の終端に、崩れかけた石積みがある。人為的に塞がれたようで、向こう側から音がするような気がした。',
+    '行き止まりの床に、爪で引っ掻いたような跡が壁際まで続いている。何かがここまで這って来て、力尽きたようだ。',
+    '突き当たりの壁一面に煤がこびりついている。何かを燃やした跡だが、灰の量からして一度ではなさそうだ。',
+    '通路が唐突に途切れている。壁の継ぎ目が不自然に真っ直ぐで、後から人の手で塞がれた壁だと分かる。',
+    '行き止まりに小さな祭壇の残骸がある。捧げ物らしき骨片が散らばっており、長らく誰も訪れていない。',
+    '突き当たりの壁に無数の爪痕が交差している。焦って何かを掘ろうとした跡のようにも見える。',
+    '通路の終わりに、崩れた天井からの土砂が積もっている。掘り返せば先に進めそうだが、時間がかかりそうだ。',
    ];
    const deadEndTxt = node.atm || deadEndAtms[Math.floor(Math.random()*deadEndAtms.length)];
    return `${tBar}${fLabel}<br><br>
@@ -14480,6 +14735,9 @@ function ydNodeTxt(node, floor){
     '階段を降りてきた踊り場だ。天井が低く、壁の石組みが一段深くなったことを示している。',
     '階段の踊り場に出た。ここから先は別の層だ。空気の質が変わり、臭いも少し違う。',
     '段を降りた先の踊り場だ。床の石が上の層と色が違う。より古い時代に作られた部分に入ったらしい。',
+    '踊り場の壁に、層の境目を示すような溝が一周ぐるりと刻まれている。',
+    '狭い踊り場に立つと、上からも下からも等しく冷たい風が吹いてくる。',
+    '踊り場の床に、ここより先へ進んだ者たちの靴跡が幾重にも重なっている。',
    ];
    const txt = node.landingDesc || landingAtms[Math.floor(Math.random()*landingAtms.length)];
    return `${tBar}${fLabel}<br><br>
@@ -17646,6 +17904,7 @@ const TRAVEL_EVENT_CHANCE = {
  scenery: 0.022, // 地方の情景 約2.2%/日（1シーズン約90日に2回程度）
  light: 0.004, // 怪しい明かり／魅力的なリソース（共有トリガー） 約0.4%/日（かなり稀な特殊イベント）
  toll: 0.004, // 通行料を要求するモンスター 約0.4%/日（かなり稀な特殊イベント）
+ reunion: 0.0005, // かつての仲間との再会 0.05%/日（かつての仲間がいる場合のみ）
 };
 
 const WEATHER_EVENTS = [
@@ -18130,6 +18389,60 @@ function startTollEvent(ts){
  choices.appendChild(fightBtn);
 }
 
+// ── かつての仲間との再会イベント ──
+// 信頼度に応じた再会時のセリフ
+function _reunionLine(npc){
+ const trust = npc.trust || 0;
+ if(trust >= 70){
+  return `「${PC.name}！　また会えるなんて！　あの頃は本当に楽しかった。またあなたと旅がしたい」`;
+ } else if(trust >= 40){
+  return `「おや、${PC.name}じゃないか。元気そうで何よりだ。また一緒にやってみるか？」`;
+ } else if(trust >= 10){
+  return `「……ああ、あんたか。まあ、少しは世話になったな」`;
+ }
+ return `「……あんたか」（あまり親しげではない目でこちらを見ている）`;
+}
+
+function startReunionEvent(ts){
+ if(!PC._formerCompanions || !PC._formerCompanions.length){
+  ts._resumeWithoutIncrement = true;
+  setTimeout(travelTick, ts.interval);
+  return;
+ }
+ const idx = Math.floor(Math.random()*PC._formerCompanions.length);
+ const npc = PC._formerCompanions[idx];
+ travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：道の向こうから見覚えのある顔が歩いてくる——${npc.name}だ！　久しぶりに顔を合わせた。</span>`);
+ travelLog(`<span style="color:#e0d8c8"> ${_reunionLine(npc)}</span>`);
+ const choices = document.getElementById('choices');
+ if(!choices) return;
+ choices.innerHTML = '';
+
+ const partyFull = (PC.party||[]).length >= 3;
+ if(!partyFull){
+  const joinBtn = document.createElement('button'); joinBtn.className='choice-btn';
+  joinBtn.textContent = ` ${npc.name}を仲間に加える`;
+  joinBtn.onclick = ()=>{
+   choices.innerHTML = '';
+   PC._formerCompanions.splice(idx,1);
+   PC.party = PC.party||[];
+   PC.party.push({...npc, trust:npc.trust||0, joinDay:GAME_TIME.totalDays});
+   updateHUD();
+   travelLog(`<span style="color:#f0ece0"> ${npc.name}が再びパーティに加わった！</span>`);
+   renderChoices([{label:'▶ 旅を続ける', fn:()=>_mysteryLightContinue(ts)}]);
+  };
+  choices.appendChild(joinBtn);
+ }
+
+ const byeBtn = document.createElement('button'); byeBtn.className='choice-btn';
+ byeBtn.textContent = partyFull ? 'パーティが満員なので見送る' : 'そのまま見送る';
+ byeBtn.onclick = ()=>{
+  choices.innerHTML = '';
+  travelLog(`<span style="color:#c8b8a0"> しばし言葉を交わし、${npc.name}とは別れた。またどこかで会えるだろう。</span>`);
+  renderChoices([{label:'▶ 旅を続ける', fn:()=>_mysteryLightContinue(ts)}]);
+ };
+ choices.appendChild(byeBtn);
+}
+
 function startMysteryLightEvent(ts){
  const ev = MYSTERY_LIGHT_EVENTS[Math.floor(Math.random()*MYSTERY_LIGHT_EVENTS.length)];
  travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：${ev.desc}</span>`);
@@ -18206,6 +18519,7 @@ function rollTravelEvent(ts){
  if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road + TRAVEL_EVENT_CHANCE.merchant + TRAVEL_EVENT_CHANCE.scenery) return 'scenery';
  if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road + TRAVEL_EVENT_CHANCE.merchant + TRAVEL_EVENT_CHANCE.scenery + TRAVEL_EVENT_CHANCE.light) return 'light';
  if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road + TRAVEL_EVENT_CHANCE.merchant + TRAVEL_EVENT_CHANCE.scenery + TRAVEL_EVENT_CHANCE.light + TRAVEL_EVENT_CHANCE.toll) return 'toll';
+ if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road + TRAVEL_EVENT_CHANCE.merchant + TRAVEL_EVENT_CHANCE.scenery + TRAVEL_EVENT_CHANCE.light + TRAVEL_EVENT_CHANCE.toll + TRAVEL_EVENT_CHANCE.reunion) return 'reunion';
  return null;
 }
 
@@ -18605,6 +18919,10 @@ function travelTick(){
  }
  if(evType === 'toll'){
  startTollEvent(ts);
+ return;
+ }
+ if(evType === 'reunion'){
+ startReunionEvent(ts);
  return;
  }
  }
@@ -19735,6 +20053,12 @@ function startGame(){
  PC.equippedWeapons=[];PC.equippedArmors=[];PC.equippedBoots=false;PC.equippedClothing=false;
  PC._torchStock=0; PC._torchTurns=0;
  PC.quests=[]; PC.party=[];
+ PC._formerCompanions = []; // 前の代のNPC交友記録は引き継がない
+ PC.lifeEvents = []; // 前の代のライフイベントは引き継がない
+ PC._heroTowns = {}; // 前の代の英雄ステータスは引き継がない
+ PC._heroRegions = {};
+ PC.food = 0; // 前の代の食料は引き継がない
+ PC._questPenalties = {}; // 前の代の依頼期限切れ罰金は引き継がない
  PC.spdBase = PC.spd; // 重量ペナルティ計算用の基準SPD
 
  // 年齢・誕生日の初期化（開始年齢20歳）
@@ -19763,14 +20087,9 @@ function startGame(){
   PC._inheritedFamineYear = undefined;
   PC._inheritedFamineHeroName = undefined;
  }
- if(PC._inheritedHeroRegions){
-  PC._heroRegions = PC._inheritedHeroRegions;
-  PC._inheritedHeroRegions = undefined;
- }
- if(PC._inheritedHeroTowns){
-  PC._heroTowns = PC._inheritedHeroTowns;
-  PC._inheritedHeroTowns = undefined;
- }
+ // 英雄ステータス（町・地方）は代々引き継がず、新しいキャラクターが自分で獲得する必要がある
+ PC._inheritedHeroRegions = undefined;
+ PC._inheritedHeroTowns = undefined;
  if(PC._inheritedHarvestYear){
   PC._harvestYear = PC._inheritedHarvestYear;
   PC._harvestResult = PC._inheritedHarvestResult;
@@ -19842,7 +20161,7 @@ function renderShop(){
  };
 
  sec(' WEAPONS',WEAPONS_TABLE,(it,p)=>{
- const canUse=it.stReq<=PC.st&&it.dexReq<=PC.dex&&(PC.type==='warrior'||PC.type==='rogue'||it.dice<=2);
+ const canUse=it.stReq<=PC.st&&it.dexReq<=PC.dex&&(PC.type==='warrior'||PC.type==='rogue'||it.dice<=2)&&(!PC._noHeavyWeapon||it.dice<=2);
  const div=document.createElement('div');div.className='shop-item';
  div.innerHTML=`<h4>${it.name} ${canUse?'':'<span style="color:#e0d0d0">※要件未満</span>'}</h4>
  <p>${it.dice}D+${it.adds} / 強さ≥${it.stReq} 器用さ≥${it.dexReq} ${it.twoHand?'両手':''}　Wgt:${it.weight}</p>
@@ -20473,7 +20792,7 @@ function renderIgsList(townId){
  if(_igsTab === 'weapon'){
  wTable.forEach(it=>{
  const _sa = _shopActor||PC;
- const canUse = it.stReq<=_sa.st && it.dexReq<=_sa.dex && (_sa.type==='warrior'||_sa.type==='rogue'||it.dice<=2);
+ const canUse = it.stReq<=_sa.st && it.dexReq<=_sa.dex && (_sa.type==='warrior'||_sa.type==='rogue'||it.dice<=2) && (!(_sa===PC&&PC._noHeavyWeapon)||it.dice<=2);
  const div = document.createElement('div'); div.className='shop-item';
  div.innerHTML = `<h4>${it.name}${it.twoHand?' <span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 3px)">両手</span>':''}${canUse?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※要件未満</span>'}</h4>
  <p>${it.dice}D${it.adds>=0?'+':''}${it.adds} / 強さ≥${it.stReq} 器用さ≥${it.dexReq}　Wgt:${it.weight}</p>
@@ -21053,7 +21372,7 @@ function renderNPCDetail(el, n, idx){
  const conPct = alive ? Math.round(n.con/n.maxCon*100) : 0;
  const conCol = conPct>50?'var(--nature2)':conPct>25?'#ffcc00':'var(--danger)';
  const marriedBadge = n.married ? `<span style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;border:1px solid #c8a44a;border-radius:3px;padding:1px 5px;margin-left:6px"> 配偶者</span>` : '';
- const adds = Math.floor((n.st+n.lk+n.dex-30)/2);
+ const adds = calcAdds(n);
  const armor = calcNPCArmor(n);
  const npcAP = n.ap || 0;
  const npcLv = n.level || 1;
@@ -23145,9 +23464,8 @@ function startAsNPC(npcIdx){
  if(ws.chaosNest) PC._chaosNest = JSON.parse(JSON.stringify(ws.chaosNest));
  if(ws.famineYear) PC._famineYear = ws.famineYear;
  if(ws.famineHeroName) PC._famineHeroName = ws.famineHeroName;
- // 地方英雄・英雄フラグの引き継ぎ
- if(ws.heroRegions) PC._heroRegions = JSON.parse(JSON.stringify(ws.heroRegions));
- if(ws.heroTowns) PC._heroTowns = JSON.parse(JSON.stringify(ws.heroTowns));
+ // 地方英雄・英雄フラグは引き継がない（新しいキャラクターが自分で獲得する必要がある）
+ PC.food = 0; // 前の代の食料は引き継がない
  // 農業豊凶の引き継ぎ
  if(ws.harvestYear) PC._harvestYear = ws.harvestYear;
  if(ws.harvestResult) PC._harvestResult = ws.harvestResult;
@@ -23396,11 +23714,14 @@ function go(nodeId){
  }
  const node=NODES[nodeId];
  if(!node){console.warn('Node not found:',nodeId);return;}
- // 死亡到達時：ダンジョン画像の消し忘れ防止（YD/討伐ダンジョン等、独自の画像管理を行うものも含む）
+ // 死亡到達時：ダンジョン画像・旅イメージ画像の消し忘れ防止（YD/討伐ダンジョン等、独自の画像管理を行うものも含む）
  if(nodeId==='DEAD'){
  hideDungeonImage();
+ hideTravelImage();
+ hideTravelProgress();
  PC._yeldunDungeon = null;
  _huntState = null;
+ travelState = null;
  }
  const _prevWasDungeon = DUNGEON_NODES.has(currentNodeId);
  currentNodeId = nodeId;
@@ -25202,6 +25523,8 @@ function resolveRoundNPC(pRoll, npcActions){
   if(PC.con <= 0){
    cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
    updateHUD();
+   const _enemyNameForSave = (cbtState?.enemies||[]).map(e=>e.name).join('・') || '敵';
+   if(offerLuckSave(_enemyNameForSave)) return;
    showCombatOK(()=>{
     const _onLose = cbtState ? cbtState.onLose : null;
     const _lose   = cbtState ? (cbtState.lose||'DEAD') : 'DEAD';
@@ -25267,6 +25590,8 @@ function resolveRoundNPC(pRoll, npcActions){
  // 死亡チェック
  if(PC.con<=0){
   cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
+  const _enemyNameForSave = (cs.enemies||[]).map(e=>e.name).join('・') || '敵';
+  if(offerLuckSave(_enemyNameForSave)) return;
   showCombatOK(()=>{
    const _onLose = cs.onLose;
    cbtState = null;
@@ -25365,9 +25690,16 @@ function doFlee(){
   PC._yeldunDungeon = null;
   renderChoices([{label:'← 町に戻る', go: backNode}]);
  } else {
-  const entryId = dung?.floors?.[dung.currentFloor]?.entryNodeId;
-  if(entryId) renderChoices([{label:' 入口へ戻る', fn:()=>ydGoNode(entryId, dung.currentFloor)}]);
-  else renderChoices([{label:' ダンジョンを出る', fn:()=>go(currentNodeId)}]);
+  const entryId = dung?.floors?.[dung.currentFloor]?.entryNodeId || (dung ? ('YD_F' + dung.currentFloor + '_entrance') : null);
+  const fallbackTown = dung?.heroQuestBackNode || 'TOWN_KHAZAN';
+  if(entryId) renderChoices([
+   {label:' 入口へ戻る', fn:()=>{
+    try{ ydGoNode(entryId, dung.currentFloor); }
+    catch(e){ console.warn('YD entry return failed, falling back to town', e); PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }
+   }},
+   {label:' （反応しない場合）諦めて地上へ戻る', fn:()=>{ PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }},
+  ]);
+  else renderChoices([{label:' ダンジョンを出る', fn:()=>{ PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }}]);
  }
  // ダンジョン内逃走 → 入口へ戻る・松明1本消費
  } else {
@@ -25447,7 +25779,7 @@ function doFlee(){
    // NPC型：能力値ロール
    const rv = calcNPCRoll(e); return s + rv.total;
   }
-  return s + Nd6(Math.floor(e.curMR/10)+1) + Math.ceil(e.curMR/2);
+  return s + monsterCombatRoll(e.curMR).total;
  },0);
  const myArmor = effectiveArmor();
  const dmg = Math.max(1, eTotal - myArmor);
@@ -25459,6 +25791,8 @@ function doFlee(){
  cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
  _hidePCActionChoices();
  document.getElementById('npc-action-panel').style.display = 'none';
+ const _enemyNameForSave = (cbtState?.enemies||[]).map(e=>e.name).join('・') || '敵';
+ if(offerLuckSave(_enemyNameForSave)) return;
  showCombatOK(()=>go(cbtState.lose));
  } else {
  updateCombatUI();
@@ -25574,7 +25908,16 @@ function _showPCActionChoices(){
   b.className = 'choice-btn';
   b.id = act.id;
   b.textContent = act.label;
-  b.onclick = ()=>{ _hidePCActionChoices(); act.fn(); };
+  b.onclick = ()=>{
+   _hidePCActionChoices();
+   if(PC._deathKnellPanic && act.fn !== doDefend && Math.random() < 0.30){
+    const cl = document.getElementById('clog');
+    if(cl) cl.innerHTML += `<span style="color:#e0d0d0"> 突如、あの日の恐怖が蘇り、体が金縛りに遭ったように動かなくなった……！</span><br>`;
+    doDefend();
+    return;
+   }
+   act.fn();
+  };
   btns.appendChild(b);
  });
 
@@ -25914,9 +26257,8 @@ function resolveRound(pRoll, npcActions){
  if(cs.sleeping>0){ cs.sleeping--; }
  const eRolls = aliveEnemies.map(e=>{
  if(cs.sleeping>0) return {enemy:e, roll:0, dice:[]};
- const nDice = Math.floor(e.curMR/10)+1;
- const rv = rollNd6(nDice);
- return {enemy:e, roll: rv.total + Math.ceil(e.curMR/2), dice:rv.dice};
+ const rv = monsterCombatRoll(e.curMR);
+ return {enemy:e, roll: rv.total, dice:rv.dice};
  });
  const eTotalRoll = eRolls.reduce((s,r)=>s+r.roll, 0);
 
@@ -26033,6 +26375,8 @@ function resolveRound(pRoll, npcActions){
  cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
  _hidePCActionChoices();
  document.getElementById('npc-action-panel').style.display = 'none';
+ const _enemyNameForSave = (cs.enemies||[]).map(e=>e.name).join('・') || '敵';
+ if(offerLuckSave(_enemyNameForSave)) return;
  showCombatOK(()=>{
   const _onLose = cs.onLose;
   cbtState = null;
@@ -35212,6 +35556,30 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
    })" class="dbg-btn" style="border-color:#886600;color:#c8a44a">通行料イベント発火</button>
    <button onclick="dbg(()=>{
     if(!travelState){ showSaveToast('旅行中のみ使用できます'); return; }
+    if(!PC._formerCompanions || !PC._formerCompanions.length){ showSaveToast('かつての仲間がいません（先に解散させてください）'); return; }
+    document.getElementById('debug-panel').style.display='none';
+    startReunionEvent(travelState);
+   })" class="dbg-btn" style="border-color:#446688;color:#88aacc">再会イベント発火</button>
+   <button onclick="dbg(()=>{
+    const before = (PC._formerCompanions||[]).length;
+    checkFormerCompanionDeaths();
+    const after = (PC._formerCompanions||[]).length;
+    showSaveToast(`かつての仲間チェック実行：${before}人→${after}人`);
+   })" class="dbg-btn" style="border-color:#446688;color:#88aacc">仲間の死亡判定を実行</button>
+   <button onclick="dbg(()=>{
+    PC.lk = Math.max(PC.lk||0, 15);
+    document.getElementById('debug-panel').style.display='none';
+    document.getElementById('cbt-area').classList.remove('hidden');
+    const area = document.getElementById('cbt-ok-area');
+    if(area) area.style.display='block';
+    offerLuckSave('テストモンスター');
+   })" class="dbg-btn" style="border-color:#aa3322;color:#ff6644">九死に一生を強制発火</button>
+   <button onclick="dbg(()=>{
+    const list = (PC._injuries||[]).map(i=>i.name).join('、') || 'なし';
+    showSaveToast(`現在の後遺症：${list}　運:${PC.lk}　重武器制限:${PC._noHeavyWeapon?'あり':'なし'}　死線の硬直:${PC._deathKnellPanic?'あり':'なし'}`);
+   })" class="dbg-btn" style="border-color:#aa3322;color:#ff6644">後遺症の状態を確認</button>
+   <button onclick="dbg(()=>{
+    if(!travelState){ showSaveToast('旅行中のみ使用できます'); return; }
     document.getElementById('debug-panel').style.display='none';
     const mEnemy = pickMareaEnemy();
     travelLog(`<span style='color:#b8a890'>[DBG] ${mEnemy.desc}</span>`);
@@ -35226,6 +35594,19 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
     PC.town='neria';
     startNeriaChaosSiege();
    })" class="dbg-btn" style="border-color:#aa3322;color:#ff6644">混沌の軍勢襲来発火</button>
+   <button onclick="dbg(()=>{
+    if(!PC._chaosNest){ showSaveToast('混沌の根城：未初期化（initChaosNest未実行）'); return; }
+    const n = PC._chaosNest;
+    if(!n.nestTownId){
+     showSaveToast(`混沌の根城：現在なし（次回発生予定日: ${n.nextSpawnDay ?? '不明'}日目 / 現在${GAME_TIME.totalDays}日目）`);
+     return;
+    }
+    const townName = (TOWNS[n.nestTownId]||{}).name || n.nestTownId;
+    const status = n.cleared ? '討伐済み（消滅）'
+     : n.defeatedByNPC ? `NPCが討伐済み（${n.npcDefeaterName||'?'}、噂残り${3-(n.npcRumorShown||0)}回）`
+     : '存在中（未討伐）';
+    showSaveToast(`混沌の根城：${townName}（${n.wizardTitle||''} ${n.wizardName||''}） 状態:${status}`);
+   })" class="dbg-btn" style="border-color:#aa3322;color:#ff6644">根城の状態を確認</button>
    <button onclick="dbg(()=>{ showSaveToast('現在の季節：'+getSeasonKey()+'（'+getCurrentDate().month+'月）　地方：'+(getRegionKey(PC.town)||'（町の外/不明）')) })" class="dbg-btn">現在の季節/地方確認</button>
    <button onclick="dbg(()=>{
     const actor = _guildActor || PC;
