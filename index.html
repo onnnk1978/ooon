@@ -429,7 +429,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  margin-bottom: 4px;
  }
  #dt-mini-hud .mh-name {
- font-size: 11px;
+ font-size: calc(var(--font-sm) - 1px);
  color: var(--gold);
  white-space: nowrap;
  overflow: hidden;
@@ -442,7 +442,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  align-items: center;
  }
  #dt-mini-hud .mh-date {
- font-size: 9px;
+ font-size: calc(var(--font-sm) - 3px);
  color: var(--cyn);
  margin-bottom: 3px;
  }
@@ -458,8 +458,8 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  padding: 2px 3px;
  text-align: center;
  }
- #dt-mini-hud .mh-cell .lbl { font-size: 8px; color: var(--dim); display: block; }
- #dt-mini-hud .mh-cell .val { font-size: 10px; color: var(--white); }
+ #dt-mini-hud .mh-cell .lbl { font-size: calc(var(--font-sm) - 4px); color: var(--dim); display: block; }
+ #dt-mini-hud .mh-cell .val { font-size: calc(var(--font-sm) - 2px); color: var(--white); }
  #dt-mini-hud .mh-cell.danger .val { color: var(--red); }
  #dt-mini-hud .mh-cell.warn .val { color: var(--grn); }
 #dt-mini-hud .mh-cell.danger .val { color: var(--yel); }
@@ -484,7 +484,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  #inv-panel > .cg-btn { display: none !important; }
 
  .stat-tab-btn {
- font-size: 8px !important;
+ font-size: calc(var(--font-sm) - 4px) !important;
  padding: 5px 2px !important;
  }
 
@@ -499,31 +499,31 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  #stpanel-status [style*="font-size:calc(var(--font-sm) - 1px)"],
  #stpanel-equip [style*="font-size:calc(var(--font-sm) - 1px)"],
  #stpanel-log [style*="font-size:calc(var(--font-sm) - 1px)"] {
- font-size: 9px !important;
+ font-size: calc(var(--font-sm) - 3px) !important;
  margin-bottom: 3px !important;
  }
  /* 能力値グリッド：3列に */
  #sp-attrs { grid-template-columns: repeat(3, 1fr) !important; gap: 3px !important; margin-bottom: 6px !important; }
  #sp-attrs > div { padding: 3px 4px !important; }
- #sp-attrs > div > div:first-child { font-size: 8px !important; margin-bottom: 1px !important; }
- #sp-attrs > div > div:last-child { font-size: 12px !important; }
+ #sp-attrs > div > div:first-child { font-size: calc(var(--font-sm) - 4px) !important; margin-bottom: 1px !important; }
+ #sp-attrs > div > div:last-child { font-size: var(--font-sm) !important; }
 
  /* 戦闘値・冒険グリッド */
  #sp-combat { gap: 3px !important; margin-bottom: 6px !important; }
  #sp-combat > div { padding: 3px 4px !important; }
- #sp-combat > div > div:first-child { font-size: 8px !important; margin-bottom: 1px !important; }
- #sp-combat > div > div:last-child { font-size: 11px !important; }
+ #sp-combat > div > div:first-child { font-size: calc(var(--font-sm) - 4px) !important; margin-bottom: 1px !important; }
+ #sp-combat > div > div:last-child { font-size: calc(var(--font-sm) - 1px) !important; }
  #sp-adv { gap: 3px !important; margin-bottom: 6px !important; }
  #sp-adv > div { padding: 3px 4px !important; }
- #sp-adv > div > div:first-child { font-size: 8px !important; margin-bottom: 1px !important; }
- #sp-adv > div > div:last-child { font-size: 11px !important; }
+ #sp-adv > div > div:first-child { font-size: calc(var(--font-sm) - 4px) !important; margin-bottom: 1px !important; }
+ #sp-adv > div > div:last-child { font-size: calc(var(--font-sm) - 1px) !important; }
 
  /* 名前・年齢ブロック */
- #sp-name { font-size: 13px !important; margin-bottom: 2px !important; }
- #sp-subtitle{ font-size: 8px !important; }
- #sp-age { font-size: 11px !important; }
- #sp-birthday{ font-size: 8px !important; }
- #sp-lifespan-lbl { font-size: 8px !important; }
+ #sp-name { font-size: calc(var(--font-base) - 1px) !important; margin-bottom: 2px !important; }
+ #sp-subtitle{ font-size: calc(var(--font-sm) - 4px) !important; }
+ #sp-age { font-size: calc(var(--font-sm) - 1px) !important; }
+ #sp-birthday{ font-size: calc(var(--font-sm) - 4px) !important; }
+ #sp-lifespan-lbl { font-size: calc(var(--font-sm) - 4px) !important; }
 
  /* 生涯バー */
  #stpanel-status > div:nth-child(2) { margin-bottom: 6px !important; padding-bottom: 5px !important; }
@@ -568,35 +568,35 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 
  /* テキスト */
  #text-win {
- font-size: 12px !important;
+ font-size: var(--font-base) !important;
  line-height: 2.0 !important;
  margin: 6px 8px 0 !important;
  padding: 10px 12px !important;
  }
- .node-id { font-size: 9px !important; }
+ .node-id { font-size: calc(var(--font-sm) - 1px) !important; }
 
  /* ダイス・戦闘・魔法 */
  #dice-area, #cbt-area, #magic-area {
  margin: 6px 8px 0 !important;
  padding: 10px !important;
  }
- #dice-area h3, #cbt-area h3, #magic-area h3 { font-size: 11px !important; }
- #dd { font-size: 11px !important; line-height: 2 !important; }
- .dr-result { font-size: 13px !important; min-height: 30px !important; }
- .roll-btn { font-size: 11px !important; min-height: 38px !important; padding: 8px !important; }
- .fight-btn { font-size: 11px !important; min-height: 38px !important; padding: 8px !important; }
+ #dice-area h3, #cbt-area h3, #magic-area h3 { font-size: var(--font-base) !important; }
+ #dd { font-size: calc(var(--font-lg) + 3px) !important; line-height: 2 !important; }
+ .dr-result { font-size: calc(var(--font-lg) + 2px) !important; min-height: 30px !important; }
+ .roll-btn { font-size: calc(var(--font-base) - 1px) !important; min-height: 38px !important; padding: 8px !important; }
+ .fight-btn { font-size: calc(var(--font-base) - 1px) !important; min-height: 38px !important; padding: 8px !important; }
  .choice-btn{
- font-size: 11px !important;
+ font-size: calc(var(--font-base) - 1px) !important;
  min-height: 38px !important;
  padding: 8px 10px !important;
  line-height: 1.8 !important;
  }
 
  /* 戦闘ログ高さ制限 */
- .cbt-log { max-height: 45vh !important; font-size: 10px !important; }
+ .cbt-log { max-height: 45vh !important; font-size: calc(var(--font-sm) - 1px) !important; }
 
  /* 呪文リスト */
- .spell-btn { font-size: 10px !important; padding: 7px !important; }
+ .spell-btn { font-size: calc(var(--font-base) - 2px) !important; padding: 7px !important; }
  .spell-list { }
 }
 
@@ -626,7 +626,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026071801</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026072322</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:var(--white2);margin-top:4px;text-align:center;display:none"></div>
@@ -1338,12 +1338,20 @@ function initTrust(startTownId){
 }
 
 // 信頼度取得
-function getTrust(townId){ return (PC.trust||{})[townId] || 0; }
+// 信頼度データが正しいオブジェクトかチェックし、壊れていれば再初期化する
+// （後継時にNPCの忠誠度(数値のtrust)がPC.trust（町別オブジェクト）を上書きしてしまう不具合の自己修復）
+function _ensureTrustObject(){
+ if(!PC.trust || typeof PC.trust !== 'object' || Array.isArray(PC.trust)){
+  initTrust(PC._startTown);
+ }
+}
+
+function getTrust(townId){ _ensureTrustObject(); return (PC.trust||{})[townId] || 0; }
 
 // 信頼度変動
 // type='delivery' の場合は上限49
 function changeTrust(townId, delta, type){
- if(!PC.trust) initTrust(PC._startTown);
+ _ensureTrustObject();
  const cur = PC.trust[townId] || 0;
  // 宅配・護衛は信頼度49上限（ただし既に50以上なら変更しない）
  if(type==='delivery' && cur >= 50) return;
@@ -3410,7 +3418,7 @@ function goPropertyNode(townId){
    return { name:r.name, tag:`${ageYears}歳・元${r.typeJa||r.type}・引退`, isRetired:true };
   });
   const allResidents = [
-   ...caretakers.map(n=>({ name:n.name, tag:n.married?'配偶者':'留守番', npc:n, isChild:false, isRetired:false })),
+   ...caretakers.map(n=>({ name:n.name, tag:(n.married && (PC.spouse||[]).some(s=>s.name===n.name))?'配偶者':'留守番', npc:n, isChild:false, isRetired:false })),
    ...children.map(c=>{
     const ageYears = Math.floor((GAME_TIME.totalDays - c.bornDay)/365);
     const ready = ageYears >= 15;
@@ -3549,7 +3557,7 @@ function _showPropertyMain(townId){
   }
   mhtml += `<span style="color:#c0b098">保管中： ${stor.gold||0}GP ${storSP}SP ${storCP}CP　 武器${storW}　 防具${storA}　 宝石${storJ}　 松明${storT}本</span><br>`;
   const allResidents2 = [
-   ...(prop.caretakers).map(n=>({name:n.name,tag:n.married?'配偶者':'留守番',npc:n,isChild:false,isRetired:false})),
+   ...(prop.caretakers).map(n=>({name:n.name,tag:(n.married && (PC.spouse||[]).some(s=>s.name===n.name))?'配偶者':'留守番',npc:n,isChild:false,isRetired:false})),
    ...(prop.children).map(c=>{
     const ageYears=Math.floor((GAME_TIME.totalDays-c.bornDay)/365);
     const ready=ageYears>=15;
@@ -4216,9 +4224,9 @@ function _recruitChild(child, prop, townId){
  const def = PROPERTY_DEFS[townId];
  // タイプに応じた装備を設定
  const t = child.type||'warrior';
- child.equippedWeapons = t==='wizard'?[]:[{name:'ショートソード',dice:3,adds:0,twoHand:false}];
- child.equippedArmors = [{name:'布製の鎧',hits:3,stReq:1,isShield:false}];
- child.invWeapons = t!=='wizard'?[]:[{name:'ショートソード',dice:3,adds:0,twoHand:false}];
+ child.equippedWeapons = t==='wizard'?[]:[{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}];
+ child.equippedArmors = [{name:'布製の鎧',hits:3,stReq:1,isShield:false,weight:100}];
+ child.invWeapons = t!=='wizard'?[]:[{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}];
  child.invArmors = [];
  child.spells = t==='wizard'?[{...SPELLS_L1[2]}]:[];
  // bornDayをbirthDayとして引き継ぎ、個体寿命を設定
@@ -4548,8 +4556,10 @@ function goOtherActions(townId){
  if(bankTowns.includes(townId)){
   choices.push({label:' 両替所（金庫サービス）', fn:()=>goExchangeBank(townId)});
  }
- // アルバイト
- choices.push({label:' アルバイト（1週間・3GP）', fn:()=>doPartTimeJob(townId), go:'__travel__'});
+ // アルバイト（対応する仕事データがある町のみ。カルヴォ砦のような軍事拠点には無い）
+ if(PARTTIME_JOBS[townId]){
+  choices.push({label:' アルバイト（1週間・3GP）', fn:()=>doPartTimeJob(townId), go:'__travel__'});
+ }
  // 物件
  if(def){
   const owned = hasProp;
@@ -4892,17 +4902,17 @@ function generateNPC(level=1){
 
  // 装備（レベルに応じて強化）
  const weapons =
-  level>=5 ? [{name:'グレートソード',dice:6,adds:0,twoHand:true}] :
-  level>=4 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false},{name:'短剣',dice:2,adds:1,twoHand:false}] :
-  level>=3 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false}] :
-  level>=2 ? [{name:'ショートソード',dice:3,adds:0,twoHand:false}] :
-             [{name:'ショートソード',dice:3,adds:0,twoHand:false}];
+  level>=5 ? [{name:'グレートソード',dice:6,adds:0,twoHand:true,weight:170}] :
+  level>=4 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120},{name:'短剣',dice:2,adds:1,twoHand:false,weight:16}] :
+  level>=3 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120}] :
+  level>=2 ? [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}] :
+             [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}];
  const armors =
-  level>=5 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false},{name:'バックラー',hits:3,stReq:1,isShield:true}] :
-  level>=4 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false}] :
-  level>=3 ? [{name:'布製の鎧',hits:3,stReq:1,isShield:false},{name:'バックラー',hits:3,stReq:1,isShield:true}] :
-  level>=2 ? [{name:'布製の鎧',hits:3,stReq:1,isShield:false}] :
-             [{name:'布製の鎧',hits:3,stReq:1,isShield:false}];
+  level>=5 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false,weight:200},{name:'バックラー',hits:3,stReq:1,isShield:true,weight:75}] :
+  level>=4 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false,weight:200}] :
+  level>=3 ? [{name:'布製の鎧',hits:3,stReq:1,isShield:false,weight:100},{name:'バックラー',hits:3,stReq:1,isShield:true,weight:75}] :
+  level>=2 ? [{name:'布製の鎧',hits:3,stReq:1,isShield:false,weight:100}] :
+             [{name:'布製の鎧',hits:3,stReq:1,isShield:false,weight:100}];
 
  // level2以上のNPCはAPをそのレベルに到達している分だけ持つ
  const npcAp = LEVEL_THRESHOLDS[level-1] || 0;
@@ -4945,6 +4955,116 @@ function generateNPC(level=1){
   const [min, max] = ranges[race] || ranges.human;
   return min + Math.floor(Math.random() * (max - min + 1));
  })(),
+ };
+}
+
+// ── NPCインポート機能 ──────────────────────────────
+// レベル別装備テーブル（generateNPCと同じ基準を使い回す）
+function _importEquipmentForLevel(level, type){
+ const weapons =
+  level>=5 ? [{name:'グレートソード',dice:6,adds:0,twoHand:true,weight:170}] :
+  level>=4 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120},{name:'短剣',dice:2,adds:1,twoHand:false,weight:16}] :
+  level>=3 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120}] :
+  level>=2 ? [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}] :
+             [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}];
+ const armors =
+  level>=5 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false,weight:200},{name:'バックラー',hits:3,stReq:1,isShield:true,weight:75}] :
+  level>=4 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false,weight:200}] :
+  level>=3 ? [{name:'布製の鎧',hits:3,stReq:1,isShield:false,weight:100},{name:'バックラー',hits:3,stReq:1,isShield:true,weight:75}] :
+  level>=2 ? [{name:'布製の鎧',hits:3,stReq:1,isShield:false,weight:100}] :
+             [{name:'布製の鎧',hits:3,stReq:1,isShield:false,weight:100}];
+ return { weapons, armors };
+}
+
+// 年齢（歳）から、現在の暦を基準にしたNPC用birthDay（totalDays基準）を算出
+function _birthDayFromAge(age){
+ return GAME_TIME.totalDays - Math.floor(age * 365);
+}
+
+// 保存プールの読み書き（ws.knownNPCsとは別管理。エンディング後専用の仕組みと混ざらないようにするため）
+const IMPORT_NPC_KEY = 'tt5_imported_npcs';
+function loadImportedNPCs(){
+ try{
+  const raw = localStorage.getItem(IMPORT_NPC_KEY);
+  return raw ? JSON.parse(raw) : [];
+ }catch(e){ return []; }
+}
+function saveImportedNPCs(list){
+ try{ localStorage.setItem(IMPORT_NPC_KEY, JSON.stringify(list)); }catch(e){}
+}
+function addImportedNPC(npc){
+ const list = loadImportedNPCs();
+ list.push(npc);
+ saveImportedNPCs(list);
+}
+function removeImportedNPCById(npcId){
+ const list = loadImportedNPCs().filter(n=>n._npcId!==npcId);
+ saveImportedNPCs(list);
+}
+
+// 手動入力からNPCオブジェクトを構築
+function buildManualImportNPC(fields){
+ const { name, race, type, level, age, st, iq, lk, con, dex, chr, spd, gold } = fields;
+ const lv = Math.max(1, Math.floor(level)||1);
+ const { weapons, armors } = _importEquipmentForLevel(lv, type);
+ const npcAp = LEVEL_THRESHOLDS[lv-1] || 0;
+ return {
+  name, race, type, level: lv,
+  epithet: generateEpithet(),
+  ap: npcAp,
+  st, iq, lk, con, dex, chr, spd,
+  maxCon: con, maxSt: st,
+  gold: gold||0, sp: 0, cp: 0,
+  equippedWeapons: type==='wizard' ? [] : weapons,
+  equippedArmors: armors,
+  equippedBoots: false,
+  equippedClothing: false,
+  invWeapons: type!=='wizard' ? [] : weapons,
+  invArmors: [],
+  spells: type==='wizard' ? [{...SPELLS_L1[2]}] : [],
+  background: rollBackground(race, type),
+  alignment_ethics: Math.floor((Math.random()-0.5)*60),
+  alignment_order:  Math.floor((Math.random()-0.5)*60),
+  _npcId: Date.now() + Math.random(),
+  birthDay: _birthDayFromAge(Math.max(0, Math.floor(age)||18)),
+  lifespan: rollLifespan(race),
+  _imported: true,
+ };
+}
+
+// セーブファイル（PCデータ）からNPCオブジェクトを構築
+function buildFileImportNPC(saveData){
+ const pc = saveData.pc;
+ const gt = saveData.gameTime || {};
+ // 書き出し元の暦を使って、そのPCの当時の年齢を算出（calcAgeと同じロジック）
+ let age = 18;
+ if(pc.birthYear != null && gt.year != null){
+  age = gt.year - pc.birthYear;
+  if(gt.month < pc.birthMonth) age--;
+  else if(gt.month === pc.birthMonth && gt.day < pc.birthDay) age--;
+  age = Math.max(0, age);
+ }
+ return {
+  name: pc.name, race: pc.race, type: pc.type, level: pc.level||1,
+  epithet: pc.epithet||'',
+  ap: pc.ap||0,
+  st: pc.st, iq: pc.iq, lk: pc.lk, con: pc.maxCon||pc.con, dex: pc.dex, chr: pc.chr, spd: pc.spd,
+  maxCon: pc.maxCon||pc.con, maxSt: pc.maxSt||pc.st,
+  gold: pc.gold||0, sp: pc.sp||0, cp: pc.cp||0,
+  equippedWeapons: pc.equippedWeapons||[],
+  equippedArmors: pc.equippedArmors||[],
+  equippedBoots: pc.equippedBoots||false,
+  equippedClothing: pc.equippedClothing||false,
+  invWeapons: pc.invWeapons||[],
+  invArmors: pc.invArmors||[],
+  spells: pc.spells||[],
+  background: pc.background || rollBackground(pc.race, pc.type),
+  alignment_ethics: pc.alignment_ethics||0,
+  alignment_order: pc.alignment_order||0,
+  _npcId: Date.now() + Math.random(),
+  birthDay: _birthDayFromAge(age),
+  lifespan: pc.lifespan || rollLifespan(pc.race),
+  _imported: true,
  };
 }
 
@@ -7461,11 +7581,12 @@ function makeRecruitNodes(){
  {key:'RECRUIT_ISKALD',   town:'iskald',  back:'TAVERN_ISKALD',   label:'坑夫の溜まり場'},
  {key:'RECRUIT_NERIA',    town:'neria',   back:'TAVERN_NERIA',    label:'砦の酒場'},
  {key:'RECRUIT_DORUA',    town:'dorua',   back:'TAVERN_DORUA',    label:'ドルアの酒場'},
+ {key:'RECRUIT_KALVO',    town:'kalvo',   back:'TAVERN_KALVO',    label:'砦の酒場'},
  ];
  const nodes = {};
  defs.forEach(({key,town,back,label})=>{
  nodes[key] = {
- scene: (['verda','rimholm','marakai'].includes(town)?'town_village':town==='al_rashid'?'town_desert_city':['oasis_fort','saroon','duna'].includes(town)?'town_desert_village':town==='khazan'?'town_khazan':town==='port_argon'?'town_port':town==='elsia'?'town_elsia':town==='yeldun'?'town_mountain_city':['frostpeak','ashveil','nifurvik','iskald'].includes(town)?'town_mountain_village':town==='valdheim'?'town_stone':['neria'].includes(town)?'town_stone':['dorua','sarpe','nebra'].includes(town)?'town_village':'town_stone'),
+ scene: (['verda','rimholm','marakai'].includes(town)?'town_village':town==='al_rashid'?'town_desert_city':['oasis_fort','saroon','duna'].includes(town)?'town_desert_village':town==='khazan'?'town_khazan':town==='port_argon'?'town_port':town==='elsia'?'town_elsia':town==='yeldun'?'town_mountain_city':['frostpeak','ashveil','nifurvik','iskald'].includes(town)?'town_mountain_village':town==='valdheim'?'town_stone':['neria','kalvo'].includes(town)?'town_stone':['dorua','sarpe','nebra'].includes(town)?'town_village':'town_stone'),
  txt:()=>{
  const npcs = getTavernNPCs(town);
  nodes[key]._npcs = npcs;
@@ -7893,13 +8014,11 @@ function calcTotalWeight(pc=PC){
  let w = 0;
  // 武器（インベントリ全て）
  (pc.invWeapons||[]).forEach(iw=>{
- const def = WEAPONS_TABLE.find(t=>t.name===iw.name);
- if(def) w += def.weight;
+ w += iw.weight||0;
  });
  // 防具（インベントリ全て）
  (pc.invArmors||[]).forEach(ia=>{
- const def = ARMOR_TABLE.find(t=>t.name===ia.name);
- if(def) w += def.weight;
+ w += ia.weight||0;
  });
  // 靴（名前からEQUIP_TABLEを参照して正確な重量を取得）
  if(pc.invBootsName){
@@ -8561,6 +8680,7 @@ function _showSettingsMain(){
   <button id="fsp-world-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> OOONの世界</button>
   <button id="fsp-guide-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> ゲームシステム</button>
   <button id="fsp-transfer-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> セーブデータ 書き出し／読み込み</button>
+  <button id="fsp-npcimport-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> NPCインポート</button>
   <button id="fsp-feedback-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:12px;text-align:left"> 感想・バグ報告</button>
   <button id="fsp-close" style="width:100%;background:none;border:1px solid #334;color:#c0b098;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px;cursor:pointer;border-radius:3px"> 閉じる</button>
  `;
@@ -8574,6 +8694,7 @@ function _showSettingsMain(){
  document.getElementById('fsp-world-btn').onclick = ()=>_showWorldMenu();
  document.getElementById('fsp-guide-btn').onclick = ()=>_showGuideMenu();
  document.getElementById('fsp-transfer-btn').onclick = ()=>_showTransferPanel();
+ document.getElementById('fsp-npcimport-btn').onclick = ()=>_showNPCImportMenu();
  document.getElementById('fsp-feedback-btn').onclick = ()=>copyFeedbackSnapshot();
  document.getElementById('fsp-close').onclick = ()=>panel.remove();
 }
@@ -8732,6 +8853,188 @@ function _showTransferPanel(){
  };
 
  document.getElementById('fsp-back').onclick = ()=>_showSettingsMain();
+}
+
+// ── NPCインポート：一覧・受け取りメニュー ──
+function _showNPCImportMenu(){
+ const existing = document.getElementById('font-size-panel');
+ if(existing) existing.remove();
+ const pool = loadImportedNPCs();
+ const raceJa = r=>({human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[r]||r);
+ const typeJa = t=>({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[t]||t);
+
+ const panel = document.createElement('div');
+ panel.id = 'font-size-panel';
+ panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--info-bg);border:2px solid #484848;border-radius:6px;padding:16px;z-index:9998;min-width:280px;max-width:340px;max-height:80vh;overflow-y:auto;box-shadow:0 0 30px #000a;font-family:system-ui,sans-serif';
+
+ const rows = pool.length ? pool.map((n,i)=>`
+  <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:8px;margin-bottom:6px">
+   <div style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px)">${n.name}<span style="color:#c8b8a0;margin-left:6px">${raceJa(n.race)}の${typeJa(n.type)} Lv${n.level||1}</span></div>
+   <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;margin:4px 0">ST${n.st} IQ${n.iq} LK${n.lk} CON${n.con} DEX${n.dex} CHR${n.chr} SPD${n.spd}</div>
+   <div style="display:flex;gap:6px">
+    <button data-recruit="${i}" style="flex:1;background:var(--ink);border:1px solid #585858;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:6px;cursor:pointer;border-radius:3px">パーティに加える</button>
+    <button data-remove="${i}" style="background:#180808;border:1px solid #6a2020;color:#e0d0d0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:6px 8px;cursor:pointer;border-radius:3px">削除</button>
+   </div>
+  </div>`).join('') : `<div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-bottom:10px">プールは空です。</div>`;
+
+ panel.innerHTML = `
+  <div style="color:#e8e0d8;font-size:var(--font-sm);margin-bottom:12px;text-align:center"> NPCインポート</div>
+  ${rows}
+  <div style="display:flex;gap:6px;margin:10px 0">
+   <button id="fsp-npc-manual" style="flex:1;background:#0a0a0a;border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px">手動で入力</button>
+   <button id="fsp-npc-file" style="flex:1;background:#0a0a0a;border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px">ファイルから読込</button>
+  </div>
+  <div style="color:#a89880;font-size:calc(var(--font-sm) - 3px);margin-bottom:8px">「パーティに加える」は上限3人までです。プールに残った者は旅の道中で出会うことがあります。</div>
+  <button id="fsp-back" style="width:100%;background:none;border:1px solid #334;color:#c0b098;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px;cursor:pointer;border-radius:3px">◀ 戻る</button>
+  <input id="fsp-npc-file-input" type="file" accept=".json" style="display:none">
+  <div id="fsp-npc-msg" style="min-height:18px;margin-top:8px;font-size:calc(var(--font-sm) - 2px);text-align:center"></div>
+ `;
+ document.body.appendChild(panel);
+
+ const msg = (text, color='var(--nature2)')=>{
+  const el = document.getElementById('fsp-npc-msg');
+  if(el) el.innerHTML = `<span style="color:${color}">${text}</span>`;
+ };
+
+ panel.querySelectorAll('[data-recruit]').forEach(btn=>{
+  btn.onclick = ()=>{
+   const idx = +btn.dataset.recruit;
+   const list = loadImportedNPCs();
+   const npc = list[idx];
+   if(!npc) return;
+   PC.party = PC.party||[];
+   if(PC.party.length >= 3){ msg('パーティが満員です（上限3人）', '#c05040'); return; }
+   PC.party.push({...npc, trust:80, joinDay:GAME_TIME.totalDays});
+   removeImportedNPCById(npc._npcId);
+   addLifeEvent('', `${npc.name}がパーティに加わった（${typeJa(npc.type)}・${raceJa(npc.race)}）。`);
+   updateHUD(); renderPartyTab();
+   showSaveToast(` ${npc.name}がパーティに加わった！`);
+   _showNPCImportMenu();
+  };
+ });
+ panel.querySelectorAll('[data-remove]').forEach(btn=>{
+  btn.onclick = ()=>{
+   const idx = +btn.dataset.remove;
+   const list = loadImportedNPCs();
+   const npc = list[idx];
+   if(!npc) return;
+   if(!confirm(`${npc.name}をプールから削除しますか？`)) return;
+   removeImportedNPCById(npc._npcId);
+   _showNPCImportMenu();
+  };
+ });
+
+ document.getElementById('fsp-npc-manual').onclick = ()=>_showNPCManualForm();
+ document.getElementById('fsp-npc-file').onclick = ()=>document.getElementById('fsp-npc-file-input').click();
+ document.getElementById('fsp-npc-file-input').onchange = (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+   try{
+    const data = JSON.parse(ev.target.result);
+    if(!data.pc) throw new Error('形式が不正です（PCデータが見つかりません）');
+    const npc = buildFileImportNPC(data);
+    addImportedNPC(npc);
+    msg(` ${npc.name}をプールに追加しました`);
+    _showNPCImportMenu();
+   }catch(err){
+    msg(` 読み込み失敗：${err.message}`, '#c05040');
+   }
+   e.target.value = '';
+  };
+  reader.readAsText(file);
+ };
+
+ document.getElementById('fsp-back').onclick = ()=>_showSettingsMain();
+}
+
+// ── NPCインポート：手動入力フォーム ──
+function _showNPCManualForm(){
+ const existing = document.getElementById('font-size-panel');
+ if(existing) existing.remove();
+
+ const panel = document.createElement('div');
+ panel.id = 'font-size-panel';
+ panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--info-bg);border:2px solid #484848;border-radius:6px;padding:16px;z-index:9998;min-width:280px;max-width:340px;max-height:85vh;overflow-y:auto;box-shadow:0 0 30px #000a;font-family:system-ui,sans-serif';
+
+ const inputStyle = 'width:100%;background:var(--ink);border:1px solid #484848;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px;border-radius:3px;margin-bottom:8px;box-sizing:border-box';
+ const statRow = (label,id,val=10)=>`
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+   <div style="width:50px;color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${label}</div>
+   <input id="${id}" type="number" value="${val}" style="flex:1;background:var(--ink);border:1px solid #484848;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:5px;border-radius:3px;box-sizing:border-box">
+  </div>`;
+
+ panel.innerHTML = `
+  <div style="color:#e8e0d8;font-size:var(--font-sm);margin-bottom:12px;text-align:center"> NPC手動入力</div>
+  <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px);margin-bottom:2px">名前</div>
+  <input id="npcf-name" type="text" style="${inputStyle}" value="">
+  <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px);margin-bottom:2px">種族</div>
+  <select id="npcf-race" style="${inputStyle}">
+   <option value="human">人間</option>
+   <option value="elf">エルフ</option>
+   <option value="dwarf">ドワーフ</option>
+   <option value="halfling">ハーフリング</option>
+   <option value="fairy">フェアリー</option>
+   <option value="leprechaun">レプラコーン</option>
+  </select>
+  <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px);margin-bottom:2px">職業</div>
+  <select id="npcf-type" style="${inputStyle}">
+   <option value="warrior">戦士</option>
+   <option value="wizard">魔法使い</option>
+   <option value="rogue">盗賊</option>
+  </select>
+  <div style="display:flex;gap:8px">
+   <div style="flex:1">
+    <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px);margin-bottom:2px">レベル</div>
+    <input id="npcf-level" type="number" value="1" min="1" max="20" style="${inputStyle}">
+   </div>
+   <div style="flex:1">
+    <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px);margin-bottom:2px">年齢</div>
+    <input id="npcf-age" type="number" value="20" min="0" max="999" style="${inputStyle}">
+   </div>
+  </div>
+  <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px);margin:6px 0 4px">能力値</div>
+  ${statRow('ST','npcf-st')}
+  ${statRow('IQ','npcf-iq')}
+  ${statRow('LK','npcf-lk')}
+  ${statRow('CON','npcf-con')}
+  ${statRow('DEX','npcf-dex')}
+  ${statRow('CHR','npcf-chr')}
+  ${statRow('SPD','npcf-spd')}
+  <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px);margin-bottom:2px">所持金（GP）</div>
+  <input id="npcf-gold" type="number" value="0" min="0" style="${inputStyle}">
+  <button id="npcf-submit" style="width:100%;background:var(--ink);border:1px solid #585858;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin:6px 0">プールに追加</button>
+  <button id="fsp-back" style="width:100%;background:none;border:1px solid #334;color:#c0b098;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px;cursor:pointer;border-radius:3px">◀ 戻る</button>
+  <div id="fsp-npc-form-msg" style="min-height:18px;margin-top:8px;font-size:calc(var(--font-sm) - 2px);text-align:center"></div>
+ `;
+ document.body.appendChild(panel);
+
+ document.getElementById('npcf-submit').onclick = ()=>{
+  const name = document.getElementById('npcf-name').value.trim();
+  const msgEl = document.getElementById('fsp-npc-form-msg');
+  if(!name){ msgEl.innerHTML = '<span style="color:#c05040">名前を入力してください</span>'; return; }
+  const fields = {
+   name,
+   race: document.getElementById('npcf-race').value,
+   type: document.getElementById('npcf-type').value,
+   level: +document.getElementById('npcf-level').value || 1,
+   age: +document.getElementById('npcf-age').value || 18,
+   st: +document.getElementById('npcf-st').value || 10,
+   iq: +document.getElementById('npcf-iq').value || 10,
+   lk: +document.getElementById('npcf-lk').value || 10,
+   con: +document.getElementById('npcf-con').value || 10,
+   dex: +document.getElementById('npcf-dex').value || 10,
+   chr: +document.getElementById('npcf-chr').value || 10,
+   spd: +document.getElementById('npcf-spd').value || 10,
+   gold: +document.getElementById('npcf-gold').value || 0,
+  };
+  const npc = buildManualImportNPC(fields);
+  addImportedNPC(npc);
+  showSaveToast(` ${npc.name}をプールに追加しました`);
+  _showNPCImportMenu();
+ };
+ document.getElementById('fsp-back').onclick = ()=>_showNPCImportMenu();
 }
 
 function _showGuideMenu(){
@@ -9166,7 +9469,7 @@ function checkFormerCompanionDeaths(){
   let dead = false, byAge = false;
   const birthDay = npc.birthDay != null ? npc.birthDay : (GAME_TIME.totalDays - 30*365);
   const ageYears = Math.floor((GAME_TIME.totalDays - birthDay) / 365);
-  const lifespanYrs = Math.floor((npc.lifespan || 29200) / 365);
+  const lifespanYrs = npc.lifespan || 80;
   if(ageYears >= lifespanYrs){
    const overYears = ageYears - lifespanYrs + 1;
    const yearlyChance = 1 - Math.pow(0.8, overYears);
@@ -9726,6 +10029,16 @@ const TOWNS = {
   color:'var(--info2)',
   specialty:'霧の薬草・謎の品',
  },
+ kalvo: {
+  id:'kalvo',
+  name:'カルヴォ砦',
+  nameEn:'KALVO',
+  desc:'ドルアよりさらに奥地、混沌の軍勢が溢れ出す境界そのものに築かれた最前線の砦。ここが破られれば、ネリアを含む地方全土が飲み込まれる。常に軍勢の気配に晒され、駐留する者は皆気を張り詰めている。',
+  scene:'town_stone',
+  size:'小規模・軍事拠点',
+  color:'#e8d0c0',
+  specialty:'鹵獲品・実用武具',
+ },
 };
 
 // 三角形ルート：全街が相互接続
@@ -9771,6 +10084,8 @@ const ROUTES = {
  dorua_sarpe:       { days:{walk:20,coach:null,ship:null}, cost:{walk:0,coach:null,ship:null}, hasShip:false },
  dorua_nebra:       { days:{walk:30,coach:null,ship:null}, cost:{walk:0,coach:null,ship:null}, hasShip:false },
  sarpe_nebra:       { days:{walk:20,coach:null,ship:null}, cost:{walk:0,coach:null,ship:null}, hasShip:false },
+ // カルヴォ砦：ドルアの先、奥地への一本道（他の島からは直接行けない）
+ dorua_kalvo:       { days:{walk:15,coach:null,ship:null}, cost:{walk:0,coach:null,ship:null}, hasShip:false },
 };
 
 // ══════════════════════════════════════════
@@ -9928,7 +10243,7 @@ const REGIONS = {
  zahara_region:   ['al_rashid','oasis_fort','saroon','duna'],
  draklim_region:  ['yeldun','frostpeak','ashveil'],
  valdheim_region: ['valdheim','nifurvik','iskald'],
- marea_region:    ['neria','dorua','sarpe','nebra'],
+ marea_region:    ['neria','dorua','sarpe','nebra','kalvo'],
 };
 // 地方キーを返す
 function getRegionKey(townId){
@@ -11967,10 +12282,10 @@ const EXPLORE_EVENTS = {
       enemies:[{name:'砂漠の盗賊',mr:40,curMR:40,armor:0},{name:'砂漠の盗賊',mr:40,curMR:40,armor:0}],
       canFlee:true,
       onWin:()=>{
-       const gp=15+Math.floor(Math.random()*16); const ap=20+Math.floor(Math.random()*16);
-       gainGPAll(gp); gainAPAll(ap); updateHUD();
+       const gp=15+Math.floor(Math.random()*16);
+       gainGPAll(gp); updateHUD();
        document.getElementById('story').innerHTML=`<span style="color:#d0c8b8"> 隊商広場</span><br><br>`
-        +`<span style="color:#e8e4d8">盗賊を撃退した！商人は深く礼をして報酬を渡してくれた。</span><br><span style="color:#e8e4d8">+${gp}GP　経験値+${ap}</span>`;
+        +`<span style="color:#e8e4d8">盗賊を撃退した！商人は深く礼をして報酬を渡してくれた。</span><br><span style="color:#e8e4d8">+${gp}GP</span>`;
        renderChoices([
         {label:' 続けて散策する', fn:()=>alRashidGoDistrict('caravanSq',ret)},
         {label:'← 街に戻る', go:'TOWN_AL_RASHID'},
@@ -15173,7 +15488,7 @@ function ydActionChoices(node, floor){
       onWin:()=>{
        PC[_nid.replace(/[^a-z0-9]/gi,'_')+'_mon']=true;
        PC[node.monsterKey]=true;
-       gainAPAll(Math.floor(m.mr/2)); updateHUD();
+       updateHUD();
        if(node.treasureFloor && !PC[node.roomKey+'_loot']){
         document.getElementById('story').innerHTML+=`<br><span style="color:#f0ece0">宝物を発見！</span>`;
        }
@@ -15345,7 +15660,7 @@ function ydActionChoices(node, floor){
        PC[node.monsterKey]=true;
        // 討伐対象フラグを立てる
        (node.huntTargetKeys||[]).forEach(k=>{ PC[k]=true; });
-       gainAPAll(Math.floor(m.mr/2)); updateHUD();
+       updateHUD();
        // 討伐完了チェック
        const dung = PC._yeldunDungeon;
        if(dung?.isHuntDungeon){
@@ -15500,7 +15815,7 @@ function ydMoveChoices(node, floor){
      al_rashid:'TOWN_AL_RASHID',oasis_fort:'TOWN_OASIS_FORT',saroon:'TOWN_SAROON',
      duna:'TOWN_DUNA',yeldun:'TOWN_YELDUN',frostpeak:'TOWN_FROSTPEAK',ashveil:'TOWN_ASHVEIL',
    valdheim:'TOWN_VALDHEIM',nifurvik:'TOWN_NIFURVIK',iskald:'TOWN_ISKALD',
-   neria:'TOWN_NERIA',dorua:'TOWN_DORUA',sarpe:'TOWN_SARPE',nebra:'TOWN_NEBRA',
+   neria:'TOWN_NERIA',dorua:'TOWN_DORUA',sarpe:'TOWN_SARPE',nebra:'TOWN_NEBRA',kalvo:'TOWN_KALVO',
     }).find(([k])=>k===q.fromTownId)?.[1]||'TOWN_KHAZAN') : 'TOWN_KHAZAN';
     ch.push({label:' 討伐を中断して街に戻る', fn:()=>{
      PC._yeldunDungeon = null;
@@ -15616,7 +15931,7 @@ function ydStatueEffect(floor, nodeId, statueKey){
     enemies:[{name:'動く石像', mr, curMR:mr, armor:4}],
     canFlee:true, isYD:true,
     win:'__yd_win__',
-    onWin:()=>{ gainAPAll(Math.floor(mr/2)); updateHUD(); ydGoNode(_nid, _fl); },
+    onWin:()=>{ updateHUD(); ydGoNode(_nid, _fl); },
    });
    renderChoices([]); scrollToTop();
   }, 800);
@@ -16275,7 +16590,7 @@ function searchBountyTarget(townId){
   al_rashid:'TOWN_AL_RASHID',oasis_fort:'TOWN_OASIS_FORT',saroon:'TOWN_SAROON',
   duna:'TOWN_DUNA',yeldun:'TOWN_YELDUN',frostpeak:'TOWN_FROSTPEAK',ashveil:'TOWN_ASHVEIL',
   valdheim:'TOWN_VALDHEIM',nifurvik:'TOWN_NIFURVIK',iskald:'TOWN_ISKALD',
-  neria:'TOWN_NERIA',dorua:'TOWN_DORUA',sarpe:'TOWN_SARPE',nebra:'TOWN_NEBRA',
+  neria:'TOWN_NERIA',dorua:'TOWN_DORUA',sarpe:'TOWN_SARPE',nebra:'TOWN_NEBRA',kalvo:'TOWN_KALVO',
  };
  const backNode = townNodeMap[townId] || 'TOWN_KHAZAN';
  const story = document.getElementById('story');
@@ -16685,7 +17000,7 @@ function huntQuestComplete(q){
   al_rashid:'TOWN_AL_RASHID', oasis_fort:'TOWN_OASIS_FORT', saroon:'TOWN_SAROON',
   duna:'TOWN_DUNA', yeldun:'TOWN_YELDUN', frostpeak:'TOWN_FROSTPEAK', ashveil:'TOWN_ASHVEIL',
   valdheim:'TOWN_VALDHEIM', nifurvik:'TOWN_NIFURVIK', iskald:'TOWN_ISKALD',
-  neria:'TOWN_NERIA', dorua:'TOWN_DORUA', sarpe:'TOWN_SARPE', nebra:'TOWN_NEBRA',
+  neria:'TOWN_NERIA', dorua:'TOWN_DORUA', sarpe:'TOWN_SARPE', nebra:'TOWN_NEBRA', kalvo:'TOWN_KALVO',
  }).find(([k])=>k===q.fromTownId);
  const backNode = townNode ? townNode[1] : 'TOWN_KHAZAN';
  showSaveToast(` 討伐完了！+${q.reward}GP　信頼度+2`);
@@ -17793,10 +18108,8 @@ function _startMareaCombat(enemy, ts){
     if(storyEl2){
      storyEl2.innerHTML = savedLogHTML || `<div id="travel-log-wrap" style="border-top:1px solid var(--panel2);margin-top:8px;padding-top:8px;font-size:var(--font-base)"><div id="travel-events"></div></div>`;
     }
-    const apGain = enemy.npcs.reduce((s,n)=>s+n.level*30, 0);
-    gainAPAll(apGain);
     updateHUD();
-    travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：${enemy.name}を倒した！ 経験値+${apGain}</span>`);
+    travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：${enemy.name}を倒した！</span>`);
     renderChoices([{label:'▶ 旅を続ける', fn:()=>_mysteryLightContinue(ts)}]);
    },
   });
@@ -17867,8 +18180,6 @@ function _startNeriaSiegeCombat(enemy, waves, idx){
     document.getElementById('scroll-area').classList.remove('in-combat');
     document.getElementById('text-win').style.display = '';
     cbtState = null;
-    const apGain = enemy.npcs.reduce((s,n)=>s+n.level*30, 0);
-    gainAPAll(apGain);
     updateHUD();
     onDefeated();
    },
@@ -17888,7 +18199,252 @@ function _startNeriaSiegeCombat(enemy, waves, idx){
    document.getElementById('scroll-area').classList.remove('in-combat');
    document.getElementById('text-win').style.display = '';
    cbtState = null;
-   gainAPAll(enemy.mr);
+   updateHUD();
+   onDefeated();
+  },
+ });
+}
+
+// ══════════════════════════════════════════
+// カルヴォ砦：常設の防衛ゲージシステム
+// ══════════════════════════════════════════
+// PC._borderFort = { gauge, lastTickDay, wavesRepelled, lastSortieDay }
+// ゲージは0まで落ちず、下限で下げ止まる（陥落なし＝ぎりぎり持ちこたえている表現）
+const BORDER_FORT_GAUGE_FLOOR = 10;
+const BORDER_FORT_DECAY_PER_DAY = 0.05; // 放置5年(1800日)で100→10まで低下
+const BORDER_FORT_SORTIE_COOLDOWN = 7; // 出撃は週1回まで
+
+function initBorderFort(){
+ if(!PC._borderFort) PC._borderFort = {
+  gauge: 100,
+  lastTickDay: GAME_TIME.totalDays,
+  wavesRepelled: 0,
+  lastSortieDay: null,
+ };
+}
+
+// 訪問時にまとめて経過分の自然減衰を適用（拠点住人の寿命チェックと同じ「訪問時精算」方式）
+function tickBorderFortGauge(){
+ initBorderFort();
+ const bf = PC._borderFort;
+ const days = GAME_TIME.totalDays - (bf.lastTickDay ?? GAME_TIME.totalDays);
+ if(days > 0){
+  bf.gauge = Math.max(BORDER_FORT_GAUGE_FLOOR, bf.gauge - days * BORDER_FORT_DECAY_PER_DAY);
+  bf.lastTickDay = GAME_TIME.totalDays;
+ }
+}
+
+function borderFortStatusText(){
+ const g = PC._borderFort?.gauge ?? 100;
+ if(g >= 80) return { label:'砦は堅固に持ちこたえている。', color:'var(--nature2)' };
+ if(g >= 40) return { label:'防壁のあちこちが崩れ、補給も滞っている。', color:'#ffcc33' };
+ return { label:'包囲され、ぎりぎりの攻防が続いている。', color:'#c05040' };
+}
+
+function renderBorderFortGaugeBar(){
+ tickBorderFortGauge();
+ const g = Math.round(PC._borderFort.gauge);
+ const st = borderFortStatusText();
+ return `<div style="margin:8px 0">
+  <div style="display:flex;justify-content:space-between;font-size:calc(var(--font-sm) - 2px);color:#c0b098;margin-bottom:2px">
+   <span>防衛度</span><span>${g}/100</span>
+  </div>
+  <div style="background:#1a1410;border:1px solid #484848;border-radius:3px;height:8px;overflow:hidden">
+   <div style="width:${g}%;height:100%;background:${st.color}"></div>
+  </div>
+  <div style="color:${st.color};font-size:calc(var(--font-sm) - 1px);margin-top:4px">${st.label}</div>
+ </div>`;
+}
+
+// ── 迎え撃つ（受け身の防衛戦）：滞在中、高確率で強制発生。勝ってもゲージはごくわずかしか回復しない ──
+function checkKalvoSiege(){
+ if(PC.town !== 'kalvo') return false;
+ if(travelState || cbtState) return false; // 旅行中・戦闘中は対象外
+ initBorderFort();
+ if(Math.random() >= 0.5) return false; // 滞在中は5割
+ startKalvoSiege();
+ return true;
+}
+
+function startKalvoSiege(){
+ const waveCount = 3 + Math.floor(Math.random()*3); // 3〜5体
+ const waves = Array.from({length: waveCount}, () => pickMareaEnemy());
+ const story = document.getElementById('story');
+ if(story){
+  story.innerHTML = `<div style="border:1px solid var(--danger, #a04030);border-radius:4px;padding:12px;background:#1a0a06">
+   <div style="color:#e08060;font-size:var(--font-base);margin-bottom:8px"> 混沌の軍勢、来襲！</div>
+   <div style="color:#e8d8d0;font-size:calc(var(--font-sm) - 1px)">警鐘が絶え間なく鳴り続けている。奥地から溢れ出た混沌の軍勢が、防壁の外に押し寄せてきた。次々と${waveCount}体の脅威が襲いかかってくる！</div>
+  </div>`;
+ }
+ renderChoices([{label:' 迎え撃つ！', fn:()=>{
+  renderChoices([]);
+  _kalvoSiegeNextWave(waves, 0);
+ }}]);
+}
+
+function _kalvoSiegeNextWave(waves, idx){
+ if(idx >= waves.length){
+  initBorderFort();
+  PC._borderFort.gauge = Math.min(100, PC._borderFort.gauge + (1 + Math.floor(Math.random()*2))); // +1〜2のみ
+  PC._borderFort.wavesRepelled = (PC._borderFort.wavesRepelled||0) + waves.length;
+  const story = document.getElementById('story');
+  if(story){
+   story.innerHTML = `<div style="color:#f0ece0"> 波状攻撃を全て打ち払った！だが、これしきでは奥地の軍勢は揺るがない。</div>`;
+  }
+  showSaveToast(' 迎撃成功……防衛度 微増');
+  changeTrust('kalvo', 5);
+  updateHUD();
+  renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_KALVO'); }}]);
+  return;
+ }
+ const enemy = waves[idx];
+ const story = document.getElementById('story');
+ if(story){
+  story.innerHTML = `<div style="color:#e8d8d0"> [${idx+1}/${waves.length}体目] ${enemy.desc}</div>`;
+ }
+ _startKalvoSiegeCombat(enemy, waves, idx);
+}
+
+function _startKalvoSiegeCombat(enemy, waves, idx){
+ const onDefeated = ()=>{ _kalvoSiegeNextWave(waves, idx+1); };
+ if(enemy.kind === 'npc'){
+  startCombatNPC({
+   enemies: enemy.npcs,
+   canFlee: false, // 砦防衛戦のため撤退不可
+   win: '__noop__',
+   lose: 'DEAD',
+   onWin: ()=>{
+    document.getElementById('cbt-area').classList.add('hidden');
+    document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display = '';
+    cbtState = null;
+    updateHUD();
+    onDefeated();
+   },
+  });
+  return;
+ }
+ startCombat({
+  name: enemy.name,
+  mr: enemy.mr,
+  armor: enemy.armor||0,
+  magicOnly: !!enemy.magicOnly,
+  canFlee: false,
+  win: '__noop__',
+  lose: 'DEAD',
+  onWin: ()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   updateHUD();
+   onDefeated();
+  },
+ });
+}
+
+// ── 打って出る（出撃戦）：週1回、酒場で部隊を募る。複数体（1〜6体）×2〜6波 ──
+function canBorderFortSortie(){
+ initBorderFort();
+ const last = PC._borderFort.lastSortieDay;
+ return last == null || (GAME_TIME.totalDays - last) >= BORDER_FORT_SORTIE_COOLDOWN;
+}
+
+// 複数体をまとめて1回の戦闘にする版（出撃戦専用）
+function pickMareaEnemyGroup(count){
+ const t = MAREA_ENEMIES[Math.floor(Math.random()*MAREA_ENEMIES.length)];
+ if(t.kind === 'npc'){
+  const npcs = Array.from({length:count}, ()=>{
+   const level = t.levelMin + Math.floor(Math.random()*(t.levelMax-t.levelMin+1));
+   const npc = generateNPC(level);
+   npc.name = t.name;
+   npc.bountyTitle = t.name;
+   return npc;
+  });
+  return { kind:'npc', name:t.name, desc:t.desc, count, npcs };
+ }
+ return {
+  kind:'flat', name:t.name, desc:t.desc, count,
+  enemies: Array.from({length:count}, ()=>({name:t.name, mr:t.mr, armor:t.armor||0, magicOnly:!!t.magicOnly})),
+ };
+}
+
+function startBorderFortSortie(){
+ if(!canBorderFortSortie()){ showSaveToast('出撃部隊はまだ編成できない（週1回まで）'); return; }
+ const waveCount = 2 + Math.floor(Math.random()*5); // 2〜6波（従来1〜3波の2倍）
+ const waves = Array.from({length: waveCount}, () => {
+  const n = 1 + Math.floor(Math.random()*6); // 1〜6体
+  return pickMareaEnemyGroup(n);
+ });
+ initBorderFort();
+ PC._borderFort.lastSortieDay = GAME_TIME.totalDays; // 出撃した時点で消費（結果に関わらず週1回まで）
+ const story = document.getElementById('story');
+ if(story){
+  story.innerHTML = `<div style="border:1px solid var(--danger, #a04030);border-radius:4px;padding:12px;background:#1a0a06">
+   <div style="color:#e08060;font-size:var(--font-base);margin-bottom:8px"> 出撃</div>
+   <div style="color:#e8d8d0;font-size:calc(var(--font-sm) - 1px)">出撃部隊を率い、奥地の混沌の軍勢へ自ら打って出る。守るだけでは押し返せない——今日こそ、こちらから叩く。</div>
+  </div>`;
+ }
+ renderChoices([{label:' 出撃する！', fn:()=>{
+  renderChoices([]);
+  _borderFortSortieNextWave(waves, 0);
+ }}]);
+}
+
+function _borderFortSortieNextWave(waves, idx){
+ if(idx >= waves.length){
+  initBorderFort();
+  PC._borderFort.gauge = Math.min(100, PC._borderFort.gauge + 5);
+  const story = document.getElementById('story');
+  if(story){
+   story.innerHTML = `<div style="color:#f0ece0"> 混沌の軍勢の一角を打ち崩した！奥地への圧力が、わずかに弱まった。</div>`;
+  }
+  showSaveToast(' 出撃成功……防衛度+5');
+  changeTrust('kalvo', 10);
+  updateHUD();
+  renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_KALVO'); }}]);
+  return;
+ }
+ const group = waves[idx];
+ const story = document.getElementById('story');
+ if(story){
+  story.innerHTML = `<div style="color:#e8d8d0"> [${idx+1}/${waves.length}波目・${group.count}体] ${group.desc}</div>`;
+ }
+ _startBorderFortSortieCombat(group, waves, idx);
+}
+
+// 出撃の敗北＝死亡ではなく撤退扱い（ゲージ現状維持）。九死に一生の判定は通常通り先に行われる。
+// 実際の演出は KALVO_SORTIE_RETREAT ノード側で行う（lose:先はコールバックではなくノードIDである必要があるため）
+
+function _startBorderFortSortieCombat(group, waves, idx){
+ const onDefeated = ()=>{ _borderFortSortieNextWave(waves, idx+1); };
+ if(group.kind === 'npc'){
+  startCombatNPC({
+   enemies: group.npcs,
+   canFlee: false, // 出撃部隊のため中途撤退はできない（敗北＝撤退扱いで処理）
+   win: '__noop__',
+   lose: 'KALVO_SORTIE_RETREAT', // 敗北＝死亡ではなく撤退ノードへ（ゲージ現状維持）
+   onWin: ()=>{
+    document.getElementById('cbt-area').classList.add('hidden');
+    document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display = '';
+    cbtState = null;
+    updateHUD();
+    onDefeated();
+   },
+  });
+  return;
+ }
+ startCombat({
+  enemies: group.enemies,
+  canFlee: false,
+  win: '__noop__',
+  lose: 'KALVO_SORTIE_RETREAT',
+  onWin: ()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
    updateHUD();
    onDefeated();
   },
@@ -17905,6 +18461,7 @@ const TRAVEL_EVENT_CHANCE = {
  light: 0.004, // 怪しい明かり／魅力的なリソース（共有トリガー） 約0.4%/日（かなり稀な特殊イベント）
  toll: 0.004, // 通行料を要求するモンスター 約0.4%/日（かなり稀な特殊イベント）
  reunion: 0.0005, // かつての仲間との再会 0.05%/日（かつての仲間がいる場合のみ）
+ importedNpc: 0.0005, // インポート済みNPCとの遭遇 0.05%/日（プールにいる場合のみ、かつての仲間との再会と同確率）
 };
 
 const WEATHER_EVENTS = [
@@ -18298,10 +18855,8 @@ function _tollStartCombat(mon, ts){
    if(storyEl2){
     storyEl2.innerHTML = savedLogHTML || `<div id="travel-log-wrap" style="border-top:1px solid var(--panel2);margin-top:8px;padding-top:8px;font-size:var(--font-base)"><div id="travel-events"></div></div>`;
    }
-   const apGain = npcs.reduce((s,n)=>s+n.level*30, 0);
-   gainAPAll(apGain);
    updateHUD();
-   travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：${mon.label}を倒した！ 経験値+${apGain}</span>`);
+   travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：${mon.label}を倒した！</span>`);
    renderChoices([{label:'▶ 旅を続ける', fn:()=>_mysteryLightContinue(ts)}]);
   },
  });
@@ -18443,6 +18998,47 @@ function startReunionEvent(ts){
  choices.appendChild(byeBtn);
 }
 
+// インポートNPCとの遭遇（かつての仲間との再会と同じ確率・同じ流れ）
+function startImportedNPCEncounter(ts){
+ const pool = loadImportedNPCs();
+ if(!pool.length){
+  ts._resumeWithoutIncrement = true;
+  setTimeout(travelTick, ts.interval);
+  return;
+ }
+ const idx = Math.floor(Math.random()*pool.length);
+ const npc = pool[idx];
+ travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：見覚えのある顔が道の先に立っている——${npc.name}だ！</span>`);
+ const choices = document.getElementById('choices');
+ if(!choices) return;
+ choices.innerHTML = '';
+
+ const partyFull = (PC.party||[]).length >= 3;
+ if(!partyFull){
+  const joinBtn = document.createElement('button'); joinBtn.className='choice-btn';
+  joinBtn.textContent = ` ${npc.name}を仲間に加える`;
+  joinBtn.onclick = ()=>{
+   choices.innerHTML = '';
+   removeImportedNPCById(npc._npcId);
+   PC.party = PC.party||[];
+   PC.party.push({...npc, trust:npc.trust||80, joinDay:GAME_TIME.totalDays});
+   updateHUD();
+   travelLog(`<span style="color:#f0ece0"> ${npc.name}が仲間に加わった！</span>`);
+   renderChoices([{label:'▶ 旅を続ける', fn:()=>_mysteryLightContinue(ts)}]);
+  };
+  choices.appendChild(joinBtn);
+ }
+
+ const byeBtn = document.createElement('button'); byeBtn.className='choice-btn';
+ byeBtn.textContent = partyFull ? 'パーティが満員なので見送る' : 'そのまま見送る';
+ byeBtn.onclick = ()=>{
+  choices.innerHTML = '';
+  travelLog(`<span style="color:#c8b8a0"> しばし言葉を交わし、${npc.name}とは別れた。またどこかで会えるだろう。</span>`);
+  renderChoices([{label:'▶ 旅を続ける', fn:()=>_mysteryLightContinue(ts)}]);
+ };
+ choices.appendChild(byeBtn);
+}
+
 function startMysteryLightEvent(ts){
  const ev = MYSTERY_LIGHT_EVENTS[Math.floor(Math.random()*MYSTERY_LIGHT_EVENTS.length)];
  travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：${ev.desc}</span>`);
@@ -18513,13 +19109,15 @@ function _mysteryLightApproach(ev, ts){
 
 function rollTravelEvent(ts){
  const r = Math.random();
- if(r < TRAVEL_EVENT_CHANCE.weather) return 'weather';
- if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road) return 'road';
- if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road + TRAVEL_EVENT_CHANCE.merchant) return 'merchant';
- if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road + TRAVEL_EVENT_CHANCE.merchant + TRAVEL_EVENT_CHANCE.scenery) return 'scenery';
- if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road + TRAVEL_EVENT_CHANCE.merchant + TRAVEL_EVENT_CHANCE.scenery + TRAVEL_EVENT_CHANCE.light) return 'light';
- if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road + TRAVEL_EVENT_CHANCE.merchant + TRAVEL_EVENT_CHANCE.scenery + TRAVEL_EVENT_CHANCE.light + TRAVEL_EVENT_CHANCE.toll) return 'toll';
- if(r < TRAVEL_EVENT_CHANCE.weather + TRAVEL_EVENT_CHANCE.road + TRAVEL_EVENT_CHANCE.merchant + TRAVEL_EVENT_CHANCE.scenery + TRAVEL_EVENT_CHANCE.light + TRAVEL_EVENT_CHANCE.toll + TRAVEL_EVENT_CHANCE.reunion) return 'reunion';
+ let acc = 0;
+ acc += TRAVEL_EVENT_CHANCE.weather;   if(r < acc) return 'weather';
+ acc += TRAVEL_EVENT_CHANCE.road;      if(r < acc) return 'road';
+ acc += TRAVEL_EVENT_CHANCE.merchant;  if(r < acc) return 'merchant';
+ acc += TRAVEL_EVENT_CHANCE.scenery;   if(r < acc) return 'scenery';
+ acc += TRAVEL_EVENT_CHANCE.light;     if(r < acc) return 'light';
+ acc += TRAVEL_EVENT_CHANCE.toll;      if(r < acc) return 'toll';
+ acc += TRAVEL_EVENT_CHANCE.reunion;   if(r < acc) return 'reunion';
+ acc += TRAVEL_EVENT_CHANCE.importedNpc; if(r < acc) return 'importedNpc';
  return null;
 }
 
@@ -18925,6 +19523,10 @@ function travelTick(){
  startReunionEvent(ts);
  return;
  }
+ if(evType === 'importedNpc'){
+ startImportedNPCEncounter(ts);
+ return;
+ }
  }
 
  // 次の日へ or 完了
@@ -19117,8 +19719,6 @@ function startTravelCombat(enemy){
   if(storyEl2){
    storyEl2.innerHTML = savedLogHTML || `<div id="travel-log-wrap" style="border-top:1px solid var(--panel2);margin-top:8px;padding-top:8px;font-size:var(--font-base)"><div id="travel-events"></div></div>`;
   }
-  const apGain = enemy.mr;
-  gainAPAll(apGain);
   let rewardMsg = '';
   if(isCoach){
    const reward = 10 + Math.floor(Math.random() * 21);
@@ -19130,7 +19730,7 @@ function startTravelCombat(enemy){
   }
   updateHUD();
   const countTxt = enemy.count > 1 ? `×${enemy.count}` : '';
-  travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：${enemy.name}${countTxt}を倒した！ 経験値+${apGain}${rewardMsg}</span>`);
+  travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：${enemy.name}${countTxt}を倒した！${rewardMsg}</span>`);
   renderChoices([{
    label:'▶ 旅を続ける',
    fn:()=>{
@@ -19198,7 +19798,7 @@ function innRest(cost){
   msgs.push(`凍傷が回復（${FROSTBITE_EFFECTS[getFrostbiteLevel()].label}）`);
  }
  if(msgs.length) showSaveToast(' ' + msgs.join('、') + '！');
- showTimePass(1, ()=>{ checkNeriaChaosSiege(); });
+ showTimePass(1, ()=>{ checkNeriaChaosSiege(); checkKalvoSiege(); });
 }
 
 // 従来のshowTimePass（休憩・クエスト等、短期間用）
@@ -20058,6 +20658,7 @@ function startGame(){
  PC._heroTowns = {}; // 前の代の英雄ステータスは引き継がない
  PC._heroRegions = {};
  PC.food = 0; // 前の代の食料は引き継がない
+ PC.spouse = []; // 前の代の配偶者記録は引き継がない
  PC._questPenalties = {}; // 前の代の依頼期限切れ罰金は引き継がない
  PC.spdBase = PC.spd; // 重量ペナルティ計算用の基準SPD
 
@@ -20302,6 +20903,9 @@ function unequipWeapon(idx){
  const w = PC.equippedWeapons[idx];
  if(!w) return;
  PC.equippedWeapons.splice(idx,1);
+ // 通常のPC装備は所持品リストに実体が残っているが、NPC時代に装備した物を引き継いだ場合は
+ // 所持品リストから既に取り除かれているため、無ければここで所持品に戻す（消失防止）
+ if(!PC.invWeapons.includes(w)) PC.invWeapons.push(w);
  checkWeightPenalty(); updateHUD(); renderStatusPanel(); showSaveToast(`${w.name}を外した`);
 }
 function equipArmor(idx){
@@ -20317,6 +20921,7 @@ function unequipArmor(idx){
  const a = PC.equippedArmors[idx];
  if(!a) return;
  PC.equippedArmors.splice(idx,1);
+ if(!PC.invArmors.includes(a)) PC.invArmors.push(a);
  checkWeightPenalty(); updateHUD(); renderStatusPanel(); showSaveToast(`${a.name}を外した`);
 }
 function equipClothing(){
@@ -20631,7 +21236,7 @@ function renderIgsList(townId){
  const isAlRashid  = (townId||'') === 'al_rashid';
  const isYeldun    = (townId||'') === 'yeldun';
  const isValdheim  = (townId||'') === 'valdheim';
- const isNeria     = (townId||'') === 'neria';
+ const isNeria     = (townId||'') === 'neria' || (townId||'') === 'kalvo';
  const isVillage   = ['verda','rimholm','marakai'].includes(townId||'');
  const wTable = isKhazan   ? WEAPONS_TABLE_KHAZAN
               : isElsia    ? WEAPONS_TABLE_ELSIA
@@ -20892,7 +21497,7 @@ function renderIgsList(townId){
  } else if(_igsTab === 'forge'){
  renderForgeTab(el, townId);
  } else {
- const mareaNoFood = ['dorua','sarpe','nebra'].includes(townId||'');
+ const mareaNoFood = ['dorua','sarpe','nebra','kalvo'].includes(townId||'');
  EQUIP_TABLE.forEach(it=>{
  if(it.wizard && PC.type!=='wizard') return;
  if(it._isFood && mareaNoFood) return; // マレア地方の村では食料販売なし
@@ -20919,6 +21524,7 @@ const FORGE_TOWNS = {
  yeldun:    { label:'イェルドゥンの名匠', table: WEAPONS_TABLE_YELDUN },
  valdheim:  { label:'ヴァルドヘイムの名匠', table: WEAPONS_TABLE_VALDHEIM },
  neria:     { label:'ネリア砦の鍛冶師', table: WEAPONS_TABLE_NERIA },
+ kalvo:     { label:'カルヴォ砦の鍛冶師', table: WEAPONS_TABLE_NERIA },
 };
 const FORGE_COSTS = [100, 200, 400, 800, 1600, 3200];
 function _getForgeLevel(w){ const base = w._baseAdds != null ? w._baseAdds : w.adds; return w.adds - base; }
@@ -20973,7 +21579,7 @@ function renderIngameShop(townId){
  _igsTownId = townId;
  const isKhazan = townId === 'khazan';
  const isElsia2 = townId === 'elsia';
- const villageTitles = {verda:' ヴェルダ村の道具屋',rimholm:' リムホルムの武具屋',marakai:' マラカイの武器商',oasis_fort:' オアシス砦の道具屋',saroon:' サルーンの道具屋',duna:' デュナの道具屋',neria:' ネリアの武器屋',dorua:' ドルアの道具屋'};
+ const villageTitles = {verda:' ヴェルダ村の道具屋',rimholm:' リムホルムの武具屋',marakai:' マラカイの武器商',oasis_fort:' オアシス砦の道具屋',saroon:' サルーンの道具屋',duna:' デュナの道具屋',neria:' ネリアの武器屋',dorua:' ドルアの道具屋',kalvo:' カルヴォ砦の武具庫'};
  const shopTitle = townId==='__merchant__' ? ' 旅商人の荷台' : isKhazan ? ' カザーヌ武器屋（全品揃え）' : townId==='al_rashid' ? ' アル・ラシードの武器屋' : isElsia2 ? ' エルマリアの道具屋' : villageTitles[townId] || ' 装備屋';
 
  const {cur, max} = checkWeightPenalty();
@@ -21011,12 +21617,12 @@ function exchangeSPtoGP(){
 
 function igsBuyWeapon(i, townId){
  const _sa = _shopActor || PC;
- const _t1=townId||PC.town; const tbl = _t1==='khazan'?WEAPONS_TABLE_KHAZAN:_t1==='elsia'?WEAPONS_TABLE_ELSIA:_t1==='al_rashid'?WEAPONS_TABLE_AL_RASHID:_t1==='yeldun'?WEAPONS_TABLE_YELDUN:_t1==='valdheim'?WEAPONS_TABLE_VALDHEIM:_t1==='neria'?WEAPONS_TABLE_NERIA:WEAPONS_TABLE;
+ const _t1=townId||PC.town; const tbl = _t1==='khazan'?WEAPONS_TABLE_KHAZAN:_t1==='elsia'?WEAPONS_TABLE_ELSIA:_t1==='al_rashid'?WEAPONS_TABLE_AL_RASHID:_t1==='yeldun'?WEAPONS_TABLE_YELDUN:_t1==='valdheim'?WEAPONS_TABLE_VALDHEIM:(_t1==='neria'||_t1==='kalvo')?WEAPONS_TABLE_NERIA:WEAPONS_TABLE;
  const it=tbl[i];
  if(!it||totalCP(_sa)<it.cost*100)return;
  payPrice(it.cost, _sa);
  if(!_sa.invWeapons) _sa.invWeapons=[];
- _sa.invWeapons.push({name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0,...(it.isRanged?{isRanged:true}:{}),...(it.rangedOk?{rangedOk:true}:{})});
+ _sa.invWeapons.push({name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0,weight:it.weight||0,...(it._masterpiece?{_masterpiece:true}:{}),...(it.isRanged?{isRanged:true}:{}),...(it.rangedOk?{rangedOk:true}:{})});
  updateHUD(); renderIngameShop(townId||PC.town);
  showSaveToast(` ${_sa.name}: ${it.name}を購入`);
 }
@@ -21027,7 +21633,7 @@ function igsBuyArmor(i, townId){
  if(!it||totalCP(_sa)<it.cost*100)return;
  payPrice(it.cost, _sa);
  if(!_sa.invArmors) _sa.invArmors=[];
- _sa.invArmors.push({name:it.name,hits:it.hits,stReq:it.stReq,isShield:it.isShield||false});
+ _sa.invArmors.push({name:it.name,hits:it.hits,stReq:it.stReq,isShield:it.isShield||false,weight:it.weight||0});
  updateHUD(); renderIngameShop(townId||PC.town);
  showSaveToast(` ${_sa.name}: ${it.name}を購入`);
 }
@@ -21334,7 +21940,8 @@ function renderPartyList(el, party){
  const trust = n.trust??0;
  const trustCol = trust>=75?'#f0ece0':trust>=40?'#d0c8b8':'#a0a0a0';
  const trustLabel = trust>=90?'篤い信頼':trust>=70?'信頼':trust>=50?'友好':trust>=30?'普通':trust>=10?'様子見':'不信';
- const mb = n.married?`<span style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;border:1px solid #c8a44a;border-radius:3px;padding:1px 5px;margin-left:6px"> 配偶者</span>`:'';
+ const isCurrentSpouse = n.married && (PC.spouse||[]).some(s=>s.name===n.name);
+ const mb = isCurrentSpouse?`<span style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;border:1px solid #c8a44a;border-radius:3px;padding:1px 5px;margin-left:6px"> 配偶者</span>`:'';
  return `<div onclick="viewNPCDetail(${i})" style="background:var(--panel);border:1px solid ${alive?'var(--bark)':'#221122'};border-radius:4px;padding:10px;margin-bottom:8px;cursor:pointer">
  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
  <div>
@@ -21371,7 +21978,7 @@ function renderNPCDetail(el, n, idx){
  const alive = n.con > 0;
  const conPct = alive ? Math.round(n.con/n.maxCon*100) : 0;
  const conCol = conPct>50?'var(--nature2)':conPct>25?'#ffcc00':'var(--danger)';
- const marriedBadge = n.married ? `<span style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;border:1px solid #c8a44a;border-radius:3px;padding:1px 5px;margin-left:6px"> 配偶者</span>` : '';
+ const marriedBadge = (n.married && (PC.spouse||[]).some(s=>s.name===n.name)) ? `<span style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;border:1px solid #c8a44a;border-radius:3px;padding:1px 5px;margin-left:6px"> 配偶者</span>` : '';
  const adds = calcAdds(n);
  const armor = calcNPCArmor(n);
  const npcAP = n.ap || 0;
@@ -23415,8 +24022,32 @@ function buildContinueHtml(reason){
 }
 
 // エンディング共通選択肢
+// 全スロット中、最も新しいセーブデータを読み込む
+function loadMostRecentSave(){
+ let bestSlot = null, bestTime = -1;
+ for(let s=1; s<=SAVE_SLOT_COUNT; s++){
+  const raw = localStorage.getItem(getSaveKey(s));
+  if(!raw) continue;
+  try{
+   const d = JSON.parse(raw);
+   if(d.savedAt > bestTime){ bestTime = d.savedAt; bestSlot = s; }
+  }catch(e){}
+ }
+ if(bestSlot == null){ showSaveToast('セーブデータが見つかりません'); return; }
+ loadGame(bestSlot);
+}
+
+// いずれかのスロットにセーブデータが存在するか
+function hasAnySave(){
+ for(let s=1; s<=SAVE_SLOT_COUNT; s++){
+  if(localStorage.getItem(getSaveKey(s))) return true;
+ }
+ return false;
+}
+
 function buildEndChoices(){
  return [
+ ...(hasAnySave() ? [{label:' 直近のセーブデータをロードする', fn:()=>loadMostRecentSave(), go:'__travel__'}] : []),
  {label:' 新しいPCを作る（暦を引き継ぐ）', fn:()=>startNewPCInherit(), go:'__travel__'},
  {label:' NEW GAME（最初から）', fn:()=>startNewGame(), go:'__travel__'},
  ];
@@ -23446,15 +24077,45 @@ function startAsNPC(npcIdx){
  // 前PCの_フラグ類をクリア（世界状態はworldStateから引き継ぐ）
  const keepFlags = new Set(['_startTown','_npcId']);
  Object.keys(PC).filter(k=>k.startsWith('_') && !keepFlags.has(k)).forEach(k=>{ delete PC[k]; });
- // 年齢を現在の暦から再計算
- if(PC.birthYear != null){
-  const ageNow = Math.floor((GAME_TIME.totalDays - ((PC.birthYear - (GAME_TIME.startYear||400))*365)) / 365);
-  PC.age = Math.max(PC.age||0, ageNow);
- } else {
-  PC.birthYear = (400 + Math.floor(ws.totalDays / 360)) - (PC.age||20);
-  PC.birthMonth = 1; PC.birthDay = 1;
+ // 年齢・誕生日を、後継NPC自身のデータから算出し直す
+ // （NPCのbirthDayは起点からの経過日数、PCのbirthDay/Month/Yearは暦の年月日で意味が異なるため、
+ //   Object.assignで混同されないよう、旧PCの暦データを使わず必ずここで作り直す）
+ {
+  const npcBirthDay = npc.birthDay; // Object.assign前のnpc本体の値（=経過日数ベース）を参照
+  const ageYears = npcBirthDay != null
+   ? Math.max(0, Math.floor((GAME_TIME.totalDays - npcBirthDay) / 365))
+   : (npc.age || 20);
+  const curDate = getCurrentDate();
+  PC.age = ageYears;
+  PC.birthYear = curDate.year - ageYears;
+  PC.birthMonth = Math.floor(Math.random() * 12) + 1;
+  PC.birthDay = Math.floor(Math.random() * 30) + 1;
  }
  if(PC.lifespan == null) PC.lifespan = rollLifespan(PC.race);
+
+ // 前PCの子として生まれた後継者の場合、出自にその血縁を明記する
+ if(PC.parents && PC.parents.pc){
+  const parentName = PC.parents.pc;
+  const parentGone = ws.lastReason === 'dead';
+  const HEIR_MOTIVE_DEAD = [
+   '親が命を落とした真相を、この目で確かめたい。',
+   '親が果たせなかった夢を、代わりに叶えたい。',
+   '親のように名を残す冒険者になりたい。',
+   '親を弔うため、その足跡をたどる旅に出た。',
+   '親が遺した借りを、自分の手で返したい。',
+  ];
+  const HEIR_MOTIVE_RETIRED = [
+   '隠居した親を、いつか超えてみせたい。',
+   '幼い頃に聞いた親の武勇伝に、ずっと憧れていた。',
+   '親のような一人前の冒険者だと、自分の力で示したい。',
+   '親の名を汚さぬよう、恥じない生き方をしたい。',
+   '親が引退してなお語り継がれる逸話に、自分も並びたい。',
+  ];
+  PC.background = {
+   family: `冒険者「${parentName}」の子として生まれ育った。${parentGone ? '親の背中を追い、自らも剣を取ることを決めた。' : '親から冒険の心得を受け継ぎ、自らも旅立つことにした。'}`,
+   motive: (PC.background && PC.background.motive) || pick(parentGone ? HEIR_MOTIVE_DEAD : HEIR_MOTIVE_RETIRED)
+  };
+ }
 
  // ワールドからこのNPCを除去
  ws.knownNPCs.splice(npcIdx, 1);
@@ -23466,6 +24127,8 @@ function startAsNPC(npcIdx){
  if(ws.famineHeroName) PC._famineHeroName = ws.famineHeroName;
  // 地方英雄・英雄フラグは引き継がない（新しいキャラクターが自分で獲得する必要がある）
  PC.food = 0; // 前の代の食料は引き継がない
+ PC.spouse = []; // 前の代の配偶者記録は引き継がない
+ initTrust(lastTown); // 前の代の信頼度は引き継がない（新PCは自分の町の信頼度から再スタート）
  // 農業豊凶の引き継ぎ
  if(ws.harvestYear) PC._harvestYear = ws.harvestYear;
  if(ws.harvestResult) PC._harvestResult = ws.harvestResult;
@@ -23734,7 +24397,7 @@ function go(nodeId){
  TOWN_AL_RASHID:'al_rashid', TOWN_OASIS_FORT:'oasis_fort', TOWN_SAROON:'saroon', TOWN_DUNA:'duna',
  TOWN_YELDUN:'yeldun', TOWN_FROSTPEAK:'frostpeak', TOWN_ASHVEIL:'ashveil',
  TOWN_VALDHEIM:'valdheim', TOWN_NIFURVIK:'nifurvik', TOWN_ISKALD:'iskald',
- TOWN_NERIA:'neria', TOWN_DORUA:'dorua', TOWN_SARPE:'sarpe', TOWN_NEBRA:'nebra'
+ TOWN_NERIA:'neria', TOWN_DORUA:'dorua', TOWN_SARPE:'sarpe', TOWN_NEBRA:'nebra', TOWN_KALVO:'kalvo'
  };
  if(townNodeMap[nodeId]) checkAllDeliveries(townNodeMap[nodeId]);
  if(townNodeMap[nodeId]) autoSave();
@@ -23747,7 +24410,7 @@ function go(nodeId){
   TAVERN_SAROON:'saroon', TAVERN_DUNA:'duna', TAVERN_YELDUN:'yeldun',
   TAVERN_FROSTPEAK:'frostpeak', TAVERN_ASHVEIL:'ashveil', TAVERN_VALDHEIM:'valdheim',
   TAVERN_NIFURVIK:'nifurvik', TAVERN_ISKALD:'iskald',
-  TAVERN_NERIA:'neria', TAVERN_DORUA:'dorua', TAVERN_SARPE:'sarpe', TAVERN_NEBRA:'nebra',
+  TAVERN_NERIA:'neria', TAVERN_DORUA:'dorua', TAVERN_SARPE:'sarpe', TAVERN_NEBRA:'nebra', TAVERN_KALVO:'kalvo',
  };
  if(tavernTownMap[nodeId] && (PC._questPenalties||{})[tavernTownMap[nodeId]] > 0){
   checkQuestPenalty(tavernTownMap[nodeId], ()=>go(nodeId));
@@ -24051,7 +24714,7 @@ function showTravelImage(method, fromId, toId){
 
  // 地方→画像キー
  function regionKey(id){
-  if(['neria','dorua','sarpe','nebra'].includes(id)) return 'marea';
+  if(['neria','dorua','sarpe','nebra','kalvo'].includes(id)) return 'marea';
   if(ISLANDS.has(id))  return 'sea';
   if(VALDHEIM.has(id)) return 'snow';
   if(DRACKRIM.has(id)) return 'mountain';
@@ -32836,7 +33499,11 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
  TRAVEL_FROM_DORUA:{
   scene:'travel',
   txt:()=>`<span style="color:#f0ece0">ドルアの村</span>からの旅立ち<br><br><span style="color:#c0b098">どこへ向かいますか？</span>`,
-  choices:()=>makeIslandRouteChoices('dorua'),
+  choices:()=>[
+   ...makeIslandRouteChoices('dorua').filter(c=>c.label!=='← 戻る'),
+   {label:' カルヴォ砦へ（奥地の最前線・徒歩15日）', fn:()=>travelTo('kalvo','walk'), go:'__travel__'},
+   {label:'← 戻る', go:'TOWN_DORUA'},
+  ],
  },
  TRAVEL_FROM_SARPE:{
   scene:'travel',
@@ -32947,6 +33614,72 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
    {label:' 宿に泊まる（3GP・1日休む）', fn:()=>{ innRest(300); }, go:'TOWN_NEBRA'},
    ...getQuestBoardChoices('TOWN_NEBRA'),
    {label:' 客に話しかける', fn:()=>talkToPatron('nebra')},
+  ],
+ },
+
+ // ── カルヴォ砦（ドルアの先、マレアの奥地・境界の最前線） ──
+ TOWN_KALVO:{
+  scene:'town_stone',
+  txt:()=>{
+   const t=TOWNS.kalvo;
+   const gaugeHtml = renderBorderFortGaugeBar();
+   return `<span style="color:#e8d0c0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+<span style="color:#c0b098">${t.desc}</span><br><br>
+${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}`;
+  },
+  choices:[
+   {label:' 武具庫', go:'SHOP_KALVO'},
+   {label:' 酒場', go:'TAVERN_KALVO'},
+   {label:' 野営して休む（1日）', fn:()=>{ innRest(0); }, go:'TOWN_KALVO'},
+   {label:' 旅に出る（移動）', go:'TRAVEL_FROM_KALVO'},
+   {label:' その他の行動', fn:()=>goOtherActions('kalvo')},
+  ]
+ },
+ KALVO_SORTIE_RETREAT:{
+  scene:'town_stone',
+  txt:()=>`<span style="color:#c8b8a0"> 部隊を退かせた。今回の出撃に戦果はなし——だが、被害を抑えて生きて戻れたことをよしとしよう。</span><br><br><span style="color:#a89880;font-size:calc(var(--font-sm) - 2px)">（防衛度は変化なし）</span>`,
+  choices:[
+   {label:'▶ 砦へ戻る', go:'TOWN_KALVO'},
+  ],
+ },
+ TRAVEL_FROM_KALVO:{
+  scene:'travel',
+  txt:()=>`<span style="color:#e8d0c0">カルヴォ砦</span>からの旅立ち<br><br><span style="color:#c0b098">奥地からここまで来た道を、ドルアへ引き返すしかない。</span>`,
+  choices:()=>[
+   {label:' ドルアの村へ 徒歩（15日）', fn:()=>travelTo('dorua','walk'), go:'__travel__'},
+   {label:'← 戻る', go:'TOWN_KALVO'},
+  ],
+ },
+ SHOP_KALVO:{
+  scene:'town_stone',
+  txt:()=>` <span style="color:#e8d0c0">カルヴォ砦の武具庫</span><br><br>
+<span style="color:#c0b098">実用一辺倒の武具が並ぶ。鹵獲品も混じっているという噂だ。</span>`,
+  choices:[
+   {label:' 買い物をする', fn:()=>showIngameShop('kalvo'), go:'__travel__'},
+   {label:'← 戻る', go:'TOWN_KALVO'},
+  ],
+ },
+ TAVERN_KALVO:{
+  scene:'town_stone',
+  txt:()=>{
+   const board=getTavernBoard('kalvo');
+   const _hqOffer = checkHeroQuest('kalvo');
+   const _hqHtml = renderHeroQuestOffer('kalvo', _hqOffer);
+   const html=renderQuestBoard('kalvo',board);
+   const partyHtml=renderPartyStatus();
+   const sortieHtml = canBorderFortSortie()
+    ? `<div style="border:1px solid #a04030;border-radius:4px;padding:10px;margin:8px 0;background:#1a0a06">
+        <div style="color:#e8d0c0;font-size:calc(var(--font-sm) - 1px);margin-bottom:4px"> 出撃部隊、募集中</div>
+        <div style="color:#c0b098;font-size:calc(var(--font-sm) - 2px)">奥地の混沌の軍勢へ、自ら打って出る部隊を募っている。</div>
+       </div>`
+    : `<div style="color:#a89880;font-size:calc(var(--font-sm) - 2px);margin:8px 0">（出撃部隊は先ごろ編成したばかりだ。しばらく休ませる必要がある）</div>`;
+   return ` <span style="color:#e8d0c0">砦の酒場</span><br><br><span style="color:#c0b098">殺気立った空気の中、束の間の休息を取る駐留兵たちがいる。賑やかとは程遠い。</span><br><br>${partyHtml}${_hqHtml}${sortieHtml}${html}`;
+  },
+  choices:()=>[
+   ...(canBorderFortSortie() ? [{label:' 出撃部隊に加わる', fn:()=>startBorderFortSortie()}] : []),
+   ...getQuestBoardChoices('TOWN_KALVO'),
+   {label:' 客に話しかける', fn:()=>talkToPatron('kalvo')},
+   {label:' 仲間を探す', go:'RECRUIT_KALVO'},
   ],
  },
 
@@ -35615,6 +36348,59 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
     updateHUD();
     showSaveToast(actor.name+'にOverdriveを付与した');
    })" class="dbg-btn" style="border-color:#446688;color:#88aacc">Overdrive付与</button>
+   <button onclick="dbg(()=>{
+    document.getElementById('debug-panel').style.display='none';
+    _showNPCImportMenu();
+   })" class="dbg-btn" style="border-color:#446688;color:#88aacc">NPCインポートプール確認</button>
+   <button onclick="dbg(()=>{
+    if(!PC.trust) initTrust(PC._startTown);
+    const t = getTrust(PC.town);
+    const townName = (TOWNS[PC.town]||{}).name || PC.town;
+    showSaveToast(`${townName}（${PC.town}）の信頼度: ${t}`);
+    console.log('PC.trust =', JSON.parse(JSON.stringify(PC.trust)));
+   })" class="dbg-btn" style="border-color:#446688;color:#88aacc">現在の町の信頼度を確認</button>
+  </div>
+
+  <!-- カルヴォ砦：防衛ゲージ確認・強制発動 -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── カルヴォ砦（NEW） ──</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px;background:#0f0a06;border:1px solid #664433;border-radius:4px;padding:8px;margin-bottom:14px">
+   <button onclick="dbg(()=>{
+    initBorderFort();
+    const bf = PC._borderFort;
+    showSaveToast('防衛度:'+Math.round(bf.gauge)+'/100　撃退累計:'+(bf.wavesRepelled||0)+'　出撃可:'+(canBorderFortSortie()?'可':'不可'));
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">防衛ゲージ確認</button>
+   <button onclick="dbg(()=>{
+    initBorderFort();
+    PC._borderFort.gauge = 100;
+    showSaveToast('防衛度を100に設定した');
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">ゲージ全快</button>
+   <button onclick="dbg(()=>{
+    initBorderFort();
+    PC._borderFort.gauge = BORDER_FORT_GAUGE_FLOOR;
+    showSaveToast('防衛度を下限('+BORDER_FORT_GAUGE_FLOOR+')に設定した');
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">ゲージ下限に</button>
+   <button onclick="dbg(()=>{
+    initBorderFort();
+    PC._borderFort.lastSortieDay = null;
+    showSaveToast('出撃クールダウンをリセットした');
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">出撃CDリセット</button>
+   <button onclick="dbg(()=>{
+    document.getElementById('debug-panel').style.display='none';
+    PC.town='kalvo';
+    go('TOWN_KALVO');
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">カルヴォ砦へ移動</button>
+   <button onclick="dbg(()=>{
+    document.getElementById('debug-panel').style.display='none';
+    PC.town='kalvo';
+    startKalvoSiege();
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">迎撃戦を強制発動</button>
+   <button onclick="dbg(()=>{
+    document.getElementById('debug-panel').style.display='none';
+    PC.town='kalvo';
+    initBorderFort();
+    PC._borderFort.lastSortieDay = null;
+    startBorderFortSortie();
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">出撃戦を強制発動</button>
   </div>
 
   <!-- 性格（アライメント） -->
