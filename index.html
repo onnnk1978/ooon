@@ -626,16 +626,17 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026072322</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026072601</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
- <div id="world-info" style="font-size:calc(var(--font-sm) - 2px);color:var(--white2);margin-top:4px;text-align:center;display:none"></div>
- <button id="new-game-btn" onclick="startNewGame()" style="display:none;background:none;border:1px solid var(--mud);color:#d8d0c0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:6px 12px;cursor:pointer;border-radius:3px;margin-top:4px"> NEW GAME（暦リセット）</button>
  <!-- 旧API互換用の非表示要素 -->
  <div id="continue-btn" style="display:none"></div>
  <div id="save-info" style="display:none"></div>
  <div id="delete-save-btn" style="display:none"></div>
  <div style="margin-top:24px;text-align:center">
+  <div style="width:min(360px,90vw);margin:0 auto 10px;padding:8px 10px;background:#2a1f08;border:1px solid #6a5220;border-radius:4px;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#e0c88a;text-align:center;line-height:1.5">
+   💡 しばらく開かないとセーブデータが消える場合があります（特にiPhone/iPad）。<br>スマホの「ホーム画面に追加」して遊ぶか、定期的なセーブデータ書き出しをおすすめします。
+  </div>
   <a href="https://docs.google.com/forms/d/e/1FAIpQLSeoGozIgwWyldsfqyWGXbRdu6wAB8MbqvFZngTFNChlg1d6GQ/viewform?usp=publish-editor" target="_blank" rel="noopener"
    style="color:#887860;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);text-decoration:underline;opacity:0.7">感想・バグ報告はこちら</a>
  </div>
@@ -931,6 +932,14 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div id="dd"></div>
  <div class="dr-result" id="dres">──  ──</div>
  <button class="roll-btn" id="rl-btn" onclick="doRoll()">▶ ROLL THE DICE!</button>
+ <div id="dice-manual-area" class="hidden" style="margin-top:4px">
+  <div id="dice-manual-hint" style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px;text-align:center">2D6の出目を入力してください</div>
+  <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:8px">
+   <input type="number" id="dice-manual-1" min="1" max="6" placeholder="?" style="width:56px;text-align:center;background:var(--ink);border:1px solid #484848;color:#f0ece0;font-size:var(--font-base);padding:6px;border-radius:3px">
+   <input type="number" id="dice-manual-2" min="1" max="6" placeholder="?" style="width:56px;text-align:center;background:var(--ink);border:1px solid #484848;color:#f0ece0;font-size:var(--font-base);padding:6px;border-radius:3px">
+  </div>
+  <button class="roll-btn" id="dice-manual-confirm" onclick="_confirmManualDice()">▶ この出目で確定</button>
+ </div>
  </div>
  <div id="story"></div>
  </div>
@@ -8676,6 +8685,7 @@ function _showSettingsMain(){
  panel.innerHTML = `
   <div style="color:#e8e0d8;font-size:var(--font-sm);margin-bottom:14px;text-align:center">⚙ 設定</div>
   <button id="fsp-autosave-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> 自動セーブ：${PC._autoSave === false ? '<span style="color:#c0b098">OFF</span>' : '<span style="color:#f0ece0">ON</span>'}</button>
+  <button id="fsp-manualdice-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> 手動ダイス入力（SR）：${PC._manualDiceMode ? '<span style="color:#f0ece0">ON</span>' : '<span style="color:#c0b098">OFF</span>'}</button>
   <button id="fsp-font-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> フォント設定</button>
   <button id="fsp-world-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> OOONの世界</button>
   <button id="fsp-guide-btn" style="width:100%;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin-bottom:6px;text-align:left"> ゲームシステム</button>
@@ -8688,6 +8698,11 @@ function _showSettingsMain(){
  document.getElementById('fsp-autosave-btn').onclick = ()=>{
   PC._autoSave = (PC._autoSave === false) ? true : false;
   showSaveToast(` 自動セーブ：${PC._autoSave ? 'ON' : 'OFF'}`);
+  panel.remove(); _showSettingsMain();
+ };
+ document.getElementById('fsp-manualdice-btn').onclick = ()=>{
+  PC._manualDiceMode = !PC._manualDiceMode;
+  showSaveToast(` 手動ダイス入力（SR）：${PC._manualDiceMode ? 'ON' : 'OFF'}`);
   panel.remove(); _showSettingsMain();
  };
  document.getElementById('fsp-font-btn').onclick  = ()=>_showFontSettings();
@@ -9290,20 +9305,6 @@ function checkSaveOnTitle(){
   }catch(e){}
  }
 
- // ワールド状態の表示
- const ws = loadWorldState();
- if(ws){
-  const absDay = 400*360 + ws.totalDays;
-  const year = Math.floor(absDay/360);
-  const rem = absDay%360;
-  const month = Math.floor(rem/30)+1;
-  const day = (rem%30)+1;
-  const npcCount = ws.knownNPCs?.length||0;
-  const worldEl = document.getElementById('world-info');
-  if(worldEl){ worldEl.textContent=` 世界の暦: ${year}年${month}月${day}日　仲間の記録: ${npcCount}人`; worldEl.style.display=''; }
-  const newGameBtn = document.getElementById('new-game-btn');
-  if(newGameBtn) newGameBtn.style.display='';
- }
 }
 
 // ページロード時にセーブ確認
@@ -23167,8 +23168,7 @@ function setupSavingRollFor(actor, sr){
  document.getElementById('dd').innerHTML =
   `<span style="color:#e8e0d8">${actorLabel}</span>　<span style="color:var(--white)">Lv${sr.level} ${attrNames[sr.attr]||sr.attr}(${attrVal})</span><br>目標: 2D6+${attrVal} ≥ <span style="color:var(--white)">${target}</span>`;
  document.getElementById('dres').textContent='──  ──';
- const btn=document.getElementById('rl-btn');btn.disabled=false;btn.textContent='▶ ROLL THE DICE!';
- document.getElementById('dice-area').classList.remove('hidden');
+ _activateDiceUI(srWithActor, actor);
  scrollToTop();
 }
 
@@ -25047,8 +25047,7 @@ function setupSavingRoll(sr){
  document.getElementById('dd').innerHTML=
  `<span style="color:var(--white)">Lv${sr.level} ${attrNames[sr.attr]||sr.attr}(${attrVal})</span><br>目標: 2D6+${attrVal} ≥ <span style="color:var(--white)">${target}</span>`;
  document.getElementById('dres').textContent='──  ──';
- const btn=document.getElementById('rl-btn');btn.disabled=false;btn.textContent='▶ ROLL THE DICE!';
- document.getElementById('dice-area').classList.remove('hidden');
+ _activateDiceUI(sr, PC);
 }
 
 // パーティがいれば誰が挑むか選ばせてから共通SRUIへ
@@ -25072,6 +25071,16 @@ function doRoll(){
  if(!rollPending)return;
  const sr=rollPending;rollPending=null;
 
+ // Roll with doubles explode
+ let a=d6(),b=d6();
+ let diceArr=[a,b];
+ while(a===b){a=d6();b=d6();diceArr.push(a,b);}
+
+ _resolveSRRoll(sr, diceArr);
+}
+
+// SRの判定・演出・DONEボタンの処理（自動ロール／手動入力の両方から呼ばれる共通処理）
+function _resolveSRRoll(sr, diceArr){
  // _actor が指定されていればそのキャラで判定、なければPC
  const actor = sr._actor || PC;
  const isPC = actor === PC;
@@ -25079,14 +25088,11 @@ function doRoll(){
  const target=sr.level*5+15;
  const attrVal=actor[sr.attr] || 0;
 
- // Roll with doubles explode
- let total=0,a=d6(),b=d6();total=a+b;
- let diceArr=[a,b];
+ const rolledTotal=diceArr.reduce((s,v)=>s+v,0);
  let doublesStr='';
- while(a===b){doublesStr+=` +`;a=d6();b=d6();total+=a+b;diceArr.push(a,b);}
+ for(let i=2;i<diceArr.length;i+=2) doublesStr+=` +`;
 
- const rolledTotal=total;
- const grandTotal=total+attrVal;
+ const grandTotal=rolledTotal+attrVal;
  const success=rolledTotal>=5&&grandTotal>=target;
  const ap=rolledTotal*sr.level; // 成否問わず経験値加算
 
@@ -25100,6 +25106,8 @@ function doRoll(){
  const apStr = sr.noAP ? '' : `　${success?`<span style="color:var(--white)"> 成功 経験値+${ap}</span>`:`<span style="color:var(--white)"> 失敗 経験値+${ap}</span>`}`;
  const resHtml = ` ${actorTag}<span style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=<span style="color:#f0ece0">${rolledTotal}</span>${doublesStr}　合計: ${rolledTotal}+${attrVal}=<span style="color:#f0ece0">${grandTotal}</span>　${success?'<span style="color:var(--white)"> 成功</span>':'<span style="color:var(--white)"> 失敗</span>'}${apStr}`;
  document.getElementById('dres').innerHTML = resHtml;
+ document.getElementById('rl-btn').classList.remove('hidden');
+ document.getElementById('dice-manual-area').classList.add('hidden');
  document.getElementById('rl-btn').disabled=true;
  document.getElementById('rl-btn').textContent=' DONE';
  // 移動中なら travelLog にも結果を流す
@@ -25125,6 +25133,64 @@ function doRoll(){
    go(success?sr.success:sr.fail);
   }
  };
+}
+
+// ── 手動ダイス入力モード ──
+function isManualDiceMode(){ return !!PC._manualDiceMode; }
+
+let _manualDiceState = null; // {sr, diceArr}
+
+function _startManualDiceInput(sr){
+ _manualDiceState = {sr, diceArr:[]};
+ const hint = document.getElementById('dice-manual-hint');
+ if(hint) hint.textContent = '2D6の出目を入力してください';
+ const i1 = document.getElementById('dice-manual-1');
+ const i2 = document.getElementById('dice-manual-2');
+ if(i1) i1.value = '';
+ if(i2) i2.value = '';
+ document.getElementById('rl-btn').classList.add('hidden');
+ document.getElementById('dice-manual-area').classList.remove('hidden');
+ if(i1) i1.focus();
+}
+
+function _confirmManualDice(){
+ const st = _manualDiceState;
+ if(!st) return;
+ const i1 = document.getElementById('dice-manual-1');
+ const i2 = document.getElementById('dice-manual-2');
+ const v1 = parseInt(i1.value, 10);
+ const v2 = parseInt(i2.value, 10);
+ if(!(v1>=1 && v1<=6 && v2>=1 && v2<=6)){ showSaveToast('1〜6の出目を入力してください'); return; }
+ st.diceArr.push(v1, v2);
+ if(v1 === v2){
+  // ゾロ目：もう2つ入力させる（自動ロールのdoubles-explodeと同じルール）
+  const hint = document.getElementById('dice-manual-hint');
+  if(hint) hint.textContent = 'ゾロ目！ もう2つ出目を入力してください';
+  i1.value = ''; i2.value = '';
+  i1.focus();
+  return;
+ }
+ document.getElementById('dice-manual-area').classList.add('hidden');
+ const sr = st.sr;
+ const diceArr = st.diceArr;
+ _manualDiceState = null;
+ _resolveSRRoll(sr, diceArr);
+}
+
+// SRのダイスUIを起動（自動ロール／手動入力を、対象がPCかどうかと設定に応じて出し分ける）
+function _activateDiceUI(sr, actor){
+ const isPC = (actor||PC) === PC;
+ document.getElementById('dice-area').classList.remove('hidden');
+ if(isPC && isManualDiceMode()){
+  _startManualDiceInput(sr);
+ } else {
+  document.getElementById('dice-manual-area').classList.add('hidden');
+  const btn=document.getElementById('rl-btn');
+  btn.classList.remove('hidden');
+  btn.disabled=false;
+  btn.textContent='▶ ROLL THE DICE!';
+  btn.onclick=doRoll;
+ }
 }
 
 // ──────────────────────────────────────
@@ -36293,6 +36359,12 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnit
     document.getElementById('debug-panel').style.display='none';
     startReunionEvent(travelState);
    })" class="dbg-btn" style="border-color:#446688;color:#88aacc">再会イベント発火</button>
+   <button onclick="dbg(()=>{
+    if(!travelState){ showSaveToast('旅行中のみ使用できます'); return; }
+    if(!loadImportedNPCs().length){ showSaveToast('インポートNPCプールが空です'); return; }
+    document.getElementById('debug-panel').style.display='none';
+    startImportedNPCEncounter(travelState);
+   })" class="dbg-btn" style="border-color:#446688;color:#88aacc">インポートNPC遭遇を強制発動</button>
    <button onclick="dbg(()=>{
     const before = (PC._formerCompanions||[]).length;
     checkFormerCompanionDeaths();
