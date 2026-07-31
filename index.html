@@ -626,7 +626,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026072601</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026073101</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -695,7 +695,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <h3> 職業</h3>
  <div class="type-card warrior selected" id="card-warrior" onclick="selectType('warrior')">
  <h4> 戦士</h4>
- <p>防具・盾の防護値が2倍。魔法は使えないが武器は何でも使える。強さ重視向き。</p>
+ <p>防具・盾の防護値が2倍。魔法は使えないが武器は何でも使える。強さ重視向き。条件を満たせば片手武器を2つ同時装備できる。</p>
  </div>
  <div class="type-card wizard" id="card-wizard" onclick="selectType('wizard')">
  <h4> 魔法使い</h4>
@@ -1389,6 +1389,230 @@ function changeTrust(townId, delta, type){
    checkRegionHero();
   }
  }
+}
+
+// ══════════════════════════════════════════
+// 手配度システム（町ごとに独立。能動的な犯罪行為でのみ上昇）
+// ══════════════════════════════════════════
+const WANTED_MID_THRESHOLD = 40;  // これ以上で「中」：酒場の依頼を受けられない・3割で衛兵遭遇
+const WANTED_HIGH_THRESHOLD = 70; // これ以上で「高」：賞金首扱い。町に入ると必ず衛兵遭遇、旅中は賞金稼ぎに襲われる
+const WANTED_DECAY_PER_DAY = 0.5; // 風化速度（「高」の間は風化しない）
+
+function _ensureWantedObject(){
+ if(!PC.wanted || typeof PC.wanted !== 'object' || Array.isArray(PC.wanted)){
+  PC.wanted = {};
+ }
+}
+
+function getWanted(townId){
+ _ensureWantedObject();
+ return PC.wanted[townId] || 0;
+}
+
+function changeWanted(townId, delta){
+ _ensureWantedObject();
+ const cur = PC.wanted[townId] || 0;
+ const next = Math.max(0, Math.min(100, cur + delta));
+ PC.wanted[townId] = next;
+ return next;
+}
+
+function wantedTier(townId){
+ const w = getWanted(townId);
+ if(w >= WANTED_HIGH_THRESHOLD) return 'high';
+ if(w >= WANTED_MID_THRESHOLD) return 'mid';
+ return 'low';
+}
+
+// 訪問時にまとめて経過分の風化を適用（「高」の間は風化しない）
+function tickWantedDecay(townId){
+ _ensureWantedObject();
+ if(!PC._wantedLastTick) PC._wantedLastTick = {};
+ const lastDay = PC._wantedLastTick[townId] ?? GAME_TIME.totalDays;
+ const days = GAME_TIME.totalDays - lastDay;
+ if(days > 0){
+  const cur = PC.wanted[townId] || 0;
+  if(cur < WANTED_HIGH_THRESHOLD){
+   PC.wanted[townId] = Math.max(0, cur - days*WANTED_DECAY_PER_DAY);
+  }
+ }
+ PC._wantedLastTick[townId] = GAME_TIME.totalDays;
+}
+
+// 手配度に応じたバッジHTML（信頼度バッジと並べて表示する用）
+function renderWantedBadge(townId){
+ tickWantedDecay(townId);
+ const tier = wantedTier(townId);
+ if(tier === 'low') return '';
+ const w = Math.round(getWanted(townId));
+ const label = tier === 'high' ? '賞金首' : '手配中';
+ const color = tier === 'high' ? '#e07050' : '#e0c060';
+ return ` <span style="font-size:calc(var(--font-sm) - 2px);color:${color};border:1px solid ${color};border-radius:3px;padding:1px 5px;margin-left:6px"> ${label}（手配度${w}）</span>`;
+}
+
+// 町に入る際の衛兵遭遇チェック。強制戦闘に入った場合はtrueを返す
+function checkWantedAmbush(townId){
+ tickWantedDecay(townId);
+ const tier = wantedTier(townId);
+ if(tier === 'low') return false;
+ const chance = tier === 'high' ? 1 : 0.3;
+ if(Math.random() >= chance) return false;
+ startWantedGuardAmbush(townId, tier);
+ return true;
+}
+
+function startWantedGuardAmbush(townId, tier){
+ const townName = (TOWNS[townId]||{}).name || townId;
+ const level = Math.max(2, Math.min(10, (PC.level||1) + (tier==='high'?1:0)));
+ const guardCount = tier === 'high' ? (3 + Math.floor(Math.random()*2)) : (2 + Math.floor(Math.random()*2));
+ const enemies = Array(guardCount).fill(0).map(()=>{
+  const n = generateNPC(level);
+  n.name = '衛兵';
+  n.bountyTitle = '衛兵';
+  return {...n, curCon:n.con};
+ });
+ const story = document.getElementById('story');
+ if(story){
+  story.innerHTML = `<span style="color:#e0d0d0">${townName}</span><br><br>`
+   +`<b>${tier==='high' ? ' 賞金首を発見！' : ' 衛兵に見咎められた！'}</b><br><br>`
+   +(tier==='high'
+    ? `門をくぐった瞬間、衛兵があなたの人相書きに気づいた。「賞金首だ！取り押さえろ！」`
+    : `門番があなたの顔をじっと見て、囁き合っている。「……あいつじゃないか」`);
+ }
+ renderChoices([{label:' 戦う', fn:()=>{
+  renderChoices([]);
+  window._wantedArrestContext = { townId, tier };
+  startCombatNPC({
+   enemies,
+   canFlee: false,
+   win:'__noop__',
+   lose:'WANTED_ARREST_NODE',
+   onWin:()=>{
+    document.getElementById('cbt-area').classList.add('hidden');
+    document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display = '';
+    cbtState = null;
+    updateHUD();
+    const s = document.getElementById('story');
+    if(s) s.innerHTML = `<span style="color:#e0d0d0">${townName}</span><br><br><span style="color:#e8e4d8">衛兵を振り切った！</span>`;
+    renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_'+townId.toUpperCase()); }}]);
+   },
+  });
+ }}]);
+ return;
+}
+
+// 盗みを働く（能動的な犯罪コマンド）。対象によって手口・リスク・手配度上昇が異なる
+// 宝物の基準値：PCのレベルに応じた「典型的な戦闘」のtotalMR相当。ここに各手口の倍率をかけてgenerateTreasureに渡す
+function _theftBaseMR(){ return 20 + (PC.level||1)*10; }
+
+function showTheftMenu(townId){
+ const townName = (TOWNS[townId]||{}).name || townId;
+ const story = document.getElementById('story');
+ if(story) story.innerHTML = ` <span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#c0b098">何を狙いますか？</span>`;
+ renderChoices([
+  {label:' すり（器用さテスト・軽犯罪）', fn:()=>startPickpocket(townId)},
+  {label:' 民家に忍び込む（運テスト・中犯罪）', fn:()=>startBurglary(townId)},
+  {label:' 商店を襲う（戦闘・重犯罪）', fn:()=>startShopRobbery(townId)},
+  {label:'← やめておく', go:'TOWN_'+townId.toUpperCase()},
+ ]);
+}
+
+// ① すり：DEXテストLv1。成功で宝物表の1/3、手配度+1。失敗で体力-3、手配度+3
+function startPickpocket(townId){
+ const townName = (TOWNS[townId]||{}).name || townId;
+ const story = document.getElementById('story');
+ if(story) story.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#c0b098">雑踏に紛れ、すれ違いざまに懐を狙う……</span>`;
+ setupSavingRoll({
+  attr:'dex', level:1,
+  onSuccess:()=>{
+   const lootHtml = generateTreasure(Math.max(1,Math.floor(_theftBaseMR()/3)));
+   changeWanted(townId, 1);
+   const s = document.getElementById('story');
+   if(s) s.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#e8e4d8">まんまと掏り取った。${lootHtml}</span>`;
+   renderChoices([{label:'← 町に戻る', go:'TOWN_'+townId.toUpperCase()}]);
+  },
+  onFail:()=>{
+   PC.con=Math.max(0,PC.con-3); changeWanted(townId, 3); updateHUD();
+   const s = document.getElementById('story');
+   if(s) s.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#e8e4d8">気づかれて殴られた！　体力-3。</span>`;
+   if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
+   renderChoices([{label:'← 町に戻る', go:'TOWN_'+townId.toUpperCase()}]);
+  },
+ });
+ renderChoices([]);
+ scrollToTop();
+}
+
+// ② 民家に忍び込む：LKテストLv2。成功で宝物表の1/2、手配度+3。失敗で家主と戦闘、手配度+5
+function startBurglary(townId){
+ const townName = (TOWNS[townId]||{}).name || townId;
+ const story = document.getElementById('story');
+ if(story) story.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#c0b098">人気のない民家に忍び込む……</span>`;
+ setupSavingRoll({
+  attr:'lk', level:2,
+  onSuccess:()=>{
+   const lootHtml = generateTreasure(Math.max(1,Math.floor(_theftBaseMR()/2)));
+   changeWanted(townId, 3);
+   const s = document.getElementById('story');
+   if(s) s.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#e8e4d8">家探しして金目のものを見つけた。${lootHtml}</span>`;
+   renderChoices([{label:'← 町に戻る', go:'TOWN_'+townId.toUpperCase()}]);
+  },
+  onFail:()=>{
+   changeWanted(townId, 5);
+   const npcCount = 1 + Math.floor(Math.random()*3); // 1〜3
+   const lvl = Math.max(1, Math.min(10, PC.level||1));
+   const enemies = Array(npcCount).fill(0).map(()=>{ const n=generateNPC(lvl); return {...n, curCon:n.con}; });
+   const s = document.getElementById('story');
+   if(s) s.innerHTML = `<span style="color:#e0d0d0">${townName}</span><br><br><span style="color:#e8e4d8">物音に気づいた家主が戻ってきた！「泥棒！」</span>`;
+   renderChoices([{label:' 戦う', fn:()=>{
+    renderChoices([]);
+    startCombatNPC({
+     enemies, canFlee:true, win:'__noop__', lose:'DEAD',
+     onWin:()=>{
+      document.getElementById('cbt-area').classList.add('hidden');
+      document.getElementById('scroll-area').classList.remove('in-combat');
+      document.getElementById('text-win').style.display='';
+      cbtState=null; updateHUD();
+      const s2=document.getElementById('story');
+      if(s2) s2.innerHTML = `<span style="color:#e0d0d0">${townName}</span><br><br><span style="color:#e8e4d8">家主を退け、その隙に逃げ出した。</span>`;
+      renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_'+townId.toUpperCase()); }}]);
+     },
+    });
+   }}]);
+  },
+ });
+ renderChoices([]);
+ scrollToTop();
+}
+
+// ③ 商店を襲う：判定なし、即戦闘（衛兵1〜5人）。勝利で宝物表の2倍、手配度+10。敗北は逮捕（衛兵の遭遇と同じ扱い）
+function startShopRobbery(townId){
+ const townName = (TOWNS[townId]||{}).name || townId;
+ const npcCount = 1 + Math.floor(Math.random()*5); // 1〜5
+ const lvl = Math.max(1, Math.min(10, PC.level||1));
+ const enemies = Array(npcCount).fill(0).map(()=>{ const n=generateNPC(lvl); n.name='衛兵'; return {...n, curCon:n.con}; });
+ const story = document.getElementById('story');
+ if(story) story.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#c0b098">白昼堂々、商店に押し入った。すぐさま衛兵が駆けつける。</span>`;
+ window._wantedArrestContext = { townId, tier: wantedTier(townId) };
+ renderChoices([{label:' 戦う', fn:()=>{
+  renderChoices([]);
+  startCombatNPC({
+   enemies, canFlee:false, win:'__noop__', lose:'WANTED_ARREST_NODE',
+   onWin:()=>{
+    document.getElementById('cbt-area').classList.add('hidden');
+    document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display='';
+    cbtState=null;
+    const lootHtml = generateTreasure(_theftBaseMR()*2);
+    changeWanted(townId, 10);
+    updateHUD();
+    const s = document.getElementById('story');
+    if(s) s.innerHTML = `<span style="color:#e0d0d0">${townName}</span><br><br><span style="color:#e8e4d8">衛兵を退け、店の金目の物を奪った。${lootHtml}</span>`;
+    renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_'+townId.toUpperCase()); }}]);
+   },
+  });
+ }}]);
 }
 
 // 地方定義と地方英雄チェック
@@ -2731,7 +2955,7 @@ function getHarvestRumor(){
  const cur2 = getCurrentDate();
  // 大飢饉後の回顧噂（翌年以降もランダムで出る）
  if(PC._famineYear && PC._famineYear < cur2.year){
-  if(Math.random() > 0.4) return null;
+  if(Math.random() > 0.15) return null;
   const fy = PC._famineYear;
   const chaosCleared = PC._chaosNest?.cleared;
   const heroName = PC.name;
@@ -2785,6 +3009,11 @@ function getHarvestRumor(){
    '「食料が極端に不足している。街によっては配給制になっているところもあるとか」',
    '「大不作の年だ。食料を持っている者は手放すな。値がさらに上がるぞ」',
    `「${getCurrentDate().year}年の大飢饉……今年の冬は生き延びることを考えろ。食料を最優先にしろ」`,
+   '「今まさに飢饉のただ中だ。市場に行ってみろ、棚はほとんど空だぞ」',
+   '「今この瞬間も、隣町では配給の列ができているらしい。うちも時間の問題だ」',
+   '「今年の飢饉はまだ終わっちゃいない。街中の誰もが不安そうな顔をしてるだろう」',
+   '「今のうちに食料を確保しておけ。飢饉は今まさに進行中だ、悠長にしていられない」',
+   '「今も倉庫という倉庫が空になっていってる。この飢饉、底が見えない」',
    ...(hasNestRumor ? [
     '「混沌の根城があの場所に構えられてから、周辺の土地が枯れ始めているという。呪いだという者もいる」',
     '「農村の者が言うには、混沌の気配が広まると夜露すら降りなくなるそうだ。今年の不作はそのせいかもしれない」',
@@ -3224,7 +3453,7 @@ function buyProperty(townId){
 function renderTrustBadge(townId){
  const t = getTrust(townId);
  const rank = trustRank(townId);
- return `<span style="font-size:calc(var(--font-sm) - 2px);color:${rank.color};border:1px solid ${rank.color};border-radius:3px;padding:1px 5px">信頼度 ${t}/100 ${rank.label}</span>`;
+ return `<span style="font-size:calc(var(--font-sm) - 2px);color:${rank.color};border:1px solid ${rank.color};border-radius:3px;padding:1px 5px">信頼度 ${t}/100 ${rank.label}</span>${renderWantedBadge(townId)}`;
 }
 
 // ── 拠点ノードを動的生成 ──
@@ -4233,9 +4462,9 @@ function _recruitChild(child, prop, townId){
  const def = PROPERTY_DEFS[townId];
  // タイプに応じた装備を設定
  const t = child.type||'warrior';
- child.equippedWeapons = t==='wizard'?[]:[{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}];
+ child.equippedWeapons = t==='wizard'?[]:[{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30,stReq:7,dexReq:3}];
  child.equippedArmors = [{name:'布製の鎧',hits:3,stReq:1,isShield:false,weight:100}];
- child.invWeapons = t!=='wizard'?[]:[{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}];
+ child.invWeapons = t!=='wizard'?[]:[{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30,stReq:7,dexReq:3}];
  child.invArmors = [];
  child.spells = t==='wizard'?[{...SPELLS_L1[2]}]:[];
  // bornDayをbirthDayとして引き継ぎ、個体寿命を設定
@@ -4591,6 +4820,21 @@ function goOtherActions(townId){
    && !q._defeated);
   if(bq) choices.push({label:` 賞金首を探す（${bq.targetName}）`, fn:()=>searchBountyTarget(townId)});
  }
+ // 暗殺対象を追う（targetTownIdがここの町であれば表示）
+ {
+  const aq = (PC.quests||[]).find(q=>q.type==='assassination' && q.status==='active'
+   && (q.targetTownId===townId || (!q.targetTownId && q.fromTownId===townId)));
+  if(aq) choices.push({label:` 暗殺対象を追う（${aq.targetName}）`, fn:()=>searchAssassinationTarget(townId)});
+ }
+ // 誘拐対象を追う（targetTownIdがここの町であれば表示）
+ {
+  const kq = (PC.quests||[]).find(q=>q.type==='kidnapping' && q.status==='active'
+   && (q.targetTownId===townId || (!q.targetTownId && q.fromTownId===townId)));
+  if(kq) choices.push({label:` 誘拐対象を追う（${kq.targetName}）`, fn:()=>searchKidnappingTarget(townId)});
+ }
+
+ // 盗みを働く（能動的な犯罪行為。手配度が上がる）
+ choices.push({label:' 盗みを働く', fn:()=>showTheftMenu(townId), go:'__travel__'});
 
  // 混沌の根城（この町に根城がある場合）
  {
@@ -4911,11 +5155,11 @@ function generateNPC(level=1){
 
  // 装備（レベルに応じて強化）
  const weapons =
-  level>=5 ? [{name:'グレートソード',dice:6,adds:0,twoHand:true,weight:170}] :
-  level>=4 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120},{name:'短剣',dice:2,adds:1,twoHand:false,weight:16}] :
-  level>=3 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120}] :
-  level>=2 ? [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}] :
-             [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}];
+  level>=5 ? [{name:'グレートソード',dice:6,adds:0,twoHand:true,weight:170,stReq:21,dexReq:18}] :
+  level>=4 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120,stReq:15,dexReq:10},{name:'短剣',dice:2,adds:1,twoHand:false,weight:16,stReq:1,dexReq:4}] :
+  level>=3 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120,stReq:15,dexReq:10}] :
+  level>=2 ? [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30,stReq:7,dexReq:3}] :
+             [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30,stReq:7,dexReq:3}];
  const armors =
   level>=5 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false,weight:200},{name:'バックラー',hits:3,stReq:1,isShield:true,weight:75}] :
   level>=4 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false,weight:200}] :
@@ -4971,11 +5215,11 @@ function generateNPC(level=1){
 // レベル別装備テーブル（generateNPCと同じ基準を使い回す）
 function _importEquipmentForLevel(level, type){
  const weapons =
-  level>=5 ? [{name:'グレートソード',dice:6,adds:0,twoHand:true,weight:170}] :
-  level>=4 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120},{name:'短剣',dice:2,adds:1,twoHand:false,weight:16}] :
-  level>=3 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120}] :
-  level>=2 ? [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}] :
-             [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30}];
+  level>=5 ? [{name:'グレートソード',dice:6,adds:0,twoHand:true,weight:170,stReq:21,dexReq:18}] :
+  level>=4 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120,stReq:15,dexReq:10},{name:'短剣',dice:2,adds:1,twoHand:false,weight:16,stReq:1,dexReq:4}] :
+  level>=3 ? [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120,stReq:15,dexReq:10}] :
+  level>=2 ? [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30,stReq:7,dexReq:3}] :
+             [{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30,stReq:7,dexReq:3}];
  const armors =
   level>=5 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false,weight:200},{name:'バックラー',hits:3,stReq:1,isShield:true,weight:75}] :
   level>=4 ? [{name:'革製の鎧',hits:6,stReq:2,isShield:false,weight:200}] :
@@ -5193,14 +5437,9 @@ function npcEquipWeapon(npcIdx, invIdx){
  const n = PC.party[npcIdx]; if(!n) return;
  const w = (n.invWeapons||[])[invIdx]; if(!w) return;
  n.equippedWeapons = n.equippedWeapons||[];
- // 両手武器は既存を外す
- if(w.twoHand || n.equippedWeapons.some(e=>e.twoHand)){
- n.invWeapons.push(...n.equippedWeapons);
- n.equippedWeapons = [];
- } else if(n.equippedWeapons.length>=1){
- n.invWeapons.push(...n.equippedWeapons);
- n.equippedWeapons = [];
- }
+ n.equippedArmors = n.equippedArmors||[];
+ const check = canEquipWeapon(w, n);
+ if(!check.ok){ showSaveToast(' '+check.reason); return; }
  n.invWeapons.splice(invIdx,1);
  n.equippedWeapons.push(w);
  renderPartyTab();
@@ -5217,6 +5456,9 @@ function npcEquipArmor(npcIdx, invIdx){
  const n = PC.party[npcIdx]; if(!n) return;
  const a = (n.invArmors||[])[invIdx]; if(!a) return;
  n.equippedArmors = n.equippedArmors||[];
+ n.equippedWeapons = n.equippedWeapons||[];
+ const check = canEquipArmor(a, n);
+ if(!check.ok){ showSaveToast(' '+check.reason); return; }
  n.invArmors.splice(invIdx,1);
  n.equippedArmors.push(a);
  renderPartyTab();
@@ -5795,6 +6037,51 @@ const PATRON_EVENTS_COMMON = [
    win_line:'「若い頃の自分を思い出すな。お前はいい目をしている」老人は昔話を聞かせてくれた。何か大切なことを学んだ気がした。',
    lose_line:'「…昔を思い出したくなった。すまんが一人にしてくれ」老人は静かに目を伏せた。',
    win_ap:25, trust_delta:4 },
+
+ { name:'道中のモンスターの噂', icon:'', type:'monsterRumorCategory',
+   pool:[
+    { intro:'酒場で顔を合わせた行商人が、道中の話を聞かせてくれた。',
+      lines:['「野盗にはもう気をつけたほうがいい。薄汚れた革鎧に、刃こぼれした剣一本。身なりは貧しいが、目つきだけは鋭いから侮れないよ」'] },
+    { intro:'荷馬車を引いてきた商人が、疲れた顔で話している。',
+      lines:['「山賊の連中は野盗と違って徒党を組んでてね。革の胸当てに、山刀みたいな厚みのある刃物を持ってる。動きも野盗よりずっと速い」'] },
+    { intro:'酒に赤い顔をした猟師が、身振り手振りで語っている。',
+      lines:['「灰色の肌をした図体のでかい化け物を見たよ。オークってやつだ。牙が下顎から突き出ててね、棍棒を軽々振り回してた」'] },
+    { intro:'羊飼いが青い顔で、酒をあおりながら話している。',
+      lines:['「群れの一頭がやられてね。灰色の毛並みに、人の背丈ほどもある大きな狼だった。目が爛々と光ってて、忘れられないよ」'] },
+    { intro:'酒場の隅で、大人たちが子どもの話に苦笑いしている。',
+      lines:['「緑色の小さいのが藪から飛び出してきたんだ！ 耳が尖ってて、歯を剥き出しにして奇声を上げてた」ゴブリンのことらしい。'] },
+    { intro:'墓地の管理をしているという老人が、静かに話している。',
+      lines:['「骨だけの体に、朽ちた鎧をまとった戦士が徘徊しているのを見た者がいる。何も語らず、ただ剣を構えてこちらへ歩いてくるそうだ」'] },
+    { intro:'酔った男が、身振りを交えて武勇伝を語っている。',
+      lines:['「盗賊の連中は身が軽くてなあ。黒っぽい服に身を包んで、短剣を弄びながら近づいてくる。目を離した隙に懐を狙われるぞ」'] },
+    { intro:'顔面蒼白の木こりが、震えながら話している。',
+      lines:['「山の奥で、緑がかった肌の巨人を見た……木の棍棒を軽々振り回して、背丈は家の軒先ほどもあったよ」トロールの噂で酒場がざわついた。'] },
+   ]},
+
+ { name:'ダンジョンのモンスターの噂', icon:'', type:'monsterRumorCategory',
+   pool:[
+    { intro:'包帯だらけの冒険者が、まだ震える手でジョッキを持っている。',
+      lines:['「グールは死体そのもののような灰色の肌をしてる。爪が異様に長くてね……あれに引っかかれると、傷口が腐って治りが悪くなるんだ」'] },
+    { intro:'顔をしかめた斥候が、酒をあおって気を紛らわせている。',
+      lines:['「あの遺跡の大蜘蛛、脚を広げたら人の背丈より大きいんだぞ。艶のある黒い体に、真っ赤な目が8つ並んでるのを思い出すだけで鳥肌が立つ」'] },
+    { intro:'腕を吊った戦士が、苦笑いしながら武勇伝を語る。',
+      lines:['「オーガは図体がオークの比じゃない。瘤だらけの緑の巨体で、丸太みたいな棍棒を片手で振り回す。あの一撃を盾で受けたら肩が外れた」'] },
+    { intro:'すすけたマントの盗賊が、周囲を気にしながら小声で話す。',
+      lines:['「ハーフオークは人並みの知恵が回るぶん厄介だ。オークより肌の色が浅黒くて、粗末だが継ぎ接ぎの鎧をちゃんと着込んでる」'] },
+    { intro:'猟師が急に真顔になり、声を落として言った。',
+      lines:['「ウェアウルフは普段は人の姿をしてるらしい。だが牙を剥いた時の顔は、狼そのものだ。全身の体毛が逆立って、爪も刃物みたいに伸びる」'] },
+    { intro:'埃だらけのローブの学者が、興奮気味にメモを見せてくる。',
+      lines:['「ケンタウロスを見た時は目を疑いました。馬の胴体に人の上半身……弓を構える姿は神話の挿絵そのものでしたよ」'] },
+    { intro:'包帯だらけの傭兵が、片目を眇めながら話す。',
+      lines:['「炎の悪魔は、体そのものが揺らめく炎でできてる。輪郭だけ人型で、近づくだけで熱気が肌を刺す。あれに触れたら火傷どころじゃ済まない」'] },
+    { intro:'目の下に隈のある男が、ひたすら酒をあおっている。',
+      lines:['「地下で会ったトロル、切り落とした腕がまた生えてきやがった。あの再生には反吐が出る。緑がかった皮膚に、細く長い手足が忘れられない」'] },
+    { intro:'変わり者と噂の商人が、目を輝かせて語りだした。',
+      lines:['「あれは本当に美しかった……はずなのに、歪んでいた。白かったはずの毛並みが所々黒く爛れ、角は捻じ曲がっていて。とても神聖な生き物には見えなかったよ」'] },
+    { intro:'酒場中の視線を集めながら、男が低い声で語り始めた。',
+      lines:['「本物の竜を見た。赤い鱗が松明の灯りで炎のように輝いてね……あんな化け物、二度と近づきたくない」',
+             '「緑の鱗をした竜だった。息を吸い込む音がしただけで、仲間は蜘蛛の子を散らすように逃げ出したよ」'] },
+   ]},
 
 ];
 
@@ -6923,7 +7210,13 @@ function talkToPatron(townId){
   ...PATRON_EVENTS_COMMON,
  ];
  if(!events.length) return;
- const ev = events[Math.floor(Math.random() * events.length)];
+ let ev = events[Math.floor(Math.random() * events.length)];
+
+ // カテゴリ項目（モンスターの噂など）は、中のプールからさらに1つ抽選して通常の噂と同じ形に展開する
+ if(ev.type === 'monsterRumorCategory'){
+  const picked = ev.pool[Math.floor(Math.random() * ev.pool.length)];
+  ev = { name: ev.name, icon: ev.icon, intro: picked.intro, type: 'rumor', lines: picked.lines };
+ }
 
  // 共通ヘッダーHTML
  const header = `
@@ -7718,6 +8011,64 @@ function startAssassinEncounter(ts){
  choices.appendChild(btn);
 }
 
+// ── 賞金稼ぎ遭遇（手配度「高」＝賞金首の間、旅の途中で襲われる） ──
+function startBountyHunterEncounter(ts){
+ travelState = ts;
+ const hunterLevel = Math.max(3, Math.min(10, (PC.level||1) + 1));
+ const leader = generateNPC(hunterLevel);
+ leader.bountyTitle = '賞金稼ぎ';
+ const minionCount = 1 + Math.floor(Math.random()*2); // 1〜2人
+ const minions = Array(minionCount).fill(0).map(()=>{
+  const m = generateNPC(Math.max(1, hunterLevel-2));
+  return {...m, curCon:m.con};
+ });
+
+ // travel-log-wrapがなければ作成
+ const storyEl = document.getElementById('story');
+ if(storyEl && !document.getElementById('travel-log-wrap')){
+  storyEl.innerHTML += `<div id="travel-log-wrap" style="border-top:1px solid var(--panel2);margin-top:8px;padding-top:8px;font-size:var(--font-base)"><div id="travel-events"></div></div>`;
+ }
+ travelLog(`<div style="padding:8px;background:#1a0808;border:1px solid var(--rust);border-radius:4px;font-size:var(--font-sm)"><span style="color:#c8b8a0">${ts.daysDone}日目：「見つけたぞ」——武装した一団が行く手を塞いだ。懸賞金目当ての賞金稼ぎのようだ。</span></div>`);
+
+ const choices = document.getElementById('choices');
+ choices.innerHTML = '';
+ const btn = document.createElement('button');
+ btn.className = 'choice-btn';
+ btn.textContent = ' 迎え撃つ';
+ btn.onclick = ()=>{
+  choices.innerHTML = '';
+  drawScene('combat');
+  document.getElementById('dice-area').classList.add('hidden');
+  hideMagicArea();
+  startCombatNPC({
+   enemies:[{...leader, curCon:leader.con}, ...minions],
+   canFlee: true,
+   win:'__noop__',
+   lose:'DEAD',
+   onWin:()=>{
+    addLifeEvent('','旅の途中で賞金稼ぎに襲われたが、撃退した。');
+    const gp = hunterLevel * 20;
+    gainGPAll(gp);
+    updateHUD();
+    // ログを退避（text-win表示でstoryがリセットされる前に）
+    const savedLog = document.getElementById('travel-log-wrap');
+    const savedLogHTML = savedLog ? savedLog.outerHTML : '';
+    document.getElementById('text-win').style.display = '';
+    drawScene('travel');
+    const s = document.getElementById('story');
+    s.innerHTML = savedLogHTML || `<div id="travel-log-wrap" style="border-top:1px solid var(--panel2);margin-top:8px;padding-top:8px;font-size:var(--font-base)"><div id="travel-events"></div></div>`;
+    travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：賞金稼ぎを返り討ちにした。懸賞金目当ての懐から${gp}GPを回収した。</span>`);
+    renderChoices([{label:'▶ 旅を続ける', fn:()=>{
+     renderChoices([]);
+     ts._resumeWithoutIncrement = true;
+     setTimeout(travelTick, ts.interval);
+    }}]);
+   },
+  });
+ };
+ choices.appendChild(btn);
+}
+
 // 旅の途中でNPCと遭遇（travelEventから呼ぶ）
 // ── 空虚な鎧 ヴェイン ──────────────────────────────
 function startVaineEncounter(ts){
@@ -8115,6 +8466,9 @@ function loadAutoSave(){
  }
  if(PC._torchStock == null) PC._torchStock = 0;
  if(PC._torchTurns == null) PC._torchTurns = 0;
+ // 装備参照の結び付け直し（セーブ/ロードで見た目上の複製が生まれる問題の修正）
+ _reconcileEquipRefs(PC);
+ (PC.party||[]).forEach(npc=>_reconcileEquipRefs(npc));
  ['title-screen','chargen','shop-area'].forEach(id=>{
   document.getElementById(id)?.classList.add('hidden');
  });
@@ -8392,6 +8746,24 @@ function _doSaveToSlot(slot){
  showSaveToast(` スロット${slot}にセーブしました`);
 }
 
+// セーブ/ロードでequippedWeapons/Armorsとinv側の参照が分離してしまう問題の修正
+// （JSON化で「同じオブジェクトを指す」という関係が失われ、見た目上の複製が生まれるため、名前で結び付け直す）
+function _reconcileEquipRefs(actor){
+ if(!actor) return;
+ const usedWIdx = new Set();
+ (actor.equippedWeapons||[]).forEach(eq=>{
+  if((actor.invWeapons||[]).includes(eq)){ usedWIdx.add((actor.invWeapons||[]).indexOf(eq)); return; }
+  const idx = (actor.invWeapons||[]).findIndex((w,i)=>w.name===eq.name && !usedWIdx.has(i));
+  if(idx>=0){ actor.invWeapons[idx] = eq; usedWIdx.add(idx); }
+ });
+ const usedAIdx = new Set();
+ (actor.equippedArmors||[]).forEach(eq=>{
+  if((actor.invArmors||[]).includes(eq)){ usedAIdx.add((actor.invArmors||[]).indexOf(eq)); return; }
+  const idx = (actor.invArmors||[]).findIndex((a,i)=>a.name===eq.name && !usedAIdx.has(i));
+  if(idx>=0){ actor.invArmors[idx] = eq; usedAIdx.add(idx); }
+ });
+}
+
 function loadGame(slot){
  slot = slot || currentSaveSlot;
  const raw = localStorage.getItem(getSaveKey(slot));
@@ -8425,6 +8797,9 @@ function loadGame(slot){
  // 旧データ移行：alignmentがなければランダム初期値を付与（保存データで判定）
  if(!('alignment_ethics' in data.pc)) PC.alignment_ethics = Math.floor((Math.random()-0.5)*60);
  if(!('alignment_order'  in data.pc)) PC.alignment_order  = Math.floor((Math.random()-0.5)*60);
+ // 装備参照の結び付け直し（セーブ/ロードで見た目上の複製が生まれる問題の修正）
+ _reconcileEquipRefs(PC);
+ (PC.party||[]).forEach(npc=>_reconcileEquipRefs(npc));
  // パーティNPCの旧データ移行
  (PC.party||[]).forEach((npc,i)=>{
   const saved = data.pc?.party?.[i];
@@ -14371,46 +14746,51 @@ function ydGoNode(nodeId, floor){
   const darkChoices = [{
    label:' 暗闇の中を出口へ向かう（運 Lv3 能力値テスト）',
    fn:()=>{
-    const sr = savingRoll('lk', 3);
-    gainAPAll(sr.ap); updateHUD();
-    const stEl = document.getElementById('story');
-    if(sr.success){
-     stEl.innerHTML = `<span style="color:#f0ece0"> 脱出成功！</span><br><br>
-      壁を伝いながら必死に出口を探した。かすかな外の光を頼りに、なんとか入口へたどり着いた！<br><br>
-      <span style="color:#f0ece0">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
-     renderChoices([
-      {label:' 入口へ戻る', fn:()=>{
-       try{ ydGoNode(entryId, floor); }
-       catch(e){ console.warn('YD entry return failed, falling back to town', e); PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }
-      }},
-      {label:' （反応しない場合）諦めて地上へ戻る', fn:()=>{ PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }},
-     ]);
-    } else {
-     const dmg = 5;
-     PC.con = Math.max(0, PC.con - dmg); updateHUD();
-     if(PC.con <= 0){
-      stEl.innerHTML = `<span style="color:#e0d0d0"> 力尽きた……</span><br><br>
-       闇の中で足を踏み外し、石の床に叩きつけられた。動けない……<br><br>
-       <span style="color:#e0d0d0">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`;
-      renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
-     } else {
-      stEl.innerHTML = `<span style="color:#e0d0d0"> 脱出失敗</span><br><br>
-       出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>
-       <span style="color:#e0d0d0">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り ${PC.con}）</span><br><br>
-       痛みをこらえながら、また出口を探す…`;
-      renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{ ydGoNode(nodeId, floor); }}]);
-     }
-    }
+    setupSavingRoll({
+     attr:'lk', level:3,
+     onSuccess:()=>{
+      const stEl = document.getElementById('story');
+      stEl.innerHTML = `<span style="color:#f0ece0"> 脱出成功！</span><br><br>
+       壁を伝いながら必死に出口を探した。かすかな外の光を頼りに、なんとか入口へたどり着いた！`;
+      renderChoices([
+       {label:' 入口へ戻る', fn:()=>{
+        try{ ydGoNode(entryId, floor); }
+        catch(e){ console.warn('YD entry return failed, falling back to town', e); PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }
+       }},
+       {label:' （反応しない場合）諦めて地上へ戻る', fn:()=>{ PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }},
+      ]);
+      scrollToTop();
+     },
+     onFail:()=>{
+      const dmg = 5;
+      PC.con = Math.max(0, PC.con - dmg); updateHUD();
+      const stEl = document.getElementById('story');
+      if(PC.con <= 0){
+       stEl.innerHTML = `<span style="color:#e0d0d0"> 力尽きた……</span><br><br>
+        闇の中で足を踏み外し、石の床に叩きつけられた。動けない……`;
+       renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+      } else {
+       stEl.innerHTML = `<span style="color:#e0d0d0"> 脱出失敗</span><br><br>
+        出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>
+        体力-${dmg}（残り ${PC.con}）<br><br>
+        痛みをこらえながら、また出口を探す…`;
+       renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{ ydGoNode(nodeId, floor); }}]);
+      }
+      scrollToTop();
+     },
+    });
     scrollToTop();
    }
   }];
 
   // 灯り魔法があれば使えるようにする
-  if((PC.type==='wizard'||PC.type==='rogue') && (PC.spells||[]).some(s=>s.fn==='wisp'||s.fn==='cateyes')){
-   darkChoices.push({ label:' 明かりの魔法を使う', fn:()=>openSpellModal('暗闇の中で明かりを灯す', {
-    wisp:   { desc:'指先を1ターン照らす', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,2); ydGoNode(nodeId,floor); return true; }},
-    cateyes:{ desc:'暗視で3ターン見える', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,4); ydGoNode(nodeId,floor); return true; }},
-   })});
+  if((PC.type==='wizard'||PC.type==='rogue') && (PC.spells||[]).some(s=>s.fn==='wisp'||s.fn==='blindSpot')){
+   const hasWisp = (PC.spells||[]).some(s=>s.fn==='wisp');
+   const hasBlindSpot = (PC.spells||[]).some(s=>s.fn==='blindSpot');
+   const lightOpts = {};
+   if(hasWisp) lightOpts.wisp = { desc:'指先を1ターン照らす', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,2); ydGoNode(nodeId,floor); return true; }};
+   if(hasBlindSpot) lightOpts.blindSpot = { desc:'Blind Spotで4ターン安全に進む', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,4); ydGoNode(nodeId,floor); return true; }};
+   darkChoices.push({ label:' 明かりの魔法を使う', fn:()=>openSpellModal('暗闇の中で明かりを灯す', lightOpts)});
   }
 
   renderChoices(darkChoices);
@@ -16534,6 +16914,110 @@ const CAVE_ROOM_TEXTS = {
 // ══════════════════════════════════════════
 
 // 賞金首依頼生成
+// ── 裏依頼：暗殺・誘拐・密売の対象一覧（賞金首と同じ町プールを使う） ──
+const _CRIME_QUEST_TOWNS = ['khazan','port_argon','stonehiem','elsia','verda','rimholm','marakai',
+ 'al_rashid','oasis_fort','saroon','duna','yeldun','frostpeak','ashveil',
+ 'valdheim','nifurvik','iskald','neria','dorua','sarpe','nebra','kalvo'];
+
+// ① 暗殺依頼：賞金首と同じ生成方式・同じ報酬額。完了で対象の町の手配度+5（信頼度は変化なし）、混沌/悪よりに
+function generateAssassinationQuest(fromTownId){
+ const level = 3 + Math.floor(Math.random()*8); // 3〜10
+ const npc = generateNPC(level);
+ const titles = ['豪商','町の名士','引退した傭兵隊長','神殿の高位聖職者','裏社会の顔役','地方領主の縁者','ギルドの幹部','旅の学者'];
+ const title = titles[Math.floor(Math.random()*titles.length)];
+ npc.bountyTitle = title;
+ const otherTowns = _CRIME_QUEST_TOWNS.filter(t=>t!==fromTownId);
+ const targetTownId = Math.random()<0.5
+  ? otherTowns[Math.floor(Math.random()*otherTowns.length)]
+  : fromTownId;
+ const isCrossRegion = getRegionKey(targetTownId) !== getRegionKey(fromTownId);
+ const rewardBase = isCrossRegion
+  ? level * (70 + Math.floor(Math.random()*31))
+  : level * (40 + Math.floor(Math.random()*21));
+ const deadline = isCrossRegion ? 360 : 20 + level * 3;
+ const targetTownName = (TOWNS[targetTownId]||{name:targetTownId}).name;
+ return {
+  id: Date.now() + Math.random(),
+  type: 'assassination',
+  status: 'active',
+  fromTownId,
+  targetTownId,
+  targetTownName,
+  isCrossRegion,
+  targetName: npc.name,
+  targetTitle: title,
+  targetLevel: level,
+  targetNPC: npc,
+  reward: rewardBase,
+  deadlineDays: deadline,
+  issuedDay: GAME_TIME.totalDays,
+  clientName: '裏の仲介人',
+  _defeated: false,
+ };
+}
+
+// ② 誘拐依頼：対象は民間人・戦闘なし（STテスト）。完了で対象の町の手配度+3（信頼度は変化なし）、混沌/悪よりに
+function generateKidnappingQuest(fromTownId){
+ const level = 2 + Math.floor(Math.random()*6); // 2〜7（民間人なのでやや低め）
+ const npc = generateNPC(level);
+ const titles = ['商家の子女','裕福な商人の妻','町の有力者の息子','旅の貴族令嬢','資産家の跡取り'];
+ const title = titles[Math.floor(Math.random()*titles.length)];
+ npc.bountyTitle = title;
+ const otherTowns = _CRIME_QUEST_TOWNS.filter(t=>t!==fromTownId);
+ const targetTownId = Math.random()<0.5
+  ? otherTowns[Math.floor(Math.random()*otherTowns.length)]
+  : fromTownId;
+ const isCrossRegion = getRegionKey(targetTownId) !== getRegionKey(fromTownId);
+ const rewardBase = isCrossRegion
+  ? level * (60 + Math.floor(Math.random()*21))
+  : level * (35 + Math.floor(Math.random()*16));
+ const deadline = isCrossRegion ? 360 : 20 + level * 3;
+ const targetTownName = (TOWNS[targetTownId]||{name:targetTownId}).name;
+ return {
+  id: Date.now() + Math.random(),
+  type: 'kidnapping',
+  status: 'active',
+  fromTownId,
+  targetTownId,
+  targetTownName,
+  isCrossRegion,
+  targetName: npc.name,
+  targetTitle: title,
+  targetLevel: level,
+  targetNPC: npc,
+  reward: rewardBase,
+  deadlineDays: deadline,
+  issuedDay: GAME_TIME.totalDays,
+  clientName: '正体不明の依頼人',
+  _defeated: false,
+ };
+}
+
+// ③ 麻薬・盗品の配達：宅配と同じロジック、報酬1.5倍。完了で届け先の町の手配度+0.5（信頼度は変化なし）、混沌/悪よりに
+const CONTRABAND_ITEMS = ['怪しげな薬包','出所不明の宝飾品','封蝋された小箱','盗品と思しき壺','違法な秘薬','闇市場の粉薬'];
+function generateContrabandQuest(fromTownId){
+ const regionTowns = getRegionTowns(fromTownId);
+ const otherTowns = regionTowns.filter(id=>id!==fromTownId);
+ const reachable = otherTowns.filter(id=>calcMinTravelDays(fromTownId,id)!=null);
+ const candidates = reachable.length > 0 ? reachable : Object.keys(TOWNS).filter(id=>id!==fromTownId && getRegionKey(id)===getRegionKey(fromTownId));
+ const toTownId = candidates[Math.floor(Math.random()*candidates.length)];
+ const item = CONTRABAND_ITEMS[Math.floor(Math.random()*CONTRABAND_ITEMS.length)];
+ const clientName = pickNPC();
+ const receiverName = pickNPC([clientName]);
+ const reward = Math.round(calcQuestReward(fromTownId, toTownId) * 2);
+ const deadlineDays = calcQuestDeadline(fromTownId, toTownId);
+ return {
+  id: Date.now() + Math.random(),
+  type: 'contraband',
+  fromTownId, toTownId,
+  item, clientName, receiverName,
+  reward, deadlineDays,
+  issuedDay: GAME_TIME.totalDays,
+  status: 'active',
+  crossRegion: false,
+ };
+}
+
 function generateBountyQuest(fromTownId){
  // Lv3〜10の敵をランダム生成
  const level = 3 + Math.floor(Math.random()*8); // 3〜10
@@ -16580,6 +17064,103 @@ function generateBountyQuest(fromTownId){
 }
 
 // 賞金首を探す
+// 暗殺対象を追う
+function searchAssassinationTarget(townId){
+ const q = (PC.quests||[]).find(q=>q.type==='assassination' && q.status==='active'
+  && (q.targetTownId===townId || (!q.targetTownId && q.fromTownId===townId)));
+ if(!q){ showSaveToast('暗殺対象の情報が見つからない'); return; }
+ const npc = q.targetNPC;
+ const backNode = 'TOWN_'+townId.toUpperCase();
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">暗殺対象を追う</span><br><br>`
+  +`<span style="color:#c0b098">${npc.name}（${q.targetTitle}）の足取りを追い、人気のない路地で追いついた。</span><br><br>`
+  +`<span style="color:#f0ddd8">今なら誰にも見られていない。</span>`;
+ renderChoices([
+  {label:' 襲撃する', fn:()=>{
+   renderChoices([]);
+   drawScene('combat');
+   document.getElementById('dice-area').classList.add('hidden');
+   hideMagicArea();
+   const minions = [1,2].map(()=>{
+    const m = generateNPC(1+Math.floor(Math.random()*2));
+    return {...m, curCon:m.con};
+   });
+   startCombatNPC({
+    enemies:[{...npc, curCon:npc.con}, ...minions],
+    canFlee:true,
+    win:'__noop__',
+    lose:'DEAD',
+    onWin:()=>{
+     PC.quests = (PC.quests||[]).filter(qq=>qq.id!==q.id);
+     gainGPAll(q.reward);
+     changeWanted(q.targetTownId||townId, 5);
+     changeAlignment(-8, -8);
+     updateHUD();
+     const s = document.getElementById('story');
+     s.innerHTML = ` <span style="color:#f0ece0">暗殺完了</span><br><br>`
+      +`<span style="color:#e8e4d8"> ${npc.name}を仕留めた。</span>`;
+     const _aPartyCount = 1 + (PC.party||[]).filter(n=>n.con>0).length;
+     const _aShare = Math.floor(q.reward / _aPartyCount);
+     const _aShareTxt = _aPartyCount > 1 ? `　<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${_aPartyCount}人で山分け：${_aShare}GP/人</span>` : '';
+     s.innerHTML += `<div style="margin-top:12px;padding:10px;background:#1a0a06;border:1px solid #6a3020;border-radius:4px">
+      <div style="color:#f0ece0;font-size:var(--font-base)"> 暗殺完了</div>
+      <div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:4px">+${q.reward}GP${_aShareTxt}　${(TOWNS[q.targetTownId||townId]||{name:''}).name}の手配度+5</div>
+     </div>`;
+     addLifeEvent('',`${npc.name}を暗殺。報酬${q.reward}GP。`);
+     showSaveToast(` 暗殺完了！+${q.reward}GP　手配度+5`);
+     renderChoices([{label:'← 街に戻る', go: backNode}]);
+    },
+   });
+  }},
+ ]);
+}
+
+// 誘拐対象を追う（戦闘なし・STテスト）
+function searchKidnappingTarget(townId){
+ const q = (PC.quests||[]).find(q=>q.type==='kidnapping' && q.status==='active'
+  && (q.targetTownId===townId || (!q.targetTownId && q.fromTownId===townId)));
+ if(!q){ showSaveToast('誘拐対象の情報が見つからない'); return; }
+ const npc = q.targetNPC;
+ const backNode = 'TOWN_'+townId.toUpperCase();
+ const story = document.getElementById('story');
+ if(story) story.innerHTML = ` <span style="color:#f0ece0">誘拐対象を追う</span><br><br>`
+  +`<span style="color:#c0b098">${npc.name}（${q.targetTitle}）が一人になる瞬間を待ち、物陰から近づいた。</span>`;
+ const srLevel = Math.max(1, Math.ceil((q.targetLevel||2)/2));
+ setupSavingRoll({
+  attr:'st', level:srLevel,
+  onSuccess:()=>{
+   PC.quests = (PC.quests||[]).filter(qq=>qq.id!==q.id);
+   gainGPAll(q.reward);
+   changeWanted(q.targetTownId||townId, 3);
+   changeAlignment(-8, -8);
+   updateHUD();
+   const s = document.getElementById('story');
+   if(s) s.innerHTML = ` <span style="color:#f0ece0">誘拐成功</span><br><br><span style="color:#e8e4d8">抵抗する隙を与えず、${npc.name}を連れ去った。</span>`;
+   const _kPartyCount = 1 + (PC.party||[]).filter(n=>n.con>0).length;
+   const _kShare = Math.floor(q.reward / _kPartyCount);
+   const _kShareTxt = _kPartyCount > 1 ? `　<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${_kPartyCount}人で山分け：${_kShare}GP/人</span>` : '';
+   s.innerHTML += `<div style="margin-top:12px;padding:10px;background:#1a0a06;border:1px solid #6a3020;border-radius:4px">
+    <div style="color:#f0ece0;font-size:var(--font-base)"> 誘拐成功</div>
+    <div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:4px">+${q.reward}GP${_kShareTxt}　${(TOWNS[q.targetTownId||townId]||{name:''}).name}の手配度+3</div>
+   </div>`;
+   addLifeEvent('',`${npc.name}を誘拐。報酬${q.reward}GP。`);
+   showSaveToast(` 誘拐成功！+${q.reward}GP　手配度+3`);
+   renderChoices([{label:'← 街に戻る', go: backNode}]);
+  },
+  onFail:()=>{
+   const dmg = Nd6(1);
+   PC.con = Math.max(0, PC.con - dmg);
+   updateHUD();
+   const s = document.getElementById('story');
+   if(s) s.innerHTML = ` <span style="color:#f0ece0">誘拐失敗</span><br><br><span style="color:#e8e4d8">${npc.name}に抵抗され、反撃を受けた。体力-${dmg}。</span>`;
+   if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
+   renderChoices([{label:'← 街に戻る', go: backNode}]);
+  },
+ });
+ renderChoices([]);
+ scrollToTop();
+}
+
 function searchBountyTarget(townId){
  const q = (PC.quests||[]).find(q=>q.type==='bounty' && q.status==='active'
   && (q.targetTownId===townId || (!q.targetTownId && q.fromTownId===townId)));
@@ -16834,40 +17415,45 @@ function _huntGoNode(nodeIdOrIdx, opts){
   const huntDarkChoices = [{
    label:' 暗闇の中を出口へ向かう（運 Lv3 能力値テスト）',
    fn:()=>{
-    const sr = savingRoll('lk', 3);
-    gainAPAll(sr.ap); updateHUD();
-    const stEl = document.getElementById('story');
     const entranceNode = dung.nodes.find(n=>n.type==='entrance');
-    if(sr.success){
-     stEl.innerHTML = `<span style="color:#f0ece0"> 脱出成功！</span><br><br>
-      壁を伝いながら必死に出口を探した。なんとか入口へたどり着いた！<br><br>
-      <span style="color:#f0ece0">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
-     renderChoices([{label:' 入口へ戻る', fn:()=>{ if(entranceNode) _huntGoNode(entranceNode.id); }}]);
-    } else {
-     const dmg = 5;
-     PC.con = Math.max(0, PC.con - dmg); updateHUD();
-     if(PC.con <= 0){
-      stEl.innerHTML = `<span style="color:#e0d0d0"> 力尽きた……</span><br><br>
-       闇の中で足を踏み外し、石の床に叩きつけられた。<br><br>
-       <span style="color:#e0d0d0">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`;
-      renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
-     } else {
-      stEl.innerHTML = `<span style="color:#e0d0d0"> 脱出失敗</span><br><br>
-       出口を探して歩いていると、段差に気づかず転倒した。<br><br>
-       <span style="color:#e0d0d0">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り ${PC.con}）</span>`;
-      renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{ _huntGoNode(nodeIdOrIdx); }}]);
-     }
-    }
+    setupSavingRoll({
+     attr:'lk', level:3,
+     onSuccess:()=>{
+      const stEl = document.getElementById('story');
+      stEl.innerHTML = `<span style="color:#f0ece0"> 脱出成功！</span><br><br>
+       壁を伝いながら必死に出口を探した。なんとか入口へたどり着いた！`;
+      renderChoices([{label:' 入口へ戻る', fn:()=>{ if(entranceNode) _huntGoNode(entranceNode.id); }}]);
+      scrollToTop();
+     },
+     onFail:()=>{
+      const dmg = 5;
+      PC.con = Math.max(0, PC.con - dmg); updateHUD();
+      const stEl = document.getElementById('story');
+      if(PC.con <= 0){
+       stEl.innerHTML = `<span style="color:#e0d0d0"> 力尽きた……</span><br><br>
+        闇の中で足を踏み外し、石の床に叩きつけられた。`;
+       renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+      } else {
+       stEl.innerHTML = `<span style="color:#e0d0d0"> 脱出失敗</span><br><br>
+        出口を探して歩いていると、段差に気づかず転倒した。<br><br>
+        体力-${dmg}（残り ${PC.con}）`;
+       renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{ _huntGoNode(nodeIdOrIdx); }}]);
+      }
+      scrollToTop();
+     },
+    });
     scrollToTop();
    }
   }];
 
   // 灯り魔法があれば使えるようにする
-  if((PC.type==='wizard'||PC.type==='rogue') && (PC.spells||[]).some(s=>s.fn==='wisp'||s.fn==='cateyes')){
-   huntDarkChoices.push({ label:' 明かりの魔法を使う', fn:()=>openSpellModal('暗闇の中で明かりを灯す', {
-    wisp:   { desc:'指先を1ターン照らす', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,2); _huntGoNode(nodeIdOrIdx); return true; }},
-    cateyes:{ desc:'暗視で3ターン見える', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,4); _huntGoNode(nodeIdOrIdx); return true; }},
-   })});
+  if((PC.type==='wizard'||PC.type==='rogue') && (PC.spells||[]).some(s=>s.fn==='wisp'||s.fn==='blindSpot')){
+   const hasWisp = (PC.spells||[]).some(s=>s.fn==='wisp');
+   const hasBlindSpot = (PC.spells||[]).some(s=>s.fn==='blindSpot');
+   const lightOpts = {};
+   if(hasWisp) lightOpts.wisp = { desc:'指先を1ターン照らす', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,2); _huntGoNode(nodeIdOrIdx); return true; }};
+   if(hasBlindSpot) lightOpts.blindSpot = { desc:'Blind Spotで4ターン安全に進む', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,4); _huntGoNode(nodeIdOrIdx); return true; }};
+   huntDarkChoices.push({ label:' 明かりの魔法を使う', fn:()=>openSpellModal('暗闇の中で明かりを灯す', lightOpts)});
   }
 
   renderChoices(huntDarkChoices);
@@ -17272,6 +17858,11 @@ function checkAllDeliveries(townId){
    gainGPAll(q.reward);
    changeTrust(q.toTownId||PC.town, 1, 'delivery');
    gainAPAll(8);
+  } else if(q.type === 'contraband'){
+   gainGPAll(q.reward);
+   changeWanted(q.toTownId||PC.town, 0.5);
+   changeAlignment(-3, -3);
+   gainAPAll(5);
   } else {
    gainGPAll(q.reward);
    changeTrust(q.toTownId||PC.town, 0.5, 'delivery'); // 宅配依頼完了で信頼度+0.5（上限49）
@@ -17296,6 +17887,9 @@ function popDeliveryMsg(){
   }
   if(q.type === 'escort'){
    return `<span style="color:#e8e4d8"> ${q.escortName}を${(TOWNS[q.toTownId]||{name:q.toTownId}).name}へ無事に護衛した！<br>　報酬: ${q.reward}GP　経験値+8</span>`;
+  }
+  if(q.type === 'contraband'){
+   return `<span style="color:#e8e4d8"> ${q.receiverName}に「${q.item}」を密かに届けた……<br>　報酬: ${q.reward}GP　${(TOWNS[q.toTownId]||{name:q.toTownId}).name}の手配度+0.5　経験値+5</span>`;
   }
   return `<span style="color:#e8e4d8"> ${q.receiverName}に「${q.item}」を届けた！<br>　報酬: ${q.reward}GP　経験値+5</span>`;
  }).join('<br>');
@@ -17339,6 +17933,7 @@ function renderQuestBoard(townId, board){
  const active = PC.quests.filter(q=>q.status==='active');
  const canTake = active.length < 5;
  const LIMIT = 5;
+ const cantTakeMsg = `（受注上限${LIMIT}件）`;
 
  let html = `<span class="gold" style="font-size:var(--font-base)"> 依頼掲示板</span><br><br>`;
 
@@ -17384,6 +17979,37 @@ function renderQuestBoard(townId, board){
     報酬: <span style="color:#f0ece0">${q.reward}GP</span>　残り<span style="color:${urgColor}">${remain}日</span>
     ${isHere ? `<div style="font-size:calc(var(--font-sm)-1px);color:#c8b8a0;margin-top:4px">（その他の行動 → 賞金首を探す）</div>` : `<div style="font-size:calc(var(--font-sm)-1px);color:#c8b8a0;margin-top:4px">→ <b>${targetTownName}</b>へ移動して「賞金首を探す」</div>`}
     </div>`;
+   } else if(q.type === 'assassination'){
+    const remain = q.deadlineDays - (GAME_TIME.totalDays - q.issuedDay);
+    const urgColor = remain<=5?'#e0d0d0':remain<=15?'#e0d8d0':'#d8d0c0';
+    const targetTown = q.targetTownId || q.fromTownId;
+    const isHere = townId === targetTown;
+    const targetTownName = q.targetTownName || (TOWNS[targetTown]||{name:targetTown}).name;
+    const crossBadge2 = q.isCrossRegion ? `<span style="color:#c8b8a0;font-size:calc(var(--font-sm)-2px)"> 他地方</span>` : '';
+    html += `<div style="background:#150808;border:1px solid #5a3030;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
+     <span style="color:#e0a0a0"> 暗殺依頼</span>　${q.targetName}（${q.targetTitle}）${crossBadge2}<br>
+    所在地：<span style="color:#e8e0d0">${targetTownName}</span>　依頼主：${q.clientName}<br>
+    報酬: <span style="color:#f0ece0">${q.reward}GP</span>　残り<span style="color:${urgColor}">${remain}日</span>
+    ${isHere ? `<div style="font-size:calc(var(--font-sm)-1px);color:#c8b8a0;margin-top:4px">（その他の行動 → 暗殺対象を追う）</div>` : `<div style="font-size:calc(var(--font-sm)-1px);color:#c8b8a0;margin-top:4px">→ <b>${targetTownName}</b>へ移動して「暗殺対象を追う」</div>`}
+    </div>`;
+   } else if(q.type === 'kidnapping'){
+    const remain = q.deadlineDays - (GAME_TIME.totalDays - q.issuedDay);
+    const urgColor = remain<=5?'#e0d0d0':remain<=15?'#e0d8d0':'#d8d0c0';
+    const targetTown = q.targetTownId || q.fromTownId;
+    const isHere = townId === targetTown;
+    const targetTownName = q.targetTownName || (TOWNS[targetTown]||{name:targetTown}).name;
+    const crossBadge2 = q.isCrossRegion ? `<span style="color:#c8b8a0;font-size:calc(var(--font-sm)-2px)"> 他地方</span>` : '';
+    html += `<div style="background:#150808;border:1px solid #5a3030;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
+     <span style="color:#e0a0a0"> 誘拐依頼</span>　${q.targetName}（${q.targetTitle}）${crossBadge2}<br>
+    所在地：<span style="color:#e8e0d0">${targetTownName}</span>　依頼主：${q.clientName}<br>
+    報酬: <span style="color:#f0ece0">${q.reward}GP</span>　残り<span style="color:${urgColor}">${remain}日</span>
+    ${isHere ? `<div style="font-size:calc(var(--font-sm)-1px);color:#c8b8a0;margin-top:4px">（その他の行動 → 誘拐対象を追う）</div>` : `<div style="font-size:calc(var(--font-sm)-1px);color:#c8b8a0;margin-top:4px">→ <b>${targetTownName}</b>へ移動して「誘拐対象を追う」</div>`}
+    </div>`;
+   } else if(q.type === 'contraband'){
+    html += `<div style="background:#100c08;border:1px solid #585848;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
+    <span style="color:#c8b090"> 裏取引の配達</span>　<span style="color:#ece8e0">${(TOWNS[q.toTownId]||{name:q.toTownId||'?'}).name}</span>へ<br>
+    「${q.item||'荷物'}」→<span style="color:#f0ece0">${q.receiverName||'?'}</span>宛　<span style="color:#f0ece0">${q.reward}GP</span>　残り<span style="color:${urgColor}">${remain}日</span>
+    </div>`;
    } else if(q.type === 'purchase'){
     const regionName = {khazan_region:'カザーヌ地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方',marea_region:'マレア地方'}[q.targetRegion]||q.targetRegion;
     html += `<div style="background:var(--info-bg);border:1px solid #585858;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
@@ -17414,7 +18040,7 @@ function renderQuestBoard(townId, board){
    const i = board.indexOf(q);
    const btn = canTake
     ? `<button onclick="acceptQuest(${i})" style="margin-top:5px;width:100%;background:#0e1006;border:1px solid #606060;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 受ける</button>`
-    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">（受注上限${LIMIT}件）</div>`;
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
    const destTown = TOWNS[q.toTownId]||{name:q.toTownId};
    html += `<div style="background:var(--ink);border:1px solid #484848;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
    <span style="color:#f0ece0">${q.clientName}</span>の依頼　${q.destIcon||''} <span style="color:#ece8e0">${destTown.name||'?'}</span>の${q.destLabel||'配達'}へ<br>
@@ -17430,7 +18056,7 @@ function renderQuestBoard(townId, board){
   escortQuests.forEach(q=>{
    const btn = canTake
     ? `<button onclick="acceptQuestById(${JSON.stringify(q.id)})" style="margin-top:5px;width:100%;background:var(--ink);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 護衛を引き受ける</button>`
-    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">（受注上限${LIMIT}件）</div>`;
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
    const toName = (TOWNS[q.toTownId]||{name:q.toTownId}).name;
    const walk = calcMinTravelDays(townId, q.toTownId) || '?';
    html += `<div style="background:var(--ink);border:1px solid #484848;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
@@ -17446,7 +18072,7 @@ function renderQuestBoard(townId, board){
    const i = board.indexOf(q);
    const btn = canTake
     ? `<button onclick="acceptQuest(${i})" style="margin-top:5px;width:100%;background:var(--ink);border:1px solid #585858;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px">${q.type==='purchase'?' 買い付けを引き受ける':' 受ける'}</button>`
-    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">（受注上限${LIMIT}件）</div>`;
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
    if(q.type === 'purchase'){
     const regionName = {khazan_region:'カザーヌ地方',elmaria_region:'エルマリア地方',zahara_region:'ザハラ地方',draklim_region:'ドラクリム地方',valdheim_region:'ヴァルドヘイム地方',marea_region:'マレア地方'}[q.targetRegion]||q.targetRegion;
     html += `<div style="background:#130e08;border:1px solid #484848;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
@@ -17483,7 +18109,7 @@ function renderQuestBoard(townId, board){
    const totalCount = q.rooms.reduce((s,r)=>s+r.count,0);
    const btn = canTake
     ? `<button onclick="acceptQuest(${i})" style="margin-top:5px;width:100%;background:var(--coal);border:1px solid #aa4400;color:#e8e0d0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 引き受ける</button>`
-    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">（受注上限${LIMIT}件）</div>`;
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
    html += `<div style="background:#0d0800;border:1px solid var(--mud);border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
    <span style="color:#e8e0d0"> 討伐依頼</span>　<span style="color:#f0ece0">${q.clientName}</span>から<br>
    ${q.caveName}に棲み着いた<span style="color:var(--white)"><b>${q.monsterName} ×${totalCount}</b></span>を討伐してほしい<br>
@@ -17500,7 +18126,7 @@ function renderQuestBoard(townId, board){
    const i = board.indexOf(q);
    const btn = canTake
     ? `<button onclick="acceptBountyQuest(${i},'${townId}')" style="margin-top:5px;width:100%;background:#1a0400;border:1px solid #cc2200;color:#f0ddd8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 引き受ける</button>`
-    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">（受注上限${LIMIT}件）</div>`;
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
    const _tName = q.targetTownName || (TOWNS[q.targetTownId||q.fromTownId]||{name:'不明'}).name;
    const _cross = q.isCrossRegion ? `<span style="color:#c8b8a0;font-size:calc(var(--font-sm)-2px)">  他地方</span>` : '';
    html += `<div style="background:#0d0400;border:1px solid #551100;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
@@ -17508,6 +18134,60 @@ function renderQuestBoard(townId, board){
    <b style="color:#e8e0d0">${q.targetName}</b>（${q.targetTitle}・Lv${q.targetLevel}）を討伐してほしい<br>
    出没地：<span style="color:#e8e0d0">${_tName}</span><br>
    報酬: <span style="color:#f0ece0">${q.reward}GP</span> + <span style="color:#ece8d8">信頼度+5</span>　期限: ${q.deadlineDays}日以内
+   ${btn}</div>`;
+  });
+ }
+
+ const assassinationQuests = board.filter(q=>q.type==='assassination');
+ if(assassinationQuests.length){
+  html += `<span style="color:#e0a0a0;font-size:calc(var(--font-sm) - 1px)">▸ 裏の依頼（暗殺）</span><br>`;
+  assassinationQuests.forEach(q=>{
+   const i = board.indexOf(q);
+   const btn = canTake
+    ? `<button onclick="acceptAssassinationQuest(${i},'${townId}')" style="margin-top:5px;width:100%;background:#150808;border:1px solid #7a3030;color:#e0a0a0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 引き受ける</button>`
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
+   const _tName = q.targetTownName || (TOWNS[q.targetTownId||q.fromTownId]||{name:'不明'}).name;
+   const _cross = q.isCrossRegion ? `<span style="color:#c8b8a0;font-size:calc(var(--font-sm)-2px)">  他地方</span>` : '';
+   html += `<div style="background:#150808;border:1px solid #5a3030;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
+   <span style="color:#e0a0a0"> 暗殺依頼</span>${_cross}　<span style="color:#f0ece0">${q.clientName}</span>から<br>
+   <b style="color:#e8e0d0">${q.targetName}</b>（${q.targetTitle}・Lv${q.targetLevel}）を始末してほしい<br>
+   所在地：<span style="color:#e8e0d0">${_tName}</span><br>
+   報酬: <span style="color:#f0ece0">${q.reward}GP</span> + <span style="color:#ece8d8">手配度+5</span>　期限: ${q.deadlineDays}日以内
+   ${btn}</div>`;
+  });
+ }
+
+ const kidnappingQuests = board.filter(q=>q.type==='kidnapping');
+ if(kidnappingQuests.length){
+  html += `<span style="color:#e0a0a0;font-size:calc(var(--font-sm) - 1px)">▸ 裏の依頼（誘拐）</span><br>`;
+  kidnappingQuests.forEach(q=>{
+   const i = board.indexOf(q);
+   const btn = canTake
+    ? `<button onclick="acceptKidnappingQuest(${i},'${townId}')" style="margin-top:5px;width:100%;background:#150808;border:1px solid #7a3030;color:#e0a0a0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 引き受ける</button>`
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
+   const _tName = q.targetTownName || (TOWNS[q.targetTownId||q.fromTownId]||{name:'不明'}).name;
+   const _cross = q.isCrossRegion ? `<span style="color:#c8b8a0;font-size:calc(var(--font-sm)-2px)">  他地方</span>` : '';
+   html += `<div style="background:#150808;border:1px solid #5a3030;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
+   <span style="color:#e0a0a0"> 誘拐依頼</span>${_cross}　<span style="color:#f0ece0">${q.clientName}</span>から<br>
+   <b style="color:#e8e0d0">${q.targetName}</b>（${q.targetTitle}）をさらってほしい<br>
+   所在地：<span style="color:#e8e0d0">${_tName}</span><br>
+   報酬: <span style="color:#f0ece0">${q.reward}GP</span> + <span style="color:#ece8d8">手配度+3</span>　期限: ${q.deadlineDays}日以内
+   ${btn}</div>`;
+  });
+ }
+
+ const contrabandQuests = board.filter(q=>q.type==='contraband');
+ if(contrabandQuests.length){
+  html += `<span style="color:#c8b090;font-size:calc(var(--font-sm) - 1px)">▸ 裏の依頼（密売配達）</span><br>`;
+  contrabandQuests.forEach(q=>{
+   const i = board.indexOf(q);
+   const btn = canTake
+    ? `<button onclick="acceptQuest(${i})" style="margin-top:5px;width:100%;background:#100c08;border:1px solid #6a6040;color:#c8b090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 引き受ける</button>`
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
+   const destTown = TOWNS[q.toTownId]||{name:q.toTownId};
+   html += `<div style="background:#100c08;border:1px solid #585848;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
+   <span style="color:#c8b090"> 密売配達</span>　<span style="color:#f0ece0">${q.clientName}</span>の依頼　<span style="color:#ece8e0">${destTown.name||'?'}</span>へ<br>
+   「${q.item||'荷物'}」→<span style="color:#f0ece0">${q.receiverName||'?'}</span>宛　報酬: <span style="color:#f0ece0">${q.reward}GP</span>　期限: ${q.deadlineDays}日以内
    ${btn}</div>`;
   });
  }
@@ -17540,11 +18220,12 @@ function getTavernBoard(townId){
   if(q) board.push(q);
   else board.push(generateQuest(townId)); // フォールバック
  }
- // 討伐依頼 1件（クールダウン中は追加しない）
+ // 討伐依頼 1件（クールダウン中・受注中は追加しない）
  if(!PC._huntCooldown) PC._huntCooldown = {};
  const _hd = getCurrentDate();
  const _curMonthKey = _hd.year * 12 + _hd.month;
- if((PC._huntCooldown[townId] || 0) < _curMonthKey){
+ const hasActiveHunt = (PC.quests||[]).some(q=>q.type==='hunt' && q.status==='active' && q.fromTownId===townId);
+ if(!hasActiveHunt && (PC._huntCooldown[townId] || 0) < _curMonthKey){
   board.push(generateHuntQuest(townId));
  }
  // 賞金首依頼（中心都市のみ・クールダウン中でなく受注中でなければ1件）
@@ -17554,6 +18235,18 @@ function getTavernBoard(townId){
   const bountyOnCooldown = (PC._bountyCooldown[townId]||0) >= _curMonthKey;
   if(!hasBounty && !bountyOnCooldown) board.push(generateBountyQuest(townId));
  }
+ // 暗殺依頼（受注中でなければ1件）
+ {
+  const hasAssassination = (PC.quests||[]).some(q=>q.type==='assassination' && q.status==='active' && q.fromTownId===townId);
+  if(!hasAssassination) board.push(generateAssassinationQuest(townId));
+ }
+ // 誘拐依頼（受注中でなければ1件）
+ {
+  const hasKidnapping = (PC.quests||[]).some(q=>q.type==='kidnapping' && q.status==='active' && q.fromTownId===townId);
+  if(!hasKidnapping) board.push(generateKidnappingQuest(townId));
+ }
+ // 麻薬・盗品の配達 1件
+ board.push(generateContrabandQuest(townId));
  _tavernBoard[townId] = board;
  return board;
 }
@@ -17597,6 +18290,8 @@ function acceptQuest(i){
  let replacement = null;
  if(q.type === 'escort'){
   replacement = generateEscortQuest(PC.town);
+ } else if(q.type === 'contraband'){
+  replacement = generateContrabandQuest(PC.town);
  } else if(q.crossRegion){
   replacement = Math.random()<0.5 ? generateCrossRegionDeliveryQuest(PC.town) : generatePurchaseQuest(PC.town);
  } else {
@@ -17605,6 +18300,7 @@ function acceptQuest(i){
  if(replacement) board.push(replacement);
  const label = q.type==='purchase' ? `「${q.specName}」買い付け`
              : q.type==='escort'   ? `${q.escortName}の護衛（${(TOWNS[q.toTownId]||{name:q.toTownId}).name}まで）`
+             : q.type==='contraband' ? `「${q.item}」の裏取引`
              : `「${q.item}」配達`;
  showSaveToast(` 依頼を受けました：${label}`);
  _refreshTavernBoard(PC.town);
@@ -17622,6 +18318,36 @@ function acceptBountyQuest(i, townId){
  PC.quests.push(q);
  board.splice(i,1);
  showSaveToast(` 賞金首討伐を引き受けた：${q.targetName}`);
+ _refreshTavernBoard(townId||PC.town);
+}
+
+function acceptAssassinationQuest(i, townId){
+ if(!PC.quests) PC.quests=[];
+ if(PC.quests.filter(q=>q.status==='active').length>=5){
+  alert('依頼は同時に5件までです！'); return;
+ }
+ const board = _tavernBoard[townId||PC.town];
+ const q = board && board[i];
+ if(!q||q.type!=='assassination'){ alert('依頼データが見つかりません'); return; }
+ q.status='active'; q.issuedDay=GAME_TIME.totalDays;
+ PC.quests.push(q);
+ board.splice(i,1);
+ showSaveToast(` 暗殺依頼を引き受けた：${q.targetName}`);
+ _refreshTavernBoard(townId||PC.town);
+}
+
+function acceptKidnappingQuest(i, townId){
+ if(!PC.quests) PC.quests=[];
+ if(PC.quests.filter(q=>q.status==='active').length>=5){
+  alert('依頼は同時に5件までです！'); return;
+ }
+ const board = _tavernBoard[townId||PC.town];
+ const q = board && board[i];
+ if(!q||q.type!=='kidnapping'){ alert('依頼データが見つかりません'); return; }
+ q.status='active'; q.issuedDay=GAME_TIME.totalDays;
+ PC.quests.push(q);
+ board.splice(i,1);
+ showSaveToast(` 誘拐依頼を引き受けた：${q.targetName}`);
  _refreshTavernBoard(townId||PC.town);
 }
 
@@ -17953,19 +18679,20 @@ function startSeaEncounter(enemy){
   flee.textContent = ' 全速逃走（素早さ Lv2 能力値テスト）';
   flee.onclick = ()=>{
    choices.innerHTML = '';
-   const sr = savingRoll('spd', 2); gainAPAll(sr.ap); updateHUD();
-   if(sr.success){
-    travelLog(`<span style="color:#f0ece0"> 全速で逃げ切った！（素早さ 能力値テスト成功） 経験値+${sr.ap}</span>`);
-    changeAlignment(0, -0.5); // 逃亡：混沌+0.5
-    setTimeout(()=>travelTick(), ts.interval);
-   } else {
-    travelLog(`<span style="color:#e0d0d0"> 逃げ遅れた！（素早さ 能力値テスト失敗） 経験値+${sr.ap}</span>`);
-    startCombat({
-     enemies: enemy.enemies, canFlee:false, isHuman:true,
-     win:'__noop__', lose:'DEAD',
-     onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; setTimeout(()=>travelTick(),ts.interval); }
-    });
-   }
+   setupSavingRoll({
+    attr:'spd', level:2,
+    onSuccess:()=>{
+     changeAlignment(0, -0.5); // 逃亡：混沌+0.5
+     setTimeout(()=>travelTick(), ts.interval);
+    },
+    onFail:()=>{
+     startCombat({
+      enemies: enemy.enemies, canFlee:false, isHuman:true,
+      win:'__noop__', lose:'DEAD',
+      onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; setTimeout(()=>travelTick(),ts.interval); }
+     });
+    },
+   });
   };
   choices.appendChild(fight);
   choices.appendChild(pay);
@@ -17995,23 +18722,24 @@ function startSeaEncounter(enemy){
   flee.textContent = ' 全速逃走（素早さ Lv2 能力値テスト）';
   flee.onclick = ()=>{
    choices.innerHTML = '';
-   const sr = savingRoll('spd', 2); gainAPAll(sr.ap); updateHUD();
-   if(sr.success){
-    travelLog(`<span style="color:#f0ece0"> 逃げ切った！（素早さ 能力値テスト成功） 経験値+${sr.ap}</span>`);
-    changeAlignment(0, -0.5); // 逃亡：混沌+0.5
-    setTimeout(()=>travelTick(), ts.interval);
-   } else {
-    travelLog(`<span style="color:#e0d0d0"> 逃げ遅れた！（素早さ 能力値テスト失敗） 経験値+${sr.ap}</span>`);
-    startCombat({
-     enemies: enemy.enemies, canFlee:false, isHuman:false,
-     win:'__noop__', lose:'DEAD',
-     onWin:()=>{
-      const countTxt2 = enemy.count > 1 ? `×${enemy.count}` : '';
-      travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：${enemy.name}${countTxt2}を倒した！ 経験値+${enemy.mr}</span>`);
-      document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; setTimeout(()=>travelTick(),ts.interval);
-     }
-    });
-   }
+   setupSavingRoll({
+    attr:'spd', level:2,
+    onSuccess:()=>{
+     changeAlignment(0, -0.5); // 逃亡：混沌+0.5
+     setTimeout(()=>travelTick(), ts.interval);
+    },
+    onFail:()=>{
+     startCombat({
+      enemies: enemy.enemies, canFlee:false, isHuman:false,
+      win:'__noop__', lose:'DEAD',
+      onWin:()=>{
+       const countTxt2 = enemy.count > 1 ? `×${enemy.count}` : '';
+       travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：${enemy.name}${countTxt2}を倒した！ 経験値+${enemy.mr}</span>`);
+       document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; setTimeout(()=>travelTick(),ts.interval);
+      }
+     });
+    },
+   });
   };
   choices.appendChild(fight);
   choices.appendChild(flee);
@@ -19195,6 +19923,7 @@ function travelTick(){
  if(!ts._resumeWithoutIncrement){
  ts.daysDone++;
  GAME_TIME.totalDays++;
+ tickFootwearWear();
  }
  ts._resumeWithoutIncrement = false;
  const aged = checkAging();
@@ -19322,6 +20051,16 @@ function travelTick(){
    : [];
   if(heroTownsInRegion.length > 0 && Math.random() < 0.01){
    startAssassinEncounter(ts);
+   return;
+  }
+ }
+
+ // ── 賞金稼ぎ遭遇チェック（陸上のみ・いずれかの町で手配度「高」＝賞金首の場合） ──
+ if(ts.daysDone < ts.totalDays && ts.method !== 'ship'){
+  _ensureWantedObject();
+  const isWantedHigh = Object.keys(PC.wanted).some(t=>wantedTier(t)==='high');
+  if(isWantedHigh && Math.random() < 0.01){
+   startBountyHunterEncounter(ts);
    return;
   }
  }
@@ -19590,32 +20329,30 @@ function startTravelTalk(enemy, ts){
  choices.innerHTML = '';
  document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
  document.getElementById('text-win').style.display = '';
- document.getElementById('dice-area').classList.add('hidden');
  cbtState = null;
- // dice-areaを使わずその場でSR計算（旅行UI内で完結させる）
- const chrVal = PC.chr || 0;
- let total=0, a=d6(), b=d6(); total=a+b;
- let diceArr=[a,b];
- while(a===b){ a=d6(); b=d6(); total+=a+b; diceArr.push(a,b); }
- const grandTotal = total + chrVal;
- const success = total>=5 && grandTotal>=target;
- const ap = total * srLevel;
- gainAPAll(ap); updateHUD();
- const resHtml = ` 魅力 能力値テスト: <span style="color:#b8a890;font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=${total}+${chrVal}=${grandTotal} vs ${target}　${success?`<span style="color:#e8e4d8"> 成功 経験値+${ap}</span>`:`<span class="red"> 失敗 経験値+${ap}</span>`}`;
- travelLog(resHtml);
- if(success){
-  travelLog(`<span style="color:#e8e4d8"> うまく言いくるめた！ ${enemy.name}は立ち去っていった。</span>`);
-  renderChoices([{label:'▶ 旅を続ける', fn:()=>{
-   renderChoices([]);
-   ts._resumeWithoutIncrement = true;
-   setTimeout(travelTick, ts.interval);
-  }}]);
- } else {
-  travelLog(`<span class="red"> 説得失敗…${enemy.name}は怒りをあらわにした！</span>`);
-  renderChoices([{label:'▶ 戦う', fn:()=>{
-   setTimeout(() => startTravelCombat(enemy), 200);
-  }}]);
- }
+ travelLog(`<span style="color:#b8a890"> ${enemy.name}を話術で説得しようとする…</span>`);
+ setupSavingRoll({
+  attr: 'chr',
+  level: srLevel,
+  onSuccess: () => {
+   travelLog(`<span style="color:#e8e4d8"> うまく言いくるめた！ ${enemy.name}は立ち去っていった。</span>`);
+   renderChoices([{label:'▶ 旅を続ける', fn:()=>{
+    document.getElementById('dice-area').classList.add('hidden');
+    document.getElementById('text-win').style.display='';
+    renderChoices([]);
+    ts._resumeWithoutIncrement = true;
+    setTimeout(travelTick, ts.interval);
+   }}]);
+  },
+  onFail: () => {
+   travelLog(`<span class="red"> 説得失敗…${enemy.name}は怒りをあらわにした！</span>`);
+   renderChoices([{label:'▶ 戦う', fn:()=>{
+    document.getElementById('dice-area').classList.add('hidden');
+    document.getElementById('text-win').style.display='';
+    setTimeout(() => startTravelCombat(enemy), 200);
+   }}]);
+  },
+ });
  };
  choices.appendChild(talkBtn);
 
@@ -20725,6 +21462,7 @@ function startGame(){
  PC._startTown = townPool[Math.floor(Math.random() * townPool.length)];
  PC.town = PC._startTown;
  initTrust(PC._startTown);
+ PC.wanted = {}; // 前の代の手配度は引き継がない
 
  // shop-areaをスキップしてゲーム画面へ直接遷移
  document.getElementById('chargen').classList.add('hidden');
@@ -20819,7 +21557,7 @@ function buyEquip(i){
  if(totalCP()<effectiveCost*100)return;
  payPrice(effectiveCost);
  if(it._isFood){ const amt=it._foodAmt||1; PC._food=(PC._food||0)+amt; cartWeight+=amt*5; }
- else if(it.name==='ブーツ'||it.name==='サンダル'){ PC.invBoots=true; PC.invBootsName=it.name; cartWeight+=it.weight; }
+ else if(it.name==='ブーツ'||it.name==='サンダル'){ PC.invBoots=true; PC.invBootsName=it.name; PC._bootsWearDays=0; PC._bootsBreakThreshold=null; cartWeight+=it.weight; }
  else if(it.name==='松明'){ PC._torchStock=(PC._torchStock||0)+1; cartWeight+=it.weight; }
  else if(it.name==='防寒着と荷物袋'){ PC.invClothing=true; PC.invClothingName=it.name; cartWeight+=it.weight; }
  else { PC.invEquip.push(it.name); cartWeight+=it.weight; }
@@ -20836,10 +21574,11 @@ function buyEquip(i){
 // ══════════════════════════════════════════
 
 // 武器装備可否チェック
-function canEquipWeapon(w){
- const eq = PC.equippedWeapons;
- const hasShield = PC.equippedArmors.some(a=>a.isShield);
- if(eq.find(e=>e.name===w.name)) return {ok:false, reason:'すでに装備中'};
+function canEquipWeapon(w, actor){
+ actor = actor || PC;
+ const eq = actor.equippedWeapons || [];
+ const hasShield = (actor.equippedArmors||[]).some(a=>a.isShield);
+ if(eq.includes(w)) return {ok:false, reason:'すでに装備中'};
  if(w.twoHand){
  if(eq.length>0) return {ok:false, reason:'他の武器を外してください'};
  if(hasShield) return {ok:false, reason:'盾を外してください（両手武器）'};
@@ -20848,26 +21587,30 @@ function canEquipWeapon(w){
  if(hasTwoHand) return {ok:false, reason:'両手武器を外してください'};
  if(hasShield && eq.length>=1) return {ok:false, reason:'盾装備中は武器1本のみ'};
  if(eq.length>=2) return {ok:false, reason:'武器スロットが満杯（2本まで）'};
+ // 2本目の装備は戦士のみ
+ if(eq.length===1 && actor.type!=='warrior') return {ok:false, reason:'二刀流は戦士のみ可能'};
  // 2本目装備時：既存武器と合算したST・DEX要求値チェック
  if(eq.length===1){
   const first = eq[0];
   const totalSt  = (first.stReq||0)  + (w.stReq||0);
   const totalDex = (first.dexReq||0) + (w.dexReq||0);
-  if(PC.st  < totalSt)  return {ok:false, reason:`ST${totalSt}以上必要（現在${PC.st}）`};
-  if(PC.dex < totalDex) return {ok:false, reason:`DEX${totalDex}以上必要（現在${PC.dex}）`};
+  if(actor.st  < totalSt)  return {ok:false, reason:`ST${totalSt}以上必要（現在${actor.st}）`};
+  if(actor.dex < totalDex) return {ok:false, reason:`DEX${totalDex}以上必要（現在${actor.dex}）`};
  }
  }
  return {ok:true};
 }
 
 // 防具装備可否チェック
-function canEquipArmor(a){
- const eq = PC.equippedArmors;
- if(eq.find(e=>e.name===a.name)) return {ok:false, reason:'すでに装備中'};
+function canEquipArmor(a, actor){
+ actor = actor || PC;
+ const eq = actor.equippedArmors || [];
+ if(eq.includes(a)) return {ok:false, reason:'すでに装備中'};
  if(a.isShield){
  if(eq.find(e=>e.isShield)) return {ok:false, reason:'盾は1つまで'};
- const hasTwoHand = PC.equippedWeapons.some(w=>w.twoHand);
+ const hasTwoHand = (actor.equippedWeapons||[]).some(w=>w.twoHand);
  if(hasTwoHand) return {ok:false, reason:'両手武器装備中はシールド不可'};
+ if((actor.equippedWeapons||[]).length>=2) return {ok:false, reason:'二刀流中は盾を装備できません'};
  } else {
  // 鎧（非シールド）は1つまで
  if(eq.find(e=>!e.isShield)) return {ok:false, reason:'鎧は1つまで'};
@@ -20949,6 +21692,30 @@ function equipBoots(){
 function unequipBoots(){
  PC.equippedBoots=false;
  renderStatusPanel(); showSaveToast('Bootsを脱いだ');
+}
+
+// ブーツ・サンダルの摩耗（移動1日ごとに蓄積し、365日±30日で壊れる）
+function tickFootwearWear(){
+ if(!PC.equippedBoots) return;
+ if(PC._bootsBreakThreshold == null){
+  PC._bootsBreakThreshold = 365 + Math.floor((Math.random()-0.5)*60); // 335〜395日
+  PC._bootsWearDays = 0;
+ }
+ PC._bootsWearDays = (PC._bootsWearDays||0) + 1;
+ if(PC._bootsWearDays >= PC._bootsBreakThreshold){
+  const name = PC.invBootsName || 'ブーツ';
+  PC.equippedBoots = false;
+  PC.invBoots = false;
+  PC.invBootsName = null;
+  PC._bootsWearDays = 0;
+  PC._bootsBreakThreshold = null;
+  if(travelState){
+   travelLog(`<span style="color:#c8a870"> 履き潰した${name}が、ついに擦り切れて壊れてしまった……</span>`);
+  } else {
+   showSaveToast(`${name}が擦り切れて壊れてしまった…`);
+  }
+  updateHUD();
+ }
 }
 
 // ══════════════════════════════════════════
@@ -21044,8 +21811,9 @@ function showIngameShop(townId){
   _openIngameShop(townId);
   return;
  }
- // キャラ選択画面を表示
+ // キャラ選択画面を表示（元の内容は退避しておき、選択後に復元する＝旅ログ消失防止）
  const story = document.getElementById('story');
+ window._shopSelectPrevStoryHtml = story ? story.innerHTML : null;
  if(story) story.innerHTML = ' 武器屋・装備屋<br><br><span style="color:#d0c8b8">誰が入店しますか？</span>';
  const choices = members.map(m => ({
   label: m === PC
@@ -21064,6 +21832,12 @@ function showIngameShop(townId){
 }
 
 function _openIngameShop(townId){
+ // キャラ選択画面表示時に退避しておいたstoryの内容を復元（旅ログ消失防止）
+ if(window._shopSelectPrevStoryHtml != null){
+  const storyEl = document.getElementById('story');
+  if(storyEl) storyEl.innerHTML = window._shopSelectPrevStoryHtml;
+  window._shopSelectPrevStoryHtml = null;
+ }
  document.getElementById('ingame-shop').classList.remove('hidden');
  document.getElementById('text-win').style.display = 'none';
  // キャラ選択メニューを消す
@@ -21135,7 +21909,7 @@ function sellWeapon(idx){
  const _sa = _shopActor||PC;
  const w = (_sa.invWeapons||[])[idx];
  if(!w) return;
- _sa.equippedWeapons = (_sa.equippedWeapons||[]).filter(e=>e.name!==w.name);
+ _sa.equippedWeapons = (_sa.equippedWeapons||[]).filter(e=>e!==w);
  _sa.invWeapons.splice(idx,1);
  // 魔法武器は_priceGPの半額
  if(w._isMagic && w._priceGP){
@@ -21157,7 +21931,7 @@ function sellArmor(idx){
  const _sa = _shopActor||PC;
  const a = (_sa.invArmors||[])[idx];
  if(!a) return;
- _sa.equippedArmors = (_sa.equippedArmors||[]).filter(e=>e.name!==a.name);
+ _sa.equippedArmors = (_sa.equippedArmors||[]).filter(e=>e!==a);
  _sa.invArmors.splice(idx,1);
  const def = [...ARMOR_TABLE,...(ARMOR_TABLE_KHAZAN||[])].find(t=>t.name===a.name);
  const price = def ? sellPriceCP(def.cost) : 0;
@@ -21656,7 +22430,7 @@ function igsBuyEquip(i){
   return;
  }
  if(it._isFood){ const amt=it._foodAmt||1; PC._food=(PC._food||0)+amt; showSaveToast(` 食料+${amt}（残り${PC._food}日分）`); }
- else if(it.name==='ブーツ'||it.name==='サンダル'){ _sa.invBoots=true; _sa.invBootsName=it.name; }
+ else if(it.name==='ブーツ'||it.name==='サンダル'){ _sa.invBoots=true; _sa.invBootsName=it.name; _sa._bootsWearDays=0; _sa._bootsBreakThreshold=null; }
  else if(it.name==='松明'){ PC._torchStock=(PC._torchStock||0)+1; }
  else if(it.name==='防寒着と荷物袋'){ _sa.invClothing=true; _sa.invClothingName=it.name; }
  else { if(!_sa.invEquip) _sa.invEquip=[]; _sa.invEquip.push(it.name); }
@@ -22394,7 +23168,7 @@ function renderStatusPanel(){
  });
  }
  // 所持（未装備）
- const uninvW = PC.invWeapons.filter(w=>!PC.equippedWeapons.find(e=>e.name===w.name) && !w.isRanged);
+ const uninvW = PC.invWeapons.filter(w=>!PC.equippedWeapons.includes(w) && !w.isRanged);
  if(uninvW.length){
  wpHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin:6px 0 4px">── 所持（未装備）──</div>`;
  uninvW.forEach(w=>{
@@ -22473,7 +23247,7 @@ function renderStatusPanel(){
  arHtml += `<div style="font-size:calc(var(--font-sm) - 1px);color:#ece8e0;padding:4px 0">合計防護: ${effectiveArmor()}hits</div>`;
  }
  // 所持（未装備）
- const uninvA = PC.invArmors.filter(a=>!PC.equippedArmors.find(e=>e.name===a.name));
+ const uninvA = PC.invArmors.filter(a=>!PC.equippedArmors.includes(a));
  if(uninvA.length){
  arHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin:6px 0 4px">── 所持（未装備）──</div>`;
  uninvA.forEach(a=>{
@@ -23251,23 +24025,27 @@ const DUNGEON_EVENTS = [
  {
  label: ' 解読を試みる（知力 Lv2 能力値テスト）',
  fn: () => {
- const story = document.getElementById('story');
- const sr = savingRoll('iq', 2);
- gainAPAll(sr.ap); updateHUD();
- if(sr.success){
- const ap2 = 20 + Math.floor(Math.random()*21);
- gainAPAll(ap2); updateHUD();
- const msgs = [
- '「この廟に眠る者に触れるな。怒りは砂嵐となって降り注ぐだろう」',
- '「南の扉の先に、かつての王の財宝が眠る。ただし試練を越えた者だけが手にできる」',
- '「光なき者よ、引き返せ。暗闇は死の使者である」',
- '「力ある者よ、この印を覚えよ。扉の前で唱えれば道が開く」',
- ];
- story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 解読成功！<br><span style="color:#f0ece0;font-size:var(--font-sm)">「${msgs[Math.floor(Math.random()*msgs.length)]}」</span><br><span style="color:#f0ece0">経験値+${sr.ap}+${ap2}</span></div>`;
- } else {
- story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 解読失敗。古代語は難解すぎた。<br><span style="color:#f0ece0">経験値+${sr.ap}</span></div>`;
- }
- _restoreNodeChoices();
+ setupSavingRoll({
+  attr:'iq', level:2,
+  onSuccess:()=>{
+   const story = document.getElementById('story');
+   const ap2 = 20 + Math.floor(Math.random()*21);
+   gainAPAll(ap2); updateHUD();
+   const msgs = [
+   '「この廟に眠る者に触れるな。怒りは砂嵐となって降り注ぐだろう」',
+   '「南の扉の先に、かつての王の財宝が眠る。ただし試練を越えた者だけが手にできる」',
+   '「光なき者よ、引き返せ。暗闇は死の使者である」',
+   '「力ある者よ、この印を覚えよ。扉の前で唱えれば道が開く」',
+   ];
+   story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 解読成功！<br><span style="color:#f0ece0;font-size:var(--font-sm)">「${msgs[Math.floor(Math.random()*msgs.length)]}」</span><br><span style="color:#f0ece0">経験値+${ap2}</span></div>`;
+   _restoreNodeChoices();
+  },
+  onFail:()=>{
+   const story = document.getElementById('story');
+   story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 解読失敗。古代語は難解すぎた。</div>`;
+   _restoreNodeChoices();
+  },
+ });
  },
  },
  {
@@ -23291,19 +24069,23 @@ const DUNGEON_EVENTS = [
  {
  label: ' 骨壺を開ける（運 Lv1 能力値テスト）',
  fn: () => {
- const story = document.getElementById('story');
- const sr = savingRoll('lk', 1);
- gainAPAll(sr.ap); updateHUD();
- if(sr.success){
- const gp = 10 + Math.floor(Math.random()*41);
- gainGPAll(gp); updateHUD();
- story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 中から金貨が出てきた！<br><span style="color:#f0ece0">+${gp}GP　経験値+${sr.ap}</span></div>`;
- } else {
- const dmg = 1 + Math.floor(Math.random()*4);
- PC.con = Math.max(1, PC.con - dmg); updateHUD();
- story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 呪いの煙が噴き出した！<br><span style="color:#e0d0d0">体力-${dmg}（残り${PC.con}）　経験値+${sr.ap}</span></div>`;
- }
- _restoreNodeChoices();
+ setupSavingRoll({
+  attr:'lk', level:1,
+  onSuccess:()=>{
+   const story = document.getElementById('story');
+   const gp = 10 + Math.floor(Math.random()*41);
+   gainGPAll(gp); updateHUD();
+   story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 中から金貨が出てきた！<br><span style="color:#f0ece0">+${gp}GP</span></div>`;
+   _restoreNodeChoices();
+  },
+  onFail:()=>{
+   const story = document.getElementById('story');
+   const dmg = 1 + Math.floor(Math.random()*4);
+   PC.con = Math.max(1, PC.con - dmg); updateHUD();
+   story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 呪いの煙が噴き出した！<br><span style="color:#e0d0d0">体力-${dmg}（残り${PC.con}）</span></div>`;
+   _restoreNodeChoices();
+  },
+ });
  },
  },
  {
@@ -23394,19 +24176,29 @@ const DUNGEON_EVENTS = [
   {
   label: ' 拾う',
   fn: () => {
-   const story = document.getElementById('story');
    const roll = d6();
    if(roll <= 2){
     // 罠のコイン：耐久SR
-    const sr = savingRoll('con', 1);
-    gainAPAll(sr.ap);
-    if(!sr.success){
-     const torchMsg2 = extinguishTorch();
-     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>罠のコイン！</b>触れた瞬間に粉状の毒が舞った。体力 能力値テスト失敗（${sr.total}）——気絶した。<br><span style="color:#f0ddd0;font-size:var(--font-sm)">${torchMsg2}</span><br><span style="color:#f0ece0">経験値+${sr.ap}</span></div>`;
-    } else {
-     story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>罠のコインだった！</b>毒粉が舞ったが、耐えた。体力 能力値テスト成功（${sr.total}）<br><span style="color:#f0ece0">経験値+${sr.ap}</span></div>`;
-    }
-   } else if(roll <= 4){
+    setupSavingRoll({
+     attr:'con', level:1,
+     onFail:()=>{
+      const story = document.getElementById('story');
+      const torchMsg2 = extinguishTorch();
+      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>罠のコイン！</b>触れた瞬間に粉状の毒が舞った。気絶した。<br><span style="color:#f0ddd0;font-size:var(--font-sm)">${torchMsg2}</span></div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+     onSuccess:()=>{
+      const story = document.getElementById('story');
+      story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>罠のコインだった！</b>毒粉が舞ったが、耐えた。</div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+    });
+    return;
+   }
+   const story = document.getElementById('story');
+   if(roll <= 4){
     gainGPAll(1); updateHUD();
     story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>ただの落とし物。</b>普通の金貨だった。+1GP</div>`;
    } else if(roll === 5){
@@ -23448,20 +24240,27 @@ const DUNGEON_EVENTS = [
  choices: (ev) => [{
   label: ' 様子を見る',
   fn: () => {
-   const story = document.getElementById('story');
    const roll = d6();
    if(roll <= 2){
     // 崩落：敏捷SR
-    const sr = savingRoll('dex', 1);
-    gainAPAll(sr.ap);
-    if(!sr.success){
-     const dmg = d6();
-     PC.con = Math.max(0, PC.con - dmg); updateHUD();
-     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>小規模な崩落！</b>天井の一部が崩れた。器用さ 能力値テスト失敗——体力-${dmg}（残り${PC.con}）　経験値+${sr.ap}</div>`;
-    } else {
-     story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 天井が少し崩れたが、素早く避けた。経験値+${sr.ap}</div>`;
-    }
+    setupSavingRoll({
+     attr:'dex', level:1,
+     onFail:()=>{
+      const story = document.getElementById('story');
+      const dmg = d6();
+      PC.con = Math.max(0, PC.con - dmg); updateHUD();
+      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>小規模な崩落！</b>天井の一部が崩れた。体力-${dmg}（残り${PC.con}）</div>`;
+      _restoreNodeChoices();
+     },
+     onSuccess:()=>{
+      const story = document.getElementById('story');
+      story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 天井が少し崩れたが、素早く避けた。</div>`;
+      _restoreNodeChoices();
+     },
+    });
+    return;
    } else if(roll <= 4){
+    const story = document.getElementById('story');
     // モンスター出現
     story.innerHTML += `<div style="color:#f0ddd8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>上の通路で何かが動いた！</b>すぐに足音が近づいてくる……</div>`;
     setTimeout(()=>{
@@ -23472,10 +24271,11 @@ const DUNGEON_EVENTS = [
     }, 2000);
     return;
    } else {
+    const story = document.getElementById('story');
     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> 古いダンジョンの天井が少し崩れただけ。何も起こらなかった。</div>`;
+    updateHUD();
+    _restoreNodeChoices();
    }
-   updateHUD();
-   _restoreNodeChoices();
   },
  }],
  },
@@ -23489,9 +24289,9 @@ const DUNGEON_EVENTS = [
  choices: (ev) => [{
   label: ' 警戒する',
   fn: () => {
-   const story = document.getElementById('story');
    const roll = d6();
    if(roll <= 2){
+    const story = document.getElementById('story');
     // 追跡者：即戦闘
     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>追跡者！</b>背後から足音が迫ってくる——!</div>`;
     setTimeout(()=>{
@@ -23503,19 +24303,29 @@ const DUNGEON_EVENTS = [
     return;
    } else if(roll <= 4){
     // 幻覚：幸運SR、失敗で強さ-3
-    const sr = savingRoll('lk', 1);
-    gainAPAll(sr.ap);
-    if(!sr.success){
-     PC.st = Math.max(1, PC.st - 3); PC.maxSt = Math.max(1, (PC.maxSt||PC.st) - 3);
-     story.innerHTML += `<div style="color:#c8b8a0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幻覚・神経の緊張。</b>運 能力値テスト失敗（${sr.total}）——ダンジョンを出るまでST -3（残り${PC.st}）　経験値+${sr.ap}</div>`;
-    } else {
-     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> 神経が張り詰めたが、気のせいだった。運 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
-    }
+    setupSavingRoll({
+     attr:'lk', level:1,
+     onFail:()=>{
+      const story = document.getElementById('story');
+      PC.st = Math.max(1, PC.st - 3); PC.maxSt = Math.max(1, (PC.maxSt||PC.st) - 3);
+      story.innerHTML += `<div style="color:#c8b8a0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幻覚・神経の緊張。</b>ダンジョンを出るまでST -3（残り${PC.st}）</div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+     onSuccess:()=>{
+      const story = document.getElementById('story');
+      story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> 神経が張り詰めたが、気のせいだった。</div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+    });
+    return;
    } else {
+    const story = document.getElementById('story');
     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> 小さな地下生物がそっと逃げていった。何も起こらなかった。</div>`;
+    updateHUD();
+    _restoreNodeChoices();
    }
-   updateHUD();
-   _restoreNodeChoices();
   },
  }],
  },
@@ -23530,9 +24340,9 @@ const DUNGEON_EVENTS = [
   {
   label: ' 近づいて調べる',
   fn: () => {
-   const story = document.getElementById('story');
    const roll = d6();
    if(roll <= 2){
+    const story = document.getElementById('story');
     // アンデッド
     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>まだ死んでいなかった！</b>近づくと突然動き出した——アンデッドだ！</div>`;
     setTimeout(()=>{
@@ -23550,23 +24360,35 @@ const DUNGEON_EVENTS = [
     }, 2000);
     return;
    } else if(roll <= 4){
+    const story = document.getElementById('story');
     const msgs = ['「戻れ」','「光を消すな」','「奴らは壁の中にいる」','「信用するな」','「北の扉は開けるな」'];
     story.innerHTML += `<div style="color:#c8b8a0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>最後のメモ。</b>死体の近くに血で書かれたメッセージがある：<span style="color:#f0ece0">${msgs[Math.floor(Math.random()*msgs.length)]}</span></div>`;
+    updateHUD();
+    _restoreNodeChoices();
    } else if(roll === 5){
+    const story = document.getElementById('story');
     const treasure = generateTreasure(25);
     story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>遺品発見。</b>袋の中に宝物が残っていた。<br>${treasure}</div>`;
+    updateHUD();
+    _restoreNodeChoices();
    } else {
-    const sr = savingRoll('lk', 1);
-    gainAPAll(sr.ap);
-    if(!sr.success){
-     PC.lk = Math.max(1, PC.lk - 5);
-     story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪いの残滓。</b>この場に死の気配が漂う。運 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr.ap}</div>`;
-    } else {
-     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px">冷たい気配を感じたが、運 能力値テスト成功。何も起こらなかった。経験値+${sr.ap}</div>`;
-    }
+    setupSavingRoll({
+     attr:'lk', level:1,
+     onFail:()=>{
+      const story = document.getElementById('story');
+      PC.lk = Math.max(1, PC.lk - 5);
+      story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪いの残滓。</b>この場に死の気配が漂う。LK -5（残り${PC.lk}）</div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+     onSuccess:()=>{
+      const story = document.getElementById('story');
+      story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px">冷たい気配を感じたが、何も起こらなかった。</div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+    });
    }
-   updateHUD();
-   _restoreNodeChoices();
   },
   },
   {
@@ -23590,9 +24412,9 @@ const DUNGEON_EVENTS = [
   {
   label: ' 臭いの元を調べる',
   fn: () => {
-   const story = document.getElementById('story');
    const roll = d6();
    if(roll <= 2){
+    const story = document.getElementById('story');
     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>食事中のモンスター！</b>近くで何かが死体を食べていた——気づかれた！</div>`;
     setTimeout(()=>{
      startCombat({ name:'腐肉食い', mr:28, armor:1, isHuman:false, canFlee:true,
@@ -23609,22 +24431,32 @@ const DUNGEON_EVENTS = [
     }, 2000);
     return;
    } else if(roll <= 4){
+    const story = document.getElementById('story');
     const treasure = generateTreasure(20);
     story.innerHTML += `<div style="color:#c8b8a0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>腐乱死体。</b>古い死体が転がっていた。探索すると装備が見つかった。<br>${treasure}</div>`;
+    updateHUD();
+    _restoreNodeChoices();
    } else if(roll === 5){
-    const sr = savingRoll('con', 2);
-    gainAPAll(sr.ap);
-    if(!sr.success){
-     PC.con = Math.max(1, PC.con - 5); updateHUD();
-     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>毒性のガス！</b>腐敗した空気が溜まっていた。体力 能力値テスト失敗——ダンジョンを出るまで体力-5（残り${PC.con}）　経験値+${sr.ap}</div>`;
-    } else {
-     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> 腐敗ガスを吸ったが、耐えた。体力 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
-    }
+    setupSavingRoll({
+     attr:'con', level:2,
+     onFail:()=>{
+      const story = document.getElementById('story');
+      PC.con = Math.max(1, PC.con - 5); updateHUD();
+      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>毒性のガス！</b>腐敗した空気が溜まっていた。ダンジョンを出るまで体力-5（残り${PC.con}）</div>`;
+      _restoreNodeChoices();
+     },
+     onSuccess:()=>{
+      const story = document.getElementById('story');
+      story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> 腐敗ガスを吸ったが、耐えた。</div>`;
+      _restoreNodeChoices();
+     },
+    });
    } else {
+    const story = document.getElementById('story');
     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> <b>死の痕跡。</b>最近何かが殺されたらしい。床に血や骨が散乱している。</div>`;
+    updateHUD();
+    _restoreNodeChoices();
    }
-   updateHUD();
-   _restoreNodeChoices();
   },
   },
   {
@@ -23647,34 +24479,51 @@ const DUNGEON_EVENTS = [
  choices: (ev) => [{
   label: ' 傷を確認する',
   fn: () => {
-   const story = document.getElementById('story');
    const roll = d6();
    if(roll <= 2){
-    const sr = savingRoll('dex', 1);
-    gainAPAll(sr.ap);
-    if(!sr.success){
-     PC.con = Math.max(0, PC.con - 1); updateHUD();
-     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>見えない刃。</b>空間に見えない罠の残骸がある。器用さ 能力値テスト失敗——追加でCON -1（残り${PC.con}）　経験値+${sr.ap}</div>`;
-    } else {
-     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> 見えない刃の残骸があったが、素早く避けた。経験値+${sr.ap}</div>`;
-    }
+    setupSavingRoll({
+     attr:'dex', level:1,
+     onFail:()=>{
+      const story = document.getElementById('story');
+      PC.con = Math.max(0, PC.con - 1); updateHUD();
+      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>見えない刃。</b>空間に見えない罠の残骸がある。追加でCON -1（残り${PC.con}）</div>`;
+      _restoreNodeChoices();
+     },
+     onSuccess:()=>{
+      const story = document.getElementById('story');
+      story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> 見えない刃の残骸があったが、素早く避けた。</div>`;
+      _restoreNodeChoices();
+     },
+    });
    } else if(roll <= 4){
+    const story = document.getElementById('story');
     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px"> 床や壁に埋まっていた金属片で切っただけ。布で縛れば問題ない。</div>`;
+    updateHUD();
+    _restoreNodeChoices();
    } else if(roll === 5){
-    const sr = savingRoll('lk', 1);
-    gainAPAll(sr.ap);
-    if(!sr.success){
-     PC.lk = Math.max(1, PC.lk - 5);
-     story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた傷。</b>傷口が黒ずんでくる。運 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr.ap}</div>`;
-    } else {
-     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px">傷は気になるが、運 能力値テスト成功。呪いは感じない。経験値+${sr.ap}</div>`;
-    }
+    setupSavingRoll({
+     attr:'lk', level:1,
+     onFail:()=>{
+      const story = document.getElementById('story');
+      PC.lk = Math.max(1, PC.lk - 5);
+      story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた傷。</b>傷口が黒ずんでくる。LK -5（残り${PC.lk}）</div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+     onSuccess:()=>{
+      const story = document.getElementById('story');
+      story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px">傷は気になるが、呪いは感じない。</div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+    });
    } else {
+    const story = document.getElementById('story');
     PC.lk += 5;
     story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>奇妙な感覚。</b>傷はすぐ止まったが、危険を察知する感覚が研ぎ澄まされた気がする。LK +5（永続）（LK ${PC.lk}）</div>`;
+    updateHUD();
+    _restoreNodeChoices();
    }
-   updateHUD();
-   _restoreNodeChoices();
   },
  }],
  },
@@ -23689,38 +24538,50 @@ const DUNGEON_EVENTS = [
   {
   label: ' 壁を壊して助ける（強さ Lv1 能力値テスト）',
   fn: () => {
-   const story = document.getElementById('story');
-   const sr = savingRoll('st', 1);
-   gainAPAll(sr.ap);
-   if(!sr.success){
-    story.innerHTML += `<div style="color:#f0ddd8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 壁を叩いたが壊せなかった。音は次第に消えていった。経験値+${sr.ap}</div>`;
-    _restoreNodeChoices(); return;
-   }
-   const roll = d6();
-   if(roll <= 2){
-    story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>封じられたもの！</b>壁を壊すと中から危険なモンスターが解放された——！</div>`;
-    setTimeout(()=>{
-     startCombat({ name:'封印されていた怪物', mr:45, armor:4, isHuman:false, canFlee:false, win:'__noop__', lose:'DEAD',
-       onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; _restoreNodeChoices(); }
+   setupSavingRoll({
+    attr:'st', level:1,
+    onFail:()=>{
+     const story = document.getElementById('story');
+     story.innerHTML += `<div style="color:#f0ddd8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 壁を叩いたが壊せなかった。音は次第に消えていった。</div>`;
+     _restoreNodeChoices();
+    },
+    onSuccess:()=>{
+     const story = document.getElementById('story');
+     const roll = d6();
+     if(roll <= 2){
+      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>封じられたもの！</b>壁を壊すと中から危険なモンスターが解放された——！</div>`;
+      setTimeout(()=>{
+       startCombat({ name:'封印されていた怪物', mr:45, armor:4, isHuman:false, canFlee:false, win:'__noop__', lose:'DEAD',
+         onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; _restoreNodeChoices(); }
+        });
+       renderChoices([]); scrollToTop();
+      }, 2000);
+      return;
+     } else if(roll <= 4){
+      const treasure = generateTreasure(30);
+      story.innerHTML += `<div style="color:#c8b8a0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>閉じ込められた冒険者の死体。</b>古い空洞で飢えて死んだ冒険者の遺体。装備や袋から宝物を得た。<br>${treasure}</div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     } else {
+      setupSavingRoll({
+       attr:'lk', level:1,
+       onFail:()=>{
+        const story2 = document.getElementById('story');
+        PC.lk = Math.max(1, PC.lk - 5);
+        story2.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた空洞。</b>中には何もない。しかし不吉な気配に取り憑かれた。LK -5（残り${PC.lk}）</div>`;
+        updateHUD();
+        _restoreNodeChoices();
+       },
+       onSuccess:()=>{
+        const story2 = document.getElementById('story');
+        story2.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px">空洞には何もなかった。不思議な冷気が漂うだけだ。</div>`;
+        updateHUD();
+        _restoreNodeChoices();
+       },
       });
-     renderChoices([]); scrollToTop();
-    }, 2000);
-    return;
-   } else if(roll <= 4){
-    const treasure = generateTreasure(30);
-    story.innerHTML += `<div style="color:#c8b8a0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>閉じ込められた冒険者の死体。</b>古い空洞で飢えて死んだ冒険者の遺体。装備や袋から宝物を得た。<br>${treasure}</div>`;
-   } else {
-    const sr2 = savingRoll('lk', 1);
-    gainAPAll(sr2.ap);
-    if(!sr2.success){
-     PC.lk = Math.max(1, PC.lk - 5);
-     story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた空洞。</b>中には何もない。しかし不吉な気配に取り憑かれた。運 能力値テスト失敗——LK -5（残り${PC.lk}）　経験値+${sr2.ap}</div>`;
-    } else {
-     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px">空洞には何もなかった。不思議な冷気が漂うだけだ。経験値+${sr2.ap}</div>`;
-    }
-   }
-   updateHUD();
-   _restoreNodeChoices();
+     }
+    },
+   });
   },
   },
   {
@@ -23784,9 +24645,9 @@ const DUNGEON_EVENTS = [
   {
   label: ' 手を出す',
   fn: () => {
-   const story = document.getElementById('story');
    const roll = d6();
    if(roll <= 2){
+    const story = document.getElementById('story');
     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>守護者の目覚め！</b>財宝に触れた瞬間、眠っていた守護者が現れた——！</div>`;
     setTimeout(()=>{
      startCombat({ name:'財宝の守護者', mr:60, armor:6, isHuman:false, canFlee:false, win:'__noop__', lose:'DEAD',
@@ -23796,29 +24657,40 @@ const DUNGEON_EVENTS = [
     }, 2000);
     return;
    } else if(roll <= 4){
-    const sr = savingRoll('con', 2);
-    gainAPAll(sr.ap);
-    PC.lk = Math.max(1, PC.lk - 5);
-    if(!sr.success){
-     const torchMsg3 = extinguishTorch();
-     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>崩れる宝と毒ガス！</b>黄金の山が崩れ、毒ガスが噴き出した。体力 能力値テスト失敗（${sr.total}）——気絶した。宝も消えた。LK -5（残り${PC.lk}）　経験値+${sr.ap}<br><span style="color:#f0ddd0;font-size:var(--font-sm)">${torchMsg3}</span></div>`;
-    } else {
-     story.innerHTML += `<div style="color:#e8e0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 毒ガスが噴き出したが耐えた。宝は消えた。LK -5（残り${PC.lk}）　体力 能力値テスト成功（${sr.total}）　経験値+${sr.ap}</div>`;
-    }
-    updateHUD();
+    setupSavingRoll({
+     attr:'con', level:2,
+     onFail:()=>{
+      const story = document.getElementById('story');
+      PC.lk = Math.max(1, PC.lk - 5);
+      const torchMsg3 = extinguishTorch();
+      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>崩れる宝と毒ガス！</b>黄金の山が崩れ、毒ガスが噴き出した。気絶した。宝も消えた。LK -5（残り${PC.lk}）<br><span style="color:#f0ddd0;font-size:var(--font-sm)">${torchMsg3}</span></div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+     onSuccess:()=>{
+      const story = document.getElementById('story');
+      PC.lk = Math.max(1, PC.lk - 5);
+      story.innerHTML += `<div style="color:#e8e0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 毒ガスが噴き出したが耐えた。宝は消えた。LK -5（残り${PC.lk}）</div>`;
+      updateHUD();
+      _restoreNodeChoices();
+     },
+    });
    } else if(roll === 5){
+    const story = document.getElementById('story');
     const gp = 200 + Math.floor(Math.random()*301);
     gainGPAll(gp); updateHUD();
     story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>本物の財宝！</b>罠はなかった。大量の金貨を手に入れた！+${gp}GP</div>`;
+    _restoreNodeChoices();
    } else {
+    const story = document.getElementById('story');
     const gp = 500 + Math.floor(Math.random()*501);
     const jewel = { name:'伝説の宝石', priceGP: 1000 };
     PC.invJewels = PC.invJewels || [];
     PC.invJewels.push(jewel);
     gainGPAll(gp); updateHUD();
     story.innerHTML += `<div style="color:#ff88ff;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>伝説級の戦利品！</b>財宝の中から特別に高価な宝石を見つけた！+${gp}GP ＋ 伝説の宝石（売値1000GP）</div>`;
+    _restoreNodeChoices();
    }
-   _restoreNodeChoices();
   },
   },
   {
@@ -24024,24 +24896,36 @@ function buildContinueHtml(reason){
 // エンディング共通選択肢
 // 全スロット中、最も新しいセーブデータを読み込む
 function loadMostRecentSave(){
- let bestSlot = null, bestTime = -1;
+ let bestSlot = null, bestTime = -1, useAutoSave = false;
  for(let s=1; s<=SAVE_SLOT_COUNT; s++){
   const raw = localStorage.getItem(getSaveKey(s));
   if(!raw) continue;
   try{
    const d = JSON.parse(raw);
-   if(d.savedAt > bestTime){ bestTime = d.savedAt; bestSlot = s; }
+   if(d.savedAt > bestTime){ bestTime = d.savedAt; bestSlot = s; useAutoSave = false; }
   }catch(e){}
  }
+ // 自動セーブも比較対象に含める
+ {
+  const asRaw = localStorage.getItem(AUTOSAVE_KEY);
+  if(asRaw){
+   try{
+    const d = JSON.parse(asRaw);
+    if(d.savedAt > bestTime){ bestTime = d.savedAt; useAutoSave = true; }
+   }catch(e){}
+  }
+ }
+ if(useAutoSave){ loadAutoSave(); return; }
  if(bestSlot == null){ showSaveToast('セーブデータが見つかりません'); return; }
  loadGame(bestSlot);
 }
 
-// いずれかのスロットにセーブデータが存在するか
+// いずれかのスロット、または自動セーブにデータが存在するか
 function hasAnySave(){
  for(let s=1; s<=SAVE_SLOT_COUNT; s++){
   if(localStorage.getItem(getSaveKey(s))) return true;
  }
+ if(localStorage.getItem(AUTOSAVE_KEY)) return true;
  return false;
 }
 
@@ -24129,6 +25013,7 @@ function startAsNPC(npcIdx){
  PC.food = 0; // 前の代の食料は引き継がない
  PC.spouse = []; // 前の代の配偶者記録は引き継がない
  initTrust(lastTown); // 前の代の信頼度は引き継がない（新PCは自分の町の信頼度から再スタート）
+ PC.wanted = {}; // 前の代の手配度は引き継がない
  // 農業豊凶の引き継ぎ
  if(ws.harvestYear) PC._harvestYear = ws.harvestYear;
  if(ws.harvestResult) PC._harvestResult = ws.harvestResult;
@@ -24377,6 +25262,11 @@ function go(nodeId){
  }
  const node=NODES[nodeId];
  if(!node){console.warn('Node not found:',nodeId);return;}
+ // 手配度：町に新しく入る瞬間の衛兵遭遇チェック（同じ町の再描画では発動しない）
+ if(nodeId.startsWith('TOWN_') && currentNodeId!==nodeId){
+  const _wTownId = nodeId.slice(5).toLowerCase();
+  if(TOWNS[_wTownId] && checkWantedAmbush(_wTownId)) return;
+ }
  // 死亡到達時：ダンジョン画像・旅イメージ画像の消し忘れ防止（YD/討伐ダンジョン等、独自の画像管理を行うものも含む）
  if(nodeId==='DEAD'){
  hideDungeonImage();
@@ -24606,18 +25496,19 @@ function go(nodeId){
  }
 
  // 暗闇中は通常選択肢を暗闇専用に差し替え
- // ウィザードなら明かり魔法（Wisp/Cateyes）のボタンも追加
+ // ウィザードなら明かり魔法（Wisp/Blind Spot）のボタンも追加
  if(DUNGEON_NODES.has(nodeId) && PC._torchTurns === 0){
  let darkChoices = darkRoomChoices(nodeId);
  if((PC.type === 'wizard'||PC.type==='rogue') && PC.spells && PC.spells.length){
-  const lightSpells = (PC.spells||[]).filter(s=>s.fn==='wisp');
-  if(lightSpells.length){
+  const hasWisp = PC.spells.some(s=>s.fn==='wisp');
+  const hasBlindSpot = PC.spells.some(s=>s.fn==='blindSpot');
+  if(hasWisp || hasBlindSpot){
+  const lightOpts = {};
+  if(hasWisp) lightOpts.wisp = { desc:'指先を1ターン照らす', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,1); _redrawDungeonNode(currentNodeId); return true; }};
+  if(hasBlindSpot) lightOpts.blindSpot = { desc:'Blind Spotで3ターン安全に進む', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,3); _redrawDungeonNode(currentNodeId); return true; }};
   darkChoices = [...darkChoices, {
    label: ' 明かりの魔法を使う',
-   fn: ()=> openSpellModal('暗闇の中で明かりを灯す', {
-   wisp:   { desc:'指先を1ターン照らす', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,1); _redrawDungeonNode(currentNodeId); return true; }},
-   cateyes:{ desc:'暗視で3ターン見える', fn:()=>{ PC._torchTurns=Math.max(PC._torchTurns||0,3); _redrawDungeonNode(currentNodeId); return true; }},
-   }),
+   fn: ()=> openSpellModal('暗闇の中で明かりを灯す', lightOpts),
   }];
   }
  }
@@ -25088,9 +25979,18 @@ function _resolveSRRoll(sr, diceArr){
  const target=sr.level*5+15;
  const attrVal=actor[sr.attr] || 0;
 
- const rolledTotal=diceArr.reduce((s,v)=>s+v,0);
+ const rawTotal=diceArr.reduce((s,v)=>s+v,0);
  let doublesStr='';
  for(let i=2;i<diceArr.length;i+=2) doublesStr+=` +`;
+
+ // 素早さテスト時、履いているブーツ・サンダルで出目にボーナス
+ let footwearBonus = 0, footwearLabel = '';
+ if(sr.attr === 'spd' && isPC && PC.equippedBoots){
+  if(PC.invBootsName === 'サンダル'){ footwearBonus = 1; footwearLabel = 'サンダル'; }
+  else { footwearBonus = 2; footwearLabel = 'ブーツ'; }
+ }
+ const rolledTotal = rawTotal + footwearBonus;
+ const footwearStr = footwearBonus>0 ? `<span style="color:#c8b8a0">+${footwearBonus}(${footwearLabel})</span>` : '';
 
  const grandTotal=rolledTotal+attrVal;
  const success=rolledTotal>=5&&grandTotal>=target;
@@ -25104,7 +26004,7 @@ function _resolveSRRoll(sr, diceArr){
 
  const actorTag = isPC ? '' : `<span style="color:#e0d8c8">${actor.name}</span>　`;
  const apStr = sr.noAP ? '' : `　${success?`<span style="color:var(--white)"> 成功 経験値+${ap}</span>`:`<span style="color:var(--white)"> 失敗 経験値+${ap}</span>`}`;
- const resHtml = ` ${actorTag}<span style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=<span style="color:#f0ece0">${rolledTotal}</span>${doublesStr}　合計: ${rolledTotal}+${attrVal}=<span style="color:#f0ece0">${grandTotal}</span>　${success?'<span style="color:var(--white)"> 成功</span>':'<span style="color:var(--white)"> 失敗</span>'}${apStr}`;
+ const resHtml = ` ${actorTag}<span style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=<span style="color:#f0ece0">${rawTotal}</span>${footwearStr}${doublesStr}　合計: ${rolledTotal}+${attrVal}=<span style="color:#f0ece0">${grandTotal}</span>　${success?'<span style="color:var(--white)"> 成功</span>':'<span style="color:var(--white)"> 失敗</span>'}${apStr}`;
  document.getElementById('dres').innerHTML = resHtml;
  document.getElementById('rl-btn').classList.remove('hidden');
  document.getElementById('dice-manual-area').classList.add('hidden');
@@ -26123,10 +27023,18 @@ function _doFightNPCCore(cs){
  let pRoll,pDice;
  if(!equipped.length){ const rv=rollNd6(1); pRoll=rv.total+adds; pDice=rv.dice; }
  else {
-  let dice=equipped[0].dice;
-  if(cs.vorpalActive && !cs._pcDidCast){ dice*=2; cs.vorpalActive=false; }
-  if(cs.whammyActive && !cs._pcDidCast){ dice*=3; cs.whammyActive=false; }
-  const rv=rollNd6(dice); pRoll=rv.total+equipped[0].adds+adds; pDice=rv.dice;
+  // 全装備武器のダイスを合計（二刀流対応。addsは武器ごとに合算）
+  let totalDice = 0; let totalWeaponAdds = 0;
+  equipped.forEach((w,wi)=>{
+   let dice = w.dice;
+   if(wi===0 && cs.vorpalActive && !cs._pcDidCast){ dice*=2; }
+   if(wi===0 && cs.whammyActive && !cs._pcDidCast){ dice*=3; }
+   totalDice += dice;
+   totalWeaponAdds += (w.adds||0);
+  });
+  if(cs.vorpalActive && !cs._pcDidCast) cs.vorpalActive=false;
+  if(cs.whammyActive && !cs._pcDidCast) cs.whammyActive=false;
+  const rv=rollNd6(totalDice); pRoll=rv.total+totalWeaponAdds+adds; pDice=rv.dice;
  }
  cs._pDiceThisTurn=pDice; cs._pRollThisTurn=pRoll;
  const aliveParty=(PC.party||[]).filter(n=>n.con>0);
@@ -27798,36 +28706,21 @@ function dungeonTrySR(cfg){
  const aliveParty = (PC.party||[]).filter(n=>n.con>0);
  const story = document.getElementById('story');
 
- const execSR = (actor)=>{
-  const isPC = actor === PC;
-  const attrVal = actor[cfg.attr] || 0;
-  const target = cfg.level*5+15;
-  let total=0, a=d6(), b=d6(); total=a+b;
-  let diceArr=[a,b];
-  while(a===b){ a=d6(); b=d6(); total+=a+b; diceArr.push(a,b); }
-  const grand = total + attrVal;
-  const success = total>=5 && grand>=target;
-  const ap = total * cfg.level;
-  if(ap>0){ isPC ? gainAPAll(ap) : (actor.ap=(actor.ap||0)+ap); }
-  updateHUD();
+ // ダイスを振った後の結果表示・分岐処理（成功／失敗共通）
+ const resolve = (actor, success)=>{
   if(cfg.flagKey) PC[cfg.flagKey] = PC[cfg.flagKey] || success;
-  const actorLabel = isPC ? PC.name : actor.name;
-  const diceHtml = `<span style="color:var(--white);font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>`;
-  const attrLabel = attrNames[cfg.attr]||cfg.attr;
-  const resultHdr = success
-   ? `<span style="color:#f0ece0"> ${actorLabel}：${attrLabel} 能力値テスト成功（${diceHtml}=${total}+${attrVal}=${grand} ≥ ${target}）　経験値+${ap}</span>`
-   : `<span style="color:#f0ddd8"> ${actorLabel}：${attrLabel} 能力値テスト失敗（${diceHtml}=${total}+${attrVal}=${grand} ＜ ${target}）　経験値+${ap}</span>`;
-  let bodyHtml;
   let handled = false; // failFn/successFnが独自にUI制御した場合はtrue
   if(success){
    if(typeof cfg.successFn==='function'){ const r=cfg.successFn(actor); if(r===true) handled=true; }
-   bodyHtml = typeof cfg.successTxt==='function' ? cfg.successTxt() : (cfg.successTxt||'');
   } else {
    if(typeof cfg.failFn==='function'){ const r=cfg.failFn(actor); if(r===true) handled=true; }
-   bodyHtml = typeof cfg.failTxt==='function' ? cfg.failTxt() : (cfg.failTxt||'');
   }
   if(handled) return; // 独自UI制御済みの場合はここで終了
-  story.innerHTML = `<div style="padding:8px 0">${bodyHtml}</div><div style="margin-top:8px;padding:6px 8px;background:var(--info-bg);border:1px solid #334;border-radius:3px;font-size:var(--font-sm)">${resultHdr}</div>`;
+  const bodyHtml = success
+   ? (typeof cfg.successTxt==='function' ? cfg.successTxt() : (cfg.successTxt||''))
+   : (typeof cfg.failTxt==='function' ? cfg.failTxt() : (cfg.failTxt||''));
+  const storyEl = document.getElementById('story');
+  if(storyEl) storyEl.innerHTML = `<div style="padding:8px 0">${bodyHtml}</div>`;
   updateHUD();
   if(PC.con <= 0){
    renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
@@ -27842,8 +28735,18 @@ function dungeonTrySR(cfg){
   scrollToTop();
  };
 
- // パーティがいなければ即PC実行
- if(!aliveParty.length){ execSR(PC); return; }
+ // 共有のダイス画面（setupSavingRoll／setupSavingRollFor）でロールさせる
+ const runFor = (actor)=>{
+  const sr = { attr: cfg.attr, level: cfg.level,
+   onSuccess: ()=>resolve(actor, true),
+   onFail: ()=>resolve(actor, false),
+  };
+  if(actor === PC) setupSavingRoll(sr);
+  else setupSavingRollFor(actor, sr);
+ };
+
+ // パーティがいなければ即PCで実行
+ if(!aliveParty.length){ runFor(PC); return; }
 
  // アクター選択UIを表示（choices要素に追加してstoryは保持）
  const attrLabel = attrNames[cfg.attr]||cfg.attr;
@@ -27864,7 +28767,7 @@ function dungeonTrySR(cfg){
   btn.className = 'choice-btn';
   btn.style.marginBottom = '4px';
   btn.innerHTML = `${typeIcon} ${name}　<span style="color:var(--white)">${attrLabel.split(' ')[0]} ${attrVal}</span>　<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">目標値 ${target}</span>`;
-  btn.addEventListener('click',()=>{ promptDiv.remove(); execSR(actor); });
+  btn.addEventListener('click',()=>{ promptDiv.remove(); runFor(actor); });
   choicesEl.appendChild(btn);
  });
  scrollToTop();
@@ -27919,6 +28822,68 @@ const DEAD_NODE = {
  ${buildContinueHtml('dead')}`;
  },
  choices: buildEndChoices,
+};
+
+// 投獄などで進行中の依頼を強制的に期限切れにする（既存の期限切れ処理をそのまま流用）
+function _forceExpireAllQuests(){
+ if(!PC.quests) return;
+ PC.quests.forEach(q=>{
+  if(q.status==='active') q.issuedDay = GAME_TIME.totalDays - q.deadlineDays - 1;
+ });
+ checkQuestDeadlines();
+}
+
+const WANTED_ARREST_NODE = {
+ scene:'dungeon',
+ txt:()=>{
+  const ctx = window._wantedArrestContext || {};
+  const townId = ctx.townId || PC.town;
+  const townName = (TOWNS[townId]||{}).name || townId;
+  const tier = ctx.tier || wantedTier(townId);
+  const wantedAtArrest = getWanted(townId);
+  // 投獄期間：手配度中→手配度/10年、手配度高→手配度/10×2年
+  const years = (wantedAtArrest/10) * (tier==='high' ? 2 : 1);
+  const months = Math.max(1, Math.round(years*12));
+  GAME_TIME.totalDays += months*30;
+  updateTimebar(); checkAging();
+
+  // PC本人：ST減少・所持金と装備を没収（両替所の預金は対象外）
+  const stLoss = 1 + Math.floor(Math.random()*3);
+  PC.st = Math.max(1, PC.st - stLoss);
+  PC.maxSt = Math.max(1, (PC.maxSt||PC.st) - stLoss);
+  PC.gold = 0; PC.sp = 0; PC.cp = 0;
+  PC.equippedWeapons = []; PC.equippedArmors = [];
+  PC.equippedBoots = false; PC.equippedClothing = false;
+  PC.invWeapons = []; PC.invArmors = [];
+
+  // パーティメンバーも全員、同様の処理
+  const partyLines = [];
+  (PC.party||[]).filter(n=>n.con>0).forEach(npc=>{
+   const npcStLoss = 1 + Math.floor(Math.random()*3);
+   npc.st = Math.max(1, npc.st - npcStLoss);
+   npc.maxSt = Math.max(1, (npc.maxSt||npc.st) - npcStLoss);
+   npc.gold = 0; npc.sp = 0; npc.cp = 0;
+   npc.equippedWeapons = []; npc.equippedArmors = [];
+   npc.equippedBoots = false; npc.equippedClothing = false;
+   npc.invWeapons = []; npc.invArmors = [];
+   partyLines.push(`${npc.name}（ST-${npcStLoss}）`);
+  });
+
+  // 服役した町の手配度は大きく下がる（刑期を終えた扱い）
+  changeWanted(townId, -60);
+
+  // 進行中の依頼は全て失効
+  _forceExpireAllQuests();
+
+  updateHUD();
+  addLifeEvent('', `${townName}で捕縛され、${months}ヶ月投獄された。ST-${stLoss}、所持金・装備没収。`);
+  const partyTxt = partyLines.length ? `<br>仲間も共に投獄された：${partyLines.join('、')}` : '';
+  return `<span style="color:#e0d0d0">${townName}・牢獄</span><br><br>`
+   +`<b> 捕縛・投獄</b><br><br>`
+   +`<span style="color:#e8e4d8">一味もろとも取り押さえられ、${months}ヶ月の間、牢に繋がれた。所持金・装備は身包み剥がされ、出所した時には体が鈍っていた。ST-${stLoss}。${partyTxt}</span><br><br>`
+   +`<span style="color:#c0b098">進行中の依頼は全て失効した。両替所に預けていた財産だけは無事だった。</span>`;
+ },
+ choices:()=>[{label:'▶ 出所する', go:'TOWN_'+((window._wantedArrestContext||{}).townId||PC.town).toUpperCase()}],
 };
 
 // ──────────────────────────────────────
@@ -28436,6 +29401,7 @@ function alMove(dest){ if(!alCheckEncounter(dest)) go(dest); }
 
 const NODES = {
  DEAD: DEAD_NODE,
+ WANTED_ARREST_NODE: WANTED_ARREST_NODE,
  RESTART: {txt:'',choices:[{label:'▶ RESTART',go:'RESTART'}]},
 
  RETIRE:{
@@ -28945,34 +29911,33 @@ const NODES = {
 
  TOMB_DARK_ESCAPE:{
  scene:'dungeon',
- txt:()=>{
- const sr = savingRoll('lk', 3);
- gainAPAll(sr.ap); updateHUD();
- if(sr.success){
- PC._darkEscaped = true;
- return `<span style="color:#f0ece0"></span><br><br>
- 砂岩の壁を伝いながら必死に出口を探した。砂漠の熱気が強まる方向を頼りに、やっと入口へたどり着いた！<br>
- <span style="color:#e8e4d8">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
- } else {
- PC._darkEscaped = false;
- const dmg = 5;
- PC.con = Math.max(0, PC.con - dmg); updateHUD();
- if(PC.con <= 0){ PC._darkDead = true;
- return `<span style="color:#f0ece0"></span><br><br>
- 砂の床に足を取られ倒れ込んだ。動けない……<br>
- <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
- PC._darkDead = false;
- return `<span style="color:#f0ece0"></span><br><br>
- 砂の段差に気づかず転倒した。砂岩に激しく打ちつける。<br>
- <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span><br><br>
- 痛みをこらえながら、また出口を探す…`;
- }
- },
- choices:()=>{
- if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
- if(PC._darkEscaped) return [{label:' 砂漠の光の方へ', go:'TOMB_ENTRANCE'}];
- return [{label:' もう一度出口を探す（運 Lv3）', go:'TOMB_DARK_ESCAPE'}];
- },
+ txt:()=>`<span style="color:#e0d0d0"> 松明が切れた！</span><br><br>
+ <span style="color:var(--white2)">完全な暗闇の中、壁を手探りで進む。出口まで帰り着けるか……</span>`,
+ choices:()=>[{label:' 暗闇の中を出口へ向かう（運 Lv3 能力値テスト）', fn:()=>{
+  setupSavingRoll({
+   attr:'lk', level:3,
+   onSuccess:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = `<span style="color:#f0ece0"></span><br><br>
+     砂岩の壁を伝いながら必死に出口を探した。砂漠の熱気が強まる方向を頼りに、やっと入口へたどり着いた！`;
+    renderChoices([{label:' 砂漠の光の方へ', go:'TOMB_ENTRANCE'}]);
+    scrollToTop();
+   },
+   onFail:()=>{
+    const dmg = 5;
+    PC.con = Math.max(0, PC.con - dmg); updateHUD();
+    const s = document.getElementById('story');
+    if(PC.con <= 0){
+     s.innerHTML = `<span style="color:#f0ece0"></span><br><br>砂の床に足を取られ倒れ込んだ。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span style="color:#f0ece0"></span><br><br>砂の段差に気づかず転倒した。砂岩に激しく打ちつける。<br><br>体力-${dmg}（残り${PC.con}）<br><br>痛みをこらえながら、また出口を探す…`;
+     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'TOMB_DARK_ESCAPE'}]);
+    }
+    scrollToTop();
+   },
+  });
+ }}],
  },
 
  // ── 1: 玄関の間（ROOM 1）── Arch入口
@@ -30011,36 +30976,33 @@ const NODES = {
  // ── 暗闇脱出ノード ──────────────────────────
  RUIN_DARK_ESCAPE:{
  scene:'dungeon',
- txt:()=>{
- const sr = savingRoll('lk', 3);
- gainAPAll(sr.ap); updateHUD(); // 成否問わずAP加算
- if(sr.success){
- PC._darkEscaped = true;
- return `<span style="color:#f0ece0"></span><br><br>
- 壁を伝いながら必死に出口を探した。冷や汗をかきながらも、かすかな外の光を頼りにやっと入口へたどり着いた！<br><br>
- <span style="color:#e8e4d8">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
- } else {
- PC._darkEscaped = false;
- const dmg = 5;
- PC.con -= dmg; updateHUD();
- if(PC.con <= 0){
- PC._darkDead = true;
- return `<span style="color:#f0ece0"></span><br><br>
- 闇の中で足を踏み外し、石の床に叩きつけられた。動けない……<br><br>
- <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`;
- }
- PC._darkDead = false;
- return `<span style="color:#f0ece0"></span><br><br>
- 出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>
- <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}　（残り ${PC.con}）</span><br><br>
- 痛みをこらえながら、また出口を探す…`;
- }
- },
- choices:()=>{
- if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
- if(PC._darkEscaped) return [{label:' 入口の光の方へ歩いた', go:'RUIN_ENTRANCE'}];
- return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'RUIN_DARK_ESCAPE'}];
- },
+ txt:()=>`<span style="color:#f0ece0"></span><br><br>
+ <span style="color:var(--white2)">松明が切れた。完全な暗闇の中、壁を手探りで進む。出口まで帰り着けるか……</span>`,
+ choices:()=>[{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+  setupSavingRoll({
+   attr:'lk', level:3,
+   onSuccess:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = `<span style="color:#f0ece0"></span><br><br>
+     壁を伝いながら必死に出口を探した。冷や汗をかきながらも、かすかな外の光を頼りにやっと入口へたどり着いた！`;
+    renderChoices([{label:' 入口の光の方へ歩いた', go:'RUIN_ENTRANCE'}]);
+    scrollToTop();
+   },
+   onFail:()=>{
+    const dmg = 5;
+    PC.con -= dmg; updateHUD();
+    const s = document.getElementById('story');
+    if(PC.con <= 0){
+     s.innerHTML = `<span style="color:#f0ece0"></span><br><br>闇の中で足を踏み外し、石の床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span style="color:#f0ece0"></span><br><br>出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>体力-${dmg}　（残り ${PC.con}）<br><br>痛みをこらえながら、また出口を探す…`;
+     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'RUIN_DARK_ESCAPE'}]);
+    }
+    scrollToTop();
+   },
+  });
+ }}],
  },
 
  // ── 大部屋A（北西）──────────────────────────
@@ -30775,23 +31737,25 @@ const NODES = {
 
  SHRINE_DARK_ESCAPE:{
  scene:'dungeon',
- txt:()=>{
-  const sr = savingRoll('lk', 3);
-  gainAPAll(sr.ap); updateHUD();
-  if(sr.success){
-   PC._darkEscaped = true;
-   return `<span style="color:#f0ece0"></span><br><br>
-    壁を手探りで進み、かすかな外光を頼りになんとか入口へ辿り着いた！<br>
-    <span style="color:#e8e4d8">${sr.rolled}D6=${sr.total} 目標:${sr.target}</span>`;
-  }
-  return `<span class="red"></span><br><br>
-   暗闇の中で方向を失い、柱に何度もぶつかりながら彷徨い続けた。<br>
-   <span class="red">${sr.rolled}D6=${sr.total} 目標:${sr.target}</span>`;
- },
- choices:()=>{
-  if(PC._darkEscaped) return [{label:' 外の光の方へ', go:'SHRINE_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'SHRINE_DARK_ESCAPE'}];
- },
+ txt:()=>`<span style="color:#f0ece0"></span><br><br>
+  <span style="color:var(--white2)">松明が切れた。完全な暗闇の中、壁を手探りで進む。出口まで帰り着けるか……</span>`,
+ choices:()=>[{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+  setupSavingRoll({
+   attr:'lk', level:3,
+   onSuccess:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = `<span style="color:#f0ece0"></span><br><br>壁を手探りで進み、かすかな外光を頼りになんとか入口へ辿り着いた！`;
+    renderChoices([{label:' 外の光の方へ', go:'SHRINE_ENTRANCE'}]);
+    scrollToTop();
+   },
+   onFail:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、柱に何度もぶつかりながら彷徨い続けた。`;
+    renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'SHRINE_DARK_ESCAPE'}]);
+    scrollToTop();
+   },
+  });
+ }}],
  },
 
  SHRINE_P1:{
@@ -31243,15 +32207,24 @@ const NODES = {
 
  ISKALD_DARK_ESCAPE:{
  scene:'dungeon',
- txt:()=>{
-  const sr = savingRoll('lk',3);
-  gainAPAll(sr.ap); updateHUD();
-  if(sr.success){ PC._iskaldEscaped=true; return `<span style="color:#e8e4d8"> 壁を伝って出口を見つけた！</span>`; }
-  return `<span class="red"> 暗闇の中で迷い続けた……</span>`;
- },
- choices:()=>PC._iskaldEscaped
-  ? [{label:' 出口へ',go:'ISKALD_ENTRANCE'}]
-  : [{label:' 再度出口を探す（運 Lv3 能力値テスト）',go:'ISKALD_DARK_ESCAPE'}],
+ txt:()=>`<span style="color:#f0ece0"> 松明が切れた！暗闇の中、壁を手探りで出口を探す……</span>`,
+ choices:()=>[{label:' 出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+  setupSavingRoll({
+   attr:'lk', level:3,
+   onSuccess:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = `<span style="color:#e8e4d8"> 壁を伝って出口を見つけた！</span>`;
+    renderChoices([{label:' 出口へ', go:'ISKALD_ENTRANCE'}]);
+    scrollToTop();
+   },
+   onFail:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = `<span class="red"> 暗闇の中で迷い続けた……</span>`;
+    renderChoices([{label:' 再度出口を探す（運 Lv3 能力値テスト）', go:'ISKALD_DARK_ESCAPE'}]);
+    scrollToTop();
+   },
+  });
+ }}],
  },
 
  ISKALD_C1:{
@@ -31602,30 +32575,34 @@ const NODES = {
 
  CRYPT_DARK_ESCAPE:{
  scene:'dungeon',
- txt:()=>{
-  const sr = savingRoll('lk', 3);
-  gainAPAll(sr.ap); updateHUD();
-  if(sr.success){
-   PC._darkEscaped = true;
-   return ` <span style="color:#f0ece0">暗闇を手探りで進む</span><br><br>
-    冷たい石壁を伝いながら出口を探した。足音が上から聞こえる方向を頼りに、なんとか階段口へたどり着いた！<br>
-    <span style="color:#e8e4d8">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
-  } else {
-   PC._darkEscaped = false;
-   const dmg = 5;
-   PC.con = Math.max(0, PC.con - dmg); updateHUD();
-   if(PC.con <= 0){ PC._darkDead = true;
-    return `<span class="red">石段で足を踏み外し、深みへ落ちた。動けない……<br>運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
-   PC._darkDead = false;
-   return ` 石壁に頭をぶつけ、よろめいた。まだ出口が見つからない。<br>
-    <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
-  }
- },
- choices:()=>{
-  if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
-  if(PC._darkEscaped) return [{label:' 光の差す方へ', go:'CRYPT_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'CRYPT_DARK_ESCAPE'}];
- },
+ txt:()=>` <span style="color:#f0ece0">暗闇を手探りで進む</span><br><br>
+  <span style="color:var(--white2)">松明が切れた。完全な暗闇の中、冷たい石壁を伝いながら出口を探す……</span>`,
+ choices:()=>[{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+  setupSavingRoll({
+   attr:'lk', level:3,
+   onSuccess:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = ` <span style="color:#f0ece0">暗闇を手探りで進む</span><br><br>
+     冷たい石壁を伝いながら出口を探した。足音が上から聞こえる方向を頼りに、なんとか階段口へたどり着いた！`;
+    renderChoices([{label:' 光の差す方へ', go:'CRYPT_ENTRANCE'}]);
+    scrollToTop();
+   },
+   onFail:()=>{
+    const dmg = 5;
+    PC.con = Math.max(0, PC.con - dmg); updateHUD();
+    const s = document.getElementById('story');
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red">石段で足を踏み外し、深みへ落ちた。動けない……</span>`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = ` 石壁に頭をぶつけ、よろめいた。まだ出口が見つからない。<br>
+      <span class="red">体力-${dmg}（残り${PC.con}）</span>`;
+     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'CRYPT_DARK_ESCAPE'}]);
+    }
+    scrollToTop();
+   },
+  });
+ }}],
  },
 
  // ── 王城地下牢 B1（改築後） ──────────────────────────────────
@@ -31974,29 +32951,34 @@ const NODES = {
  },
  CRYPT2_DARK_ESCAPE:{
  scene:'dungeon',
- txt:()=>{
-  const sr = savingRoll('lk', 3);
-  gainAPAll(sr.ap); updateHUD();
-  if(sr.success){
-   PC._darkEscaped = true;
-   return ` <span style="color:#f0ece0">暗闇の深牢を手探りで進む</span><br><br>
-    古い石壁を伝い、上へ続く空気の流れを頼りに階段を見つけた！<br>
-    <span style="color:#e8e4d8">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
-  }
-  PC._darkEscaped = false;
-  const dmg = 6;
-  PC.con = Math.max(0, PC.con - dmg); updateHUD();
-  if(PC.con <= 0){ PC._darkDead = true;
-   return `<span class="red">深い穴に落ちた。動けない……<br>運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg} → 死亡</span>`; }
-  PC._darkDead = false;
-  return `石壁に激突し、よろめいた。まだ出口が見つからない。<br>
-   <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
- },
- choices:()=>{
-  if(PC._darkDead) return [{label:'…（力尽きた）', go:'DEAD'}];
-  if(PC._darkEscaped) return [{label:' B1Fの光の方へ', go:'CRYPT2_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'CRYPT2_DARK_ESCAPE'}];
- },
+ txt:()=>` <span style="color:#f0ece0">暗闇の深牢を手探りで進む</span><br><br>
+  <span style="color:var(--white2)">松明が切れた。完全な暗闇の中、古い石壁を伝いながら出口を探す……</span>`,
+ choices:()=>[{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+  setupSavingRoll({
+   attr:'lk', level:3,
+   onSuccess:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = ` <span style="color:#f0ece0">暗闇の深牢を手探りで進む</span><br><br>
+     古い石壁を伝い、上へ続く空気の流れを頼りに階段を見つけた！`;
+    renderChoices([{label:' B1Fの光の方へ', go:'CRYPT2_ENTRANCE'}]);
+    scrollToTop();
+   },
+   onFail:()=>{
+    const dmg = 6;
+    PC.con = Math.max(0, PC.con - dmg); updateHUD();
+    const s = document.getElementById('story');
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red">深い穴に落ちた。動けない……</span>`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `石壁に激突し、よろめいた。まだ出口が見つからない。<br>
+      <span class="red">体力-${dmg}（残り${PC.con}）</span>`;
+     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'CRYPT2_DARK_ESCAPE'}]);
+    }
+    scrollToTop();
+   },
+  });
+ }}],
  },
 
  // ── B2F 部屋1（北右・旧衛兵待機室）──
@@ -32512,27 +33494,31 @@ const NODES = {
 
  CRYPT3_DARK_ESCAPE:{
  scene:'dungeon',
- txt:()=>{
-  const sr = savingRoll('lk',3);
-  gainAPAll(sr.ap); updateHUD();
-  if(sr.success){
-   PC._darkEscaped=true;
-   return ` 石壁を這いずりながら上への空気の流れを探した。凍えながらも階段口に辿り着いた！<br>
-    <span style="color:#e8e4d8">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`;
-  }
-  PC._darkEscaped=false;
-  const dmg=7; PC.con=Math.max(0,PC.con-dmg); updateHUD();
-  if(PC.con<=0){ PC._darkDead=true;
-   return `<span class="red">深みに落ちた。もう動けない……<br>LK SR 失敗　体力-${dmg} → 死亡</span>`; }
-  PC._darkDead=false;
-  return `濡れた石に足を滑らせ壁に叩き付けられた。まだ出口が見つからない。<br>
-   <span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
- },
- choices:()=>{
-  if(PC._darkDead) return [{label:'…（力尽きた）',go:'DEAD'}];
-  if(PC._darkEscaped) return [{label:' B2Fの灯りの方へ',go:'CRYPT3_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）',go:'CRYPT3_DARK_ESCAPE'}];
- },
+ txt:()=>`<span style="color:var(--white2)">松明が切れた。完全な暗闇の中、石壁を這いずりながら出口を探す……</span>`,
+ choices:()=>[{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+  setupSavingRoll({
+   attr:'lk', level:3,
+   onSuccess:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = ` 石壁を這いずりながら上への空気の流れを探した。凍えながらも階段口に辿り着いた！`;
+    renderChoices([{label:' B2Fの灯りの方へ', go:'CRYPT3_ENTRANCE'}]);
+    scrollToTop();
+   },
+   onFail:()=>{
+    const dmg=7; PC.con=Math.max(0,PC.con-dmg); updateHUD();
+    const s = document.getElementById('story');
+    if(PC.con<=0){
+     s.innerHTML = `<span class="red">深みに落ちた。もう動けない……</span>`;
+     renderChoices([{label:'…（力尽きた）',go:'DEAD'}]);
+    } else {
+     s.innerHTML = `濡れた石に足を滑らせ壁に叩き付けられた。まだ出口が見つからない。<br>
+      <span class="red">体力-${dmg}（残り${PC.con}）</span>`;
+     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）',go:'CRYPT3_DARK_ESCAPE'}]);
+    }
+    scrollToTop();
+   },
+  });
+ }}],
  },
 
  // ── B3F 部屋1（北右・旧見張り塔基部）──
@@ -32937,9 +33923,12 @@ const NODES = {
     },'CRYPT3_4');
    }, go:'__travel__'},
    {label:' 逃げる（素早さ Lv3 能力値テスト）', fn:()=>{
-    const sr=savingRoll('spd',3);
-    if(!sr.success){ const d=15; PC.con=Math.max(0,PC.con-d); updateHUD(); showSaveToast(`逃げ損ねた！CON-${d}`); }
-   }, go:'CRYPT3_2'},
+    setupSavingRoll({
+     attr:'spd', level:3,
+     onFail:()=>{ const d=15; PC.con=Math.max(0,PC.con-d); updateHUD(); showSaveToast(`逃げ損ねた！CON-${d}`); go('CRYPT3_2'); },
+     onSuccess:()=>{ go('CRYPT3_2'); },
+    });
+   }},
   ];
  },
  },
@@ -32978,19 +33967,30 @@ const NODES = {
 
  SHR2_DARK_ESCAPE:{
  scene:'dungeon',
- txt:()=>{
-  const sr=savingRoll('lk',3); gainAPAll(sr.ap); updateHUD();
-  if(sr.success){ PC._darkEscaped=true; return ` 壁を伝い、微かな風を頼りに石段口にたどり着いた！<br><span style="color:#e8e4d8">運 能力値テスト成功（${sr.total} ≥ ${sr.target}）　経験値+${sr.ap}</span>`; }
-  PC._darkEscaped=false; const dmg=6; PC.con=Math.max(0,PC.con-dmg); updateHUD();
-  if(PC.con<=0){ PC._darkDead=true; return `<span class="red">段差に落ちた。動けない……<br>LK SR 失敗　体力-${dmg} → 死亡</span>`; }
-  PC._darkDead=false;
-  return `壁に激突しよろめいた。<br><span class="red">運 能力値テスト失敗（${sr.total} ＜ ${sr.target}）　体力-${dmg}（残り${PC.con}）</span>`;
- },
- choices:()=>{
-  if(PC._darkDead) return [{label:'…（力尽きた）',go:'DEAD'}];
-  if(PC._darkEscaped) return [{label:' B1Fの光の方へ',go:'SHR2_ENTRANCE'}];
-  return [{label:' もう一度出口を探す（運 Lv3 能力値テスト）',go:'SHR2_DARK_ESCAPE'}];
- },
+ txt:()=>`<span style="color:var(--white2)">松明が切れた。完全な暗闇の中、壁を伝いながら出口を探す……</span>`,
+ choices:()=>[{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+  setupSavingRoll({
+   attr:'lk', level:3,
+   onSuccess:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = ` 壁を伝い、微かな風を頼りに石段口にたどり着いた！`;
+    renderChoices([{label:' B1Fの光の方へ',go:'SHR2_ENTRANCE'}]);
+    scrollToTop();
+   },
+   onFail:()=>{
+    const dmg=6; PC.con=Math.max(0,PC.con-dmg); updateHUD();
+    const s = document.getElementById('story');
+    if(PC.con<=0){
+     s.innerHTML = `<span class="red">段差に落ちた。動けない……</span>`;
+     renderChoices([{label:'…（力尽きた）',go:'DEAD'}]);
+    } else {
+     s.innerHTML = `壁に激突しよろめいた。<br><span class="red">体力-${dmg}（残り${PC.con}）</span>`;
+     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）',go:'SHR2_DARK_ESCAPE'}]);
+    }
+    scrollToTop();
+   },
+  });
+ }}],
  },
 
  // ── 通路2（南北15m）──
@@ -33417,8 +34417,7 @@ const NODES = {
   <span style="color:#c0b098">━ 西（→T字路1）/ 犬の紋章を調べる ━</span>`,
  choices:[
   {label:'⬅ 西（→T字路1）へ進む', go:'SHR2_TJ1'},
-  {label:' 犬の紋章を調べる（器用さ Lv2 能力値テスト）', fn:()=>{
-   savingRoll('dex',2); // 成功/失敗にかかわらず結果は同じ（転送の罠）
+  {label:' 犬の紋章を調べる', fn:()=>{
    const targets = ['SHR2_C2','SHR2_C3','SHR2_R11','SHR2_C5','SHR2_C4','SHR2_R7','SHR2_R2','SHR2_R12',
     'SHR2_R1','SHR2_R13','SHR2_R8','SHR2_C6','SHR2_C7','SHR2_R14','SHR2_R16','SHR2_R4','SHR2_R10',
     'SHR2_C8','SHR2_C9','SHR2_R3','SHR2_R9','SHR2_C11','SHR2_TJ1','SHR2_C13','SHR2_R15','SHR2_R6','SHR2_C10','SHR2_R5'];
@@ -36431,6 +37430,40 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnit
     showSaveToast(`${townName}（${PC.town}）の信頼度: ${t}`);
     console.log('PC.trust =', JSON.parse(JSON.stringify(PC.trust)));
    })" class="dbg-btn" style="border-color:#446688;color:#88aacc">現在の町の信頼度を確認</button>
+  </div>
+
+  <!-- 手配度システム（NEW） -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 手配度（NEW） ──</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px;background:#0f0a06;border:1px solid #664433;border-radius:4px;padding:8px;margin-bottom:14px">
+   <button onclick="dbg(()=>{
+    const w = getWanted(PC.town);
+    const tier = wantedTier(PC.town);
+    const townName = (TOWNS[PC.town]||{}).name || PC.town;
+    showSaveToast(`${townName}（${PC.town}）の手配度: ${Math.round(w)}（${tier}）`);
+    console.log('PC.wanted =', JSON.parse(JSON.stringify(PC.wanted||{})));
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">現在の町の手配度を確認</button>
+   <button onclick="dbg(()=>{
+    changeWanted(PC.town, 100);
+    showSaveToast('この町の手配度を「高」にした');
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">手配度を「高」に</button>
+   <button onclick="dbg(()=>{
+    changeWanted(PC.town, 50);
+    showSaveToast('この町の手配度を「中」にした');
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">手配度を「中」に</button>
+   <button onclick="dbg(()=>{
+    _ensureWantedObject();
+    PC.wanted[PC.town] = 0;
+    showSaveToast('この町の手配度をリセットした');
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">手配度リセット</button>
+   <button onclick="dbg(()=>{
+    document.getElementById('debug-panel').style.display='none';
+    startWantedGuardAmbush(PC.town, wantedTier(PC.town)==='low' ? 'mid' : wantedTier(PC.town));
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">衛兵遭遇を強制発動</button>
+   <button onclick="dbg(()=>{
+    if(!travelState){ showSaveToast('旅行中のみ使用できます'); return; }
+    document.getElementById('debug-panel').style.display='none';
+    startBountyHunterEncounter(travelState);
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">賞金稼ぎ遭遇を強制発動</button>
   </div>
 
   <!-- カルヴォ砦：防衛ゲージ確認・強制発動 -->
