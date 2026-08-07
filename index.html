@@ -626,7 +626,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026073101</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026080801</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -819,6 +819,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <!-- 背景 -->
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 背景 ──</div>
  <div id="sp-background"></div>
+ <div id="sp-languages"></div>
 
  <!-- 引退ボタン -->
  <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--shadow)">
@@ -834,6 +835,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div id="sp-armor" style="margin-bottom:10px"></div>
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 所持品 ──</div>
  <div id="sp-equip" style="margin-bottom:10px"></div>
+ <div id="sp-equip-money" style="margin-bottom:10px"></div>
  <div id="sp-jewels-wrap">
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 宝飾品 ──</div>
  <div id="sp-jewels" style="margin-bottom:10px"></div>
@@ -861,6 +863,8 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div id="sp-date" style="margin-bottom:10px"></div>
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 受注中の依頼 ──</div>
  <div id="sp-quests" style="margin-bottom:10px"></div>
+ <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 人々の評価 ──</div>
+ <div id="sp-region-eval" style="margin-bottom:10px"></div>
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 種族特性 ──</div>
  <div id="sp-race-info" style="margin-bottom:10px"></div>
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── ライフイベント ──</div>
@@ -1292,6 +1296,26 @@ function changeNPCTrust(delta, reason=''){
  });
 }
 
+// PCから特定の仲間NPCに通貨を渡す（贈与。渡した相手の信頼度がわずかに上がる）
+function giveCurrencyToNPC(npcIdx, currency){
+ const n = PC.party[npcIdx];
+ if(!n) return;
+ const label = {gold:'GP', sp:'SP', cp:'CP'}[currency];
+ const have = PC[currency]||0;
+ const input = prompt(`${n.name}に渡す${label}を入力してください（あなたの所持${label}：${have}）`, '');
+ if(input === null) return;
+ const amount = parseInt(input, 10);
+ if(!amount || amount <= 0){ showSaveToast('正しい金額を入力してください'); return; }
+ if(have < amount){ showSaveToast(`所持${label}が足りません`); return; }
+ PC[currency] -= amount;
+ n[currency] = (n[currency]||0) + amount;
+ n.trust = Math.max(0, Math.min(100, (n.trust??0) + 2));
+ updateHUD();
+ const el = document.getElementById('sp-party-content');
+ if(el) renderNPCDetail(el, n, npcIdx);
+ showSaveToast(`${n.name}に${amount}${label}渡した`);
+}
+
 function gainGPAll(totalGP){
  totalGP = Math.floor(totalGP);
  if(totalGP <= 0) return 0;
@@ -1396,7 +1420,7 @@ function changeTrust(townId, delta, type){
 // ══════════════════════════════════════════
 const WANTED_MID_THRESHOLD = 40;  // これ以上で「中」：酒場の依頼を受けられない・3割で衛兵遭遇
 const WANTED_HIGH_THRESHOLD = 70; // これ以上で「高」：賞金首扱い。町に入ると必ず衛兵遭遇、旅中は賞金稼ぎに襲われる
-const WANTED_DECAY_PER_DAY = 0.5; // 風化速度（「高」の間は風化しない）
+const WANTED_DECAY_PER_DAY = 0.1; // 風化速度（「高」の間は風化しない）
 
 function _ensureWantedObject(){
  if(!PC.wanted || typeof PC.wanted !== 'object' || Array.isArray(PC.wanted)){
@@ -1414,6 +1438,29 @@ function changeWanted(townId, delta){
  const cur = PC.wanted[townId] || 0;
  const next = Math.max(0, Math.min(100, cur + delta));
  PC.wanted[townId] = next;
+
+ // 初めて手配度100に達したとき → 極悪人の噂イベント
+ if(next === 100 && cur < 100){
+  if(!PC._infamyTowns) PC._infamyTowns = {};
+  if(!PC._infamyTowns[townId]){
+   PC._infamyTowns[townId] = true;
+   const townName = (TOWNS[townId]||{}).name || townId;
+   const infamyMsgs = [
+    `酒場の隅で誰かが声を潜めて言った。「${PC.name}……この街で知らぬ者はいない極悪人だそうだ」`,
+    `市場を歩くと、人々が視線を逸らしながら囁き合った。「あれが${PC.name}か……近づかない方がいい」`,
+    `子どもたちが物陰から${PC.name}を指差し、慌てて母親に引っ張られていった。もはやこの街で名を隠すことはできない。`,
+    `衛兵詰所に${PC.name}の似顔絵が貼り出されていた。「${townName}の極悪人」と大書されている。`,
+   ];
+   const msg = infamyMsgs[Math.floor(Math.random() * infamyMsgs.length)];
+   addLifeEvent('', `${townName}で極悪人として知れ渡った。${msg}`);
+   changeAlignment(-8, -3); // 極悪人：悪+8/やや混沌+3
+   PC._pendingInfamyMsg = { townName, msg };
+
+   // ── 地方最悪の極悪人チェック ──
+   checkRegionInfamy();
+  }
+ }
+
  return next;
 }
 
@@ -1459,6 +1506,49 @@ function checkWantedAmbush(townId){
  if(Math.random() >= chance) return false;
  startWantedGuardAmbush(townId, tier);
  return true;
+}
+
+// 信頼度75（地元の英雄扱い）以上の町に入った際、低確率でPCに憧れたLv1の若者が仲間入りを志願する
+function checkAdmirerEvent(townId){
+ if((PC.party||[]).length >= 3) return false;
+ if(getTrust(townId) < 75) return false;
+ if(Math.random() >= 0.05) return false;
+ startAdmirerEvent(townId);
+ return true;
+}
+
+function startAdmirerEvent(townId){
+ const townName = (TOWNS[townId]||{}).name || townId;
+ const npc = generateNPC(1);
+ npc.background = {
+  family: `${PC.name}が${townName}で成し遂げた武勲を目にして、いても立ってもいられなくなった。`,
+  motive: `あんな風になりたい——それだけを胸に、旅支度もそこそこに飛び出してきた。`,
+ };
+ const story = document.getElementById('story');
+ if(story){
+  story.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br>`
+   +`<b> 憧れの若者</b><br><br>`
+   +`人混みの中から、息を切らした若者が駆け寄ってきた。<br><br>`
+   +`「${PC.name}さん、ですよね……！ ずっとお噂を聞いていました。お願いします、鞄持ちでいいので……どうか連れて行ってもらえませんか」`;
+ }
+ renderChoices([
+  {label:' 一緒に連れて行く', fn:()=>{
+   PC.party = PC.party || [];
+   PC.party.push({...npc, trust:100, joinDay:GAME_TIME.totalDays});
+   renderChoices([]);
+   const s = document.getElementById('story');
+   if(s) s.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#e8e4d8"> ${npc.name}が仲間に加わった！　目を輝かせながら、あなたの後についてきた。</span>`;
+   updateHUD();
+   renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_'+townId.toUpperCase()); }}]);
+  }},
+  {label:' 断る', fn:()=>{
+   changeAlignment(-4, -3);
+   renderChoices([]);
+   const s = document.getElementById('story');
+   if(s) s.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#c8b8a0">「……そうですか」若者は肩を落とし、人混みの中へ消えていった。</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_'+townId.toUpperCase()); }}]);
+  }},
+ ]);
 }
 
 function startWantedGuardAmbush(townId, tier){
@@ -3270,6 +3360,98 @@ function checkRegionHero(){
  }
 }
 
+// 地方の全ての町で極悪人になったかチェック（地方英雄と同じ地方区分を流用）
+// ── 地方ごとの依頼傾向・評価 ──────────────────────────────
+const QUEST_TYPE_WEIGHT = {
+ delivery_local: 1, delivery_cross: 2, purchase: 2, escort: 2, contraband: 1,
+ hunt: 4, bounty: 3, kidnapping: 2, assassination: 3,
+};
+const QUEST_TYPE_LABEL = {
+ delivery_local:'配達人', delivery_cross:'配達人', purchase:'配達人', escort:'用心棒', contraband:'密輸人',
+ hunt:'討伐屋', bounty:'賞金稼ぎ', kidnapping:'誘拐屋', assassination:'暗殺者',
+};
+
+// 依頼達成を地方ごとに記録する
+function recordRegionQuest(townId, qtype){
+ const regionKey = getRegionKey(townId);
+ if(!regionKey || !QUEST_TYPE_WEIGHT[qtype]) return;
+ if(!PC._regionQuestStats) PC._regionQuestStats = {};
+ if(!PC._regionQuestStats[regionKey]) PC._regionQuestStats[regionKey] = {};
+ const stats = PC._regionQuestStats[regionKey];
+ if(!stats[qtype]) stats[qtype] = { count:0, firstDay: GAME_TIME.totalDays };
+ stats[qtype].count += 1;
+
+ // 評価ラベルが変わったかチェック
+ if(!PC._regionEvalLabel) PC._regionEvalLabel = {};
+ const prevLabel = PC._regionEvalLabel[regionKey] || null;
+ const top = getRegionTopQuestType(regionKey);
+ const newLabel = top ? top.label : null;
+ if(newLabel && newLabel !== prevLabel){
+  PC._regionEvalLabel[regionKey] = newLabel;
+  const regionName = (HERO_REGIONS[regionKey]||{}).name || regionKey;
+  PC._pendingRegionEvalMsg = { regionName, label: newLabel, prevLabel };
+ }
+}
+
+// ある地方で最も点数の高い依頼種別（評価ラベル）を求める
+// 同点なら重みが重い方、重みも同じなら先に達成した方（firstDayが早い方）を優先
+function getRegionTopQuestType(regionKey){
+ const stats = (PC._regionQuestStats||{})[regionKey];
+ if(!stats) return null;
+ // 同じ評価ラベルを持つ種別（例：地方内宅配・地方またぎ宅配・買い付け→配達人）は合算して扱う
+ const labelGroups = {};
+ for(const [qtype, data] of Object.entries(stats)){
+  if(!data.count) continue;
+  const label = QUEST_TYPE_LABEL[qtype];
+  if(!label) continue;
+  const weight = QUEST_TYPE_WEIGHT[qtype] || 0;
+  if(!labelGroups[label]) labelGroups[label] = { score:0, count:0, weight:0, firstDay: data.firstDay };
+  const g = labelGroups[label];
+  g.score += weight * data.count;
+  g.count += data.count;
+  g.weight = Math.max(g.weight, weight);
+  g.firstDay = Math.min(g.firstDay, data.firstDay);
+ }
+ let best = null;
+ for(const [label, g] of Object.entries(labelGroups)){
+  if(g.count <= 30) continue; // 足切り：30件を超えていない種別はそもそも候補にしない
+  const cand = { label, score:g.score, weight:g.weight, firstDay:g.firstDay, count:g.count };
+  if(!best
+     || cand.score > best.score
+     || (cand.score === best.score && cand.weight > best.weight)
+     || (cand.score === best.score && cand.weight === best.weight && cand.firstDay < best.firstDay)){
+   best = cand;
+  }
+ }
+ if(!best) return null;
+ return { label: best.label, score: best.score, count: best.count };
+}
+
+function checkRegionInfamy(){
+ if(!PC._infamyTowns) return;
+ if(!PC._infamyRegions) PC._infamyRegions = {};
+
+ for(const [regionKey, region] of Object.entries(HERO_REGIONS)){
+  if(PC._infamyRegions[regionKey]) continue; // 既に達成済み
+
+  // その地方の全町で極悪人になっているか
+  const allInfamous = region.towns.every(t => PC._infamyTowns[t]);
+  if(!allInfamous) continue;
+
+  // 地方最悪の極悪人達成！
+  PC._infamyRegions[regionKey] = true;
+  const regionMsgs = [
+   `${region.name}のどの町に行っても、${PC.name}の名を知らぬ者はいなくなった。恐れと嫌悪の視線が、行く先々でついて回る。`,
+   `${region.name}全土の衛兵詰所に、${PC.name}の似顔絵入りの手配書が貼り出された。「地方最悪の極悪人」と記されている。`,
+   `${region.name}の各町の長が密かに集まり、${PC.name}への対応を協議したという噂が流れた。`,
+   `${region.name}を旅する商人たちの間で、${PC.name}に関わるなという警告が合言葉のように広まっている。`,
+  ];
+  const regionMsg = regionMsgs[Math.floor(Math.random() * regionMsgs.length)];
+  addLifeEvent('', `【地方最悪の極悪人】${region.name}のどこでも極悪人として知られるようになった。${regionMsg}`);
+  PC._pendingRegionInfamyMsg = { regionName: region.name, msg: regionMsg };
+ }
+}
+
 // 信頼度ランク
 function trustRank(townId){
  const t = getTrust(townId);
@@ -3838,18 +4020,58 @@ function _showPropertyMain(townId){
   const proposeTargets = !hasLivingSpouse ? (PC.party||[]).filter(n=>n.con>0 && !n.married) : [];
   const partyForCaretaker = (PC.party||[]).filter(n=>n.con>0);
   const graves = (prop.graves||[]);
-  renderChoices([
-   {label:' 拠点で休養する',                    fn:()=>propertyRest(townId)},
-   ...(propTier(townId)<2?[{label:`🏠 拠点を拡張する（${propTier(townId)===0?def.basePrice*2:def.basePrice*10}GP）`, fn:()=>propertyUpgrade(townId)}]:[]),
-   ...(proposeTargets.length ? [{label:' 結婚を申し込む', fn:()=>propertyPropose(townId)}] : []),
-   {label:' 留守番を管理する', fn:()=>propertyManageCaretakers(townId)},
-   ...(deadParty.length ? [{label:` 仲間を埋葬する（${deadParty.length}人）`, fn:()=>propertyBury(townId)}] : []),
-   ...(graves.length || (prop.graveyard||[]).length || deadParty.length ? [{label:` 墓地を見る`, fn:()=>propertyViewGraves(townId)}] : []),
-   {label:' 所持金を預ける／引き出す',           fn:()=>propertyStorageMoney(townId)},
-   {label:' アイテムを預ける／引き出す',           fn:()=>propertyStorageItems(townId)},
-   {label:'← 戻る', go:'TOWN_'+townId.toUpperCase()},
-  ]);
-}
+  // PC自身が店番をしている場合は、店に縛られて他の行動が取れない
+  if(prop.shop && prop.shop.keeperId === 'PC'){
+   if(story) story.innerHTML += `<br><br><span style="color:#e0a060"> あなた自身が店番に立っているため、店を離れられない。</span>`;
+   renderChoices([
+    {label:' 拠点で休養する（店番を続ける）', fn:()=>propertyRest(townId)},
+    {label:' 店を営む（店番を変更できます）', fn:()=>propertyShop(townId)},
+   ]);
+   return;
+  }
+  const canExpand = propTier(townId)<2;
+  const canPropose = proposeTargets.length>0;
+  const canBury = deadParty.length>0;
+  const canViewGraves = graves.length || (prop.graveyard||[]).length || deadParty.length;
+  const expandCost = propTier(townId)===0?def.basePrice*2:def.basePrice*10;
+  const _isOpen = (key)=> window._propMenuOpenState && window._propMenuOpenState[key]===true ? 'open' : '';
+  const _summary = (label)=>`<summary style="cursor:pointer;list-style:none;color:#f0ece0;padding:13px 0;line-height:2.2;font-family:system-ui,sans-serif;font-size:var(--font-base)">▶ ${label}</summary>`;
+
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = `
+   <button class="choice-btn" onclick="propertyRest('${townId}')">拠点で休養する</button>
+   <details ${_isOpen('manage')} ontoggle="_propMenuSetOpen('manage', this.open)" style="margin:6px 0;background:#140e08;border:2px solid var(--border2);border-radius:4px;padding:2px 13px">
+    ${_summary('拠点を管理する')}
+    <div style="padding-left:14px;padding-bottom:4px">
+     ${canExpand ? `<button class="choice-btn" onclick="propertyUpgrade('${townId}')">拠点の拡張（${expandCost}GP）</button>` : ''}
+     <details ${_isOpen('manage_residents')} ontoggle="_propMenuSetOpen('manage_residents', this.open)" style="margin:4px 0">
+      ${_summary('住人')}
+      <div style="padding-left:14px;padding-bottom:4px">
+       ${canPropose ? `<button class="choice-btn" onclick="propertyPropose('${townId}')">結婚</button>` : ''}
+       <button class="choice-btn" onclick="propertyManageCaretakers('${townId}')">留守番</button>
+      </div>
+     </details>
+     <details ${_isOpen('manage_storage')} ontoggle="_propMenuSetOpen('manage_storage', this.open)" style="margin:4px 0">
+      ${_summary('預ける／引き出す')}
+      <div style="padding-left:14px;padding-bottom:4px">
+       <button class="choice-btn" onclick="propertyStorageMoney('${townId}')">所持金</button>
+       <button class="choice-btn" onclick="propertyStorageItems('${townId}')">アイテム</button>
+      </div>
+     </details>
+     ${(canBury || canViewGraves) ? `
+     <details ${_isOpen('manage_graves')} ontoggle="_propMenuSetOpen('manage_graves', this.open)" style="margin:4px 0">
+      ${_summary('墓地')}
+      <div style="padding-left:14px;padding-bottom:4px">
+       ${canBury ? `<button class="choice-btn" onclick="propertyBury('${townId}')">埋葬（${deadParty.length}人）</button>` : ''}
+       ${canViewGraves ? `<button class="choice-btn" onclick="propertyViewGraves('${townId}')">閲覧</button>` : ''}
+      </div>
+     </details>` : ''}
+    </div>
+   </details>
+   <button class="choice-btn" onclick="propertyShop('${townId}')">店を営む</button>
+   <button class="choice-btn" onclick="go('TOWN_${townId.toUpperCase()}')">← 戻る</button>
+  `;
+ }
 
 // ── 墓地ノード ────────────────────────────────────────────
 function propertyViewGraves(townId){
@@ -3989,8 +4211,102 @@ function propertyBuySR(townId){
 function _propStor(townId){
  const p = PC.properties?.[townId];
  if(!p) return null;
- p.storage = p.storage || { gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 };
+ p.storage = p.storage || { gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], specialties:[], torches:0 };
+ if(!p.storage.specialties) p.storage.specialties = [];
  return p.storage;
+}
+
+// ── 拠点の店（放置販売） ──────────────────────────────────
+function _propShop(townId){
+ const p = PC.properties?.[townId];
+ if(!p) return null;
+ p.shop = p.shop || { keeperId:null, shelf:[], earnings:0, lastCalcDay:null };
+ return p.shop;
+}
+
+// 店番の情報（PCまたは留守番NPCから解決）。いなければnull
+// 引退した元PC住人が今も存命かどうかを判定
+function _residentIsAlive(r){
+ const retiredDay = r.retiredDay || r.movedInDay || GAME_TIME.totalDays;
+ const elapsedYears = Math.floor((GAME_TIME.totalDays - retiredDay) / 365);
+ let ageYears;
+ if(r.birthTotalDays != null && r.birthTotalDays > -10000){
+  ageYears = Math.floor((GAME_TIME.totalDays - r.birthTotalDays) / 365);
+ } else {
+  ageYears = (r.retiredAge || 0) + elapsedYears;
+ }
+ return ageYears < (r.lifespanYears || 100);
+}
+
+function _shopKeeperInfo(townId){
+ const shop = _propShop(townId);
+ if(!shop || !shop.keeperId) return null;
+ if(shop.keeperId === 'PC') return { name:PC.name, chr:PC.chr||0, lk:PC.lk||0 };
+ const prop = PC.properties[townId];
+ const npc = (prop.caretakers||[]).find(c=>c._npcId === shop.keeperId);
+ if(npc) return { name:npc.name, chr:npc.chr||0, lk:npc.lk||0 };
+ if(typeof shop.keeperId === 'string' && shop.keeperId.startsWith('resident:')){
+  const rName = shop.keeperId.slice(9);
+  const r = (prop.residents||[]).find(r=>r.name===rName);
+  if(r && _residentIsAlive(r)) return { name:r.name, chr:r.chr??10, lk:r.lk??10 };
+ }
+ return null;
+}
+
+// アイテムの「定価」を種別に応じて調べる
+function _shopBasePrice(kind, item, townId){
+ if(kind === 'weapon'){
+  const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(item._baseName||item.name));
+  return def ? def.cost : 0;
+ }
+ if(kind === 'armor'){
+  const def = [...ARMOR_TABLE,...(ARMOR_TABLE_KHAZAN||[])].find(t=>t.name===item.name);
+  return def ? def.cost : 0;
+ }
+ if(kind === 'jewel') return item.priceGP || 0;
+ if(kind === 'specialty'){
+  // 通常店での売却額と同じ地方間距離倍率を適用（ランダム変動は定価としては除く）
+  const fromKey = item.regionKey;
+  const toKey = townId ? getRegionKey(townId) : null;
+  const n = (fromKey && toKey) ? getRegionDistance(fromKey, toKey) : 1;
+  const mult = n === 0 ? 1.0 : n === 1 ? 1.25 : 1.5;
+  return Math.round((item.baseCost||0) * mult);
+ }
+ return 0;
+}
+
+// 経過日数ぶんの販売判定をまとめて計算（拠点訪問時に清算）
+function _calcShopSales(townId){
+ const shop = _propShop(townId);
+ if(!shop) return;
+ const today = GAME_TIME.totalDays;
+ if(shop.lastCalcDay == null){ shop.lastCalcDay = today; return; }
+ const daysPassed = today - shop.lastCalcDay;
+ shop.lastCalcDay = today;
+ if(daysPassed <= 0) return;
+ const keeper = _shopKeeperInfo(townId);
+ if(!keeper || !shop.shelf.length) return;
+
+ for(let d=0; d<daysPassed; d++){
+  for(let i=shop.shelf.length-1; i>=0; i--){
+   const entry = shop.shelf[i];
+   const basePrice = _shopBasePrice(entry.kind, entry.item, townId) || 1;
+   const priceRatio = entry.price / basePrice;
+   const baseRate = Math.max(0, 50 - (priceRatio - 1.0) * 100);
+   // 価格倍率150%までは魅力が全力で乗る。300%で魅力の効果が完全にゼロになるまで直線的に減衰
+   const chrFactor = priceRatio <= 1.5 ? 1.0 : priceRatio >= 3.0 ? 0.0 : 1.0 - (priceRatio - 1.5) / 1.5;
+   const successRate = baseRate + (keeper.chr / 40) * chrFactor;
+
+   const sold = Math.random()*100 <= successRate;
+   const bonus = 1;
+
+   if(sold){
+    const proceeds = Math.floor(entry.price * bonus);
+    shop.earnings = (shop.earnings||0) + proceeds;
+    shop.shelf.splice(i,1);
+   }
+  }
+ }
 }
 
 function _propBack(townId){
@@ -4242,35 +4558,41 @@ function propertyPropose(townId){
    return;
   }
 
-  dungeonTrySR({ attr:'chr', level:3,
-   successFn:()=>{
+  setupSavingRoll({
+   attr:'chr', level:3,
+   onSuccess:()=>{
     prop._lastProposeDay = GAME_TIME.totalDays;
     npc.married = true;
     if(!PC.spouse) PC.spouse = [];
     PC.spouse.push({name:npc.name, townId, marriedDay:GAME_TIME.totalDays});
     addLifeEvent('', `${npc.name}と結婚した。`);
     updateHUD();
-   },
-   successTxt:()=>{
     const responses = [
      `${npc.name}はしばらく黙っていたが、やがて静かに頷いた。「……はい。」`,
      `${npc.name}の目に光が宿った。「ずっと待っていた言葉だ。」`,
      `${npc.name}は驚いた表情を見せたが、すぐに柔らかな笑みを浮かべた。「もちろん。」`,
      `${npc.name}は少し照れたように笑った。「こんな場所で言うとは思わなかったが……ああ、受け入れよう。」`,
     ];
-    return responses[Math.floor(Math.random()*responses.length)]
+    const txt = responses[Math.floor(Math.random()*responses.length)]
      +`<br><br><span style="color:#f0ece0"> ${npc.name}と結ばれた。</span>`;
+    const s = document.getElementById('story');
+    if(s) s.innerHTML = `<div style="padding:8px 0">${txt}</div>`;
+    renderChoices([{label:'← 戻る', fn:()=>goPropertyNode(townId)}]);
+    scrollToTop();
    },
-   failTxt:()=>{
+   onFail:()=>{
     prop._lastProposeDay = GAME_TIME.totalDays;
     const responses = [
      `${npc.name}は視線を逸らした。「……今はまだ、その答えを出せない。」`,
      `${npc.name}は静かに首を振った。「気持ちは嬉しい。でも今は答えられない。」`,
      `${npc.name}はしばらく沈黙した後、立ち上がった。「もう少し時間をくれ。」`,
     ];
-    return responses[Math.floor(Math.random()*responses.length)];
+    const txt = responses[Math.floor(Math.random()*responses.length)];
+    const s = document.getElementById('story');
+    if(s) s.innerHTML = `<div style="padding:8px 0">${txt}</div>`;
+    renderChoices([{label:'← 戻る', fn:()=>goPropertyNode(townId)}]);
+    scrollToTop();
    },
-   choicesFn:()=>[{label:'← 戻る', fn:()=>goPropertyNode(townId)}],
   });
  };
 
@@ -4558,7 +4880,9 @@ function doPropertyRest(townId, days, costPerDay){
  }
 
  updateHUD();
- showTimePass(days, ()=>{
+ showSaveToast(` ${days}日間休養（生活費 ${cost}GP）　${msgs.join('、')}`);
+
+ startPropertyRestTick(townId, days, ()=>{
   // 1年間休養かつ結婚済みかつ配偶者が拠点に留守番している場合の子どもイベント
   if(days >= 365){
    _checkPropertyBabyEvent(townId, ()=>propertyRest(townId));
@@ -4566,10 +4890,304 @@ function doPropertyRest(townId, days, costPerDay){
    propertyRest(townId);
   }
  });
- showSaveToast(` ${days}日間休養（生活費 ${cost}GP）　${msgs.join('、')}`);
+}
+
+// 休養を1日ずつ進める（旅の約3倍速）。低確率で功名目当ての襲撃者に中断される
+let restTickState = null;
+function restLog(html){
+ let evEl = document.getElementById('rest-events');
+ if(!evEl){
+  const storyEl = document.getElementById('story');
+  if(!storyEl) return;
+  storyEl.innerHTML += `<div id="rest-log-wrap" style="border-top:1px solid var(--panel2);margin-top:8px;padding-top:8px;font-size:var(--font-base)"><div id="rest-events"></div></div>`;
+  evEl = document.getElementById('rest-events');
+  if(!evEl) return;
+ }
+ const d = document.createElement('div');
+ d.innerHTML = html;
+ evEl.prepend(d);
+ Array.from(evEl.children).slice(1).forEach(ch=>{ ch.style.opacity = '0.45'; });
+}
+
+function startPropertyRestTick(townId, days, onDone){
+ renderChoices([]);
+ const townName = (TOWNS[townId]||{}).name || propName(townId);
+ restTickState = { townId, totalDays: days, daysDone: 0, onDone, interval: 333 };
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 休養中　<span style="color:#f0ece0">${townName}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+ }
+ setTimeout(_restTick, restTickState.interval);
+}
+
+function _restTick(){
+ const rs = restTickState;
+ if(!rs) return;
+ if(rs.daysDone >= rs.totalDays){
+  const tpw = document.getElementById('travel-progress-wrap');
+  if(tpw) tpw.style.display = 'none';
+  restLog(`<span style="color:#ece8e0">⏳ ${rs.totalDays}日の休養を終えた。</span> ${dateStr()}`);
+  const onDone = rs.onDone;
+  restTickState = null;
+  renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); onDone(); }}]);
+  return;
+ }
+ rs.daysDone++;
+ const aged = advanceDays(1);
+ if(aged){
+  if(aged.event === 'death'){
+   const tpw = document.getElementById('travel-progress-wrap');
+   if(tpw) tpw.style.display = 'none';
+   restLog(`<span class="red"> 老衰により死亡…享年${aged.age}歳。</span>`);
+   restTickState = null;
+   setTimeout(()=>go('DEAD_OLDAGE'), 1500);
+   return;
+  }
+  if(aged.event === 'aging'){
+   restLog(`<span style="color:var(--ora)"> 加齢：強さ・知力・運・魅力・器用さ・素早さ・体力 が各-1</span>`);
+  }
+  if(aged.event === 'birthday'){
+   restLog(`<span style="color:#f0ece0"> 誕生日！ ${aged.age}歳になった。</span>`);
+  }
+ }
+
+ // プログレスバーを毎ターン更新
+ if(rs.totalDays > 0){
+  const pct = Math.min(100, rs.daysDone / rs.totalDays * 100);
+  const bar = document.getElementById('travel-progress-bar');
+  const dot = document.getElementById('travel-progress-dot');
+  if(bar) bar.style.width = pct + '%';
+  if(dot) dot.style.left = pct + '%';
+  const dayCount = document.getElementById('travel-day-count');
+  if(dayCount) dayCount.textContent = `${rs.daysDone}/${rs.totalDays}日`;
+ }
+
+ // 割り込みイベント：功名目当ての襲撃者
+ if(checkRestInterruptEvent(rs.townId)) return;
+
+ setTimeout(_restTick, rs.interval);
+}
+
+// 休養中、低確率で功名目当ての冒険者・暗殺者が襲撃してくる（地元の英雄扱い以上の町限定）
+function checkRestInterruptEvent(townId){
+ if(getTrust(townId) < 75) return false;
+ if(Math.random() >= 0.02) return false;
+ startRestInterruptCombat(townId);
+ return true;
+}
+
+function startRestInterruptCombat(townId){
+ const level = Math.max(3, Math.min(10, PC.level||1));
+ const attacker = generateNPC(level);
+ attacker.bountyTitle = '功名目当ての賊';
+ const story = document.getElementById('story');
+ if(story){
+  story.innerHTML += `<div style="margin-top:10px;padding:8px;background:#150808;border:1px solid #5a3030;border-radius:4px">
+   <b> 休養を破る足音</b><br><br>
+   休んでいるところに、剣を構えた者が押し入ってきた。「${PC.name}を倒して名を上げてやる！」殺気立った目でこちらを見据えている。
+  </div>`;
+ }
+ renderChoices([{label:' 迎え撃つ', fn:()=>{
+  renderChoices([]);
+  startCombatNPC({
+   enemies:[{...attacker, curCon:attacker.con}],
+   canFlee:false,
+   win:'__noop__',
+   lose:'DEAD',
+   onWin:()=>{
+    document.getElementById('cbt-area').classList.add('hidden');
+    document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display='';
+    cbtState=null;
+    updateHUD();
+    const s = document.getElementById('story');
+    if(s) s.innerHTML += `<div style="margin-top:8px;color:#e8e4d8"> 賊を退けた。落ち着きを取り戻し、休養を続ける。</div>`;
+    restLog(`<span style="color:#e0a060"> 功名目当ての賊に襲撃されたが、撃退した。</span>`);
+    renderChoices([{label:'▶ 休養を続ける', fn:()=>{
+     renderChoices([]);
+     if(restTickState) setTimeout(_restTick, restTickState.interval);
+    }}]);
+   },
+  });
+ }}]);
 }
 
 // ── アイテム保管サブメニュー ──
+// ── 拠点の店（メイン画面） ──────────────────────────────────
+function propertyShop(townId){
+ _calcShopSales(townId); // 経過日数ぶんの販売を清算
+ const shop = _propShop(townId);
+ if(!shop) return;
+ const story = document.getElementById('story');
+ const keeper = _shopKeeperInfo(townId);
+ const kindLabel = {weapon:'武器', armor:'防具', jewel:'宝飾品', specialty:'特産品'};
+
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> 店番</b><br><br>`
+  +`<span style="color:#c0b098">店番：${keeper?`${keeper.name}（魅力${keeper.chr}）`:'未設定（誰もいないと売れません）'}</span><br>`
+  +`<span style="color:#c0b098">棚の商品：${shop.shelf.length}点</span><br>`
+  +`<span style="color:#c0b098">未回収の売上：<b style="color:#f0ece0">${shop.earnings||0}GP</b></span>`
+  +(shop.shelf.length ? `<br><br><span style="font-size:calc(var(--font-sm) - 1px);color:#a89880">── 棚の中身 ──</span><br>`
+    + shop.shelf.map(e=>`<span style="color:#c8b8a0">${kindLabel[e.kind]}：${e.item.name}　${e.price}GP</span>`).join('<br>') : '');
+
+ renderChoices([
+  {label:' 店番を選ぶ／変える', fn:()=>propertyShopSetKeeper(townId)},
+  {label:' 商品を棚に並べる', fn:()=>propertyShopAddItem(townId)},
+  ...(shop.shelf.length ? [{label:' 棚から商品を下げる', fn:()=>propertyShopRemoveItem(townId)}] : []),
+  ...((shop.earnings||0) > 0 ? [{label:` 売上を回収する（${shop.earnings}GP）`, fn:()=>{
+   PC.gold = (PC.gold||0) + shop.earnings;
+   showSaveToast(`${shop.earnings}GPを回収した`);
+   shop.earnings = 0;
+   updateHUD();
+   propertyShop(townId);
+  }}] : []),
+  {label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)},
+ ]);
+}
+
+// ── 店番を選ぶ ──
+function propertyShopSetKeeper(townId){
+ const shop = _propShop(townId);
+ const prop = PC.properties[townId];
+ const story = document.getElementById('story');
+ const candidates = [
+  { id:'PC', name:PC.name, chr:PC.chr||0, lk:PC.lk||0 },
+  ...(prop.caretakers||[]).map(n=>({ id:n._npcId, name:n.name, chr:n.chr||0, lk:n.lk||0 })),
+  ...(prop.residents||[]).filter(_residentIsAlive).map(r=>({ id:'resident:'+r.name, name:`${r.name}（引退）`, chr:r.chr??10, lk:r.lk??10 })),
+ ];
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> 店番を選ぶ</b><br><br>`
+  +`<span style="color:#c0b098">魅力が高いほど売れやすくなります。</span>`;
+ renderChoices([
+  ...candidates.map(c=>({
+   label:`${c.name}（魅力${c.chr}）${shop.keeperId===c.id?'　※現在の店番':''}`,
+   fn:()=>{ shop.keeperId = c.id; showSaveToast(`${c.name}を店番にした`); propertyShop(townId); }
+  })),
+  {label:'← 戻る', fn:()=>propertyShop(townId)},
+ ]);
+}
+
+// ── 商品を棚に並べる ──
+function propertyShopAddItem(townId){
+ const shop = _propShop(townId);
+ const stor = _propStor(townId);
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> 商品を選ぶ</b><br><br>`
+  +`<span style="color:#c0b098">所持品・保管品のどちらからでも並べられます。</span>`;
+ renderChoices([
+  {label:' 武器を選ぶ', fn:()=>propertyShopAddPick(townId,'weapon')},
+  {label:' 防具を選ぶ', fn:()=>propertyShopAddPick(townId,'armor')},
+  {label:' 宝飾品を選ぶ', fn:()=>propertyShopAddPick(townId,'jewel')},
+  {label:' 特産品を選ぶ', fn:()=>propertyShopAddPick(townId,'specialty')},
+  {label:'← 戻る', fn:()=>propertyShop(townId)},
+ ]);
+}
+
+function propertyShopAddPick(townId, kind){
+ const stor = _propStor(townId);
+ const story = document.getElementById('story');
+ const srcMap = {
+  weapon:    { inv: PC.invWeapons||[],    stor: stor.weapons },
+  armor:     { inv: PC.invArmors||[],     stor: stor.armors },
+  jewel:     { inv: PC.invJewels||[],     stor: stor.jewels },
+  specialty: { inv: PC.invSpecialties||[],stor: stor.specialties },
+ };
+ const src = srcMap[kind];
+ const kindLabel = {weapon:'武器', armor:'防具', jewel:'宝飾品', specialty:'特産品'}[kind];
+ const eq = kind==='weapon' ? (PC.equippedWeapons||[]) : kind==='armor' ? (PC.equippedArmors||[]) : [];
+ const invAvail = src.inv.filter(it=>!eq.includes(it));
+
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> ${kindLabel}を選ぶ</b><br><br>`
+  +`<span style="color:#c0b098">同名の商品が複数あれば、価格を一括で設定できます。</span>`;
+
+ // 同名アイテムをまとめてグループ化
+ const groupByName = (list)=>{
+  const groups = [];
+  list.forEach(it=>{
+   let g = groups.find(g=>g.name===it.name);
+   if(!g){ g = {name:it.name, items:[]}; groups.push(g); }
+   g.items.push(it);
+  });
+  return groups;
+ };
+
+ const choices = [];
+ groupByName(invAvail).forEach(g=>{
+  const base = _shopBasePrice(kind, g.items[0], townId);
+  const countTxt = g.items.length > 1 ? ` ×${g.items.length}` : '';
+  choices.push({label:`[所持] ${g.name}${countTxt}（定価目安 ${base}GP）`, fn:()=>propertyShopSetPrice(townId, kind, g.items, ()=>{
+   g.items.forEach(it=>{ const idx = src.inv.indexOf(it); if(idx>=0) src.inv.splice(idx,1); });
+  })});
+ });
+ groupByName(src.stor).forEach(g=>{
+  const base = _shopBasePrice(kind, g.items[0], townId);
+  const countTxt = g.items.length > 1 ? ` ×${g.items.length}` : '';
+  choices.push({label:`[保管] ${g.name}${countTxt}（定価目安 ${base}GP）`, fn:()=>propertyShopSetPrice(townId, kind, g.items, ()=>{
+   g.items.forEach(it=>{ const idx = src.stor.indexOf(it); if(idx>=0) src.stor.splice(idx,1); });
+  })});
+ });
+ choices.push({label:'← 戻る', fn:()=>propertyShopAddItem(townId)});
+ renderChoices(choices);
+}
+
+function propertyShopSetPrice(townId, kind, items, removeFromSource){
+ const base = _shopBasePrice(kind, items[0], townId) || 10;
+ const countTxt = items.length > 1 ? `　※${items.length}点まとめて同じ価格になります` : '';
+ const input = prompt(`「${items[0].name}」の販売価格を入力してください（定価目安：${base}GP）${countTxt}`, String(base));
+ if(input === null) return;
+ const price = parseInt(input, 10);
+ if(!price || price <= 0){ showSaveToast('正しい価格を入力してください'); return; }
+ const shop = _propShop(townId);
+ removeFromSource();
+ items.forEach(item=>{ shop.shelf.push({ kind, item, price }); });
+ showSaveToast(`${items[0].name}を${items.length>1?`${items.length}点、`:''}${price}GPで棚に並べた`);
+ propertyShop(townId);
+}
+
+// ── 棚から商品を下げる（保管に戻す） ──
+function propertyShopRemoveItem(townId){
+ const shop = _propShop(townId);
+ const stor = _propStor(townId);
+ const story = document.getElementById('story');
+ const kindLabel = {weapon:'武器', armor:'防具', jewel:'宝飾品', specialty:'特産品'};
+ const storMap = { weapon:stor.weapons, armor:stor.armors, jewel:stor.jewels, specialty:stor.specialties };
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> 棚から下げる</b><br><br>`
+  +`<span style="color:#c0b098">下げた商品は拠点の保管に戻ります。</span>`;
+ renderChoices([
+  ...shop.shelf.map((e,i)=>({
+   label:`${kindLabel[e.kind]}：${e.item.name}（${e.price}GP）を下げる`,
+   fn:()=>{
+    storMap[e.kind].push(e.item);
+    shop.shelf.splice(i,1);
+    showSaveToast(`${e.item.name}を棚から下げた`);
+    propertyShop(townId);
+   }
+  })),
+  {label:'← 戻る', fn:()=>propertyShop(townId)},
+ ]);
+}
+
+
+// ── 預ける／引き出す（サブメニュー） ──
+function propertyStorageMenu(townId){
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> 預ける／引き出す</b>`;
+ renderChoices([
+  {label:' 所持金',   fn:()=>propertyStorageMoney(townId)},
+  {label:' 所持品',   fn:()=>propertyStorageItems(townId)},
+  {label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)},
+ ]);
+}
+
 function propertyStorageItems(townId){
  const def = PROPERTY_DEFS[townId];
  const stor = _propStor(townId);
@@ -4585,7 +5203,7 @@ function propertyStorageItems(townId){
   {label:' 防具を預ける／引き出す',   fn:()=>propertyStorageArmors(townId)},
   {label:' 宝石を預ける／引き出す',   fn:()=>propertyStorageJewels(townId)},
   {label:' 松明を預ける／引き出す',   fn:()=>propertyStorageTorches(townId)},
-  {label:'← 拠点に戻る',               fn:()=>goPropertyNode(townId)},
+  {label:'← 戻る',               fn:()=>propertyStorageMenu(townId)},
  ]);
 }
 
@@ -4619,7 +5237,7 @@ function propertyStorageMoney(townId){
   renderChoices([
    {label:' 所持金を保管する', fn:()=>showDeposit()},
    {label:' 保管金を持ち出す', fn:()=>showWithdraw()},
-   ..._propBack(townId),
+   {label:'← 戻る', fn:()=>propertyStorageMenu(townId)},
   ]);
  };
 
@@ -7126,6 +7744,57 @@ function closePatronPanel(){
  if(panel) panel.classList.add('hidden');
 }
 
+// 知名度（信頼度）が高い町で、低確率で「奢ってくれ」と絡まれるイベント
+function checkFameEvent(townId){
+ if(getTrust(townId) <= 75) return false;
+ if(Math.random() >= 0.06) return false; // 低確率
+ window._fameEventResolved = false;
+ const amount = 30 + Math.floor(Math.random()*71); // 30〜100GP
+ window._fameEventAmount = amount;
+ const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 気づかれた！</div>
+  <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">「おい、${PC.name}さんがいるぞ！」——酒場中の視線が集まった。誰かが期待に満ちた目でこちらを見ている。「一杯奢ってくれよ！」</div>`;
+ const buttons = `<div style="display:flex;gap:8px;margin-top:6px">
+  <button onclick="_resolveFameEvent(true)" style="flex:1;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px">奢る（${amount}GP）</button>
+  <button onclick="_resolveFameEvent(false)" style="flex:1;background:#150808;border:1px solid #5a3030;color:#c89090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px">断る</button>
+ </div>`;
+ _showPatronPanel(header + buttons, ()=>_resolveFameEvent(false));
+ return true;
+}
+
+function _resolveFameEvent(accepted){
+ if(window._fameEventResolved) return;
+ window._fameEventResolved = true;
+ const amount = window._fameEventAmount || 50;
+ const content = document.getElementById('patron-panel-content');
+ const canAfford = (PC.gold||0) >= amount;
+ if(accepted && canAfford){
+  PC.gold -= amount;
+  updateHUD();
+  if(content) content.innerHTML = `<div style="font-size:var(--font-sm);color:#e8e4d8;line-height:1.8">気前よく酒代を払うと、周りから歓声が上がった。「太っ腹だな！」　少しだけ誇らしい気分になった。</div>`;
+ } else {
+  const mocks = ['「ケチだな」', '「案外小物だな」', '「噂ほどじゃないな」'];
+  const mock = mocks[Math.floor(Math.random()*mocks.length)];
+  changeAlignment(-3, -2);
+  const shortMsg = (accepted && !canAfford) ? '所持金が足りず、奢ることができなかった。' : '';
+  if(content) content.innerHTML = `<div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8">${shortMsg}${mock}——誰かがそう呟くのが聞こえた。周りの熱気は急速に冷めていった。</div>`;
+ }
+ if(content){
+  content.innerHTML += `<button onclick="closePatronPanel();updateHUD();_restoreNodeChoices();" style="width:100%;margin-top:10px;background:none;border:1px solid #334;color:#c0b098;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:6px;cursor:pointer;border-radius:3px">閉じる</button>`;
+ }
+}
+
+// 客や吟遊詩人に取り囲まれ、冒険譚をせがまれて長時間拘束される（その日はもう酒場で噂を聞けなくなる）
+function checkBardEvent(townId){
+ if(getTrust(townId) < 75) return false;
+ if(Math.random() >= 0.05) return false; // 低確率
+ PC._patronTalkDay = GAME_TIME.totalDays;
+ PC._patronTalkCount = 3; // その日はこれ以上話しかけられなくなる
+ const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 取り囲まれた</div>
+  <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">気づけば、客や吟遊詩人たちに取り囲まれていた。「冒険の話をもう一度聞かせてくれ！」誰もが身を乗り出し、話をせがんでくる。<br><br>断りきれず、何度も同じ話を繰り返すうちに、気づけばすっかり夜が更けていた。</div>`;
+ _showPatronPanel(header, ()=>{ updateHUD(); _restoreNodeChoices(); });
+ return true;
+}
+
 // ── 依頼失敗ペナルティ処理 ──────────────────────────────────
 function checkQuestPenalty(townId, onClear){
  if(!PC._questPenalties) { onClear(); return; }
@@ -7204,6 +7873,8 @@ function talkToPatron(townId){
   _showPatronPanel(header + msgBox(chaosRumor), ()=>{ updateHUD(); });
   return;
  }
+ if(checkFameEvent(townId)) return;
+ if(checkBardEvent(townId)) return;
 
  const events = [
   ...(PATRON_EVENTS[townId] || []),
@@ -7520,8 +8191,9 @@ function npcCastSpellOutside(npcIdx, spellIdx){
  const spell = (n.spells||[])[spellIdx];
  if(!spell) return;
  const cost = spell.cost||0;
- if((n.st||0) < cost){ showSaveToast(`${n.name}のSTが足りない`); return; }
- n.st = Math.max(0, n.st - cost);
+ const discCost = _applyStaffDiscount(n, cost);
+ if((n.st||0) < discCost){ showSaveToast(`${n.name}のSTが足りない`); return; }
+ n.st = Math.max(0, n.st - discCost);
  const fn = spell.fn||'';
  const story = document.getElementById('story');
  let msg = '';
@@ -8315,7 +8987,7 @@ function showLevelUpPanel(lv, pc){
  // 選択肢定義（対象pcに適用）
  const opts = [
   { label:`A. 強さ + ${lv}`,                       fn:()=>{ pc.st+=lv; pc.maxSt=(pc.maxSt||pc.st)+lv; } },
-  { label:`B. 知力 + ${half}`,                     fn:()=>{ pc.iq+=half; } },
+  { label:`B. 知力 + ${half}`,                     fn:()=>{ gainIQ(half, pc); } },
   { label:`C. 運 + ${lv*2}`,                       fn:()=>{ pc.lk+=lv*2; } },
   { label:`D. 体力 + ${lv}`,                       fn:()=>{ pc.con+=lv; pc.maxCon=(pc.maxCon||pc.con)+lv; } },
   { label:`E. 器用さ + ${half}`,                   fn:()=>{ pc.dex+=half; } },
@@ -8572,7 +9244,7 @@ function archiveCurrentPC(reason){
      const birthTotalDays = ((PC.birthYear||0) - (GAME_TIME.startYear||400)) * 365 + ((PC.birthMonth||1)-1)*30 + ((PC.birthDay||1)-1);
      const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[PC.type]||PC.type;
      const lifespanYears = PC.lifespan || (AGING_PARAMS[PC.race]||AGING_PARAMS.human).lifespan;
-     const resident = { name: PC.name, race: PC.race, type: PC.type, typeJa, birthTotalDays, lifespanYears, retiredAge: PC.age||0, movedInDay: GAME_TIME.totalDays, retiredDay: GAME_TIME.totalDays };
+     const resident = { name: PC.name, race: PC.race, type: PC.type, typeJa, birthTotalDays, lifespanYears, retiredAge: PC.age||0, movedInDay: GAME_TIME.totalDays, retiredDay: GAME_TIME.totalDays, chr: PC.chr||10, lk: PC.lk||10 };
      prop.residents.push(resident);
      console.log('[WS] resident added:', JSON.stringify(resident));
     } else {
@@ -14724,12 +15396,17 @@ function ydGoNode(nodeId, floor){
   else if(dung._imgStep === 1) showDungeonImage(nodeId);
  }
 
- // 松明消費（先に消費してからチェック）
- if(node.type!=='entrance' && PC._torchTurns>0){
-  PC._torchTurns--;
-  if(PC._torchTurns<=0 && PC._torchStock>0){
-   PC._torchStock--;
-   PC._torchTurns=10;
+ // 松明消費（先に消費してからチェック）重量オーバーなら2倍消費
+ if(node.type!=='entrance'){
+  const _ydConsume = checkWeightPenalty().over ? 2 : 1;
+  for(let _tc=0; _tc<_ydConsume; _tc++){
+   if(PC._torchTurns>0){
+    PC._torchTurns--;
+    if(PC._torchTurns<=0 && PC._torchStock>0){
+     PC._torchStock--;
+     PC._torchTurns=10;
+    }
+   } else break;
   }
  }
 
@@ -16017,11 +16694,14 @@ function ydActionChoices(node, floor){
       }, 50);
      }});
     });
-    // 無視する選択肢
-    ch.push({label:'▶ 無視して通り過ぎる', fn:()=>{
-     PC[node.eventKey]=true;
-     ydGoNode(node.id, floor);
-    }});
+    // 無視する選択肢（イベント自身が既に「無視する」系の選択肢を持っている場合は追加しない）
+    const hasOwnIgnoreChoice = evChoices.some(ec=>ec.label && ec.label.includes('無視'));
+    if(!hasOwnIgnoreChoice){
+     ch.push({label:'▶ 無視して通り過ぎる', fn:()=>{
+      PC[node.eventKey]=true;
+      ydGoNode(node.id, floor);
+     }});
+    }
    }
    break;
   }
@@ -17094,6 +17774,7 @@ function searchAssassinationTarget(townId){
      PC.quests = (PC.quests||[]).filter(qq=>qq.id!==q.id);
      gainGPAll(q.reward);
      changeWanted(q.targetTownId||townId, 5);
+     recordRegionQuest(q.targetTownId||townId, 'assassination');
      changeAlignment(-8, -8);
      updateHUD();
      const s = document.getElementById('story');
@@ -17132,6 +17813,7 @@ function searchKidnappingTarget(townId){
    PC.quests = (PC.quests||[]).filter(qq=>qq.id!==q.id);
    gainGPAll(q.reward);
    changeWanted(q.targetTownId||townId, 3);
+   recordRegionQuest(q.targetTownId||townId, 'kidnapping');
    changeAlignment(-8, -8);
    updateHUD();
    const s = document.getElementById('story');
@@ -17234,6 +17916,7 @@ function reportBountyQuest(townId){
  if(!q){ return false; }
  q.status = 'completed';
  changeAlignment(5, 5); // 賞金首討伐：善+5/秩序+5
+ recordRegionQuest(q.targetTownId||q.fromTownId, 'bounty');
  // PC.questsから除去
  const idx = PC.quests.indexOf(q);
  if(idx !== -1) PC.quests.splice(idx, 1);
@@ -17394,12 +18077,17 @@ function _huntGoNode(nodeIdOrIdx, opts){
   else if(_huntState._imgStep === 1) showDungeonImage(node.id); // 初回
  }
 
- // 松明消費（入口以外・灯り復活時はスキップ）
- if(!opts.skipTorch && node.type !== 'entrance' && PC._torchTurns > 0){
-  PC._torchTurns--;
-  if(PC._torchTurns <= 0 && PC._torchStock > 0){
-   PC._torchStock--;
-   PC._torchTurns = 10;
+ // 松明消費（入口以外・灯り復活時はスキップ）重量オーバーなら2倍消費
+ if(!opts.skipTorch && node.type !== 'entrance'){
+  const _hdConsume = checkWeightPenalty().over ? 2 : 1;
+  for(let _tc=0; _tc<_hdConsume; _tc++){
+   if(PC._torchTurns > 0){
+    PC._torchTurns--;
+    if(PC._torchTurns <= 0 && PC._torchStock > 0){
+     PC._torchStock--;
+     PC._torchTurns = 10;
+    }
+   } else break;
   }
  }
 
@@ -17559,6 +18247,7 @@ function _huntShowRoom(){
 function huntQuestComplete(q){
  q.status = 'completed';
  changeAlignment(3, 3); // 討伐完了：善+3/秩序+3
+ recordRegionQuest(q.fromTownId, 'hunt');
  PC.quests = (PC.quests||[]).filter(qq=>qq.id !== q.id);
  hideDungeonImage();
  gainGPAll(q.reward);
@@ -17829,6 +18518,7 @@ function checkAllDeliveries(townId){
      inv.splice(idx, 1); // 特産品を消費
      q.status = 'completed';
      completed.push(q);
+     recordRegionQuest(q.fromTownId, 'purchase');
     }
    }
   } else if(q.type === 'escort'){
@@ -17836,12 +18526,14 @@ function checkAllDeliveries(townId){
    if(q.toTownId === townId){
     q.status = 'completed';
     completed.push(q);
+    recordRegionQuest(q.fromTownId, 'escort');
    }
   } else {
-   // 宅配：目的地の町に着いた
+   // 宅配（密売配達含む）：目的地の町に着いた
    if(q.toTownId === townId){
     q.status = 'completed';
     completed.push(q);
+    recordRegionQuest(q.fromTownId, q.type==='contraband' ? 'contraband' : (q.crossRegion ? 'delivery_cross' : 'delivery_local'));
    }
   }
  });
@@ -17906,6 +18598,17 @@ function popHeroMsg(){
  </div>`;
 }
 
+function popInfamyMsg(){
+ const h = PC._pendingInfamyMsg;
+ if(!h) return '';
+ PC._pendingInfamyMsg = null;
+ return `<br><br><div style="background:#1a0606;border:1px solid #7a2a2a;border-radius:4px;padding:10px;margin-top:6px">
+  <div style="color:#e0a0a0;font-size:calc(var(--font-sm) + 1px);margin-bottom:6px"> ${h.townName}の極悪人</div>
+  <div style="color:#d8c0c0;font-size:var(--font-sm);line-height:1.8">${h.msg}</div>
+  <div style="color:#c0a8a8;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
+ </div>`;
+}
+
 function popRegionHeroMsg(){
  const h = PC._pendingRegionHeroMsg;
  if(!h) return '';
@@ -17914,6 +18617,28 @@ function popRegionHeroMsg(){
   <div style="color:#f0ece0;font-size:var(--font-base);margin-bottom:8px"> 地方英雄 ── ${h.regionName}</div>
   <div style="color:#ddccaa;font-size:var(--font-sm);line-height:1.8">${h.msg}</div>
   <div style="color:#d8d0c0;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
+ </div>`;
+}
+
+function popRegionInfamyMsg(){
+ const h = PC._pendingRegionInfamyMsg;
+ if(!h) return '';
+ PC._pendingRegionInfamyMsg = null;
+ return `<br><br><div style="background:var(--ink);border:2px solid #7a2a2a;border-radius:4px;padding:12px;margin-top:6px">
+  <div style="color:#e0a0a0;font-size:var(--font-base);margin-bottom:8px"> 地方最悪の極悪人 ── ${h.regionName}</div>
+  <div style="color:#ccaaaa;font-size:var(--font-sm);line-height:1.8">${h.msg}</div>
+  <div style="color:#c0a8a8;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
+ </div>`;
+}
+
+function popRegionEvalMsg(){
+ const h = PC._pendingRegionEvalMsg;
+ if(!h) return '';
+ PC._pendingRegionEvalMsg = null;
+ const changeTxt = h.prevLabel ? `${h.prevLabel}から${h.label}へ` : `${h.label}として`;
+ return `<br><br><div style="background:var(--ink);border:2px solid #6a5a30;border-radius:4px;padding:12px;margin-top:6px">
+  <div style="color:#e0c890;font-size:var(--font-base);margin-bottom:8px"> ${h.regionName}での評判</div>
+  <div style="color:#d8ccb0;font-size:var(--font-sm);line-height:1.8">${h.regionName}での${PC.name}の評判が、${changeTxt}変わりつつある。</div>
  </div>`;
 }
 
@@ -17928,6 +18653,35 @@ function popRaidUnitMsg(){
 }
 
 // 酒場のクエスト掲示板HTML生成
+// 依頼の大分類（見やすさのため掲示板でグループ分けする用）
+function _questCategory(type){
+ if(type==='hunt' || type==='bounty' || type==='heroquest') return 'combat';
+ if(type==='assassination' || type==='kidnapping') return 'shadow';
+ return 'delivery'; // escort, delivery(local/cross), purchase, contraband
+}
+const _QUEST_CATEGORY_LABEL = { delivery:'配送系', combat:'討伐・戦闘系', shadow:'裏の依頼' };
+const _QUEST_CATEGORY_ORDER = ['delivery','combat','shadow'];
+
+// 依頼掲示板のカテゴリ見出し開閉状態（デフォルトは全て展開）
+if(!window._questBoardOpenState) window._questBoardOpenState = {};
+function _setQuestBoardOpen(key, isOpen){
+ window._questBoardOpenState[key] = isOpen;
+}
+// 拠点メニューの開閉状態（デフォルトは折りたたみ）
+if(!window._propMenuOpenState) window._propMenuOpenState = {};
+function _propMenuSetOpen(key, isOpen){
+ window._propMenuOpenState[key] = isOpen;
+}
+function _questBoardIsOpen(key){
+ return window._questBoardOpenState[key] !== false;
+}
+function _questCategoryHeader(key, label){
+ const isOpen = _questBoardIsOpen(key);
+ return `<details ${isOpen?'open':''} ontoggle="_setQuestBoardOpen('${key}', this.open)" style="margin-bottom:4px">
+  <summary style="cursor:pointer;color:#a89880;font-size:calc(var(--font-sm) - 1px);padding:4px 0;user-select:none">◆ ${label}</summary>
+  <div style="padding-left:2px">`;
+}
+
 function renderQuestBoard(townId, board){
  if(!PC.quests) PC.quests=[];
  const active = PC.quests.filter(q=>q.status==='active');
@@ -17940,7 +18694,17 @@ function renderQuestBoard(townId, board){
  // 受注中
  if(active.length>0){
   html += `<span class="dim" style="font-size:var(--font-sm)">── 受注中（${active.length}/${LIMIT}件）──</span><br>`;
-  active.forEach(q=>{
+  const sortedActive = [...active].sort((a,b)=>
+   _QUEST_CATEGORY_ORDER.indexOf(_questCategory(a.type)) - _QUEST_CATEGORY_ORDER.indexOf(_questCategory(b.type))
+  );
+  let _lastCat = null;
+  sortedActive.forEach(q=>{
+   const _cat = _questCategory(q.type);
+   if(_cat !== _lastCat){
+    if(_lastCat !== null) html += '</div></details>';
+    html += _questCategoryHeader(`active_${_cat}`, _QUEST_CATEGORY_LABEL[_cat]);
+    _lastCat = _cat;
+   }
    const remain = q.deadlineDays - (GAME_TIME.totalDays - q.issuedDay);
    const urgColor = remain<=5?'#e0d0d0':remain<=15?'#e0d8d0':'#d8d0c0';
    const crossBadge = q.crossRegion ? `<span style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-left:4px"> 地方またぎ</span>` : '';
@@ -18024,15 +18788,33 @@ function renderQuestBoard(townId, board){
     </div>`;
    }
   });
+  if(_lastCat !== null) html += '</div></details>';
   html += '<br>';
  }
 
- // 新規依頼（掲示板）
+// 新規依頼（掲示板）
  html += `<span class="dim" style="font-size:var(--font-sm)">── 新規依頼（${active.length}/${LIMIT}件受注中）──</span><br>`;
 
  // 地方内・地方またぎで分けて表示（hunt/purchaseは別セクション）
  const localQuests = board.filter(q=>q.type==='delivery' && !q.crossRegion);
  const crossQuests = board.filter(q=>q.crossRegion);
+ const escortQuests = board.filter(q=>q.type==='escort');
+ const contrabandQuests = board.filter(q=>q.type==='contraband');
+ const huntQuests = board.filter(q=>q.type==='hunt');
+ const bountyQuests = board.filter(q=>q.type==='bounty');
+ const assassinationQuests = board.filter(q=>q.type==='assassination');
+ const kidnappingQuests = board.filter(q=>q.type==='kidnapping');
+
+ if(!PC._huntCooldown) PC._huntCooldown = {};
+ const _rd = getCurrentDate();
+ const _rdKey = _rd.year * 12 + _rd.month;
+ const _huntOnCooldown = (PC._huntCooldown[townId]||0) >= _rdKey;
+
+ // ◆ 配送系 ──────────────────────
+ const _hasDelivery = localQuests.length || escortQuests.length || crossQuests.length || contrabandQuests.length;
+ if(_hasDelivery){
+  html += _questCategoryHeader('board_delivery', '配送系');
+ }
 
  if(localQuests.length){
   html += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">▸ 地方内</span><br>`;
@@ -18050,7 +18832,6 @@ function renderQuestBoard(townId, board){
  }
 
  // 護衛依頼
- const escortQuests = board.filter(q=>q.type==='escort');
  if(escortQuests.length){
   html += `<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">▸ 護衛依頼</span><br>`;
   escortQuests.forEach(q=>{
@@ -18091,17 +18872,33 @@ function renderQuestBoard(townId, board){
   });
  }
 
- // 討伐依頼
- // クールダウン表示
- if(!PC._huntCooldown) PC._huntCooldown = {};
- const _rd = getCurrentDate();
- const _rdKey = _rd.year * 12 + _rd.month;
- if((PC._huntCooldown[townId]||0) >= _rdKey){
+ if(contrabandQuests.length){
+  html += `<span style="color:#c8b090;font-size:calc(var(--font-sm) - 1px)">▸ 裏の依頼（密売配達）</span><br>`;
+  contrabandQuests.forEach(q=>{
+   const i = board.indexOf(q);
+   const btn = canTake
+    ? `<button onclick="acceptQuest(${i})" style="margin-top:5px;width:100%;background:#100c08;border:1px solid #6a6040;color:#c8b090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 引き受ける</button>`
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
+   const destTown = TOWNS[q.toTownId]||{name:q.toTownId};
+   html += `<div style="background:#100c08;border:1px solid #585848;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
+   <span style="color:#c8b090"> 密売配達</span>　<span style="color:#f0ece0">${q.clientName}</span>の依頼　<span style="color:#ece8e0">${destTown.name||'?'}</span>へ<br>
+   「${q.item||'荷物'}」→<span style="color:#f0ece0">${q.receiverName||'?'}</span>宛　報酬: <span style="color:#f0ece0">${q.reward}GP</span>　期限: ${q.deadlineDays}日以内
+   ${btn}</div>`;
+  });
+ }
+ if(_hasDelivery) html += '</div></details>';
+
+ // ◆ 討伐・戦闘系 ──────────────────────
+ const _hasCombat = _huntOnCooldown || huntQuests.length || bountyQuests.length;
+ if(_hasCombat){
+  html += _questCategoryHeader('board_combat', '討伐・戦闘系');
+ }
+
+ if(_huntOnCooldown){
   html += `<div style="background:#0a0808;border:1px solid #332211;border-radius:3px;padding:8px;margin:5px 0;font-size:calc(var(--font-sm) - 1px);color:#c0b098">
     現在討伐依頼はありません。
   </div>`;
  }
- const huntQuests = board.filter(q=>q.type==='hunt');
  if(huntQuests.length){
   html += `<span style="color:#e8e0d0;font-size:calc(var(--font-sm) - 1px)">▸ 討伐依頼</span><br>`;
   huntQuests.forEach(q=>{
@@ -18118,8 +18915,6 @@ function renderQuestBoard(townId, board){
   });
  }
 
- // 賞金首依頼
- const bountyQuests = board.filter(q=>q.type==='bounty');
  if(bountyQuests.length){
   html += `<span style="color:#f0ddd8;font-size:calc(var(--font-sm) - 1px)">▸ 賞金首討伐依頼</span><br>`;
   bountyQuests.forEach(q=>{
@@ -18137,10 +18932,16 @@ function renderQuestBoard(townId, board){
    ${btn}</div>`;
   });
  }
+ if(_hasCombat) html += '</div></details>';
 
- const assassinationQuests = board.filter(q=>q.type==='assassination');
+ // ◆ 裏の依頼 ──────────────────────
+ const _hasShadow = assassinationQuests.length || kidnappingQuests.length;
+ if(_hasShadow){
+  html += _questCategoryHeader('board_shadow', '裏の依頼');
+ }
+
  if(assassinationQuests.length){
-  html += `<span style="color:#e0a0a0;font-size:calc(var(--font-sm) - 1px)">▸ 裏の依頼（暗殺）</span><br>`;
+  html += `<span style="color:#e0a0a0;font-size:calc(var(--font-sm) - 1px)">▸ 暗殺依頼</span><br>`;
   assassinationQuests.forEach(q=>{
    const i = board.indexOf(q);
    const btn = canTake
@@ -18157,9 +18958,8 @@ function renderQuestBoard(townId, board){
   });
  }
 
- const kidnappingQuests = board.filter(q=>q.type==='kidnapping');
  if(kidnappingQuests.length){
-  html += `<span style="color:#e0a0a0;font-size:calc(var(--font-sm) - 1px)">▸ 裏の依頼（誘拐）</span><br>`;
+  html += `<span style="color:#e0a0a0;font-size:calc(var(--font-sm) - 1px)">▸ 誘拐依頼</span><br>`;
   kidnappingQuests.forEach(q=>{
    const i = board.indexOf(q);
    const btn = canTake
@@ -18175,22 +18975,7 @@ function renderQuestBoard(townId, board){
    ${btn}</div>`;
   });
  }
-
- const contrabandQuests = board.filter(q=>q.type==='contraband');
- if(contrabandQuests.length){
-  html += `<span style="color:#c8b090;font-size:calc(var(--font-sm) - 1px)">▸ 裏の依頼（密売配達）</span><br>`;
-  contrabandQuests.forEach(q=>{
-   const i = board.indexOf(q);
-   const btn = canTake
-    ? `<button onclick="acceptQuest(${i})" style="margin-top:5px;width:100%;background:#100c08;border:1px solid #6a6040;color:#c8b090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 引き受ける</button>`
-    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
-   const destTown = TOWNS[q.toTownId]||{name:q.toTownId};
-   html += `<div style="background:#100c08;border:1px solid #585848;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
-   <span style="color:#c8b090"> 密売配達</span>　<span style="color:#f0ece0">${q.clientName}</span>の依頼　<span style="color:#ece8e0">${destTown.name||'?'}</span>へ<br>
-   「${q.item||'荷物'}」→<span style="color:#f0ece0">${q.receiverName||'?'}</span>宛　報酬: <span style="color:#f0ece0">${q.reward}GP</span>　期限: ${q.deadlineDays}日以内
-   ${btn}</div>`;
-  });
- }
+ if(_hasShadow) html += '</div></details>';
 
  return html;
 }
@@ -18391,9 +19176,15 @@ function travelTo(toId, method){
   alert(' 冬期のため、このルートは雪で遮断されています。春（4月）まで通行できません。');
   return false;
  }
- const days = route.days[method];
+ let days = route.days[method];
  const cost = route.cost[method];
  if(days == null) return false;
+ // 徒歩移動時、重量オーバーなら移動日数が2倍かかる（乗合馬車・船は影響なし）
+ let overweightDoubled = false;
+ if(method === 'walk'){
+  const wp = checkWeightPenalty();
+  if(wp.over){ days = days * 2; overweightDoubled = true; }
+ }
  if(cost > 0 && totalCP() < cost*100){ alert('所持金が足りない！'); return 'nogold'; }
 
  const from = TOWNS[PC.town];
@@ -18435,7 +19226,7 @@ function travelTo(toId, method){
   document.getElementById('travel-progress-dot').style.left = '0%';
   document.getElementById('travel-latest').textContent = '';
   document.getElementById('travel-progress-label').innerHTML =
-   `${methodLabel}　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+   `${methodLabel}　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>${overweightDoubled?'　<span style="color:#e0a060;font-size:calc(var(--font-sm) - 2px)">（重量オーバーのため2倍）</span>':''}`;
  }
  renderChoices([]);
 
@@ -18473,6 +19264,7 @@ function makeTravelChoices(fromId){
  const MAREA_VILLAGES = ['dorua','sarpe','nebra'];
  const others = Object.keys(TOWNS).filter(id => id !== fromId);
  const choices = [];
+ const _wpOver = checkWeightPenalty().over;
  others.forEach(toId => {
  const t = TOWNS[toId];
  const route = getRoute(fromId, toId);
@@ -18480,11 +19272,13 @@ function makeTravelChoices(fromId){
   if(route.isIsland) return; // 旧島間航路は専用メニューから
   if(MAREA_VILLAGES.includes(toId)) return; // マレア地方の村は専用メニューから
  // 徒歩
- if(route.days.walk != null)
+ if(route.days.walk != null){
+ const walkDays = _wpOver ? route.days.walk*2 : route.days.walk;
  choices.push({
- label:` ${t.name}へ 徒歩（${route.days.walk}日）`,
+ label:` ${t.name}へ 徒歩（${walkDays}日${_wpOver?'・重量オーバー':''}）`,
  fn:()=>travelTo(toId,'walk'), go:'__travel__'
  });
+ }
  // 乗合馬車
  if(route.days.coach != null)
  choices.push({
@@ -18511,13 +19305,14 @@ function makeIslandRouteChoices(fromId){
 function makeMareaRouteChoices(fromId){
  const MAREA_TOWNS = ['neria','dorua','sarpe','nebra'];
  const choices = [];
+ const _wpOver = checkWeightPenalty().over;
  MAREA_TOWNS.filter(id=>id!==fromId).forEach(toId=>{
   const route = getRoute(fromId, toId);
   if(!route || !route.days.walk) return;
   const t = TOWNS[toId];
-  const days = route.days.walk;
+  const days = _wpOver ? route.days.walk*2 : route.days.walk;
   choices.push({
-   label:` ${t.name}へ 徒歩（${days}日）`,
+   label:` ${t.name}へ 徒歩（${days}日${_wpOver?'・重量オーバー':''}）`,
    fn:()=>travelTo(toId,'walk'), go:'__travel__'
   });
  });
@@ -18760,12 +19555,12 @@ function applySeaDelayEvent(){
 const TRAVEL_ENEMIES = [
  { name:'野盗', mr:20, armor:2, isHuman:true, minCount:1, maxCount:1, desc:'剣を抜いた野盗が飛び出してきた！', talkDesc:'野盗が「金を出せ！」と短剣を弄んでいる。' },
  { name:'山賊', mr:25, armor:3, isHuman:true, minCount:1, maxCount:1, desc:'山賊が道を塞いだ！', talkDesc:'山賊が刃物を構えてじりじりと近づいてくる。' },
- { name:'オーク', mr:40, armor:4, isHuman:false, minCount:1, maxCount:1, desc:'唸り声を上げたオークが現れた！' },
+ { name:'オーク', mr:40, armor:4, isHuman:false, language:'オーク語', minCount:1, maxCount:1, desc:'唸り声を上げたオークが現れた！', talkDesc:'オークが唸り声混じりに何かをまくし立てている。オーク語が分かれば、話は通じるかもしれない。' },
  { name:'ウルフ', mr:25, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'大きな狼が牙を剥いてきた！' },
- { name:'ゴブリン', mr:18, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'ゴブリンが奇声を上げて突進してきた！' },
+ { name:'ゴブリン', mr:18, armor:0, isHuman:false, language:'ゴブリン語', minCount:1, maxCount:1, desc:'ゴブリンが奇声を上げて突進してきた！', talkDesc:'ゴブリンが甲高い声で何かをまくし立てている。ゴブリン語が分かれば、話は通じるかもしれない。' },
  { name:'スケルトン', mr:30, armor:3, isHuman:false, minCount:1, maxCount:1, desc:'骨の戦士が無言で近づいてくる…' },
  { name:'盗賊', mr:22, armor:1, isHuman:true, minCount:1, maxCount:1, desc:'素早い動きの盗賊が短剣を構えた！', talkDesc:'盗賊が「抵抗するなよ」と短剣を弄んでいる。' },
- { name:'トロール', mr:55, armor:5, isHuman:false, minCount:1, maxCount:1, desc:'巨大なトロールが道を塞いだ！' },
+ { name:'トロール', mr:55, armor:5, isHuman:false, language:'トロール語', minCount:1, maxCount:1, desc:'巨大なトロールが道を塞いだ！', talkDesc:'トロールが低い声で唸っている。トロール語が分かれば、話は通じるかもしれない。' },
 ];
 
 // 移動中エンカウント状態
@@ -20017,7 +20812,8 @@ function travelTick(){
    const enemy = pickTravelEnemy();
    const countTxt = enemy.count > 1 ? `（${enemy.count}体）` : '';
    travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：${enemy.desc}${countTxt}</span>`);
-   if(enemy.isHuman){
+   const canTalk = enemy.isHuman || (enemy.language && (PC.languages||['共通語']).includes(enemy.language));
+   if(canTalk){
     startTravelTalk(enemy, ts);
    } else {
     // 遭遇テキストを表示してから戦闘ボタンを出す
@@ -20619,6 +21415,7 @@ const WEAPONS_TABLE = [
  {name:'ブロードソード',dice:3,adds:4,stReq:15,dexReq:10,cost:70,weight:120,twoHand:false},
  {name:'シミター',dice:4,adds:0,stReq:10,dexReq:11,cost:60,weight:100,twoHand:false},
  {name:'杖',dice:2,adds:0,stReq:2,dexReq:8,cost:10,weight:50,twoHand:true},
+ {name:'魔法使いの杖',dice:2,adds:0,stReq:2,dexReq:8,cost:100,weight:30,twoHand:true,wizard:true,isWizardStaff:true},
  {name:'棍棒',dice:3,adds:0,stReq:5,dexReq:2,cost:15,weight:50,twoHand:false},
  {name:'グレートソード',dice:6,adds:0,stReq:21,dexReq:18,cost:120,weight:170,twoHand:true},
  {name:'ヘビーメイス',dice:5,adds:2,stReq:17,dexReq:3,cost:120,weight:200,twoHand:true},
@@ -20639,7 +21436,6 @@ const EQUIP_TABLE = [
  {name:'ブーツ',cost:10,weight:40},
  {name:'防寒着と荷物袋',cost:5,weight:10},
  {name:'サンダル',cost:2,weight:2},
- {name:'魔法使いの杖',cost:100,weight:30,wizard:true},
  {name:'矢（24本）',cost:40,weight:10,_isArrows:true,_arrowAmt:24},
 ];
 
@@ -21396,6 +22192,7 @@ function startGame(){
  PC._heroTowns = {}; // 前の代の英雄ステータスは引き継がない
  PC._heroRegions = {};
  PC.food = 0; // 前の代の食料は引き継がない
+ rollLanguages(PC); // 知力に応じてモンスター語の習得判定
  PC.spouse = []; // 前の代の配偶者記録は引き継がない
  PC._questPenalties = {}; // 前の代の依頼期限切れ罰金は引き継がない
  PC.spdBase = PC.spd; // 重量ペナルティ計算用の基準SPD
@@ -21501,10 +22298,10 @@ function renderShop(){
  };
 
  sec(' WEAPONS',WEAPONS_TABLE,(it,p)=>{
- const canUse=it.stReq<=PC.st&&it.dexReq<=PC.dex&&(PC.type==='warrior'||PC.type==='rogue'||it.dice<=2)&&(!PC._noHeavyWeapon||it.dice<=2);
+ const canUse=it.stReq<=PC.st&&it.dexReq<=PC.dex&&(PC.type==='warrior'||PC.type==='rogue'||it.dice<=2)&&(!PC._noHeavyWeapon||it.dice<=2)&&(!it.wizard||PC.type==='wizard');
  const div=document.createElement('div');div.className='shop-item';
  div.innerHTML=`<h4>${it.name} ${canUse?'':'<span style="color:#e0d0d0">※要件未満</span>'}</h4>
- <p>${it.dice}D+${it.adds} / 強さ≥${it.stReq} 器用さ≥${it.dexReq} ${it.twoHand?'両手':''}　Wgt:${it.weight}</p>
+ <p>${it.dice}D+${it.adds} / 強さ≥${it.stReq} 器用さ≥${it.dexReq} ${it.twoHand?'両手':''}${it.wizard?'　<span style="color:#c8b0e0">魔法使い専用</span>':''}　Wgt:${it.weight}</p>
  <span class="price">${formatItemCost(it.cost)}</span>
  <button class="buy-btn" ${!canUse||totalCP()<it.cost*100||cartWeight+it.weight>weightPossible()?'disabled':''} onclick="buyWeapon(${WEAPONS_TABLE.indexOf(it)})">BUY</button>`;
  p.appendChild(div);
@@ -21540,8 +22337,9 @@ function renderShop(){
 function buyWeapon(i){
  const it=WEAPONS_TABLE[i];
  if(totalCP()<it.cost*100)return;
+ if(it.wizard && PC.type!=='wizard')return;
  payPrice(it.cost);cartWeight+=it.weight;
- PC.invWeapons.push({name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0});
+ PC.invWeapons.push({name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0,weight:it.weight||0,...(it.isWizardStaff?{isWizardStaff:true}:{})});
  renderShop();
 }
 function buyArmor(i){
@@ -21938,6 +22736,42 @@ function sellArmor(idx){
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(); renderIngameShop();
  showSaveToast(` ${a.name}を売った（${sellPriceLabel(def?.cost||0)}）`);
+}
+
+// 未装備の武器を捨てる（対価なし・ショップ外でも使用可）
+function discardWeapon(idx){
+ const w = PC.invWeapons[idx];
+ if(!w) return;
+ if(PC.equippedWeapons.includes(w)){ showSaveToast('装備中の武器は先に外してください'); return; }
+ PC.invWeapons.splice(idx,1);
+ updateHUD(); checkWeightPenalty(); renderStatusPanel();
+ if(isShopOpen()) renderIngameShop();
+ showSaveToast(`${w.name}を捨てた`);
+}
+
+// 未装備の防具を捨てる（対価なし・ショップ外でも使用可）
+function discardArmor(idx){
+ const a = PC.invArmors[idx];
+ if(!a) return;
+ if(PC.equippedArmors.includes(a)){ showSaveToast('装備中の防具は先に外してください'); return; }
+ PC.invArmors.splice(idx,1);
+ updateHUD(); checkWeightPenalty(); renderStatusPanel();
+ if(isShopOpen()) renderIngameShop();
+ showSaveToast(`${a.name}を捨てた`);
+}
+
+// 所持金を捨てる（GP/SP/CP）
+function discardCurrency(currency){
+ const label = {gold:'GP', sp:'SP', cp:'CP'}[currency];
+ const have = PC[currency]||0;
+ const input = prompt(`捨てる${label}を入力してください（現在の所持${label}：${have}）`, '');
+ if(input === null) return;
+ const amount = parseInt(input, 10);
+ if(!amount || amount <= 0){ showSaveToast('正しい金額を入力してください'); return; }
+ if(have < amount){ showSaveToast(`所持${label}が足りません`); return; }
+ PC[currency] -= amount;
+ updateHUD(); checkWeightPenalty(); renderStatusPanel();
+ showSaveToast(`${amount}${label}を捨てた`);
 }
 
 // ブーツを売る
@@ -22395,9 +23229,10 @@ function igsBuyWeapon(i, townId){
  const _t1=townId||PC.town; const tbl = _t1==='khazan'?WEAPONS_TABLE_KHAZAN:_t1==='elsia'?WEAPONS_TABLE_ELSIA:_t1==='al_rashid'?WEAPONS_TABLE_AL_RASHID:_t1==='yeldun'?WEAPONS_TABLE_YELDUN:_t1==='valdheim'?WEAPONS_TABLE_VALDHEIM:(_t1==='neria'||_t1==='kalvo')?WEAPONS_TABLE_NERIA:WEAPONS_TABLE;
  const it=tbl[i];
  if(!it||totalCP(_sa)<it.cost*100)return;
+ if(it.wizard && _sa.type!=='wizard'){ showSaveToast('魔法使い専用の品です'); return; }
  payPrice(it.cost, _sa);
  if(!_sa.invWeapons) _sa.invWeapons=[];
- _sa.invWeapons.push({name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0,weight:it.weight||0,...(it._masterpiece?{_masterpiece:true}:{}),...(it.isRanged?{isRanged:true}:{}),...(it.rangedOk?{rangedOk:true}:{})});
+ _sa.invWeapons.push({name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0,weight:it.weight||0,...(it._masterpiece?{_masterpiece:true}:{}),...(it.isRanged?{isRanged:true}:{}),...(it.rangedOk?{rangedOk:true}:{}),...(it.isWizardStaff?{isWizardStaff:true}:{})});
  updateHUD(); renderIngameShop(townId||PC.town);
  showSaveToast(` ${_sa.name}: ${it.name}を購入`);
 }
@@ -22541,6 +23376,36 @@ const BG_MOTIVE = {
  '魔法で稼げると思ったが、思ったより世間は厳しかった。',
  ],
 };
+
+// モンスター語の習得：知力が12を超えた分だけ、10%の確率で1つ習得するチャンスがある
+const MONSTER_LANGUAGES = ['トロール語', 'オーク語', 'ゴブリン語'];
+function rollLanguages(pc){
+ pc.languages = ['共通語'];
+ const chances = Math.max(0, (pc.iq||0) - 12);
+ for(let i=0; i<chances; i++){
+  if(Math.random() < 0.1){
+   const lang = MONSTER_LANGUAGES[Math.floor(Math.random()*MONSTER_LANGUAGES.length)];
+   if(!pc.languages.includes(lang)) pc.languages.push(lang);
+  }
+ }
+}
+
+// 知力を増加させる共通関数。増えた分だけ、10%の確率で混合語（モンスター語）を1つ習得するチャンスがある
+function gainIQ(amount, pc=PC){
+ amount = Math.floor(amount||0);
+ if(amount <= 0) return;
+ pc.iq = (pc.iq||0) + amount;
+ if(!pc.languages) pc.languages = ['共通語'];
+ for(let i=0; i<amount; i++){
+  if(Math.random() < 0.1){
+   const lang = MONSTER_LANGUAGES[Math.floor(Math.random()*MONSTER_LANGUAGES.length)];
+   if(!pc.languages.includes(lang)){
+    pc.languages.push(lang);
+    if(pc===PC) showSaveToast(`知力が高まり、${lang}を理解できるようになった！`);
+   }
+  }
+ }
+}
 
 function rollBackground(race, type){
  const family = pick(BG_FAMILY[race] || BG_FAMILY.human);
@@ -22914,11 +23779,16 @@ function renderNPCDetail(el, n, idx){
 
  <!-- 所持金 -->
  <div style="font-size:calc(var(--font-sm) - 2px);color:#e8e0d8;margin-bottom:6px;border-bottom:1px solid var(--shadow);padding-bottom:3px"> 所持金</div>
- <div style="background:#0a0810;border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:12px;font-size:calc(var(--font-sm) + 1px)">
+ <div style="background:#0a0810;border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:6px;font-size:calc(var(--font-sm) + 1px)">
   ${(n.gold||0)>0?`<span style="color:#f0ece0">${n.gold}GP</span> `:''}
   ${(n.sp||0)>0?`<span style="color:#f0ece0">${n.sp}SP</span> `:''}
   ${(n.cp||0)>0?`<span style="color:#e0d8cc">${n.cp}CP</span>`:''}
   ${!(n.gold||0)&&!(n.sp||0)&&!(n.cp||0)?'<span style="color:#c8b8a0">なし</span>':''}
+ </div>
+ <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:12px">
+  <button onclick="giveCurrencyToNPC(${idx},'gold')" style="background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px 2px;cursor:pointer;border-radius:3px">GPを渡す</button>
+  <button onclick="giveCurrencyToNPC(${idx},'sp')" style="background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px 2px;cursor:pointer;border-radius:3px">SPを渡す</button>
+  <button onclick="giveCurrencyToNPC(${idx},'cp')" style="background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px 2px;cursor:pointer;border-radius:3px">CPを渡す</button>
  </div>
 
  <!-- 武器 -->
@@ -23147,6 +24017,14 @@ function renderStatusPanel(){
  : '<div style="font-size:var(--font-sm);color:#c8b8a0">背景は設定されていません。</div>';
  }
 
+ // ── 言語 ──
+ const langEl = document.getElementById('sp-languages');
+ if(langEl){
+ const langs = PC.languages && PC.languages.length ? PC.languages : ['共通語'];
+ langEl.innerHTML = `<div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px;margin-top:10px">── 言語 ──</div>
+ <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:10px;font-size:var(--font-sm);color:var(--text)">${langs.join('、')}</div>`;
+ }
+
  // ── 装備タブ ──
  const btnStyle = (color,bg,border) =>
  `style="background:${bg};border:1px solid ${border};color:${color};font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 8px;cursor:pointer;border-radius:2px;margin-left:6px"`;
@@ -23192,6 +24070,7 @@ function renderStatusPanel(){
  <div style="display:flex;gap:4px">
  <button onclick="equipWeapon(${idx})" ${check.ok?btnStyle('var(--nature2)','#0e1006','var(--rust)'):`disabled ${btnStyle('#444','#111','#a0a0a0')}`}>${check.ok?'装備':'不可'}</button>
  ${sellBtn}
+ <button onclick="discardWeapon(${idx})" ${btnStyle('#c89090','#150808','#5a3030')}>捨てる</button>
  </div>
  </div>
  <button onclick="renameWeapon(${idx})" style="margin-top:6px;width:100%;background:none;border:1px solid #334;color:#c0b098;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:4px;cursor:pointer;border-radius:3px"> 名前を変更</button>
@@ -23265,6 +24144,7 @@ function renderStatusPanel(){
  <div style="display:flex;gap:4px">
  <button onclick="equipArmor(${idx})" ${check.ok?btnStyle('var(--nature2)','#0e1006','var(--rust)'):`disabled ${btnStyle('#444','#111','#a0a0a0')}`}>${check.ok?'装備':check.reason.length>6?'不可':check.reason}</button>
  ${sellBtn}
+ <button onclick="discardArmor(${idx})" ${btnStyle('#c89090','#150808','#5a3030')}>捨てる</button>
  </div>
  </div>`;
  });
@@ -23340,6 +24220,17 @@ function renderStatusPanel(){
  </div>`;
  }
  eqEl.innerHTML = eqHtml || '<div style="font-size:var(--font-sm);color:#c8b8a0">なし</div>';
+
+ // 所持金を捨てる
+ const eqMoneyEl = document.getElementById('sp-equip-money');
+ if(eqMoneyEl){
+  eqMoneyEl.innerHTML = `<div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px;margin-top:10px">── 所持金 ──</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
+   <button onclick="discardCurrency('gold')" style="background:#150808;border:1px solid #5a3030;color:#c89090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px 2px;cursor:pointer;border-radius:3px">GPを捨てる</button>
+   <button onclick="discardCurrency('sp')" style="background:#150808;border:1px solid #5a3030;color:#c89090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px 2px;cursor:pointer;border-radius:3px">SPを捨てる</button>
+   <button onclick="discardCurrency('cp')" style="background:#150808;border:1px solid #5a3030;color:#c89090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px 2px;cursor:pointer;border-radius:3px">CPを捨てる</button>
+  </div>`;
+ }
 
  // 宝飾品
  const jewelsWrap = document.getElementById('sp-jewels-wrap');
@@ -23450,6 +24341,20 @@ function renderStatusPanel(){
  }).join('');
  } else {
  qEl.innerHTML = `<div style="font-size:var(--font-sm);color:#c8b8a0">受注中の依頼なし</div>`;
+ }
+
+ // 地方ごとの評価
+ const evEl = document.getElementById('sp-region-eval');
+ if(evEl){
+  const rows = Object.entries(HERO_REGIONS).map(([regionKey, region])=>{
+   const top = getRegionTopQuestType(regionKey);
+   if(!top) return null;
+   return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2a1e10">
+    <span style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0">${region.name}</span>
+    <span style="font-size:calc(var(--font-sm) - 1px);color:#f0ece0">${top.label}<span style="color:#a89880">（${top.count}件）</span></span>
+   </div>`;
+  }).filter(Boolean);
+  evEl.innerHTML = rows.length ? rows.join('') : `<div style="font-size:var(--font-sm);color:#c8b8a0">まだ評価はない</div>`;
  }
 
  // ライフイベント
@@ -23985,7 +24890,7 @@ const DUNGEON_EVENTS = [
  PC.st += 10; PC.maxSt = (PC.maxSt||PC.st) + 10;
  story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>力の泉だった！</b> ST が永続的に +10！（ST ${PC.st}）</div>`;
  } else if(roll < 0.10){
- PC.iq += 10;
+ gainIQ(10, PC);
  story.innerHTML += `<div style="color:#e8e0d8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>知恵の泉だった！</b> IQ が永続的に +10！（IQ ${PC.iq}）</div>`;
  } else if(roll < 0.15){
  PC.lk += 10;
@@ -25011,6 +25916,7 @@ function startAsNPC(npcIdx){
  if(ws.famineHeroName) PC._famineHeroName = ws.famineHeroName;
  // 地方英雄・英雄フラグは引き継がない（新しいキャラクターが自分で獲得する必要がある）
  PC.food = 0; // 前の代の食料は引き継がない
+ rollLanguages(PC); // 後継キャラクターも新たにモンスター語の習得判定を行う
  PC.spouse = []; // 前の代の配偶者記録は引き継がない
  initTrust(lastTown); // 前の代の信頼度は引き継がない（新PCは自分の町の信頼度から再スタート）
  PC.wanted = {}; // 前の代の手配度は引き継がない
@@ -25266,6 +26172,7 @@ function go(nodeId){
  if(nodeId.startsWith('TOWN_') && currentNodeId!==nodeId){
   const _wTownId = nodeId.slice(5).toLowerCase();
   if(TOWNS[_wTownId] && checkWantedAmbush(_wTownId)) return;
+  if(TOWNS[_wTownId] && checkAdmirerEvent(_wTownId)) return;
  }
  // 死亡到達時：ダンジョン画像・旅イメージ画像の消し忘れ防止（YD/討伐ダンジョン等、独自の画像管理を行うものも含む）
  if(nodeId==='DEAD'){
@@ -25313,7 +26220,10 @@ function go(nodeId){
  if(DUNGEON_NODES.has(nodeId) && !DUNGEON_SAFE_NODES.has(nodeId)){
  PC._torchStock = PC._torchStock || 0;
  if(PC._torchTurns == null) PC._torchTurns = 0;
- // 1ターン消費
+ // 重量オーバーなら1回の移動で松明の消費が2倍（2ターン分）かかる
+ const _wpOverDng = checkWeightPenalty().over;
+ const _torchConsume = _wpOverDng ? 2 : 1;
+ for(let _tc=0; _tc<_torchConsume; _tc++){
  if(PC._torchTurns > 0){
  PC._torchTurns--;
  if(PC._torchTurns === 0){
@@ -25330,6 +26240,13 @@ function go(nodeId){
  }
  }
  // 在庫0の場合（魔法の明かりが消えた）はそのままターンを0に
+ }
+ } else {
+ break; // 既にターン0（魔法の明かり切れ）ならこれ以上は減らない
+ }
+ }
+ if(_wpOverDng && _torchConsume>1 && PC._torchTurns>0){
+ PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e0a060;font-size:calc(var(--font-sm) - 2px);margin-top:4px"> 重量オーバーのため松明の消費が2倍になっている</div>`;
  }
  }
 
@@ -25372,7 +26289,6 @@ function go(nodeId){
  // トラップなし → ダンジョンイベント判定
  const ev = rollDungeonEvent();
  if(ev) PC._pendingEvent = ev;
- }
  }
  }
  }
@@ -25437,8 +26353,15 @@ function go(nodeId){
 
  updateHUD();
 
+ // ダンジョン外なら、万一残っている保留状態はここで破棄して漏れ出しを防ぐ
+ if(!DUNGEON_NODES.has(nodeId)){
+ PC._pendingEncounter = null;
+ PC._pendingTrap = null;
+ PC._pendingEvent = null;
+ }
+
  // モンスターエンカウント発動
- if(PC._pendingEncounter){
+ if(DUNGEON_NODES.has(nodeId) && PC._pendingEncounter){
  const enc = PC._pendingEncounter;
  PC._pendingEncounter = null;
  const story = document.getElementById('story');
@@ -25458,7 +26381,7 @@ function go(nodeId){
  }
 
  // トラップ発動
- if(PC._pendingTrap){
+ if(DUNGEON_NODES.has(nodeId) && PC._pendingTrap){
  const trap = PC._pendingTrap;
  PC._pendingTrap = null;
  startTrap(trap);
@@ -25466,7 +26389,7 @@ function go(nodeId){
  }
 
  // ダンジョンイベント発動
- if(PC._pendingEvent){
+ if(DUNGEON_NODES.has(nodeId) && PC._pendingEvent){
  const ev = PC._pendingEvent;
  PC._pendingEvent = null;
  startDungeonEvent(ev);
@@ -26419,7 +27342,7 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp){
  }
 
  if(sp.fn === 'blastingPower' || sp.fn === 'freezePleeze'){
-  npc.st = Math.max(0,(npc.st||0)-sp.cost);
+  npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
   const dice = npc.level || 1;
   const adds = Math.max(0, calcAdds(npc));
   const dmg = Nd6(dice) + adds;
@@ -26432,7 +27355,7 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp){
  }
 
  if(sp.fn === 'vorpal' || sp.fn === 'whammy'){
-  npc.st = Math.max(0,(npc.st||0)-sp.cost);
+  npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
   const cfg = sp.fn==='vorpal'
    ? {pcFlagKey:'vorpalActive', npcFlagKey:'_vorpalNext', effectLabel:'次のラウンド武器ダイス2倍！'}
    : {pcFlagKey:'whammyActive', npcFlagKey:'_whammyNext', effectLabel:'次のラウンド武器ダイス3倍！'};
@@ -26441,13 +27364,13 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp){
  }
 
  if(sp.fn === 'overdrive'){
-  npc.st = Math.max(0,(npc.st||0)-sp.cost);
+  npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
   _npcOverdriveSelectTarget(npc, npcIdx, magicParty, sp, onDone);
   return;
  }
 
  if(sp.fn === 'poorBaby'){
-  npc.st = Math.max(0,(npc.st||0)-sp.cost);
+  npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
   if(npc.con >= npc.maxCon){
    npc.st += sp.cost; // 失敗時は返還
    cl.innerHTML += `<span style="color:#e0d8c8"> ${npc.name}が${sp.name}を詠唱したが、体力はすでに最大値だった。</span><br>`;
@@ -26461,14 +27384,14 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp){
  }
 
  if(sp.fn === 'healingFeeling'){
-  npc.st = Math.max(0,(npc.st||0)-sp.cost);
+  npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
   npc._poisoned = false; npc._diseased = false;
   cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を詠唱！体内の毒・病が浄化された！</span><br>`;
   onDone(); return;
  }
 
  if(sp.fn === 'rockABye'){
-  npc.st = Math.max(0,(npc.st||0)-sp.cost);
+  npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
   const power = (npc.st||0)+(npc.iq||0)+(npc.chr||0);
   const enemyMR = cbtState.enemies ? cbtState.enemies.reduce((s,e)=>s+(e.curMR||0),0) : (cbtState.curMR||0);
   if(power > enemyMR){
@@ -26488,7 +27411,7 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp){
  }
 
  // その他の呪文（未定義効果）：ST消費してログ出力のみ
- npc.st = Math.max(0,(npc.st||0)-sp.cost);
+ npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
  cl.innerHTML += `<span style="color:#e0d8c8"> ${npc.name}が${sp.name}を詠唱した！（強さ-${sp.cost}）</span><br>`;
  onDone();
 }
@@ -26584,11 +27507,12 @@ function _npcTtyfSelectLevel(npc, npcIdx, magicParty, sp, onDone){
 
  for(let lv=1; lv<=maxLv; lv++){
   const stCost = 6*lv;
-  if((npc.st||0) <= stCost) continue;
+  const discCost = _applyStaffDiscount(npc, stCost);
+  if((npc.st||0) <= discCost) continue;
   const b=document.createElement('button');
   b.className='choice-btn';
   b.style.cssText='border-color:#d8d0c0;color:#e0d8c8';
-  b.innerHTML=`Lv${lv} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${stCost}</span>`;
+  b.innerHTML=`Lv${lv} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${discCost}</span>`;
   b.onclick=()=>{ _npcTtyfCast(npc, npcIdx, magicParty, sp, lv, stCost, onDone); };
   btns.appendChild(b);
  }
@@ -26621,7 +27545,7 @@ function _npcTtyfCast(npc, npcIdx, magicParty, sp, lv, stCost, onDone){
 
 function _npcTtyfApply(npc, sp, lv, stCost, target, onDone){
  const isNPCCbt = cbtState.isNPC;
- npc.st = Math.max(0,(npc.st||0)-stCost);
+ npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, stCost));
  const dmg = (npc.iq||10)*lv;
  const prevHp = isNPCCbt ? target.curCon : target.curMR;
  if(isNPCCbt){ target.curCon = Math.max(0, target.curCon - dmg); }
@@ -28132,7 +29056,8 @@ function closeSpellModal(){
 
 // 非戦闘時の呪文発動
 function castSpellOutOfCombat(spell, effect){
- PC.st = Math.max(0, PC.st - spell.cost);
+ const discCost = _applyStaffDiscount(PC, spell.cost);
+ PC.st = Math.max(0, PC.st - discCost);
  gainAPAll(spell.cost);
  updateHUD();
 
@@ -28140,6 +29065,31 @@ function castSpellOutOfCombat(spell, effect){
  let resultHtml = '';
 
  // ダンジョン専用呪文（fn基準で直接処理）
+ if(spell.fn === 'poorBaby'){
+  if(PC.con >= PC.maxCon){
+   PC.st += spell.cost; // 効果不発のためST返還
+   resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #585858;border-radius:4px">
+    <div style="color:var(--white);font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
+    <div style="color:var(--white2);font-size:var(--font-sm)">体力はすでに最大値です。</div>
+   </div>`;
+   story.innerHTML += resultHtml;
+   updateHUD();
+   scrollToTop();
+   return;
+  }
+  let healed = 0;
+  while(PC.st >= 2 && PC.con < PC.maxCon){
+   PC.st -= 2; PC.con++; healed++;
+  }
+  resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
+   <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
+   <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">体力+${healed}回復！（体力 ${PC.con}/${PC.maxCon}）</div>
+  </div>`;
+  story.innerHTML += resultHtml;
+  updateHUD();
+  scrollToTop();
+  return;
+ }
  if(spell.fn === 'blindSpot'){
   if(DUNGEON_NODES && DUNGEON_NODES.has && DUNGEON_NODES.has(currentNodeId)){
    PC._blindSpotRounds = (PC._blindSpotRounds||0) + 3;
@@ -28246,11 +29196,12 @@ function _ttyfSelectLevel(spell){
 
  for(let lv = 1; lv <= maxLv; lv++){
   const stCost = 6 * lv;
-  if(PC.st <= stCost) continue;
+  const discCost = _applyStaffDiscount(PC, stCost);
+  if(PC.st <= discCost) continue;
   const btn = document.createElement('button');
   btn.className = 'choice-btn';
   btn.style.cssText = 'border-color:#d8d0c0;color:#e0d8c8';
-  btn.innerHTML = `Lv${lv} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${stCost}</span>`;
+  btn.innerHTML = `Lv${lv} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${discCost}</span>`;
   btn.addEventListener('click', ()=>{ _ttyfSelectTarget(spell, lv, stCost); });
   btns.appendChild(btn);
  }
@@ -28284,8 +29235,9 @@ function _ttyfApply(spell, ttyfLv, stCost, target){
  const result = document.getElementById('magic-result');
  const cl = document.getElementById('clog');
 
- // ST消費
- PC.st = Math.max(0, PC.st - stCost);
+ // ST消費（魔法使いの杖があれば軽減）
+ const discCost = _applyStaffDiscount(PC, stCost);
+ PC.st = Math.max(0, PC.st - discCost);
  gainAPAll(stCost);
  updateHUD();
 
@@ -28309,7 +29261,7 @@ function _ttyfApply(spell, ttyfLv, stCost, target){
 
  result.innerHTML = ` <span class="wizard-c">Magic Bolt</span> Lv${ttyfLv}<br>
   <span style="color:var(--white)">${target.name}に ${dmg}ダメージ！（IQ${PC.iq} × Lv${ttyfLv}）</span><br>
-  <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">${hpLabel}: ${prevHp} → ${afterHp}　強さ-${stCost}</span><br>
+  <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">${hpLabel}: ${prevHp} → ${afterHp}　強さ-${discCost}</span><br>
   <span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 2px)">近接戦闘では詠唱者の攻撃ヒット＝${dmg}として処理</span>`;
 
  // 魔法フェーズ中（_magicPhaseNextがある）なら先に処理
@@ -28401,10 +29353,23 @@ function renderSpellList(ctx){
  el.appendChild(btn);
  });
 }
+// 魔法使いの杖：装備していれば呪文の強さ消費をキャラクターのレベル分だけ軽減する（0未満にはならない）
+function _staffSTDiscount(caster){
+ if(!caster) return 0;
+ if(caster.type!=='wizard' && caster.type!=='rogue') return 0;
+ const hasStaff = (caster.equippedWeapons||[]).some(w=>w.isWizardStaff);
+ if(!hasStaff) return 0;
+ return caster.level||1;
+}
+function _applyStaffDiscount(caster, cost){
+ return Math.max(1, cost - _staffSTDiscount(caster));
+}
+
 function castSpell(spell,ctx){
  // ttyf はレベル確定後にSTを消費するため、ここでは先引きしない
  if(spell.fn !== 'ttyf'){
-  PC.st-=Math.max(1,spell.cost);gainAPAll(spell.cost);
+  const discCost = _applyStaffDiscount(PC, Math.max(1,spell.cost));
+  PC.st-=discCost;gainAPAll(spell.cost);
   updateHUD();
  }
  // 結果表示先：戦闘中はclog、それ以外はmagic-result
@@ -28767,7 +29732,7 @@ function dungeonTrySR(cfg){
   btn.className = 'choice-btn';
   btn.style.marginBottom = '4px';
   btn.innerHTML = `${typeIcon} ${name}　<span style="color:var(--white)">${attrLabel.split(' ')[0]} ${attrVal}</span>　<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">目標値 ${target}</span>`;
-  btn.addEventListener('click',()=>{ promptDiv.remove(); runFor(actor); });
+  btn.addEventListener('click',()=>{ promptDiv.remove(); choicesEl.innerHTML = ''; runFor(actor); });
   choicesEl.appendChild(btn);
  });
  scrollToTop();
@@ -29109,13 +30074,16 @@ const SHM2_MONSTER_TABLE = [
 ];
 
 function _consumeDungeonTorch(){
- if((PC._torchTurns||0) > 0){
-  PC._torchTurns--;
-  if(PC._torchTurns <= 0 && (PC._torchStock||0) > 0){
-   PC._torchStock--;
-   PC._torchTurns = 10;
-  }
-  updateHUD();
+ const _n = checkWeightPenalty().over ? 2 : 1;
+ for(let _tc=0; _tc<_n; _tc++){
+  if((PC._torchTurns||0) > 0){
+   PC._torchTurns--;
+   if(PC._torchTurns <= 0 && (PC._torchStock||0) > 0){
+    PC._torchStock--;
+    PC._torchTurns = 10;
+   }
+   updateHUD();
+  } else break;
  }
 }
 
@@ -29541,7 +30509,7 @@ const NODES = {
  const t=TOWNS.khazan;
  return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_KHAZAN'},
@@ -29568,7 +30536,7 @@ const NODES = {
  const t=TOWNS.port_argon;
  return `<span class="cyn" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 武器屋・装備屋', go:'SHOP_PORT'},
@@ -29594,7 +30562,7 @@ const NODES = {
  const t=TOWNS.stonehiem;
  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_STONE'},
@@ -29614,7 +30582,7 @@ const NODES = {
  const t=TOWNS.verda;
  return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_VERDA'},
@@ -29659,7 +30627,7 @@ const NODES = {
  const t=TOWNS.rimholm;
  return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武具屋', go:'SHOP_RIMHOLM'},
@@ -29704,7 +30672,7 @@ const NODES = {
  const t=TOWNS.marakai;
  return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器商', go:'SHOP_MARAKAI'},
@@ -29752,7 +30720,7 @@ const NODES = {
  const t=TOWNS.al_rashid;
  return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_AL_RASHID'},
@@ -29798,7 +30766,7 @@ const NODES = {
  const t=TOWNS.oasis_fort;
  return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_OASIS'},
@@ -29843,7 +30811,7 @@ const NODES = {
  const t=TOWNS.saroon;
  return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_SAROON'},
@@ -30647,7 +31615,7 @@ const NODES = {
  const t=TOWNS.duna;
  return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_DUNA'},
@@ -31273,7 +32241,7 @@ const NODES = {
   const t=TOWNS.yeldun;
   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 武器屋・装備店', go:'SHOP_YELDUN'},
@@ -31298,7 +32266,7 @@ const NODES = {
   const t=TOWNS.frostpeak;
   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 道具屋（毛皮・山岳装備）', go:'SHOP_FROSTPEAK'},
@@ -31323,7 +32291,7 @@ const NODES = {
   const t=TOWNS.ashveil;
   return `<span style="color:#e0d8cc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 鍛冶屋（黒曜石・鉄製品）', go:'SHOP_ASHVEIL'},
@@ -31352,7 +32320,7 @@ const NODES = {
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${winterWarn}${frostWarn}`;
+  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${winterWarn}${frostWarn}`;
  },
  choices:[
   {label:' 武具店（高品質武器・防寒装備）', go:'SHOP_VALDHEIM'},
@@ -31370,7 +32338,7 @@ const NODES = {
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
+  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
  },
  choices:[
   {label:' 交易所（毛皮・魚油）', go:'SHOP_NIFURVIK'},
@@ -31388,7 +32356,7 @@ const NODES = {
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
+  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
  },
  choices:[
   {label:' 鉱山道具屋（希少鉱石・採掘具）', go:'SHOP_ISKALD'},
@@ -31543,7 +32511,7 @@ const NODES = {
  const t=TOWNS.elsia;
  return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
- ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋（エルフ製品・遺物）', go:'SHOP_ELSIA'},
@@ -34501,7 +35469,7 @@ const NODES = {
    const t=TOWNS.neria;
    return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
-${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
+${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 武器屋・装備屋', go:'SHOP_NERIA'},
@@ -34551,7 +35519,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
    const t=TOWNS.dorua;
    return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
-${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
+${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 道具屋', go:'SHOP_DORUA'},
@@ -34615,7 +35583,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
    const t=TOWNS.sarpe;
    return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
-${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
+${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 酒場兼宿屋', go:'TAVERN_SARPE'},
@@ -34652,7 +35620,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
    const t=TOWNS.nebra;
    return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
-${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
+${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 民宿（酒場兼）', go:'TAVERN_NEBRA'},
@@ -34690,7 +35658,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${
    const gaugeHtml = renderBorderFortGaugeBar();
    return `<span style="color:#e8d0c0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
-${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}`;
+${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}`;
   },
   choices:[
    {label:' 武具庫', go:'SHOP_KALVO'},
@@ -37464,6 +38432,32 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popRegionHeroMsg()}${popRaidUnit
     document.getElementById('debug-panel').style.display='none';
     startBountyHunterEncounter(travelState);
    })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">賞金稼ぎ遭遇を強制発動</button>
+   <button onclick="dbg(()=>{
+    if((PC.party||[]).length >= 3){ showSaveToast('パーティが満員です'); return; }
+    document.getElementById('debug-panel').style.display='none';
+    startAdmirerEvent(PC.town);
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">憧れの若者イベントを強制発動</button>
+   <button onclick="dbg(()=>{
+    document.getElementById('debug-panel').style.display='none';
+    startRestInterruptCombat(PC.town);
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">休養中の襲撃を強制発動</button>
+   <button onclick="dbg(()=>{
+    _ensureWantedObject();
+    if(PC._infamyTowns) PC._infamyTowns[PC.town] = false;
+    PC.wanted[PC.town] = 99;
+    changeWanted(PC.town, 1);
+    document.getElementById('debug-panel').style.display='none';
+    go('TOWN_'+PC.town.toUpperCase());
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">極悪人イベントを強制発動</button>
+   <button onclick="dbg(()=>{
+    if(!PC._infamyTowns) PC._infamyTowns = {};
+    const regionKey = Object.keys(HERO_REGIONS).find(k=>HERO_REGIONS[k].towns.includes(PC.town)) || Object.keys(HERO_REGIONS)[0];
+    HERO_REGIONS[regionKey].towns.forEach(t=>{ PC._infamyTowns[t] = true; });
+    if(PC._infamyRegions) PC._infamyRegions[regionKey] = false;
+    checkRegionInfamy();
+    document.getElementById('debug-panel').style.display='none';
+    go('TOWN_'+PC.town.toUpperCase());
+   })" class="dbg-btn" style="border-color:#a06030;color:#e0a060">地方最悪の極悪人イベントを強制発動</button>
   </div>
 
   <!-- カルヴォ砦：防衛ゲージ確認・強制発動 -->
