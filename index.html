@@ -631,7 +631,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026081066</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026082201</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -684,16 +684,37 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <h3> 種族</h3>
  <div class="cg-row">
  <label>種族</label>
- <select id="a-race" onchange="updateRaceInfo();updateAddsPreview()">
+ <select id="a-race" onchange="updateRaceInfo();updateAddsPreview();updateSizeDisplay()">
  <option value="human">人間</option>
  <option value="elf">エルフ</option>
  <option value="dwarf">ドワーフ</option>
  <option value="halfling">ハーフリング</option>
  <option value="fairy">フェアリー</option>
  <option value="leprechaun">レプラコーン</option>
+ <option value="troll">トロール（上級者向け）</option>
+ <option value="ogre">オーガ（上級者向け）</option>
+ <option value="orc">オーク</option>
+ <option value="goblin">ゴブリン</option>
  </select>
  </div>
  <div class="race-info" id="race-info">人間: 全能力値 ×1（補正なし）</div>
+ </div>
+
+ <div class="cg-section">
+ <h3> 体格</h3>
+ <div class="cg-row">
+  <label>身長</label>
+  <input type="number" id="a-height" value="" placeholder="?" readonly style="width:80px">
+  <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-left:4px">cm</span>
+  <button onclick="rollHeight()" style="background:none;border:1px solid #444;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 6px;cursor:pointer;border-radius:2px;margin-left:8px">振る</button>
+ </div>
+ <div class="cg-row" style="margin-top:6px">
+  <label>体重</label>
+  <input type="number" id="a-weight" value="" placeholder="?" readonly style="width:80px">
+  <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-left:4px">kg</span>
+  <button onclick="rollWeight()" style="background:none;border:1px solid #444;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 6px;cursor:pointer;border-radius:2px;margin-left:8px">振る</button>
+ </div>
+ <div class="cg-hint" style="margin-top:6px">人間基準（身長125〜210cm・体重35〜170kg）でランダムに決め、種族補正をかけます。それぞれ何度でも振り直せます。</div>
  </div>
 
  <div class="cg-section">
@@ -798,6 +819,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <span style="font-size:calc(var(--font-sm) + 1px);color:#ece8e0" id="sp-age"></span>
  <span style="font-size:var(--font-sm);color:#c8b8a0" id="sp-birthday"></span>
  </div>
+ <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-top:3px" id="sp-size"></div>
  <div id="sp-lifespan-lbl" style="display:none"></div>
  <div id="sp-life-bar" style="display:none"></div>
  </div>
@@ -1491,6 +1513,107 @@ function tickWantedDecay(townId){
  PC._wantedLastTick[townId] = GAME_TIME.totalDays;
 }
 
+// ── 衛兵に見つかった後の「町封鎖」システム ──
+// 一度衛兵に見つかると（逃走成功／戦闘勝利いずれでも）、賄賂・ハッタリ・実力行使のいずれかで
+// 解決するまでその町を出られなくなる。1ヶ月（30日）経過で自動解除。
+const GUARD_LOCKOUT_DAYS = 30;
+
+function setGuardLockout(townId){
+ if(!PC._guardLockout) PC._guardLockout = {};
+ PC._guardLockout[townId] = { sinceDay: GAME_TIME.totalDays };
+}
+
+function isGuardLockedOut(townId){
+ if(!PC._guardLockout || !PC._guardLockout[townId]) return false;
+ const daysSince = GAME_TIME.totalDays - PC._guardLockout[townId].sinceDay;
+ if(daysSince >= GUARD_LOCKOUT_DAYS){
+  delete PC._guardLockout[townId];
+  return false;
+ }
+ return true;
+}
+
+function clearGuardLockout(townId){
+ if(PC._guardLockout) delete PC._guardLockout[townId];
+}
+
+// 町を出ようとした際、衛兵封鎖中なら解決手段を提示する
+function showGuardLockoutMenu(townId, toId, method){
+ const townName = (TOWNS[townId]||{}).name || townId;
+ const tier = wantedTier(townId);
+ const highTier = tier === 'high';
+ const story = document.getElementById('story');
+ if(story) story.innerHTML = ` <span style="color:#e0d0d0">${townName}</span><br><br>`
+  + `<b> 門番に呼び止められた</b><br><br>`
+  + `以前この町で衛兵に見つかった一件が尾を引いている。「お前、見覚えがあるな」と門番が眉をひそめた。このままでは町を出られそうにない。`
+  + (highTier ? `<br><br><span style="color:#c8a0a0">手配度が高いせいか、金や口先ではとても誤魔化せそうにない。</span>` : '');
+ // 解決後の遷移先：もともと選んでいた旅先があればその旅を再開し、無ければ町メニューへ戻る
+ const proceed = ()=>{
+  renderChoices([]);
+  if(toId && method) travelTo(toId, method);
+  else go('TOWN_'+townId.toUpperCase());
+ };
+ const choices = [];
+ if(!highTier){
+  choices.push({label:' 賄賂を渡す（20〜30GP）', fn:()=>{
+   const amount = 20 + Math.floor(Math.random()*11);
+   if((PC.gold||0) < amount){
+    const s=document.getElementById('story');
+    if(s) s.innerHTML += `<br><br><span style="color:#c8a0a0">持ち合わせが足りない……（${amount}GP必要）</span>`;
+    renderChoices([{label:'← 戻る', fn:()=>showGuardLockoutMenu(townId, toId, method)}]);
+    return;
+   }
+   PC.gold -= amount; updateHUD();
+   clearGuardLockout(townId);
+   const s=document.getElementById('story');
+   if(s) s.innerHTML = ` <span style="color:#e0d0d0">${townName}</span><br><br><span style="color:#e8e4d8">門番の手に金を握らせると、目つきが和らいだ。「……何も見なかったことにしよう」（-${amount}GP）</span>`;
+   renderChoices([{label:'▶ OK', fn:proceed}]);
+  }});
+  choices.push({label:' ハッタリで騙す（魅力 Lv2 能力値テスト）', fn:()=>{
+   setupSavingRoll({attr:'chr', level:2,
+    onSuccess:()=>{
+     clearGuardLockout(townId);
+     const s=document.getElementById('story');
+     if(s) s.innerHTML = ` <span style="color:#e0d0d0">${townName}</span><br><br><span style="color:#e8e4d8">堂々と別人のふりをして押し通ると、門番は疑わしそうにしながらも道を空けた。</span>`;
+     renderChoices([{label:'▶ OK', fn:proceed}]);
+    },
+    onFail:()=>{
+     const s=document.getElementById('story');
+     if(s) s.innerHTML += `<br><br><span style="color:#c8a0a0">「……いや、お前で間違いない」ハッタリは見破られた。</span>`;
+     renderChoices([{label:'← 戻る', fn:()=>showGuardLockoutMenu(townId, toId, method)}]);
+    },
+   });
+  }});
+ }
+ choices.push({label:' 力づくで突破する', fn:()=>{
+  renderChoices([]);
+  const level = Math.max(2, Math.min(10, (PC.level||1) + (highTier?1:0)));
+  const guardCount = highTier ? (3 + Math.floor(Math.random()*2)) : (2 + Math.floor(Math.random()*2));
+  const enemies = Array(guardCount).fill(0).map(()=>{
+   const n = generateNPC(level);
+   n.name = '衛兵'; n.bountyTitle = '衛兵';
+   return {...n, curCon:n.con};
+  });
+  window._wantedArrestContext = { townId, tier };
+  startCombatNPC({
+   enemies, canFlee:false, win:'__noop__', lose:'WANTED_ARREST_NODE', skipLuckSave:true,
+   onWin:()=>{
+    document.getElementById('cbt-area').classList.add('hidden');
+    document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display = '';
+    cbtState = null;
+    clearGuardLockout(townId);
+    updateHUD();
+    const s = document.getElementById('story');
+    if(s) s.innerHTML = ` <span style="color:#e0d0d0">${townName}</span><br><br><span style="color:#e8e4d8">門番の衛兵たちを叩きのめし、力づくで町を後にした。</span>`;
+    renderChoices([{label:'▶ OK', fn:proceed}]);
+   },
+  });
+ }});
+ choices.push({label:'← 町に留まる', go:'TOWN_'+townId.toUpperCase()});
+ renderChoices(choices);
+}
+
 // 手配度に応じたバッジHTML（信頼度バッジと並べて表示する用）
 function renderWantedBadge(townId){
  tickWantedDecay(townId);
@@ -1539,7 +1662,14 @@ function startAdmirerEvent(townId){
  renderChoices([
   {label:' 一緒に連れて行く', fn:()=>{
    PC.party = PC.party || [];
+   if(PC.party.length >= 3){
+    const s = document.getElementById('story');
+    if(s) s.innerHTML += `<br><br><span style="color:#c05040">パーティが満員（上限3人）のため、これ以上連れて行けない。</span>`;
+    renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_'+townId.toUpperCase()); }}]);
+    return;
+   }
    PC.party.push({...npc, trust:100, joinDay:GAME_TIME.totalDays});
+   addLifeEvent('', `${npc.name}がパーティに加わった（${({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'})[npc.type]||npc.type}・${npc.race}）。`);
    renderChoices([]);
    const s = document.getElementById('story');
    if(s) s.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#e8e4d8"> ${npc.name}が仲間に加わった！　目を輝かせながら、あなたの後についてきた。</span>`;
@@ -1574,26 +1704,56 @@ function startWantedGuardAmbush(townId, tier){
     ? `門をくぐった瞬間、衛兵があなたの人相書きに気づいた。「賞金首だ！取り押さえろ！」`
     : `門番があなたの顔をじっと見て、囁き合っている。「……あいつじゃないか」`);
  }
- renderChoices([{label:' 戦う', fn:()=>{
-  renderChoices([]);
-  window._wantedArrestContext = { townId, tier };
-  startCombatNPC({
-   enemies,
-   canFlee: false,
-   win:'__noop__',
-   lose:'WANTED_ARREST_NODE',
-   onWin:()=>{
-    document.getElementById('cbt-area').classList.add('hidden');
-    document.getElementById('scroll-area').classList.remove('in-combat');
-    document.getElementById('text-win').style.display = '';
-    cbtState = null;
-    updateHUD();
-    const s = document.getElementById('story');
-    if(s) s.innerHTML = `<span style="color:#e0d0d0">${townName}</span><br><br><span style="color:#e8e4d8">衛兵を振り切った！</span>`;
-    renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_'+townId.toUpperCase()); }}]);
-   },
-  });
- }}]);
+ const afterEvade = (msg)=>{
+  setGuardLockout(townId);
+  updateHUD();
+  const s = document.getElementById('story');
+  if(s) s.innerHTML = `<span style="color:#e0d0d0">${townName}</span><br><br><span style="color:#e8e4d8">${msg}</span>`;
+  renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); go('TOWN_'+townId.toUpperCase()); }}]);
+ };
+ renderChoices([
+  {label:' 逃げる（素早さ Lv2 能力値テスト）', fn:()=>{
+   setupSavingRoll({attr:'spd', level:2,
+    onSuccess:()=>{
+     afterEvade('人混みに紛れて衛兵の目を盗み、逃げ切った！ただし顔を見られた以上、正面から町を出るのは難しそうだ。');
+    },
+    onFail:()=>{
+     const s = document.getElementById('story');
+     if(s) s.innerHTML += `<br><br><span style="color:#c8a0a0">逃げきれず、腕を掴まれてしまった！</span>`;
+     renderChoices([]);
+     window._wantedArrestContext = { townId, tier };
+     startCombatNPC({
+      enemies, canFlee:false, win:'__noop__', lose:'WANTED_ARREST_NODE', skipLuckSave:true,
+      onWin:()=>{
+       document.getElementById('cbt-area').classList.add('hidden');
+       document.getElementById('scroll-area').classList.remove('in-combat');
+       document.getElementById('text-win').style.display = '';
+       cbtState = null;
+       afterEvade('衛兵を振り切った！ただし顔を見られた以上、正面から町を出るのは難しそうだ。');
+      },
+     });
+    },
+   });
+  }},
+  {label:' 戦う', fn:()=>{
+   renderChoices([]);
+   window._wantedArrestContext = { townId, tier };
+   startCombatNPC({
+    enemies,
+    canFlee: false,
+    win:'__noop__',
+    lose:'WANTED_ARREST_NODE',
+    skipLuckSave: true,
+    onWin:()=>{
+     document.getElementById('cbt-area').classList.add('hidden');
+     document.getElementById('scroll-area').classList.remove('in-combat');
+     document.getElementById('text-win').style.display = '';
+     cbtState = null;
+     afterEvade('衛兵を振り切った！ただし顔を見られた以上、正面から町を出るのは難しそうだ。');
+    },
+   });
+  }},
+ ]);
  return;
 }
 
@@ -1628,9 +1788,10 @@ function startPickpocket(townId){
    renderChoices([{label:'← 町に戻る', go:'TOWN_'+townId.toUpperCase()}]);
   },
   onFail:()=>{
-   PC.con=Math.max(0,PC.con-3); changeWanted(townId, 3); updateHUD();
+   const dmg = 1 + Math.floor(Math.random()*6);
+   PC.con=Math.max(0,PC.con-dmg); changeWanted(townId, 3); updateHUD();
    const s = document.getElementById('story');
-   if(s) s.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#e8e4d8">気づかれて殴られた！　体力-3。</span>`;
+   if(s) s.innerHTML = `<span style="color:#e0d8c8">${townName}</span><br><br><span style="color:#e8e4d8">気づかれて殴られた！　体力-${dmg}。</span>`;
    if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
    renderChoices([{label:'← 町に戻る', go:'TOWN_'+townId.toUpperCase()}]);
   },
@@ -1693,7 +1854,7 @@ function startShopRobbery(townId){
  renderChoices([{label:' 戦う', fn:()=>{
   renderChoices([]);
   startCombatNPC({
-   enemies, canFlee:false, win:'__noop__', lose:'WANTED_ARREST_NODE',
+   enemies, canFlee:false, win:'__noop__', lose:'WANTED_ARREST_NODE', skipLuckSave:true,
    onWin:()=>{
     document.getElementById('cbt-area').classList.add('hidden');
     document.getElementById('scroll-area').classList.remove('in-combat');
@@ -2732,6 +2893,9 @@ function startHeroQuest(questId){
  if(!q) return;
  const tmpl = HERO_QUEST_TEMPLATES.find(t=>t.id===q.tmplId);
  if(!tmpl) return;
+ // 酒場パネルを開いたまま出発しようとした場合に備え、確実に閉じる
+ const _pp = document.getElementById('patron-panel');
+ if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
  _runHeroQuestNode(q, tmpl, 0);
 }
 
@@ -2834,6 +2998,9 @@ function _startHeroQuestBattle(q, tmpl){
   changeTrust(q.fromTownId, 8);
   if(!PC._heroQuestCooldown) PC._heroQuestCooldown = {};
   PC._heroQuestCooldown[q.fromTownId] = GAME_TIME.totalDays + (360 + Math.floor(Math.random()*361));
+  // 依頼達成でダンジョンを抜けるため、ダンジョン状態・画像を確実にクリアする
+  PC._yeldunDungeon = null;
+  hideDungeonImage();
   updateHUD();
   addLifeEvent('',`英雄依頼「${tmpl.title}」を達成した。`);
   showSaveToast(` 英雄依頼完了！ +${q.reward}GP`);
@@ -3374,6 +3541,11 @@ const QUEST_TYPE_WEIGHT = {
 const QUEST_TYPE_LABEL = {
  delivery_local:'配達人', delivery_cross:'配達人', purchase:'配達人', escort:'用心棒', contraband:'密輸人',
  hunt:'討伐屋', bounty:'賞金稼ぎ', kidnapping:'誘拐屋', assassination:'暗殺者',
+};
+// 酒場の噂で「〇〇の仕事なら△△に任せろ」と話す際の、評価ラベルごとの仕事内容の言い回し
+const QUEST_LABEL_TASK_PHRASE = {
+ '配達人':'届け物', '用心棒':'護衛の仕事', '密輸人':'ちょっとした裏の仕事',
+ '討伐屋':'モンスター退治', '賞金稼ぎ':'賞金首の始末', '誘拐屋':'厄介な頼まれごと', '暗殺者':'表沙汰にできない頼まれごと',
 };
 
 // 依頼達成を地方ごとに記録する
@@ -4507,11 +4679,18 @@ function propertyPickupCaretaker(townId){
   ...prop.caretakers.map((n)=>({
    label:`${n.name}を引き取る`,
    fn:()=>{
+    PC.party = PC.party||[];
+    if(PC.party.length >= 3 && !PC.party.some(p=>p===n||p._npcId===n._npcId)){
+     showSaveToast('パーティが満員（上限3人）で引き取れない');
+     return;
+    }
     const idx = prop.caretakers.indexOf(n);
     if(idx !== -1) prop.caretakers.splice(idx,1);
-    PC.party = PC.party||[];
     // 既にパーティにいなければ追加
-    if(!PC.party.some(p=>p===n||p._npcId===n._npcId)) PC.party.push(n);
+    if(!PC.party.some(p=>p===n||p._npcId===n._npcId)){
+     PC.party.push(n);
+     addLifeEvent('', `${n.name}がパーティに戻った（${({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'})[n.type]||n.type}・${n.race}）。`);
+    }
     updateHUD(); renderPartyTab();
     showSaveToast(` ${n.name}をパーティに戻した`);
     propertyPickupCaretaker(townId);
@@ -4791,6 +4970,12 @@ function _revealChildStats(child, prop){
 }
 
 function _recruitChild(child, prop, townId){
+ PC.party = PC.party||[];
+ if(PC.party.length >= 3){
+  showSaveToast('パーティが満員（上限3人）で迎え入れられない');
+  propertyPickupChild(townId);
+  return;
+ }
  const def = PROPERTY_DEFS[townId];
  // タイプに応じた装備を設定
  const t = child.type||'warrior';
@@ -4802,10 +4987,12 @@ function _recruitChild(child, prop, townId){
  // bornDayをbirthDayとして引き継ぎ、個体寿命を設定
  if(!child.birthDay) child.birthDay = child.bornDay;
  if(!child.lifespan){
-  const ranges = { human:[60,100], elf:[600,1000], dwarf:[150,250], halfling:[80,120], fairy:[150,250], leprechaun:[250,350] };
+  const ranges = { human:[60,100], elf:[600,1000], dwarf:[150,250], halfling:[80,120], fairy:[150,250], leprechaun:[250,350], troll:[270,330], ogre:[135,165], orc:[54,66], goblin:[36,44] };
   const [min,max] = ranges[child.race||'human'] || ranges.human;
   child.lifespan = min + Math.floor(Math.random()*(max-min+1));
  }
+ // 仲間入りのタイミングで身長・体重を決定
+ if(child.height==null || child.weight==null) Object.assign(child, rollBodySize(child.race));
  const idx = prop.children.indexOf(child);
  prop.children.splice(idx,1);
  PC.party = PC.party||[];
@@ -5767,6 +5954,8 @@ function coinWeight(pc=PC){ return (pc.gold||0)+(pc.sp||0)+(pc.cp||0); }
 // ══════════════════════════════════════════
 
 const NPC_RACES = ['human','human','human','elf','dwarf','halfling','fairy','leprechaun'];
+// PCが選べるモンスター種族。旅・酒場等の一般NPCにも、ごく低確率で紛れ込む
+const NPC_MONSTER_RACES = ['troll','ogre','orc','goblin'];
 const NPC_TYPES = ['warrior','warrior','rogue','wizard'];
 
 // NPCの結婚観：1人につき1つだけランダムに割り当てる
@@ -5836,7 +6025,10 @@ function calcMarriagePrefBonus(npc, townId){
 function rollNPCStat(base=8){ return base + Nd6(2) - 2; }
 
 function generateNPC(level=1){
- const race = NPC_RACES[Math.floor(Math.random()*NPC_RACES.length)];
+ // 通常はNPC_RACESから、ごく低確率（0.5%）でモンスター種族が紛れ込む
+ const race = (Math.random() < 0.005)
+  ? NPC_MONSTER_RACES[Math.floor(Math.random()*NPC_MONSTER_RACES.length)]
+  : NPC_RACES[Math.floor(Math.random()*NPC_RACES.length)];
  const type = NPC_TYPES[Math.floor(Math.random()*NPC_TYPES.length)];
  const name = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
 
@@ -5885,6 +6077,7 @@ function generateNPC(level=1){
  st, iq, lk, con, dex, chr, spd,
  maxCon: con,
  maxSt: st,
+ ...rollBodySize(race),
  gold: npcGold, sp: npcSP, cp: npcCP,
  equippedWeapons: type==='wizard' ? [] : weapons,
  equippedArmors: armors,
@@ -5907,6 +6100,10 @@ function generateNPC(level=1){
    halfling:   [80,  120],
    fairy:      [150, 250],
    leprechaun: [250, 350],
+   troll:      [270, 330],
+   ogre:       [135, 165],
+   orc:        [54,  66],
+   goblin:     [36,  44],
   };
   const [min, max] = ranges[race] || ranges.human;
   return min + Math.floor(Math.random() * (max - min + 1));
@@ -5935,6 +6132,64 @@ function _importEquipmentForLevel(level, type){
 // 年齢（歳）から、現在の暦を基準にしたNPC用birthDay（totalDays基準）を算出
 function _birthDayFromAge(age){
  return GAME_TIME.totalDays - Math.floor(age * 365);
+}
+
+// ── 討伐依頼専用：CR型と並行して登場するNPC型精鋭モンスター ──
+// 「同じ種族でありながらより強い個体の集まり」。人型・亜人系のみ対象。固有名は持たず種族名＋階級で表示する。
+// 能力値係数はPC種族(RACE_MODS)と同じ考え方で、種族ごとの個性を強さの伸び方に反映する
+const MONSTER_RACE_MODS = {
+ troll:  { st:3,    iq:1, lk:1, con:3,    dex:1,   chr:1,    spd:1 },
+ ogre:   { st:2,    iq:1, lk:1, con:2,    dex:1,   chr:1,    spd:1 },
+ orc:    { st:1,    iq:1, lk:1, con:1,    dex:1,   chr:1,    spd:1 },
+ goblin: { st:0.75, iq:1, lk:1, con:0.75, dex:1.5, chr:0.75, spd:1 },
+};
+// 種族ごとの表示名と、階級（部隊としての練度）に対応するlevel帯
+// levelは既存のgenerateNPC/_importEquipmentForLevelと同じ意味（高いほど能力値・装備が強化される）
+const ELITE_MONSTER_INFO = {
+ troll:  { baseName:'エルダー・トロール', tiers:[ {level:14, rank:'熟練'}, {level:15, rank:'精鋭'} ] },
+ ogre:   { baseName:'オーガ・ブルート',   tiers:[ {level:8,  rank:'手練れ'}, {level:9,  rank:'熟練'}, {level:10, rank:'精鋭'} ] },
+ orc:    { baseName:'オーク・チャンピオン', tiers:[ {level:6,  rank:'手練れ'}, {level:7,  rank:'熟練'}, {level:8,  rank:'精鋭'} ] },
+ goblin: { baseName:'ハイ・ゴブリン',     tiers:[ {level:5,  rank:'熟練'}, {level:6,  rank:'精鋭'} ] },
+};
+
+// 種族係数を反映した能力値ロール（RACE_MODSのapplyRaceと同じ考え方だが、モンスター専用テーブルを参照する）
+function _applyMonsterRaceMods(base, species){
+ const m = MONSTER_RACE_MODS[species];
+ const res = {};
+ Object.keys(m).forEach(k => res[k] = Math.max(1, Math.round(base[k] * m[k])));
+ return res;
+}
+
+// NPC型精鋭モンスター1体を生成する（generateNPCと同じ考え方。装備は_importEquipmentForLevelを流用）
+function generateEliteMonster(species, level){
+ const info = ELITE_MONSTER_INFO[species];
+ const base = {
+  st:  rollNPCStat(8 + (level-1)*2),
+  iq:  rollNPCStat(8 + (level-1)*2),
+  lk:  rollNPCStat(8),
+  con: rollNPCStat(8 + (level-1)*2),
+  dex: rollNPCStat(8),
+  chr: rollNPCStat(8),
+  spd: rollNPCStat(8),
+ };
+ const { st, iq, lk, con, dex, chr, spd } = _applyMonsterRaceMods(base, species);
+ const { weapons, armors } = _importEquipmentForLevel(level, 'warrior');
+ return {
+  name: info.baseName, species, type:'warrior', level,
+  st, iq, lk, con, dex, chr, spd,
+  maxCon: con, maxSt: st,
+  gold: 0, sp: 0, cp: 0,
+  equippedWeapons: weapons,
+  equippedArmors: armors,
+  invWeapons: [], invArmors: [],
+  spells: [],
+  isHuman: false, isEliteMonster: true,
+ };
+}
+
+// 種族＋階級から表示名（例：「エルダー・トロールの精鋭部隊」）を組み立てる
+function eliteMonsterDisplayName(species, rank){
+ return `${ELITE_MONSTER_INFO[species].baseName}の${rank}部隊`;
 }
 
 // 保存プールの読み書き（ws.knownNPCsとは別管理。エンディング後専用の仕組みと混ざらないようにするため）
@@ -6060,7 +6315,7 @@ function partyRollTotal(){
 // NPC募集コスト（無料だが説明文用に定義）
 function npcRecruitDesc(npc){
  const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[npc.type]||npc.type;
- const raceJa = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[npc.race]||npc.race;
+ const raceJa = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'}[npc.race]||npc.race;
  const adds = calcAdds(npc);
  const w = npc.equippedWeapons?.[0];
  const dmg = w ? `${w.dice}D+${(w.adds||0)+adds}` : '素手';
@@ -6201,7 +6456,9 @@ const PATRON_EVENTS = {
     type:'rumor',
     lines:['「最近ザハラ地方から来る隊商が減っとる。砂漠に何かあるのかのう…」',
            '「カザーヌの裏市場では珍しい地図が売られとる。ま、信用できるかは別じゃが」',
-           '「王城の地下には迷宮があるという噂があるぞ。王様が隠したお宝つきでな」'] },
+           '「王城の地下には迷宮があるという噂があるぞ。王様が隠したお宝つきでな」',
+           '「地方をまたぐ長旅は、腕に覚えのある者でも気を抜くな。山賊、獣、天候……何日も続く道中で一つでも読み違えれば命取りじゃ」',
+           '「儂も若い頃は隣の地方まで馬車で二十日、三十日とかけたもんじゃ。食料と装備を舐めてかかった隊商が、途中で消えるのを何度も見てきた」'] },
   { name:'傭兵くずれのガルト', icon:'',
     intro:'傷だらけの大男がジョッキを片手に壁にもたれている。こちらを一瞥した。',
     type:'brawl',
@@ -6638,7 +6895,7 @@ const PATRON_EVENTS_COMMON = [
    type:'rumor',
    lines:['「この辺りで熱病が流行ってると聞きました。原因はまだ分かっていません」',
           '「傷の治療費は払えない人が多い。でもそれが仕事だから断れないんですよ」',
-          '「不思議な病があってね、患者の記憶だけが消えるんです。体は멀쩡なのに」'] },
+          '「不思議な病があってね、患者の記憶だけが消えるんです。体は健康なのに」'] },
 
  { name:'鍛冶師の弟子', icon:'',
    intro:'手に火傷跡のある若者が疲れた様子で飲んでいる。',
@@ -6798,7 +7055,10 @@ const extra = {
     type:'rumor',
     lines:['「最近、王城の地下倉庫から変な音がするんだ。上には報告してるが…相手にされない」',
            '「国王陛下が新しい遠征隊を募集してるらしい。危険な任務だが報酬は破格だとか」',
-           '「カザーヌの外壁の修理が始まった。何かに備えてるのかもしれない」'] },
+           '「カザーヌの外壁の修理が始まった。何かに備えてるのかもしれない」',
+           '「郊外の洞穴でホブゴブリンの群れが目撃された。数が多いから討伐依頼が出るかもしれん」',
+           '「街道でハーフオークの一団に襲われた商隊がいる。腕っ節は並の人間より強いから油断するな」',
+           '「武装したトロルの一団——トロル・レイダーとでも呼ぶべきか——が近くの洞窟に巣食ってるらしい。生半可な冒険者じゃ手も足も出ないそうだ」'] },
   { name:'魔法使いギルドの見習いパルス', icon:'',
     intro:'ローブ姿の若者がしょんぼりしながら飲んでいる。',
     type:'drink',
@@ -6980,7 +7240,9 @@ const extra = {
     type:'rumor',
     lines:['「密林の奥で最近、動物が怯えて戻ってくる。何かがいる気配がする」',
            '「封じられた神殿の封印が少し弱まっているように見える。何かが干渉している」',
-           '「エルシア周辺の薬草が今年は特に質が良い。珍しいことだ」'] },
+           '「エルシア周辺の薬草が今年は特に質が良い。珍しいことだ」',
+           '「密林の奥でハーフオークの集落らしきものが見つかった。人間とオークの混血だそうで、力は侮れない」',
+           '「遺跡の警備が薄い一角にホブゴブリンが住み着いたらしい。ゴブリンより一回り大きく、群れで来ると厄介だ」'] },
   { name:'魔法薬師のエレン', icon:'',
     intro:'色とりどりの小瓶を並べた女性が試作品の味見をしながら飲んでいる。',
     type:'tip',
@@ -7161,7 +7423,9 @@ const extra = {
     type:'rumor',
     lines:['「アル・ラシードの東に新しい遺跡が見つかったと報告が入った。まだ一般には公表されていない」',
            '「砂漠の各オアシスに何者かが印を残している。古代の言語だが…意味が解読できていない」',
-           '「ザハラ地方の東端に近づいた隊商が何者かに尾行されたという話がある」'] },
+           '「ザハラ地方の東端に近づいた隊商が何者かに尾行されたという話がある」',
+           '「砂漠の岩場にホブゴブリンの群れが根城を構えたらしい。隊商を狙って集団で襲ってくると聞いた」',
+           '「武装したトロルの一団が街道の隊商を襲ったという報告がある。トロル・レイダーと呼ばれてるそうだが、生半可な護衛じゃ全滅する」'] },
   { name:'水売りのアブ', icon:'',
     intro:'大きな水袋を持った少年が仕事の合間に飲んでいる。',
     type:'drink',
@@ -7349,7 +7613,10 @@ const extra = {
     type:'rumor',
     lines:['「山の奥に最近、大きな足跡が現れる。熊よりでかい。何だかわからない」',
            '「ドラクリムの深部に踏み込んだ猟師が戻ってこなかった。3人もだ」',
-           '「イェルドゥンの東の崖に古い文字が刻まれてる。読めた者はいないが、毎年増えてる気がする」'] },
+           '「イェルドゥンの東の崖に古い文字が刻まれてる。読めた者はいないが、毎年増えてる気がする」',
+           '「山道でホブゴブリンの群れに遭遇したという猟師の話を聞いた。ゴブリンより一回り大きく、集団で来ると厄介だそうだ」',
+           '「武装したトロルの一団——トロル・レイダーとかいうやつだ——が鉱山の坑道に居座ってるらしい。並の傭兵じゃ返り討ちにあうぞ」',
+           '「ヴァルドヘイムまで足を延ばすつもりか？覚悟しておけ。地方をまたぐ旅は日数がかかる分、山賊にも獣にも天候にも遭う機会が増える。そのうえ北に着いたら着いたで、今度は寒さが牙を剥く」'] },
   { name:'鍛冶師の娘ベルタ', icon:'',
     intro:'鍛冶の煤が残る顔の若い女性が飲んでいる。',
     type:'drink',
@@ -7422,7 +7689,8 @@ const extra = {
   { name:'凍傷持ちの帰還冒険者', icon:'',
     intro:'手に包帯を巻いた男が遠い目をして飲んでいる。',
     type:'rumor',
-    lines:['「フロストピーク山頂まで行ったことがある。そこに…人の作ったものがあった。何なのかはわからない」',
+    lines:['「ヴァルドヘイムの冬をなめてたよ。防寒着とブーツを揃えずに山を登って、この様さ」男は包帯の巻かれた指を見せた。',
+           '「冬のヴァルドヘイム行きは、剣より先に厚着を用意しろ。指を落とした奴を何人も見た」',
            '「山の中腹に廃小屋がある。中に日記が残っていた。最後のページで止まっていた」',
            '「夜の山で光が動くのを見た。狐火じゃない。もっと規則的な動きだった」'] },
   { name:'霊薬草の買い付け人ミルナ', icon:'',
@@ -7446,7 +7714,9 @@ const extra = {
     type:'rumor',
     lines:['「北の氷原の奥に、古の砦がある。誰も帰ってこない。だが、財宝があるのは本当だ」',
            '「フロストトロルは冬になると数が増える。春まで外を出歩くな」',
-           '「白竜の幼体が目撃されている。イスカルドの坑道近くだ。近づくな」'] },
+           '「白竜の幼体が目撃されている。イスカルドの坑道近くだ。近づくな」',
+           '「武装したトロル——トロル・レイダーと呼んでる連中だ——が北の氷原に現れた。並の装備じゃ歯が立たない」',
+           '「氷原の外れにハーフオークの群れが住み着いたらしい。人間とオークの混血で、力は馬鹿にできない」'] },
   { name:'北方の呪術師ヴォルガ', icon:'',
     intro:'奇妙な装飾品をまとった老人が炉端で何かを唱えている。',
     type:'charm',
@@ -7732,10 +8002,12 @@ const extra = {
    attr:'dex', level:3, win_line:'「良い剣捌きだ。北の流儀を教えてやろう」男はコインを置いた。', lose_line:'「まだ北の風を知らない」男は淡々と言った。', win_gp:22, lose_con:3 },
   {icon:'', name:'凍原の薬草師', intro:'珍しい草を乾燥させながら飲んでいる人物がいる。',
    type:'drink', line:'「この草はここでしか採れない。良かったら一緒に飲みましょう」穏やかに酒を奢ってくれた。', gp_delta:0, free_drink:true },
+  {icon:'', name:'防寒具職人グドルン', intro:'厚手の毛皮を縫い合わせている女性が手を止めて飲んでいる。',
+   type:'rumor', lines:['「冬にここへ来て防寒着とブーツを持っていない旅人をよく見るけど、正気とは思えないね。指の一本や二本、平気でなくすよ」','「凍傷は最初は『冷え』程度に感じる。そこで甘く見て歩き続けると、あっという間に悪化する。侮ってはいけない」','「壊疽まで進んだら、もう元には戻らない。うちの防寒着は高いが、指より安いだろう？」']},
  ],
  nifurvik: [
   {icon:'', name:'氷漁の漁師', intro:'氷の上で穴を開けて魚を獲った道具を持った男が飲んでいる。',
-   type:'rumor', lines:['「氷の下に大きな影が動いていた。魚ではない。黒くて大きすぎる」','「ニフルヴィクの東の氷壁に何かが彫られている。風が彫ったにしては複雑すぎる形だ」','「先週から氷の音が変わった。割れる前の音に似ている」']},
+   type:'rumor', lines:['「氷の下に大きな影が動いていた。魚ではない。黒くて大きすぎる」','「ニフルヴィクの東の氷壁に何かが彫られている。風が彫ったにしては複雑すぎる形だ」','「先週から氷の音が変わった。割れる前の音に似ている」','「装備の薄い旅人がこの村に来ると、たいてい翌日には凍傷でうずくまっている。冬のこの地方を舐めるな」']},
   {icon:'', name:'北の行商人', intro:'重い荷を持ち込んだ男がやっと座って飲んでいる。',
    type:'drink', line:'「ここまで来るのに三日かかった。温かい場所で一杯飲めるのが一番の幸せだ」男は嬉しそうに奢ってくれた。', gp_delta:0, free_drink:true },
   {icon:'', name:'凍原の見張り', intro:'防寒具を着込んだ男が雪かきの疲れを癒しながら飲んでいる。',
@@ -7746,7 +8018,7 @@ const extra = {
  ],
  iskald: [
   {icon:'', name:'氷の採掘師', intro:'氷の粒を体についたまま飲んでいる男がいる。',
-   type:'rumor', lines:['「氷を掘っていたら、中から古い木製の箱が出てきた。中身は黒ずんだ金属の欠片だった」','「イスカルドの北の氷壁が少しずつ動いている。数年前より確実に南に来ている」','「氷の中に閉じ込められた虫を見た。生きているように見えた」']},
+   type:'rumor', lines:['「氷を掘っていたら、中から古い木製の箱が出てきた。中身は黒ずんだ金属の欠片だった」','「イスカルドの北の氷壁が少しずつ動いている。数年前より確実に南に来ている」','「氷の中に閉じ込められた虫を見た。生きているように見えた」','「防寒着もブーツも持たずにイスカルドへ来る奴が後を絶たない。指を落として初めて後悔するんだ」']},
   {icon:'', name:'北の若い冒険者', intro:'新しすぎる装備を身に着けた若者が意気込んで飲んでいる。',
    type:'drink', line:'「先輩の冒険者に会えた！話を聞かせてください！奢ります！」若者は目を輝かせて一杯ご馳走してくれた。', gp_delta:0, free_drink:true },
   {icon:'', name:'廃村調査員', intro:'分厚い外套を着た人物が報告書を書きながら飲んでいる。',
@@ -7876,6 +8148,7 @@ function checkBardEvent(townId){
  if(Math.random() >= 0.05) return false; // 低確率
  PC._patronTalkDay = GAME_TIME.totalDays;
  PC._patronTalkCount = 3; // その日はこれ以上話しかけられなくなる
+ GAME_TIME.hour = 2 + Math.floor(Math.random()*4); // 話し込むうちに夜が更け、時間帯を「未明」にする
  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 取り囲まれた</div>
   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">気づけば、客や吟遊詩人たちに取り囲まれていた。「冒険の話をもう一度聞かせてくれ！」誰もが身を乗り出し、話をせがんでくる。<br><br>断りきれず、何度も同じ話を繰り返すうちに、気づけばすっかり夜が更けていた。</div>`;
  _showPatronPanel(header, ()=>{ updateHUD(); _restoreNodeChoices(); });
@@ -7960,6 +8233,46 @@ function talkToPatron(townId){
   _showPatronPanel(header + msgBox(chaosRumor), ()=>{ updateHUD(); });
   return;
  }
+
+ // PC自身の地方内評価の噂（極稀）
+ {
+  const regionKey = getRegionKey(townId);
+  const myLabel = regionKey ? (PC._regionEvalLabel||{})[regionKey] : null;
+  if(myLabel && Math.random() < 0.04){
+   const pcName = PC.name || '名も無き者';
+   const templates = [
+    `「${pcName}って名前、聞いたことあるか？このあたりじゃちょっとした${myLabel}として名が通ってるらしいぜ」`,
+    `「${pcName}っていう${myLabel}の話、知ってるか？なかなかの評判だそうだ」`,
+    `「最近${myLabel}として羽振りがいいのは${pcName}だって噂だ。お前も名前ぐらいは聞いたことあるだろう」`,
+   ];
+   const line = templates[Math.floor(Math.random()*templates.length)];
+   const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+    <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が世間話をしている。</div>`;
+   const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+   _showPatronPanel(header + msgBox(line), ()=>{ updateHUD(); });
+   return;
+  }
+ }
+
+ // 架空のNPCを腕利きとして紹介する噂（レア）
+ if(Math.random() < 0.06){
+  const rumorName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+  const labelPool = Object.values(QUEST_TYPE_LABEL).filter((v,i,arr)=>arr.indexOf(v)===i);
+  const rumorLabel = labelPool[Math.floor(Math.random()*labelPool.length)];
+  const task = QUEST_LABEL_TASK_PHRASE[rumorLabel] || '仕事';
+  const npcTemplates = [
+   `「${rumorName}ってやつ知ってるか？${task}を任せるにはあいつが一番らしいぜ」`,
+   `「${task}で困ってるなら${rumorName}を訪ねるといい。腕利きの${rumorLabel}だと評判だ」`,
+   `「${rumorName}という${rumorLabel}の噂を聞いた。${task}に関しちゃ右に出る者がいないそうだ」`,
+  ];
+  const line = npcTemplates[Math.floor(Math.random()*npcTemplates.length)];
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が誰かの噂話をしている。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+  _showPatronPanel(header + msgBox(line), ()=>{ updateHUD(); });
+  return;
+ }
+
  if(checkFameEvent(townId)) return;
  if(checkBardEvent(townId)) return;
 
@@ -8023,11 +8336,14 @@ function talkToPatron(townId){
     closeBtn.disabled = false; closeBtn.style.opacity = '';
    },
    onFail:()=>{
-    PC.con = Math.max(1, PC.con - lose_con); updateHUD();
+    const dmg = 1 + Math.floor(Math.random()*6);
+    const lost = Math.min(PC.gold||0, dmg);
+    PC.gold = Math.max(0, (PC.gold||0) - lost);
+    updateHUD();
     changeAlignment(0, -3); // brawl負け：混沌+3
     _appendPatronPanel(
      msgBox(ev.lose_line, '#e0d0d0', '#1a1a1a') +
-     resultLine(`体力-${lose_con}`)
+     resultLine(`-${lost}GP`)
     );
     closeBtn.disabled = false; closeBtn.style.opacity = '';
    },
@@ -8061,21 +8377,35 @@ function talkToPatron(townId){
   });
 
  } else if(ev.type === 'luck'){
-  const isGood = PC.lk >= (ev.lk_thresh||12);
-  const results = [];
-  let body = '';
-  if(isGood){
-   if(ev.good_lk){ PC.lk += ev.good_lk; results.push(`LK+${ev.good_lk}`); }
-   if(ev.good_gp){ gainGPAll(ev.good_gp); results.push(`+${ev.good_gp}GP`); }
-   body = msgBox(ev.line_good, 'var(--reward)', '#d8d0c0');
-   if(results.length) body += resultLine(results.join('　'));
-  } else {
-   if(ev.bad_lk){ PC.lk = Math.max(1, PC.lk + ev.bad_lk); results.push(`LK${ev.bad_lk}`); }
-   if(ev.bad_gp){ gainGPAll(ev.bad_gp); results.push(`${ev.bad_gp}GP`); }
-   body = msgBox(ev.line_bad, '#886655', '#6b4c2a');
-   if(results.length) body += `<div style="font-size:calc(var(--font-sm) - 1px);color:#e0d8cc;margin-top:8px">${results.join('　')}</div>`;
-  }
-  _showPatronPanel(header + body, onClose);
+  _showPatronPanel(header, onClose);
+  const closeBtn = document.getElementById('patron-panel-close');
+  closeBtn.disabled = true; closeBtn.style.opacity = '0.3';
+  setupSavingRoll({
+   attr: 'lk', level: 1, label:'運',
+   onSuccess:()=>{
+    const results = [];
+    if(ev.good_lk){ PC.lk += ev.good_lk; results.push(`LK+${ev.good_lk}`); }
+    if(ev.good_ap){ gainAPAll(ev.good_ap); results.push(`経験値+${ev.good_ap}`); }
+    if(ev.good_gp){ gainGPAll(ev.good_gp); results.push(`+${ev.good_gp}GP`); }
+    updateHUD();
+    _appendPatronPanel(
+     msgBox(ev.line_good, 'var(--reward)', '#d8d0c0') +
+     (results.length ? resultLine(results.join('　')) : '')
+    );
+    closeBtn.disabled = false; closeBtn.style.opacity = '';
+   },
+   onFail:()=>{
+    const results = [];
+    if(ev.bad_lk){ PC.lk = Math.max(1, PC.lk + ev.bad_lk); results.push(`LK${ev.bad_lk}`); }
+    if(ev.bad_gp){ gainGPAll(ev.bad_gp); results.push(`${ev.bad_gp}GP`); }
+    updateHUD();
+    _appendPatronPanel(
+     msgBox(ev.line_bad, '#886655', '#6b4c2a') +
+     (results.length ? `<div style="font-size:calc(var(--font-sm) - 1px);color:#e0d8cc;margin-top:8px">${results.join('　')}</div>` : '')
+    );
+    closeBtn.disabled = false; closeBtn.style.opacity = '';
+   },
+  });
  }
 }
 // ══ END TAVERN PATRON TALK ════════════════════════════════════════
@@ -8402,6 +8732,16 @@ function startRecruitSR(npc, returnNode, srLevel, onAfter){
  // ダイスUIを使ったSR
  closeInventory();
  const inTravel = !!travelState;
+ if((PC.party||[]).length >= 3){
+  if(inTravel){
+   travelLog(`<span style="color:#c05040"> パーティが満員（上限3人）のため、これ以上誘えない。</span>`);
+  } else {
+   showSaveToast('パーティが満員（上限3人）で誘えない');
+  }
+  if(onAfter) onAfter();
+  else if(returnNode) setTimeout(()=>go(returnNode), 800);
+  return;
+ }
  const npcLabel = `${npc.epithet?npc.epithet+' ':''}${npc.name}`;
  if(inTravel){
   travelLog(`<span style="color:#b8a890"> ${npcLabel}を仲間に誘った。（CHR(${PC.chr}) Lv${srLevel} 能力値テスト　目標: ${srLevel*5+15}）</span>`);
@@ -8420,6 +8760,7 @@ function startRecruitSR(npc, returnNode, srLevel, onAfter){
  onSuccess(){
  PC.party = PC.party||[];
  PC.party.push({...npc, trust:0, joinDay:GAME_TIME.totalDays});
+ addLifeEvent('', `${npc.name}がパーティに加わった（${({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'})[npc.type]||npc.type}・${npc.race}）。`);
  if(inTravel){
   travelLog(`<span style="color:#f0ece0"> ${npc.name}が仲間になった！</span>`);
  } else {
@@ -8623,7 +8964,7 @@ function _marriagePrefLifestyleHint(npc){
    return `……${ja}と支え合って暮らせたら、と時々考える。`;
   }
   case 'race': {
-   const raceJaMap = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'};
+   const raceJaMap = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'};
    const ja = raceJaMap[npc.marriagePrefRace] || npc.marriagePrefRace;
    return `……${ja}の相手と、暮らしを共にしたいと思うことがある。`;
   }
@@ -8988,6 +9329,9 @@ function startVaineEncounter(ts){
   `影が濃くなったと思った次の瞬間、それは存在していた。\n完全な板金鎧。しかし着用者の重みがない——足跡が地面に刻まれず、草が踏みつぶされず、風が鎧の隙間を素通りしている。\nどこからともなく声が響いた。鎧の内側から、あるいは空気そのものから。`,
   `街道の脇に立つ古い石碑の影から、それは静かに歩み出てきた。\n黒鋼の全身鎧。装飾のない、禁欲的なほど無骨な造り。しかし兜の面頬の奥——そこに当然あるべき眼が、ない。顔が、ない。ただ暗闇が詰まっている。\n止まった。${PC.name}を見ている——何かで見ている。`,
   `${PC.name}が気づいた時、それはすでにそこにいた。\nいつから立っていたのか分からない。まるで最初からその場所の一部であったかのように、黒い鎧姿が街道の真ん中に佇んでいる。\n人間の体格に近いが、それ以上の何かを内包しているような圧迫感がある。兜の奥には何もない——あるとすれば、無限に続く暗闇だけだ。`,
+  `気配もなく、それはただ「そこにあった」。まるで最初から風景の一部だったかのように。\n近づくにつれ、鎧の表面に無数の傷——いや、傷ではないと気づいた。無数の可能性が刻まれた、紋様のようなものだ。同じ模様は二つとない。`,
+  `夜霧の中から、金属の擦れる音ひとつなく、それは滑るように現れた。\n月明かりを浴びても、鎧には影が落ちない。地面に、その存在を示すものは何一つない。`,
+  `遠くに見えていた道標が、いつの間にか黒い甲冑へと姿を変えていた。\n錯覚だと思おうとしたが、それは確かに動き、確かに${PC.name}を見つめていた。`,
  ];
 
  // 台詞（多元宇宙・混沌の示唆）
@@ -9000,6 +9344,12 @@ function startVaineEncounter(ts){
     sub:  '「確率の話をしている。お前が勝つ可能性がないとは言わない。ただ、私が観測してきた限り——流れはひとつの方向を向いている」' },
   { line: `「混沌は破壊ではない」\n鎧の奥の暗闇が、深くなったような気がした。\n「秩序もまた、ひとつの暴力だ。形を強制し、変化を拒絶し、あるべき姿を決めつける。混沌はただ——全てのものがあるべき場所に還ることを望んでいる」`,
     sub:  '「私はその方向性を、美しいと思っている。個人的な感想だが」' },
+  { line: `「お前は選択の重さを知らない」\n静かな、責めるでもない口調だった。\n「一つの選択が、無数の枝を生む。お前がここで交わす言葉ひとつが、既に別の位相を生み落としている。今この瞬間にも」`,
+    sub:  '「だから私は、言葉を選ぶ。無意味に見えても、無意味ではない」' },
+  { line: `「終わりは、始まりの別名に過ぎない」\n鎧が僅かに首——かつて首だった場所——を傾けた。\n「私が見てきた位相の多くは、崩壊した。だが崩壊の後には、必ず何かが芽吹いていた。混沌とは、その芽吹きの土壌だ」`,
+    sub:  '「恐れる必要はない、とだけ言っておこう。もっとも、お前が信じるかどうかは別の話だが」' },
+  { line: `「時に、私は自問する」\n珍しく、迷いを含んだ声だった。\n「これほど多くの位相を渡り歩いて、私は何を求めているのか、と。答えはまだ出ていない」`,
+    sub:  '「お前に聞かれて初めて、その問いを口にした。奇妙な気分だ」' },
  ];
 
  const appear = VAINE_APPEARANCES[Math.floor(Math.random() * VAINE_APPEARANCES.length)];
@@ -9016,15 +9366,25 @@ function startVaineEncounter(ts){
  const choices = document.getElementById('choices');
  choices.innerHTML = '';
 
- // 返答選択肢
- const replies = [
+ // 返答選択肢（毎回7種類の中からランダムに3つ選ばれる）
+ const allReplies = [
   { label:'「位相とは何だ」',
     res: `「位相」\n間を置いた。\n「お前たちの言語で近い概念は——世界、か。あるいは可能性、か。ひとつの選択が行われるたびに、別の選択をした世界が枝分かれして生まれる。私はその枝を渡り歩いてきた。何千、何万の枝を」\n「この世界は、その枝のひとつに過ぎない」` },
   { label:'「混沌に仕えるのか」',
     res: `「仕える、という言葉は正確ではない」\n鎧の奥の暗闘が、わずかに揺れた。\n「私は混沌の方向性を——正しいと判断した。それだけだ。主従関係ではない。ただ、この宇宙が向かうべき場所を、私は知っている。そしてその方向に立っている」\n「お前たちが秩序と呼ぶものは、流れに逆らうことだ」` },
   { label:'「なぜ私に話しかける」',
     res: `長い沈黙があった。\n「……それは私にも分からない」\n珍しいことのように、その声には微かな困惑があった。\n「無数の位相で、無数の者と会ってきた。だが、同じ者に何度も出会う位相というものが、存在する。お前は——その類の者かもしれない」\n「あるいは、ただの誤差かもしれない」` },
+  { label:'「お前に名はあるのか」',
+    res: `また間があった。\n「名——それは一つの位相に縛られた概念だ。だが、この位相でお前たちに呼ばれた名がある。ヴェイン、と」\n「気に入っているわけではないが、拒む理由もない」` },
+  { label:'「私を殺すつもりか」',
+    res: `「殺す？」\n奇妙な間があった。理解に苦しんでいるような、あるいは面白がっているような。\n「私はお前の生死に関心がない。介入もしない。私はただの——観測者だ。もっとも、観測者であることそのものが、既にひとつの介入なのかもしれないが」` },
+  { label:'「その先に何があるのか教えてくれ」',
+    res: `「先、か」\n鎧がわずかに${PC.name}へ向き直った。\n「教えたところで、お前はその通りに動かないだろう。位相を渡ってきた経験から言えば、それが最も興味深いところだ。予言は、聞いた者の行動によって容易く覆る」\n「だから教えない。それもまた、私の観測の一部だ」` },
+  { label:'「お前は孤独ではないのか」',
+    res: `初めて、鎧が沈黙した。長い沈黙だった。\n「……その問いに答えた位相を、私は知らない」\n声には、これまでになかった何かが滲んでいた。\n「渡り歩くということは、どこにも属さないということだ。孤独、という言葉が正しいかどうかは——お前たちに判断を委ねよう」` },
  ];
+ // シャッフルして先頭3件を今回の選択肢にする
+ const replies = [...allReplies].sort(()=>Math.random()-0.5).slice(0, 3);
 
  replies.forEach(r => {
   const b = document.createElement('button'); b.className = 'choice-btn';
@@ -9053,6 +9413,16 @@ function _showVaineActionChoices(ts, initial=false){
   setTimeout(()=>travelTick(), ts.interval);
  };
  choices.appendChild(leave);
+}
+
+// デバッグ用：空虚な鎧ヴェインとの遭遇を強制発生させる（会話パターンの確認用）
+function dbgForceVaineEncounter(){
+ const ts = {
+  totalDays: 999, daysDone: 1, destId: null,
+  onDone: ()=>{ showSaveToast('デバッグ：ヴェイン遭遇テスト終了'); },
+  events: [], interval: 1200, method: 'walk', crossRegion: false,
+ };
+ startVaineEncounter(ts);
 }
 
 function rollNPCEncounter(){
@@ -9143,13 +9513,7 @@ function gainAPFor(pc, amount){
   const newLv = calcLevelFromAP(pc.ap);
   if(newLv > (pc.level||1)){
    pc.level = newLv;
-   // パネルが表示中ならキューに積む、そうでなければ即表示
-   const panel = document.getElementById('levelup-panel');
-   if(panel && !panel.classList.contains('hidden')){
-    _npcLevelUpQueue.push({lv: newLv, pc});
-   } else {
-    setTimeout(()=>showLevelUpPanel(newLv, pc), 200);
-   }
+   _queueLevelUp(newLv, pc);
   }
  }
 }
@@ -9169,7 +9533,7 @@ function gainAP(amount){
  const newLv = checkLevel();
  if(newLv > PC.level){
   PC.level = newLv;
-  setTimeout(()=>showLevelUpPanel(newLv), 100);
+  _queueLevelUp(newLv, PC);
   return true;
  }
  if(newLv < PC.level){
@@ -9200,13 +9564,29 @@ function gainAPCombat(totalMR){
 }
 
 // ── LEVEL UP UI ────────────────────────
-// NPCレベルアップキュー（複数NPCが同時にレベルアップした場合に順番に処理）
+// PC・NPC共用のレベルアップキュー（同じタイミングで複数人が同時にレベルアップした場合、1人ずつ順番に処理する）
 let _npcLevelUpQueue = [];
+// 「現在レベルアップ表示中／表示予約済み」フラグ。
+// パネルのDOMクラス（hidden）ではなくこのフラグで判定することで、
+// setTimeoutの実行前に後続のgainAPFor()が呼ばれても正しく順番待ちに積めるようにする
+let _levelUpActive = false;
 // レベルアップ後に再開すべき戦闘継続関数（カオスSR中のNPCフェーズ再開用）
 let _pendingCombatResume = null;
+
+// PC・NPC共通：レベルアップ表示を予約する（表示中／予約中なら順番待ちキューに積む）
+function _queueLevelUp(lv, pc){
+ if(_levelUpActive){
+  _npcLevelUpQueue.push({lv, pc});
+ } else {
+  _levelUpActive = true;
+  setTimeout(()=>showLevelUpPanel(lv, pc), 100);
+ }
+}
+
 function _processNpcLevelUpQueue(){
- if(_npcLevelUpQueue.length === 0) return;
+ if(_npcLevelUpQueue.length === 0){ _levelUpActive = false; return; }
  const {lv, pc} = _npcLevelUpQueue.shift();
+ _levelUpActive = true;
  setTimeout(()=>showLevelUpPanel(lv, pc), 150);
 }
 
@@ -9712,6 +10092,8 @@ function loadGame(slot){
   const saved = data.pc?.party?.[i];
   if(!saved || !('alignment_ethics' in saved)) npc.alignment_ethics = Math.floor((Math.random()-0.5)*60);
   if(!saved || !('alignment_order'  in saved)) npc.alignment_order  = Math.floor((Math.random()-0.5)*60);
+  // 身長・体重がなければこの機会に決めてしまう（既存の仲間NPC向け）
+  if(npc.height==null || npc.weight==null) Object.assign(npc, rollBodySize(npc.race));
  });
  // 拠点留守番NPCの旧データ移行
  Object.entries(PC.properties||{}).forEach(([tid, prop])=>{
@@ -9719,6 +10101,7 @@ function loadGame(slot){
    const saved = data.pc?.properties?.[tid]?.caretakers?.[i];
    if(!saved || !('alignment_ethics' in saved)) npc.alignment_ethics = Math.floor((Math.random()-0.5)*60);
    if(!saved || !('alignment_order'  in saved)) npc.alignment_order  = Math.floor((Math.random()-0.5)*60);
+   if(npc.height==null || npc.weight==null) Object.assign(npc, rollBodySize(npc.race));
   });
  });
  ['title-screen','chargen','shop-area'].forEach(id=>{
@@ -9763,7 +10146,7 @@ function showSaveSlotUI(mode){
  panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--info-bg);border:2px solid #484848;border-radius:6px;padding:16px;z-index:9998;min-width:260px;box-shadow:0 0 30px #000a';
  panel.innerHTML = `<div style="color:#e8e0d8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);margin-bottom:10px;text-align:center"> セーブスロット選択</div>`;
 
- const raceMap={human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'};
+ const raceMap={human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'};
  const typeMap={warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'};
 
  for(let s=1; s<=SAVE_SLOT_COUNT; s++){
@@ -10102,7 +10485,10 @@ function _showTransferPanel(){
    const raw = localStorage.getItem(getSaveKey(slot));
    if(!raw){ msg('データがありません', '#c05040'); return; }
    const si = slotInfos.find(s=>s.slot===slot);
-   const filename = `ooon_save_slot${slot}_${si?.name||'unknown'}.json`;
+   const now = new Date();
+   const pad = n => String(n).padStart(2,'0');
+   const timestamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+   const filename = `ooon_save_slot${slot}_${si?.name||'unknown'}_${timestamp}.json`;
    const blob = new Blob([raw], {type:'application/json'});
    const url = URL.createObjectURL(blob);
    const a = document.createElement('a');
@@ -10157,7 +10543,7 @@ function _showNPCImportMenu(){
  const existing = document.getElementById('font-size-panel');
  if(existing) existing.remove();
  const pool = loadImportedNPCs();
- const raceJa = r=>({human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[r]||r);
+ const raceJa = r=>({human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'}[r]||r);
  const typeJa = t=>({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[t]||t);
 
  const panel = document.createElement('div');
@@ -10525,7 +10911,7 @@ function checkSaveOnTitle(){
 
   if(info){
    hasAny = true;
-   const raceMap={human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'};
+   const raceMap={human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'};
    const typeMap={warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'};
    slotDiv.innerHTML = `
     <div style="flex:1;min-width:0">
@@ -10567,7 +10953,7 @@ function checkSaveOnTitle(){
     TOWN_NERIA:'ネリア砦',TOWN_DORUA:'ドルアの村',TOWN_SARPE:'サルペ',TOWN_NEBRA:'ネブラ',
    };
    const asTownName = asTownMap[asData.nodeId] || asData.nodeId || '?';
-   const raceMap={human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'};
+   const raceMap={human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'};
    const typeMap={warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'};
    const asDiv = document.createElement('div');
    asDiv.style.cssText = 'border:1px solid #585858;border-radius:4px;padding:8px 10px;margin:4px 0;background:var(--ink);display:flex;align-items:center;gap:8px;';
@@ -10757,6 +11143,10 @@ const AGING_PARAMS = {
  halfling: { lifespan:100, declineStart:50 },
  fairy: { lifespan:200, declineStart:100 },
  leprechaun: { lifespan:300, declineStart:150 },
+ troll:  { lifespan:300, declineStart:200 },
+ ogre:   { lifespan:150, declineStart:100 },
+ orc:    { lifespan:60,  declineStart:35 },
+ goblin: { lifespan:40,  declineStart:25 },
 };
 
 // 実際の寿命をロールして決定（キャラ作成時に一度だけ呼ぶ）
@@ -15096,7 +15486,9 @@ const VERDA_WILDLIFE_TABLE = [
  {name:'巨大蜘蛛',                         mr:12, minApp:1, maxApp:2},
  {name:'野犬の群れ',                       mr:10, minApp:2, maxApp:4},
  {name:'密猟者',         mr:13, minApp:1, maxApp:2, isHuman:true},
- {name:'手負いの大型肉食獣',               mr:18, minApp:1, maxApp:1},
+ {name:'ケイブベア', mrMin:50, mrMax:60, minApp:1, maxApp:1},
+ {name:'ブラッドウルフ', mr:30, minApp:1, maxApp:1},
+ {name:'バーゲスト', mr:40, minApp:1, maxApp:1},
 ];
 
 // ヴェルダ裏路地専用のフレーバーテキスト集（既存yd系の「地下ダンジョン」前提の文面を避け、
@@ -15482,7 +15874,7 @@ const SAROON_INCIDENTS = [
   id:'broker_dispute',
   phases:['morning','noon','afternoon'],
   title:' 悪徳ブローカーとの取引',
-  flavor:'鉱石の買い付け所で、ブローカーが明らかに不当な安値を持ちかけてくる。「これ以上は出せねぇな」と重い秤を意味ありげに叩いた。',
+  flavor:'鉱石の買い付け所の前で、道すがら拾い集めた鉱石くずをブローカーに売ろうとしたが、明らかに不当な安値を持ちかけてくる。「これ以上は出せねぇな」と重い秤を意味ありげに叩いた。',
  },
  {
   id:'dowser_encounter',
@@ -15967,8 +16359,8 @@ const DISTRICT_ADMIN_WILDLIFE_TABLE = [
   desc:'不正な下級役人が居直って刃物を抜いた！', talkDesc:'不正な下級役人が「見なかったことにしろ」と凄んでいる。'},
  {kind:'npc', name:'脱走犯', levelMin:1, levelMax:3, minApp:1, maxApp:1,
   desc:'追い詰められた脱走犯が、捕まるまいと襲いかかってきた！', talkDesc:'脱走犯が鎖を引きずりながら、鋭い目でこちらを窺っている。'},
- {name:'記録庫の番犬',   mr:11, minApp:2, maxApp:4},
- {name:'記録庫の番犬',   mr:11, minApp:2, maxApp:4},
+ {name:'凶暴な大ネズミ', mr:10, minApp:2, maxApp:4},
+ {name:'大蜘蛛',       mr:15, minApp:1, maxApp:3},
  {name:'処刑人の亡霊',   mr:22, minApp:1, maxApp:1},
 ];
 
@@ -16205,7 +16597,8 @@ const DISTRICT_ADMIN_INCIDENTS = [
   phases:['dawn','morning','noon','afternoon','night','midnight'],
   title:' 旧市街への内密の届け物',
   weight:3,
-  flavor:'帳場の陰から、疲れた顔の書記官が小声で話しかけてきた。「すまないが、これを旧市街に住む知り合いに届けてもらえないか。表立って人に頼める代物じゃなくてね……」小さな包みを差し出してくる。',
+  names: NPC_NAMES,
+  flavor:'帳場の陰から、{name}と名乗る人物が小声で話しかけてきた。「すまないが、これを旧市街に住む知り合いに届けてもらえないか。表立って人に頼める代物じゃなくてね……」小さな包みを差し出してくる。',
  },
 ];
 
@@ -16277,7 +16670,8 @@ const DISTRICT_OLDTOWN_INCIDENTS = [
   phases:['dawn','morning','noon','afternoon','night','midnight'],
   title:' 行政地区への内密の届け物',
   weight:3,
-  flavor:'廃屋の陰から、身なりのよくない古物商がこちらに近づいてきた。「すまねえが、これを行政地区にいる知り合いに届けちゃくれねえか。表立って役所に出入りできる身分じゃなくてよ……」油紙に包んだ品を差し出してくる。',
+  names: NPC_NAMES,
+  flavor:'廃屋の陰から、{name}と名乗る人物がこちらに近づいてきた。「すまねえが、これを行政地区にいる知り合いに届けちゃくれねえか。表立って役所に出入りできる身分じゃなくてよ……」油紙に包んだ品を差し出してくる。',
  },
 ];
 
@@ -16377,6 +16771,90 @@ const LOCAL_WANTED_CRIMES = [
 // 町の手配書を取得（無ければ生成、7日経過していれば入れ替え）
 // 対象は generateNPC() で実際に生成した本物のNPC（ST/DEX等を持つ）とし、
 // 手配書の名前・強さと、実際に街区で遭遇するNPCが完全に一致するようにする
+// 中央広場の掲示板：手配書とは別枠の、依頼に繋がらない雑多な掲示物（町の雰囲気づくり用）
+const TOWN_BOARD_NOTICES = [
+ { text:'「井戸の水質検査のため、明日は東側の共同井戸を閉鎖します」──町役人' },
+ { text:'「迷い猫を探しています。茶トラ、右耳に欠け有り。見かけた方は宿屋まで」', resolveType:'cat' },
+ { text:'「今月の市場税は納期を過ぎると割増になります。お早めに」──徴税吏' },
+ { text:'「よく効く湿布薬あります。旅の疲れに。詳しくは薬屋まで」' },
+ { text:'「路上での大道芸には許可証が必要です。無許可の芸人は罰金の対象になります」' },
+ { text:'「拾得物：革の水筒。中央広場のベンチ付近で発見。心当たりの方は自警団詰所まで」', resolveType:'lostitem' },
+ { text:'「今年の収穫祭は例年より遅い開催になる見込みです。詳細は追ってお知らせします」' },
+ { text:'「夜間、大声で歌う行為が近隣より苦情多数。心当たりのある者は自重されたし」' },
+ { text:'「井戸端の噂：最近、街の外れで奇妙な光を見たという者が複数いる。真偽は不明」', resolveType:'rumor' },
+ { text:'「若い衆、求む。力仕事、日払い可。詳細は西の倉庫番まで」' },
+ { text:'「壁の落書きを見つけ次第、消去にご協力ください。町の美観維持のため」──清掃組合' },
+ { text:'「旅の吟遊詩人、明晩、酒場にて弾き語りを予定。木戸銭は投げ銭のみ」' },
+ { text:'「迷い子：茶色の巻き毛、名前はミラ、5歳くらい。見かけた方は広場の詰所まで至急」', resolveType:'lostchild' },
+ { text:'「古着・古道具の買い取りします。状態問わず。北の路地の店まで」' },
+ { text:'「最近、荷馬車の車輪の盗難が相次いでいます。夜間の駐車にはご注意を」' },
+ { text:'「知り合いに言付けを頼みたいのですが、なかなか会えなくて……見かけたら伝えてもらえませんか」', resolveType:'message' },
+];
+
+// 拠点ごとの独自貼り紙（各町の特色を反映。汎用の貼り紙プールに追加で混ぜて使う）
+const TOWN_BOARD_NOTICES_BY_TOWN = {
+ stonehiem: [
+  '「今季の鉄鉱石の品質検査、来週より開始。各採掘班は帳簿を用意されたし」──鉱山組合',
+  '「ドワーフ式の鍛冶講習、見習い若干名募集中。槌を握ったことのない者でも歓迎」',
+  '「坑道の落盤事故により、北坑は当面閉鎖。迂回路を利用のこと」──採掘管理局',
+ ],
+ oasis_fort: [
+  '「天幕市の露店位置、抽選により再配置します。詳細は市場管理人まで」',
+  '「今年は例年より水位が低め。生活用水の使用は計画的に」──砦の水管理係',
+  '「盗賊除けの湧水洞に近づく者が増えています。夜間の立ち入りは危険につき禁止」',
+ ],
+ marakai: [
+  '「大木の埠頭、修繕工事のため一部通行止め。迂回は桟橋南側から」──港湾組合',
+  '「密林の魔獣目撃情報が増加中。外縁の見張り塔まで速やかに報告を」',
+  '「樹液酒の新樽、入荷しました。塩潮の赤提灯にてお試しあれ」──酒場組合',
+ ],
+ frostpeak: [
+  '「吊り橋の点検、来月上旬に実施予定。当日は一時通行止めとなります」',
+  '「暖炉の沈黙酒場：過去を詮索する客、お断りします」──店主',
+  '「氷室の広場での物々交換、正午の鐘まで。遅参者は取引順が後回しになります」',
+ ],
+ elsia: [
+  '「評議会より：密林の遺跡に立ち入る際は、必ず長老へ届け出ること」',
+  '「エルフの図書館、外部の者にも一部開放しております。司書までお声がけを」',
+  '「精霊の泉付近で不審な光を見たとの報告あり。心当たりのある者は名乗り出よ」',
+ ],
+ port_argon: [
+  '「百舟の白桟橋、荷揚げの順番待ちが長引いております。船主組合にご相談を」',
+  '「大競り市、明朝より旬の海産物が並びます。早い者勝ちです」──競り人組合',
+  '「潮見の高台からの投げ捨てご遠慮ください。下は人が通ります」──港湾管理局',
+ ],
+ al_rashid: [
+  '「大隊商宿、満室が続いております。長期滞在の方は宿主まで早めのご相談を」',
+  '「黄金と絹の大市、偽の砂金を売る者が出没。取引の際はよくご確認を」',
+  '「日影の地下水路広場、清掃のため半日閉鎖します」──公共施設管理局',
+ ],
+ yeldun: [
+  '「検鉱と競りの大広場、今週の鉱石の相場は例年よりやや高め」──鑑定人組合',
+  '「山嵐の鍛冶街、火の粉による小火が相次いでいます。火の元にご注意を」',
+  '「重車輪の坂道、荷車同士の衝突事故が発生。徐行を徹底されたし」',
+ ],
+ valdheim: [
+  '「氷結の鉄門、点呼の時間が変更になりました。詳細は詰所の掲示にて」──衛兵隊',
+  '「兵糧庫横丁、塩肉の在庫が乏しくなっております。計画的な配給にご協力を」',
+  '「凍土の練兵場、一般の立ち入りは訓練のない時間帯に限ります」',
+ ],
+ khazan: [
+  '「白亜の回廊付近での物乞い行為、条例により禁止されております」──行政局',
+  '「金貨と銀鱗の市場、偽造貨幣の流通が確認されています。両替の際はご注意を」',
+  '「陽の届かぬ路地周辺の治安について、自警団が巡回を強化しています」',
+ ],
+};
+
+// 地区間宅配依頼：期限切れチェック（受注から2〜3日で失効）。街区探索の主要な入口で毎回呼ぶ想定
+function checkVillageDeliveryExpiry(){
+ const dq = PC._villageBackalleyDelivery;
+ if(!dq || !dq.active || dq.deadlineDay == null) return;
+ if(GAME_TIME.totalDays > dq.deadlineDay){
+  dq.active = false;
+  showSaveToast(`${dq.recipient}への届け物の期限が過ぎてしまった…`);
+ }
+}
+
 function getLocalWantedBoard(townId){
  if(!PC._localWantedBoards) PC._localWantedBoards = {};
  const board = PC._localWantedBoards[townId];
@@ -16390,8 +16868,35 @@ function getLocalWantedBoard(townId){
    const reward = 10 + Math.floor(Math.random()*21); // 10〜30GP
    targets.push({ id: townId+'_'+today+'_'+i, name:npc.name, npc, crime:c.crime, desc:c.desc, reward, resolved:false });
   }
-  PC._localWantedBoards[townId] = { generatedDay: today, targets };
+  // 依頼には繋がらない雑多な貼り紙も2〜4枚、週替わりで一緒に貼り出す（汎用プール＋その町固有の貼り紙を混ぜる）
+  const noticeCount = 2 + Math.floor(Math.random()*3);
+  const noticePool = [...TOWN_BOARD_NOTICES, ...(TOWN_BOARD_NOTICES_BY_TOWN[townId]||[]).map(t=>({text:t}))];
+  const notices = [];
+  for(let i=0; i<noticeCount && noticePool.length; i++){
+   const idx = Math.floor(Math.random()*noticePool.length);
+   notices.push(noticePool.splice(idx,1)[0]);
+  }
+  // 貼り紙の中に解決可能な種類（resolveType）が含まれていれば、街区探索側で対応する遭遇を有効にする
+  const activeMiniTypes = [...new Set(notices.filter(n=>n.resolveType).map(n=>n.resolveType))];
+  PC._localWantedBoards[townId] = { generatedDay: today, targets, notices, activeMiniTypes };
   return PC._localWantedBoards[townId];
+ }
+ if(!board.notices){
+  // 既存セーブデータ互換：貼り紙情報が無ければこの機会に生成しておく
+  const noticeCount = 2 + Math.floor(Math.random()*3);
+  const noticePool = [...TOWN_BOARD_NOTICES, ...(TOWN_BOARD_NOTICES_BY_TOWN[townId]||[]).map(t=>({text:t}))];
+  const notices = [];
+  for(let i=0; i<noticeCount && noticePool.length; i++){
+   const idx = Math.floor(Math.random()*noticePool.length);
+   notices.push(noticePool.splice(idx,1)[0]);
+  }
+  board.notices = notices;
+  board.activeMiniTypes = [...new Set(notices.filter(n=>n.resolveType).map(n=>n.resolveType))];
+ }
+ if(!board.activeMiniTypes){
+  // 既存セーブデータ互換：旧バージョンのnotices（文字列配列）しかない場合は解決可能な種類なしとする
+  board.activeMiniTypes = board.notices.length && typeof board.notices[0]==='object'
+   ? [...new Set(board.notices.filter(n=>n.resolveType).map(n=>n.resolveType))] : [];
  }
  return board;
 }
@@ -18951,7 +19456,7 @@ function ydRollMonster(floor, poolOverride){
  const singleMR = Math.round(m.mr * mrScale);
  const count = m.minApp + Math.floor(Math.random()*(m.maxApp-m.minApp+1));
  const mr = singleMR * count;
- return { name:m.name, count, mr, singleMR, treasure:80, isHuman:m.isHuman||false };
+ return { name:m.name, count, mr, singleMR, treasure:80, isHuman:m.isHuman||false, armor:m.armor||0 };
 }
 
 // 村・地区裏路地専用のエンカウント抽選。テーブル内に kind:'npc' の項目があれば
@@ -18970,7 +19475,10 @@ function ydRollVillageEncounter(pool){
   return { name:m.name, count:cnt, isNPCType:true, npcs, isHuman:true, desc:m.desc, talkDesc:m.talkDesc };
  }
  const count = m.minApp + Math.floor(Math.random()*(m.maxApp-m.minApp+1));
- const singleMR = m.mr;
+ // mrMin/mrMaxが指定されていれば個体ごとにMRをランダムに決定（無ければ従来通り固定mr）
+ const singleMR = (m.mrMin != null && m.mrMax != null)
+  ? (m.mrMin + Math.floor(Math.random()*(m.mrMax-m.mrMin+1)))
+  : m.mr;
  const mr = singleMR * count;
  return { name:m.name, count, mr, singleMR, isHuman:m.isHuman||false };
 }
@@ -19133,6 +19641,7 @@ function initVillageBackAlley(townId, districtType){
 }
 
 function enterVillageBackAlley(townId, districtType){
+ checkVillageDeliveryExpiry();
  PC._yeldunDungeon = initVillageBackAlley(townId, districtType);
  // 前回分の探索フラグをクリア（毎回再生成のためノードIDが使い回されるので必須）
  Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')||k.startsWith('yd_vf_')||k.startsWith('yd_vi_')||k.startsWith('yd_dlv_')||k.startsWith('yd_wt_')||k.startsWith('yd_bh_')).forEach(k=>delete PC[k]);
@@ -19185,13 +19694,14 @@ function smallTownHub(townId){
  const town = TOWNS[townId];
  const story = document.getElementById('story');
  const ph = villagePhase(getGameHour());
+ checkVillageDeliveryExpiry();
  const districtTypeLabels = {admin:'行政地区', oldtown:'旧市街地区', harbor:'港湾地区', market:'大市場・隊商地区', garrison:'軍営・練兵地区'};
  const townDistricts = SMALL_TOWN_DISTRICTS[townId] || {};
  const districtKeys = Object.keys(townDistricts);
  const districtListText = districtKeys.map(k=>townDistricts[k].label ? districtTypeLabels[k]||k : districtTypeLabels[k]||k).join('・');
  const dq = PC._villageBackalleyDelivery;
  const dqHint = (dq?.active && dq.villageId===townId)
-  ? `<br><br><span style="color:#ffcc88"> 【届け物】${dq.recipient}へ${dq.item}を届ける約束がある（${districtTypeLabels[dq.toDistrict]||'届け先の地区'}で探そう）</span>` : '';
+  ? `<br><br><span style="color:#ffcc88"> 【届け物】${dq.recipient}へ${dq.item}を届ける約束がある（${districtTypeLabels[dq.toDistrict]||'届け先の地区'}で探そう／期限：あと${Math.max(0,dq.deadlineDay-GAME_TIME.totalDays)}日）</span>` : '';
  const captive = PC._localWantedCaptive;
  const captiveHint = (captive?.villageId===townId)
   ? `<br><br><span style="color:#ff9977"> 【手配犯】${captive.name}（${captive.crime}）を確保している。衛兵に引き渡そう</span>` : '';
@@ -19221,16 +19731,32 @@ function showLocalWantedBoard(townId){
  const story = document.getElementById('story');
  const board = getLocalWantedBoard(townId);
  const unresolvedTargets = board.targets.filter(t=>!t.resolved);
- const listHtml = unresolvedTargets.length
-  ? unresolvedTargets.map(t=>`
-    <div style="border:1px solid var(--info-border);border-radius:4px;padding:8px;margin-top:8px">
-     <span style="color:#e0d8c8"> ${t.name}</span><br>
-     <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">罪状：${t.crime}（${t.desc}）</span><br>
-     <span style="color:#ffcc88;font-size:calc(var(--font-sm) - 1px)">懸賞金：${t.reward}GP</span>
-    </div>`).join('')
-  : '<br><br><span style="color:#b0a080">（現在、掲示されている手配書はない）</span>';
+ const notices = board.notices || [];
+ // 手配書とその他の貼り紙を分けず、1つの掲示板として一緒に表示する
+ const items = [
+  ...unresolvedTargets.map(t=>({
+   kind:'wanted',
+   html:`<span style="color:#e0d8c8"> ${t.name}</span><br>
+    <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">罪状：${t.crime}（${t.desc}）</span><br>
+    <span style="color:#ffcc88;font-size:calc(var(--font-sm) - 1px)">懸賞金：${t.reward}GP</span>`,
+  })),
+  ...notices.map(n=>({
+   kind:'notice',
+   // 旧セーブ互換：nがまだ文字列のままの場合もそのまま表示する
+   html:`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${typeof n==='string' ? n : n.text}</span>`,
+  })),
+ ];
+ // 表示順もランダムに混ぜる（毎回同じ並びにならないよう描画のたびシャッフル）
+ for(let i=items.length-1;i>0;i--){
+  const j=Math.floor(Math.random()*(i+1));
+  [items[i],items[j]]=[items[j],items[i]];
+ }
+ const listHtml = items.length
+  ? items.map(it=>`
+    <div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:8px">${it.html}</div>`).join('')
+  : '<br><br><span style="color:#b0a080">（現在、掲示物はない）</span>';
  story.innerHTML = ` <span style="color:#e0d8c8">${town?.name || townId} 中央広場の掲示板</span><br><br>`
-  + `<span style="color:#c0b098">壁に貼られた手配書に目を通す。</span>${listHtml}`;
+  + `<span style="color:#c0b098">壁に貼られた掲示物に目を通す。</span>${listHtml}`;
  renderChoices([
   {label:'← 広場に戻る', fn:()=>smallTownHub(townId)},
  ]);
@@ -19517,6 +20043,53 @@ function dbgForceBountyHideout(townId, districtType){
  ydGoNode(newId, floor);
 }
 
+// デバッグ用：NPC型精鋭種族の討伐依頼を強制発行して受注し、ダンジョンへ直行する（種族はランダム、最上位階級固定）
+function dbgForceEliteHunt(townId){
+ const speciesList = Object.keys(ELITE_MONSTER_INFO);
+ const species = speciesList[Math.floor(Math.random()*speciesList.length)];
+ const tiers = ELITE_MONSTER_INFO[species].tiers;
+ const tier = tiers[tiers.length-1]; // 最上位階級で確認
+ const equivMR = ELITE_MONSTER_EQUIV_MR[species][tier.level];
+ const m = { name: eliteMonsterDisplayName(species, tier.rank), mr: equivMR, armor:0, minApp:1, maxApp:2 };
+ const roomCount = 1 + Math.floor(Math.random()*3);
+ const rooms = []; let totalMR = 0;
+ for(let r=0;r<roomCount;r++){
+  const count = m.minApp + Math.floor(Math.random()*(m.maxApp-m.minApp+1));
+  const roomMR = count*m.mr;
+  rooms.push({count, mr:m.mr, roomMR});
+  totalMR += roomMR;
+ }
+ const reward = Math.floor(totalMR*(0.8+Math.random()*0.4)*1.3);
+ const quest = {
+  id: Date.now()+Math.random(), type:'hunt', fromTownId:townId,
+  monsterName:m.name, monsterMR:m.mr, monsterArmor:0,
+  isEliteHunt:true, eliteSpecies:species, eliteLevel:tier.level, eliteRank:tier.rank,
+  rooms, totalMR, caveName:'デバッグ用の洞穴', clientName:'デバッグ',
+  reward, deadlineDays:30, issuedDay:GAME_TIME.totalDays, status:'active', crossRegion:false,
+ };
+ PC.quests = PC.quests||[];
+ PC.quests.push(quest);
+ showSaveToast(`精鋭討伐依頼を発行：${m.name}`);
+ startHuntQuest(quest.id);
+}
+
+// デバッグ用：町完結ミニ依頼を強制受注し、指定した地区の解決ノードへ直行する
+function dbgForceTownMiniQuest(townId, districtType){
+ // その週の掲示板を、指定した種類の貼り紙が確実に出ている状態に上書きする
+ const board = getLocalWantedBoard(townId);
+ const subtype = TOWN_MINI_QUEST_TYPES[Math.floor(Math.random()*TOWN_MINI_QUEST_TYPES.length)].subtype;
+ board.activeMiniTypes = [subtype];
+ const mdef = TOWN_MINI_QUEST_TYPES.find(d=>d.subtype===subtype);
+ showSaveToast(`掲示板に「${mdef.title}」の貼り紙を強制掲示`);
+ enterVillageBackAlley(townId, districtType);
+ const dung = PC._yeldunDungeon;
+ const floor = dung.currentFloor;
+ const newId = ydNewNodeId(floor);
+ const node = { id:newId, type:'town_mini_resolve', floor, miniSubtype:subtype, miniResolveKey:'yd_tm_'+newId, pending:['forward'], exits:{} };
+ ydSaveNode(floor, node);
+ ydGoNode(newId, floor);
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━
 // ノード生成（テーブルII逐次生成）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -19578,6 +20151,15 @@ function ydExplore(fromNodeId, direction){
  const wantedRoll = wantedEligible && Math.random() < 0.05;
  const wantedTarget = wantedRoll ? unresolvedWanted[Math.floor(Math.random()*unresolvedWanted.length)] : null;
 
+ // 町完結ミニ依頼：今週の掲示板に解決可能な貼り紙（resolveType）があれば、街区探索中に10%の確率で解決地点を生成
+ // ※地区の指定はなく、その町のどの地区でも起こりうる（貼り紙の内容と現地の遭遇が対応するだけの仕組み）
+ const miniBoard = dung.districtType ? getLocalWantedBoard(dung.villageId) : null;
+ const activeMiniTypes = miniBoard?.activeMiniTypes || [];
+ const miniQuestEligible = !mustHunt && !mustAnchor && !atLimit && !deliveryRoll && !bountyRoll && !wantedRoll
+  && activeMiniTypes.length > 0;
+ const miniQuestRoll = miniQuestEligible && Math.random() < 0.15;
+ const miniSubtype = miniQuestRoll ? activeMiniTypes[Math.floor(Math.random()*activeMiniTypes.length)] : null;
+
  // 新ノード生成
  const newId = ydNewNodeId(floor);
  const roll = mustHunt
@@ -19592,9 +20174,11 @@ function ydExplore(fromNodeId, direction){
       ? {type:'bounty_hideout', bountyQuestId: bountyQuest.id} // 賞金首アジト発見（10%）
       : wantedRoll
        ? {type:'local_wanted', wantedTargetId: wantedTarget.id} // 手配犯遭遇（5%）
-       : atLimit
-        ? {type:'dead_end'}                 // 上限到達（討伐完了済み／アンカー配置済み）
-        : ydRoll100(dung.isHideoutDungeon ? YD_T_PASSAGE_HIDEOUT : (dung.isVillageBackAlley ? YD_T_PASSAGE_VILLAGE : YD_T_PASSAGE)); // 通常テーブル
+       : miniQuestRoll
+        ? {type:'town_mini_resolve', miniSubtype} // 掲示板の貼り紙に対応した出来事に遭遇（10%）
+        : atLimit
+         ? {type:'dead_end'}                 // 上限到達（討伐完了済み／アンカー配置済み）
+         : ydRoll100(dung.isHideoutDungeon ? YD_T_PASSAGE_HIDEOUT : (dung.isVillageBackAlley ? YD_T_PASSAGE_VILLAGE : YD_T_PASSAGE)); // 通常テーブル
  const node  = ydBuildNode(newId, fromNodeId, direction, roll, floor);
  // 向きを引き継ぐ
  const facingMap2 = ['north','east','south','west'];
@@ -19746,15 +20330,36 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
    let m;
    if(huntDung && huntDung.killedKeys.length < huntDung.targetCount){
     const remaining = huntDung.targetCount - huntDung.killedKeys.length;
-    const countHere = Math.min(remaining, 1 + Math.floor(Math.random()*2));
-    m = {
-     name: huntDung.targetName,
-     count: countHere,
-     mr: huntDung.targetMR * countHere,
-     singleMR: huntDung.targetMR,
-     isHuman: false,
-     isHuntTarget: true,
-    };
+    // NPC型精鋭種族は1回の戦闘で1〜4体、通常のCR型は従来通り1〜2体
+    const countHere = huntDung.isEliteHunt
+     ? Math.min(remaining, 1 + Math.floor(Math.random()*4))
+     : Math.min(remaining, 1 + Math.floor(Math.random()*2));
+    if(huntDung.isEliteHunt){
+     // NPC型精鋭種族：individualごとにフルステータスのモンスターを生成する
+     const npcs = Array.from({length:countHere}, (_,i)=>{
+      const npc = generateEliteMonster(huntDung.eliteSpecies, huntDung.eliteLevel);
+      npc.name = countHere>1 ? `${npc.name} #${i+1}` : npc.name;
+      return {...npc, curCon:npc.con};
+     });
+     m = {
+      name: huntDung.targetName,
+      count: countHere,
+      isNPCType: true,
+      npcs,
+      isHuman: false,
+      isHuntTarget: true,
+     };
+    } else {
+     m = {
+      name: huntDung.targetName,
+      count: countHere,
+      mr: huntDung.targetMR * countHere,
+      singleMR: huntDung.targetMR,
+      armor: huntDung.targetArmor||0,
+      isHuman: false,
+      isHuntTarget: true,
+     };
+    }
     // killedKeyをcountHere分登録
     for(let k=0; k<countHere; k++){
      const kk = 'yd_ht_' + id + '_' + k;
@@ -19825,6 +20430,13 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
    node.type = 'local_wanted';
    node.wantedTargetId = roll.wantedTargetId;
    node.wantedKey = 'yd_wt_' + id;
+   node.pending = ['forward'];
+   break;
+  }
+  case 'town_mini_resolve':{
+   node.type = 'town_mini_resolve';
+   node.miniSubtype = roll.miniSubtype;
+   node.miniResolveKey = 'yd_tm_' + id;
    node.pending = ['forward'];
    break;
   }
@@ -19918,6 +20530,9 @@ function _ydValdheimDarkChoice(floor, fallbackTown){
 
 function ydGoNode(nodeId, floor){
  if(!PC._yeldunDungeon) return;
+ // 酒場パネルが開いたままダンジョンへ移動した場合に備え、確実に閉じる
+ const _pp = document.getElementById('patron-panel');
+ if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
  const dung  = PC._yeldunDungeon;
  floor = floor || dung.currentFloor;
  dung.currentFloor = floor;
@@ -20080,9 +20695,15 @@ function ydGoNode(nodeId, floor){
  const storyEl = document.getElementById('story');
  storyEl.innerHTML = ydNodeTxt(node, floor);
 
+ // イベント（未解決の遭遇・宝箱・依頼等）がある間は、通常の移動選択肢を一時的に隠す。
+ // ただし「撤退する」等の常時表示したいものは_alwaysShowで残す。
+ // 階段は「下りる／上る」自体が繰り返し選べる移動系の選択肢であり、未解決イベントではないため対象外にする
+ const _actionCh = ydActionChoices(node, floor);
+ const _moveChRaw = ydMoveChoices(node, floor);
+ const _suppressMove = _actionCh.length > 0 && node.type !== 'stairs';
  const choices = [
-  ...ydActionChoices(node, floor),
-  ...ydMoveChoices(node, floor),
+  ..._actionCh,
+  ...(_suppressMove ? _moveChRaw.filter(c=>c._alwaysShow) : _moveChRaw),
  ];
  // 魔法使い・盗賊は魔法ボタンを追加
  if((PC.type==='wizard'||PC.type==='rogue') && PC.spells && PC.spells.length && !cbtState){
@@ -20423,7 +21044,7 @@ function ydNodeTxt(node, floor){
  const tBar   = (dung.isHideoutDungeon || (dung.isVillageBackAlley && design.isNaturalLight)) ? '' : (torchIndicator ? torchIndicator() : '');
  const style  = design?.dungeonStyle || 'mine';
  const fLabel = dung.isHideoutDungeon
-  ? `<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">賞金首のアジト　B${floor}F</span>`
+  ? `<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">賞金首のアジト　${floor}F</span>`
   : dung.isVillageBackAlley
   ? `<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">${villageCfg(dung).label}　── ${villagePhase(getGameHour()).label} ──</span>`
   : `<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">B${floor}F ${YD_STYLE_DATA[style]?.name||'ダンジョン'}</span>`;
@@ -20772,6 +21393,15 @@ function ydNodeTxt(node, floor){
     : '特に何もない、静かな路地だ。';
    return `${tBar}${fLabel}<br><br>
     <span style="color:#b8a890">${!done ? wtText : '（この場所はもう調べた）'}</span>
+    ${darkWarn}`;
+  }
+
+  case 'town_mini_resolve':{
+   const mdef = TOWN_MINI_QUEST_TYPES.find(d=>d.subtype===node.miniSubtype);
+   const done = PC[node.miniResolveKey];
+   const mtText = mdef ? mdef.findFlavor : '特に何もない、静かな場所だ。';
+   return `${tBar}${fLabel}<br><br>
+    <span style="color:#b8a890">${!done ? mtText : '（もう解決した）'}</span>
     ${darkWarn}`;
   }
 
@@ -21148,6 +21778,10 @@ function ydActionChoices(node, floor){
      document.getElementById('story').innerHTML+=`<br><span style="color:#f0ece0"> ${result}</span>`;
      renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
     }});
+    ch.push({label:' 拾わずに立ち去る', fn:()=>{
+     PC[node.lootKey]=true;
+     ydGoNode(node.id, floor);
+    }});
    }
    break;
 
@@ -21188,6 +21822,7 @@ function ydActionChoices(node, floor){
       PC[node.alcoveKey]=true;
       const msgs = {clothing:'古い衣類だった。使えそうにない。',paper:'読めない古文書だ。',food:'食べ物はすっかり腐っていた。'};
       document.getElementById('story').innerHTML+=`<br><span style="color:#d0c8b8">${msgs[node.alcoveType]||'何もなかった。'}</span>`;
+      renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
      }});
     }
    }
@@ -21242,7 +21877,7 @@ function ydActionChoices(node, floor){
     } else {
     const enemies = Array.from({length:m.count},(_,i)=>({
      name:m.count>1?`${m.name} #${i+1}`:m.name,
-     mr:m.singleMR, curMR:m.singleMR, armor:0,
+     mr:m.singleMR, curMR:m.singleMR, armor:m.armor||0,
     }));
     ch.push({label:` 戦う（${m.name} ×${m.count}）`, fn:()=>{
      const _nid=node.id, _fl=floor;
@@ -21293,14 +21928,14 @@ function ydActionChoices(node, floor){
     const noticed  = PC[node.trapKey+'_noticed'];
     const trapData = node.trap || ydRollTrap(floor);
     if(!noticed){
-     // まだ部屋に踏み込んでいない：LK SRで罠に気づくか判定
-     ch.push({label:'▶ 部屋に入る', fn:()=>{
+     // まだ足を踏み入れていない：LK SRで罠に気づくか判定
+     ch.push({label: dung.isVillageBackAlley ? '▶ 先へ進む' : '▶ 部屋に入る', fn:()=>{
       selectActorForSR('lk', floor, actor=>{
        setupSavingRollFor(actor,{attr:'lk', level:floor,
         onSuccess:()=>{
          PC[node.trapKey+'_noticed']=true; updateHUD();
          document.getElementById('story').innerHTML+=
-          `<br><span style="color:#e8e0d0"> ${actor.name||'あなた'}は床の異変に気づいた。罠がある！</span>`;
+          `<br><span style="color:#e8e0d0"> ${actor.name||'あなた'}は${dung.isVillageBackAlley?'足元':'床'}の異変に気づいた。罠がある！</span>`;
          renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
         },
         onFail:()=>{
@@ -21446,6 +22081,7 @@ function ydActionChoices(node, floor){
   }
 
   case 'village_delivery':{
+   checkVillageDeliveryExpiry();
    if(!PC[node.deliveryKey] && PC._villageBackalleyDelivery?.active){
     const dq = PC._villageBackalleyDelivery;
     ch.push({label:` 届け物を渡す（${dq.recipient}）`, fn:()=>{
@@ -21569,6 +22205,35 @@ function ydActionChoices(node, floor){
     document.getElementById('story').innerHTML+=`<br><br><span style="color:#d0c8b8"> 面倒事に関わりたくなく、見て見ぬふりをしてその場を立ち去った。</span>`;
     renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
    }});
+   break;
+  }
+
+  case 'town_mini_resolve':{
+   const mdef = TOWN_MINI_QUEST_TYPES.find(d=>d.subtype===node.miniSubtype);
+   if(PC[node.miniResolveKey] || !mdef) break;
+   const _nid=node.id, _fl=floor;
+   // 報酬は5〜10SPのランダム（依頼を受けていたわけではないので、遭遇のたびその場で決める）
+   const reward = 5 + Math.floor(Math.random()*6);
+   mdef.choices.forEach(choice=>{
+    ch.push({label:choice.label, fn:()=>{
+     setupSavingRoll({attr:choice.attr, level:choice.level,
+      onSuccess:()=>{
+       PC[node.miniResolveKey] = true;
+       gainSP(reward);
+       changeTrust(dung.villageId, 0.1);
+       updateHUD();
+       const s = document.getElementById('story');
+       if(s) s.innerHTML = `<span style="color:#e0d0d0">${(TOWNS[dung.villageId]||{}).name || dung.villageId}</span><br><br><span style="color:#e8e0d0">${choice.successMsg}（謝礼${reward}SP／信頼度+0.1）</span>`;
+       renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
+      },
+      onFail:()=>{
+       const s = document.getElementById('story');
+       if(s) s.innerHTML += `<br><br><span style="color:#c8b8a0">${choice.failMsg}</span>`;
+       renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
+      },
+     });
+    }});
+   });
    break;
   }
 
@@ -22866,14 +23531,22 @@ function ydActionChoices(node, floor){
       break;
      }
      ch.push({label:' 引き受ける', fn:()=>{
-      const recipients = ['古道具屋の店主','退役した坑夫','行商人の未亡人'];
+      const senderRoles = ['疲れた顔の書記官','関税所の下級役人','退役した衛兵','没落貴族の従者'];
+      const senderRole = senderRoles[Math.floor(Math.random()*senderRoles.length)];
+      const senderNameRaw = node.npcName || NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+      const senderName = `${senderRole}の${senderNameRaw}`;
+      const recipientRoles = ['古道具屋の店主','退役した坑夫','行商人の未亡人','闇医者','密造酒の醸造人','元衛兵の情報屋'];
       const items = ['封蝋の施された書状','小さな木箱','油紙に包まれた包み'];
-      const recipient = recipients[Math.floor(Math.random()*recipients.length)];
+      const recipientRole = recipientRoles[Math.floor(Math.random()*recipientRoles.length)];
+      const recipientName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+      const recipient = `${recipientRole}の${recipientName}`;
       const item = items[Math.floor(Math.random()*items.length)];
       const reward = 8 + Math.floor(Math.random()*8); // 8〜15GP
-      PC._villageBackalleyDelivery = { active:true, villageId:dung.villageId, toDistrict:'oldtown', fromDistrict:'admin', recipient, item, reward };
+      const deadlineDays = 2 + Math.floor(Math.random()*2); // 2〜3日
+      const deadlineDay = GAME_TIME.totalDays + deadlineDays;
+      PC._villageBackalleyDelivery = { active:true, villageId:dung.villageId, toDistrict:'oldtown', fromDistrict:'admin', senderName, recipient, item, reward, deadlineDay };
       updateHUD();
-      finish(`<span style="color:#f0ece0"> ${item}を預かった。旧市街にいる${recipient}に届けてほしいとのことだ。（謝礼${reward}GPの約束）旧市街地区を探せば見つかるはずだ。</span>`);
+      finish(`<span style="color:#f0ece0">${senderName}から${item}を預かった。旧市街にいる${recipient}に届けてほしいとのことだ。（謝礼${reward}GPの約束／期限${deadlineDays}日）旧市街地区を探せば見つかるはずだ。</span>`);
      }});
      ch.push({label:' 断る', fn:()=>{
       finish(`<span style="color:#d0c8b8"> 厄介事に巻き込まれたくなく、丁重に断った。</span>`);
@@ -23122,14 +23795,22 @@ function ydActionChoices(node, floor){
       break;
      }
      ch.push({label:' 引き受ける', fn:()=>{
-      const recipients = ['書記官の内通者','退役した衛兵','帳場の顔役'];
+      const senderRoles = ['身なりのよくない古物商','没落した商家の使用人','旧市街の情報屋','流れの薬師'];
+      const senderRole = senderRoles[Math.floor(Math.random()*senderRoles.length)];
+      const senderNameRaw = node.npcName || NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+      const senderName = `${senderRole}の${senderNameRaw}`;
+      const recipientRoles = ['書記官の内通者','退役した衛兵','帳場の顔役','税関の書記','宮廷お抱えの仕立て屋','没落貴族の当主'];
       const items = ['蝋封のされた古びた手紙','布に包まれた小箱','紐で縛られた書類の束'];
-      const recipient = recipients[Math.floor(Math.random()*recipients.length)];
+      const recipientRole = recipientRoles[Math.floor(Math.random()*recipientRoles.length)];
+      const recipientName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+      const recipient = `${recipientRole}の${recipientName}`;
       const item = items[Math.floor(Math.random()*items.length)];
       const reward = 8 + Math.floor(Math.random()*8); // 8〜15GP
-      PC._villageBackalleyDelivery = { active:true, villageId:dung.villageId, toDistrict:'admin', fromDistrict:'oldtown', recipient, item, reward };
+      const deadlineDays = 2 + Math.floor(Math.random()*2); // 2〜3日
+      const deadlineDay = GAME_TIME.totalDays + deadlineDays;
+      PC._villageBackalleyDelivery = { active:true, villageId:dung.villageId, toDistrict:'admin', fromDistrict:'oldtown', senderName, recipient, item, reward, deadlineDay };
       updateHUD();
-      finish(`<span style="color:#f0ece0"> ${item}を預かった。行政地区にいる${recipient}に届けてほしいとのことだ。（謝礼${reward}GPの約束）行政地区を探せば見つかるはずだ。</span>`);
+      finish(`<span style="color:#f0ece0">${senderName}から${item}を預かった。行政地区にいる${recipient}に届けてほしいとのことだ。（謝礼${reward}GPの約束／期限${deadlineDays}日）行政地区を探せば見つかるはずだ。</span>`);
      }});
      ch.push({label:' 断る', fn:()=>{
       finish(`<span style="color:#d0c8b8"> 厄介事に巻き込まれたくなく、丁重に断った。</span>`);
@@ -23369,7 +24050,7 @@ function ydActionChoices(node, floor){
       const _nid=node.id, _fl=floor;
       startCombat({
        enemies:[{name:'石の番兵', mr:40, curMR:40, armor:5}],
-       canFlee:false, isHuman:false, isYD:true,
+       canFlee:true, isHuman:false, isYD:true,
        win:'__yd_win__', lose:'DEAD',
        onWin:()=>{
         PC[node.eventKey]=true;
@@ -25059,6 +25740,21 @@ function ydActionChoices(node, floor){
        win:'__yd_win__', lose:'DEAD',
        onWin:()=>{
         PC[node.monsterKey]=true;
+        // 討伐依頼（NPC型精鋭種族含む）なら討伐対象フラグ・完了判定も行う
+        if(m.isHuntTarget){
+         (node.huntTargetKeys||[]).forEach(k=>{ PC[k]=true; });
+         const dung = PC._yeldunDungeon;
+         if(dung?.isHuntDungeon){
+          const killed = dung.killedKeys.filter(k=>PC[k]).length;
+          const total  = dung.targetCount;
+          if(killed>=total){
+           dung.huntCompleted = true;
+           showSaveToast(` ${dung.targetName}を全て討伐した！来た道を戻ろう。`);
+          } else {
+           showSaveToast(`討伐 ${killed}/${total}体`);
+          }
+         }
+        }
         updateHUD();
         ydGoNode(_nid,_fl);
        },
@@ -25069,7 +25765,7 @@ function ydActionChoices(node, floor){
     }
     const enemies = Array.from({length:m.count},(_,i)=>({
      name:m.count>1?`${m.name} #${i+1}`:m.name,
-     mr:m.singleMR, curMR:m.singleMR, armor:0,
+     mr:m.singleMR, curMR:m.singleMR, armor:m.armor||0,
     }));
     ch.push({label:` 戦う（${m.name} ×${m.count}）`, fn:()=>{
      const _nid=node.id, _fl=floor;
@@ -25173,10 +25869,10 @@ function ydMoveChoices(node, floor){
   return `${compassIcon[card]} ${compassLabel[card]}へ進む`;
  }
 
- // 未撃破エンカウントは前進不可（戻りのみ）
+ // 未撃破エンカウントは前進不可（戻りのみ）。まだ戦闘が始まっていないので「戻る」は必ず残す
  if(node.type==='encounter' && node.monsterKey && !PC[node.monsterKey]){
   const back = node.exits?.back;
-  if(back) ch.push({label: dirLabel('back'), fn:()=>ydGoNode(back, floor)});
+  if(back) ch.push({label: dirLabel('back'), _alwaysShow:true, fn:()=>ydGoNode(back, floor)});
   return ch;
  }
  // 罠未処理は前進不可
@@ -25185,10 +25881,10 @@ function ydMoveChoices(node, floor){
  // ヴェルダ裏路地：事件イベント未解決は前進不可
  if(node.type==='village_incident' && node.eventKey && !PC[node.eventKey]) return ch;
 
- // 部屋でモンスター未撃破の場合は前進不可（戻りのみ）
+ // 部屋でモンスター未撃破の場合は前進不可（戻りのみ）。まだ戦闘が始まっていないので「戻る」は必ず残す
  if(node.type==='room' && node.monster && node.monsterKey && !PC[node.monsterKey]){
   const back = node.exits?.back;
-  if(back) ch.push({label: dirLabel('back'), fn:()=>ydGoNode(back, floor)});
+  if(back) ch.push({label: dirLabel('back'), _alwaysShow:true, fn:()=>ydGoNode(back, floor)});
   return ch;
  }
 
@@ -25291,9 +25987,9 @@ function ydMoveChoices(node, floor){
    ydGoNode(fromNodeId, fromF);
   }});
  }
- // 賞金首アジト：いつでも撤退して街区探索地点へ戻れる
+ // 賞金首アジト：いつでも撤退して街区探索地点へ戻れる（イベント発生中も表示を維持する）
  if(dung?.isHideoutDungeon && PC._hideoutParent){
-  ch.push({label:' 撤退する（街路に戻る）', fn:()=>{
+  ch.push({label:' 撤退する（街路に戻る）', _alwaysShow:true, fn:()=>{
    const parent = PC._hideoutParent;
    PC._yeldunDungeon = parent.dungeon;
    PC._hideoutParent = null;
@@ -25647,7 +26343,7 @@ function _rdungMakeEncounterData(quest, step){
    if(PC[flagKey]) return [];
    const enemies=Array.from({length:enCount},(_,i)=>({
     name:enCount>1?`${quest.monsterName} #${i+1}`:quest.monsterName,
-    mr:enMR, curMR:enMR, armor:0,
+    mr:enMR, curMR:enMR, armor:quest.monsterArmor||0,
    }));
    return [{label:` 戦う（${quest.monsterName} ×${enCount}）`, fn:()=>{
     startCombat({enemies, canFlee:true, isHunt:true,
@@ -25809,7 +26505,7 @@ function _rdungMakeBossData(quest){
    }
    const enemies=Array.from({length:count},(_,i)=>({
     name:count>1?`${quest.monsterName} #${i+1}`:quest.monsterName,
-    mr:quest.monsterMR, curMR:quest.monsterMR, armor:0,
+    mr:quest.monsterMR, curMR:quest.monsterMR, armor:quest.monsterArmor||0,
    }));
    return [
     {label:` 戦う（${quest.monsterName} ×${count}）`, fn:()=>{
@@ -25839,6 +26535,9 @@ const HUNT_MONSTER_TABLE = {
   {name:'ウルフ', mr:25, minApp:2, maxApp:4},
   {name:'オーガ', mr:45, minApp:1, maxApp:3},
   {name:'トロル', mr:70, minApp:1, maxApp:2},
+  {name:'ホブゴブリン', mr:30, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'ハーフオーク', mr:60, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'トロル・レイダー', mr:150, armor:7, minApp:1, maxApp:3, weight:0.4},
  ],
  elmaria_region: [
   {name:'盗賊団', mr:18, minApp:3, maxApp:7},
@@ -25847,6 +26546,9 @@ const HUNT_MONSTER_TABLE = {
   {name:'ジャイアントスパイダー', mr:32, minApp:1, maxApp:4},
   {name:'グール', mr:50, minApp:1, maxApp:3},
   {name:'トロル', mr:70, minApp:1, maxApp:2},
+  {name:'ホブゴブリン', mr:30, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'ハーフオーク', mr:60, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'トロル・レイダー', mr:150, armor:7, minApp:1, maxApp:3, weight:0.4},
  ],
  zahara_region: [
   {name:'砂漠の盗賊', mr:20, minApp:3, maxApp:7},
@@ -25855,6 +26557,9 @@ const HUNT_MONSTER_TABLE = {
   {name:'グール', mr:50, minApp:1, maxApp:3},
   {name:'サンドワーム', mr:65, minApp:1, maxApp:2},
   {name:'トロル', mr:70, minApp:1, maxApp:2},
+  {name:'ホブゴブリン', mr:30, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'ハーフオーク', mr:60, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'トロル・レイダー', mr:150, armor:7, minApp:1, maxApp:3, weight:0.4},
  ],
  draklim_region: [
   {name:'山岳盗賊', mr:22, minApp:3, maxApp:6},
@@ -25863,6 +26568,9 @@ const HUNT_MONSTER_TABLE = {
   {name:'イエティ', mr:50, minApp:1, maxApp:3},
   {name:'ストーンジャイアント', mr:65, minApp:1, maxApp:2},
   {name:'トロル', mr:70, minApp:1, maxApp:2},
+  {name:'ホブゴブリン', mr:30, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'ハーフオーク', mr:60, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'トロル・レイダー', mr:150, armor:7, minApp:1, maxApp:3, weight:0.4},
  ],
  valdheim_region: [
   {name:'フロストウルフ', mr:55, minApp:2, maxApp:5},
@@ -25871,6 +26579,9 @@ const HUNT_MONSTER_TABLE = {
   {name:'フロストトロル', mr:90, minApp:1, maxApp:2},
   {name:'氷巨人', mr:120, minApp:1, maxApp:2},
   {name:'白竜（幼体）', mr:160, minApp:1, maxApp:1},
+  {name:'ホブゴブリン', mr:30, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'ハーフオーク', mr:60, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'トロル・レイダー', mr:150, armor:7, minApp:1, maxApp:3, weight:0.4},
  ],
  marea_region: [
   {name:'廃墟の亡霊',    mr:70,  armor:0, minApp:1, maxApp:2},
@@ -25878,6 +26589,9 @@ const HUNT_MONSTER_TABLE = {
   {name:'荒地の大蜥蜴',  mr:80,  armor:2, minApp:1, maxApp:1},
   {name:'地方の盗賊',    mr:56,  armor:2, minApp:2, maxApp:4},
   {name:'遺跡の番人',    mr:90,  armor:5, minApp:1, maxApp:2},
+  {name:'ホブゴブリン', mr:30, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'ハーフオーク', mr:60, armor:3, minApp:1, maxApp:6, weight:0.4},
+  {name:'トロル・レイダー', mr:150, armor:7, minApp:1, maxApp:3, weight:0.4},
  ],
 };
 
@@ -26076,6 +26790,66 @@ function generateContrabandQuest(fromTownId){
   crossRegion: false,
  };
 }
+
+// ── 町完結ミニ依頼：広場の掲示板に掲示され、街区探索中に解決地点を見つけるタイプの小さな依頼 ──
+// 解決手段は依頼ごとに3種類（それぞれ異なる能力値に対応）。報酬はごく僅か（危険性のない依頼という位置づけ）
+const TOWN_MINI_QUEST_TYPES = [
+ {
+  subtype: 'cat',
+  title: ' 迷い猫を保護してほしい',
+  clientFlavor: '「うちの猫が逃げ出しちゃって……見かけたら保護してもらえないかしら」',
+  findFlavor: '路地の隅に、探していた猫らしき影が見える。近づくと警戒するように身構えた。',
+  choices: [
+   { label:' おびき寄せて保護する', attr:'chr', level:1, successMsg:'優しく声をかけると、猫はすり寄ってきた。無事に保護できた。', failMsg:'警戒されてしまい、猫は逃げていった。' },
+   { label:' 素早く捕まえる', attr:'dex', level:1, successMsg:'一瞬の隙をついて、うまく捕まえることができた。', failMsg:'飛びかかったが、するりと躱されてしまった。' },
+   { label:' 根競べで疲れさせて捕まえる', attr:'con', level:1, successMsg:'根気強く追いかけ続け、疲れたところをようやく捕まえた。', failMsg:'先に自分の方が根を上げてしまった。' },
+  ],
+ },
+ {
+  subtype: 'lostitem',
+  title: ' 落とし物の持ち主を探してほしい',
+  clientFlavor: '「大事な物を落としてしまって……街のどこかにあるはずなんだけど」',
+  findFlavor: '道端に、探し物らしき品が落ちているのを見つけた。',
+  choices: [
+   { label:' 聞き込みで持ち主を探す', attr:'chr', level:1, successMsg:'周囲に聞き込むと、心当たりのある人物にたどり着いた。', failMsg:'誰に聞いても要領を得なかった。' },
+   { label:' 手がかりから推理する', attr:'iq', level:1, successMsg:'品物に残された手がかりから、持ち主を推理できた。', failMsg:'手がかりが少なく、推理は空振りに終わった。' },
+   { label:' 歩き回って探し出す', attr:'con', level:1, successMsg:'根気よく歩き回り、ついに持ち主を見つけ出した。', failMsg:'歩き疲れただけで、収穫はなかった。' },
+  ],
+ },
+ {
+  subtype: 'message',
+  title: ' 伝言を届けてほしい',
+  clientFlavor: '「知り合いに伝えたいことがあるんだが、手が離せなくて……」',
+  findFlavor: '伝言の相手らしき人物を、人混みの中に見つけた。',
+  choices: [
+   { label:' 愛想よく取り次いでもらう', attr:'chr', level:1, successMsg:'愛想よく話しかけると、快く取り次いでくれた。', failMsg:'怪しまれてしまい、取り合ってもらえなかった。' },
+   { label:' 最短ルートを見極めて追いつく', attr:'iq', level:1, successMsg:'人混みの流れを読み、最短ルートで追いついた。', failMsg:'道を誤り、見失ってしまった。' },
+   { label:' 人混みを力づくで進む', attr:'st', level:1, successMsg:'人混みをかき分けて、なんとか追いついた。', failMsg:'押し合いになり、はぐれてしまった。' },
+  ],
+ },
+ {
+  subtype: 'rumor',
+  title: ' 噂の真偽を確かめてほしい',
+  clientFlavor: '「妙な噂を耳にしてね……本当かどうか確かめてほしいんだ」',
+  findFlavor: '噂の出所らしき人物を見つけた。',
+  choices: [
+   { label:' 世間話のふりで聞き出す', attr:'chr', level:1, successMsg:'世間話のふりをして、うまく聞き出せた。', failMsg:'口が堅く、何も聞き出せなかった。' },
+   { label:' 矛盾点を突いて見抜く', attr:'iq', level:1, successMsg:'話の矛盾点を突くと、あっさり本音を漏らした。', failMsg:'話術で丸め込まれてしまった。' },
+   { label:' 現場に直接乗り込む', attr:'lk', level:1, successMsg:'思い切って現場に乗り込むと、運良く真相を掴めた。', failMsg:'空振りに終わり、何も掴めなかった。' },
+  ],
+ },
+ {
+  subtype: 'lostchild',
+  title: ' 迷子の子供を保護してほしい',
+  clientFlavor: '「うちの子がいなくなって……この辺りで遊んでいたはずなんですが」',
+  findFlavor: '道の隅で、心細そうにしゃがみ込む子供の姿を見つけた。',
+  choices: [
+   { label:' 優しく声をかけて安心させる', attr:'chr', level:1, successMsg:'優しく声をかけると、子供は涙を拭いながら手を握ってきた。無事に保護できた。', failMsg:'警戒されてしまい、子供は物陰に隠れてしまった。' },
+   { label:' 落ち着いて話を聞き出す', attr:'iq', level:1, successMsg:'落ち着いて話を聞くと、迷った経緯や家の場所が分かった。', failMsg:'要領を得ない話しぶりで、手がかりはつかめなかった。' },
+   { label:' 抱き上げて安全な場所へ運ぶ', attr:'st', level:1, successMsg:'思い切って抱き上げ、安全な場所まで運んだ。', failMsg:'暴れられてしまい、うまく運べなかった。' },
+  ],
+ },
+];
 
 function generateBountyQuest(fromTownId){
  // Lv3〜10の敵をランダム生成
@@ -26310,10 +27084,40 @@ function reportBountyQuest(townId){
 // 中心都市かどうか
 const BOUNTY_CITIES = ['khazan','elsia','al_rashid','yeldun','valdheim'];
 
+// 種族＋階級ごとの目安戦闘力（討伐報酬の算定用。CR型のMRと同じスケール感になるよう調整した想定値）
+const ELITE_MONSTER_EQUIV_MR = {
+ troll:  {14:120, 15:131},
+ ogre:   {8:75, 9:79, 10:83},
+ orc:    {6:42, 7:45, 8:48},
+ goblin: {5:33, 6:37},
+};
+
 function generateHuntQuest(fromTownId){
  const region = getRegionKey(fromTownId) || 'khazan_region';
  const table = HUNT_MONSTER_TABLE[region] || HUNT_MONSTER_TABLE.khazan_region;
- const m = table[Math.floor(Math.random() * table.length)];
+
+ // 低確率（8%）でCR型ではなく、人型・亜人系のNPC型精鋭種族に切り替える（通常のCR型より出現率を下げる）
+ const isElite = Math.random() < 0.05;
+ let m, eliteSpecies=null, eliteLevel=null, eliteRank=null;
+ if(isElite){
+  const speciesList = Object.keys(ELITE_MONSTER_INFO);
+  eliteSpecies = speciesList[Math.floor(Math.random()*speciesList.length)];
+  const tiers = ELITE_MONSTER_INFO[eliteSpecies].tiers;
+  const tier = tiers[Math.floor(Math.random()*tiers.length)];
+  eliteLevel = tier.level; eliteRank = tier.rank;
+  const equivMR = ELITE_MONSTER_EQUIV_MR[eliteSpecies][eliteLevel];
+  m = { name: eliteMonsterDisplayName(eliteSpecies, eliteRank), mr: equivMR, armor:0, minApp:1, maxApp:2 };
+ } else {
+  // weight指定があれば重み付き抽選（未指定は重み1として扱う）
+  const totalWeight = table.reduce((s,e)=>s+(e.weight!=null?e.weight:1), 0);
+  let r = Math.random() * totalWeight;
+  m = table[table.length-1];
+  for(const e of table){
+   const w = e.weight!=null ? e.weight : 1;
+   if(r < w){ m = e; break; }
+   r -= w;
+  }
+ }
  // 部屋数 1〜3
  const roomCount = 1 + Math.floor(Math.random() * 3);
  // 各部屋のモンスター数
@@ -26325,8 +27129,8 @@ function generateHuntQuest(fromTownId){
   rooms.push({ count, mr: m.mr, roomMR });
   totalMR += roomMR;
  }
- // 報酬：総MRの0.8〜1.2倍 (GP)
- const reward = Math.floor(totalMR * (0.8 + Math.random() * 0.4));
+ // 報酬：総MRの0.8〜1.2倍 (GP)。精鋭種族は稀少性を鑑みてさらに1.3倍のボーナスを乗せる
+ const reward = Math.floor(totalMR * (0.8 + Math.random() * 0.4) * (isElite ? 1.3 : 1));
  const clientName = pickNPC();
  const caveNames = ['北の洞穴','南の岩窟','東の廃坑','西の竪穴','郊外の洞穴','古い砦跡','廃坑の奥','荒れ地の岩穴'];
  const caveName = caveNames[Math.floor(Math.random() * caveNames.length)];
@@ -26336,6 +27140,9 @@ function generateHuntQuest(fromTownId){
   fromTownId,
   monsterName: m.name,
   monsterMR: m.mr,
+  monsterArmor: m.armor||0,
+  isEliteHunt: isElite,
+  eliteSpecies, eliteLevel, eliteRank,
   rooms,
   totalMR,
   caveName,
@@ -26358,6 +27165,10 @@ let _huntState = null;
 function startHuntQuest(questId){
  const q = (PC.quests||[]).find(q=>q.id===questId && q.status==='active');
  if(!q){ showSaveToast('依頼が見つかりません'); return; }
+
+ // 酒場パネルを開いたまま出発しようとした場合に備え、確実に閉じる
+ const _pp = document.getElementById('patron-panel');
+ if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
 
  // YDシステムでダンジョン生成（未生成なら生成）
  if(!q.ydDungeon){
@@ -26407,6 +27218,11 @@ function ydInitDungeonForHunt(quest){
  dung.targetCount   = total;
  dung.targetName    = quest.monsterName;
  dung.targetMR      = quest.monsterMR;
+ dung.targetArmor   = quest.monsterArmor||0;
+ // NPC型精鋭種族の討伐依頼なら、種族・階級を引き継ぐ
+ dung.isEliteHunt   = quest.isEliteHunt||false;
+ dung.eliteSpecies  = quest.eliteSpecies||null;
+ dung.eliteLevel    = quest.eliteLevel||null;
  dung.killedKeys    = []; // 配置した討伐対象のflagKey一覧
  dung.huntReward    = quest.reward;
  // PCに残っている古いyd_ht_フラグをクリア（前回討伐の残留を防ぐ）
@@ -26425,6 +27241,9 @@ function ydInitDungeonForHunt(quest){
 function _huntGoNode(nodeIdOrIdx, opts){
  opts = opts||{};
  if(!_huntState) return;
+ // 酒場パネルが開いたままダンジョンへ移動した場合に備え、確実に閉じる
+ const _pp = document.getElementById('patron-panel');
+ if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
  const {q} = _huntState;
  const dung = q.dungeon;
  if(!dung) return;
@@ -26957,7 +27776,15 @@ function popDeliveryMsg(){
    return `<span style="color:#e8e4d8"> ${q.clientName}に「${q.specName}」を納品した！<br>　持ち込み価格${delPrice}GP + 手数料${q.reward}GP = <b>${total}GP</b>　経験値+10</span>`;
   }
   if(q.type === 'escort'){
-   return `<span style="color:#e8e4d8"> ${q.escortName}を${(TOWNS[q.toTownId]||{name:q.toTownId}).name}へ無事に護衛した！<br>　報酬: ${q.reward}GP　経験値+8</span>`;
+   const escortThanks = [
+    `「いやあ、助かったよ！ありがとうな」${q.escortName}は軽く手を振った。`,
+    `「あなたに頼んで正解だった。また会えたら一杯奢らせてくれ」${q.escortName}はにっこり笑った。`,
+    `「思ったより気楽な旅だったな。ありがとう」${q.escortName}は肩の荷が下りたように伸びをした。`,
+    `「無事着いてよかった！ありがとうね」${q.escortName}は軽やかに言った。`,
+    `「退屈しない旅だったよ。感謝する」${q.escortName}は笑いながら軽く会釈した。`,
+   ];
+   const thanksLine = escortThanks[Math.floor(Math.random()*escortThanks.length)];
+   return `<span style="color:#e8e4d8"> ${q.escortName}を${(TOWNS[q.toTownId]||{name:q.toTownId}).name}へ無事に護衛した！<br>　報酬: ${q.reward}GP　経験値+8</span><br><span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${thanksLine}</span>`;
   }
   if(q.type === 'contraband'){
    return `<span style="color:#e8e4d8"> ${q.receiverName}に「${q.item}」を密かに届けた……<br>　報酬: ${q.reward}GP　${(TOWNS[q.toTownId]||{name:q.toTownId}).name}の手配度+0.5　経験値+5</span>`;
@@ -27029,6 +27856,12 @@ function popRaidUnitMsg(){
   <div style="color:var(--white);font-size:var(--font-sm);line-height:1.8">混沌との戦いに5度生き残った。上層部からパーティーに正式な名が与えられた。<br><br>「独立遊撃小隊」——特定の指揮系統に属さず、混沌の脅威に単独で対処することを許された少数精鋭。これはその証だ。</div>
   <div style="color:#e0d8c8;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
  </div>`;
+}
+
+// 町メニューに現在の時間帯を表示する（街区・裏路地探索で進んだGAME_TIME.hourをそのまま反映する。保持のみで進行はさせない）
+function popTimeOfDayMsg(){
+ const ph = villagePhase(getGameHour());
+ return `<br><span style="color:#a89880;font-size:calc(var(--font-sm) - 1px)">現在：${ph.label}</span>`;
 }
 
 // 酒場のクエスト掲示板HTML生成
@@ -27548,6 +28381,10 @@ function getRoute(fromId, toId){
 
 // 移動実行
 function travelTo(toId, method){
+ if(isGuardLockedOut(PC.town)){
+  showGuardLockoutMenu(PC.town, toId, method);
+  return 'locked';
+ }
  const route = getRoute(PC.town, toId);
  if(!route) return false;
  // 冬期遮断チェック
@@ -28884,6 +29721,7 @@ function startReunionEvent(ts){
    PC._formerCompanions.splice(idx,1);
    PC.party = PC.party||[];
    PC.party.push({...npc, trust:npc.trust||0, joinDay:GAME_TIME.totalDays});
+   addLifeEvent('', `${npc.name}が再びパーティに加わった（${({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'})[npc.type]||npc.type}・${npc.race}）。`);
    updateHUD();
    travelLog(`<span style="color:#f0ece0"> ${npc.name}が再びパーティに加わった！</span>`);
    renderChoices([{label:'▶ 旅を続ける', fn:()=>_mysteryLightContinue(ts)}]);
@@ -28925,6 +29763,7 @@ function startImportedNPCEncounter(ts){
    removeImportedNPCById(npc._npcId);
    PC.party = PC.party||[];
    PC.party.push({...npc, trust:npc.trust||80, joinDay:GAME_TIME.totalDays});
+   addLifeEvent('', `${npc.name}がパーティに加わった（${({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'})[npc.type]||npc.type}・${npc.race}）。`);
    updateHUD();
    travelLog(`<span style="color:#f0ece0"> ${npc.name}が仲間に加わった！</span>`);
    renderChoices([{label:'▶ 旅を続ける', fn:()=>_mysteryLightContinue(ts)}]);
@@ -29465,6 +30304,8 @@ function travelTick(){
   enterBtn.onclick = ()=>{
    choices.innerHTML = '';
    travelState = null;
+   // 到着時刻は常に変動しうるため、町メニューに表示する時間帯をランダムに決定する
+   GAME_TIME.hour = Math.floor(Math.random()*24);
    if(ts.onDone) ts.onDone(); // onDone内のgo()でcheckAllDeliveriesが先に走る
    // 到着後に期限切れチェック（到着当日の削除を防ぐため到着処理の後）
    setTimeout(checkQuestDeadlines, 500);
@@ -29573,6 +30414,7 @@ function startTravelTalk(enemy, ts){
  changeAlignment(0, -0.5); // 逃亡：混沌+0.5
  if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 800); return; }
  renderChoices([{label:'▶ 旅を続ける', fn:()=>{
+  renderChoices([]);
   document.getElementById('dice-area').classList.add('hidden');
   document.getElementById('text-win').style.display='';
   ts._resumeWithoutIncrement = true;
@@ -29744,6 +30586,11 @@ const RACE_MODS = {
  halfling: { st:0.5, iq:1, lk:1, con:2, dex:1.5, chr:1, spd:1 },
  fairy: { st:0.25,iq:1, lk:1.5, con:0.25, dex:1.5, chr:2, spd:1 },
  leprechaun: { st:0.5, iq:1.5, lk:1.5, con:1, dex:1.5, chr:1, spd:1 },
+ // ── モンスター種族（プレイアブル。上級者向け・弱点なしの尖った選択肢） ──
+ troll:  { st:3,    iq:1, lk:1, con:3,    dex:1,   chr:1,    spd:1 },
+ ogre:   { st:2,    iq:1, lk:1, con:2,    dex:1,   chr:1,    spd:1 },
+ orc:    { st:1,    iq:1, lk:1, con:1,    dex:1,   chr:1,    spd:1 },
+ goblin: { st:0.75, iq:1, lk:1, con:0.75, dex:1.5, chr:0.75, spd:1 },
 };
 function applyRace(base, race){
  const m = RACE_MODS[race];
@@ -30528,10 +31375,56 @@ const RACE_INFO_TEXT = {
  halfling: 'ハーフリング: 強さ ×1/2、体力 ×2、器用さ ×3/2',
  fairy: 'フェアリー: 強さ・体力 ×1/4、運・器用さ ×3/2、魅力 ×2',
  leprechaun: 'Leprechaun: ST ×1/2、IQ・LK・DEX ×3/2',
+ troll: '⚠ トロール: 強さ・体力 ×3。規格外の肉体を持つ上級者向けの種族。弱点による帳尻合わせはなく、ゲームバランスを大きく踏み越える。',
+ ogre: '⚠ オーガ: 強さ・体力 ×2。並外れた膂力を持つ、荒々しい種族。トロールに次ぐ強さの上級者向けの選択肢。',
+ orc: 'オーク: 全能力値 ×1（人間と同等の水準）。人間社会にも比較的馴染みやすい種族。',
+ goblin: 'ゴブリン: 強さ・体力 ×3/4、器用さ ×3/2、魅力 ×3/4。素早く小柄な種族。',
 };
 function updateRaceInfo(){
  const r=document.getElementById('a-race').value;
  document.getElementById('race-info').textContent=RACE_INFO_TEXT[r];
+}
+
+// ── キャラクター作成：身長・体重 ──
+// 人間を基準にした範囲（身長125〜210cm・体重35〜170kg）でランダムに決め、種族係数をかけて表示する
+const RACE_SIZE_MODS = {
+ human:      { height:1,    weight:1 },
+ dwarf:      { height:2/3,  weight:7/8 },
+ elf:        { height:11/10,weight:1 },
+ halfling:   { height:1/2,  weight:1/2 },
+ fairy:      { height:1/10, weight:1/200 },
+ leprechaun: { height:1/3,  weight:1/4 },
+ troll:      { height:2,    weight:4 },
+ orc:        { height:1,    weight:1 },
+ ogre:       { height:3/2,  weight:2 },
+ goblin:     { height:3/4,  weight:3/4 },
+};
+// 人間基準（身長125〜210cm・体重35〜170kg）でランダムに決め、種族係数をかける共通処理
+// PCのキャラ作成・仲間NPCの生成・子どもの仲間入り時に共通で使う
+function rollBodySize(race){
+ const mod = RACE_SIZE_MODS[race] || RACE_SIZE_MODS.human;
+ const hBase = 125 + Math.random()*(210-125);
+ const wBase = 35 + Math.random()*(170-35);
+ return {
+  height: Math.round(hBase*mod.height*10)/10,
+  weight: Math.round(wBase*mod.weight*100)/100,
+ };
+}
+function rollHeight(){
+ window._pcHeightBase = 125 + Math.random()*(210-125);
+ updateSizeDisplay();
+}
+function rollWeight(){
+ window._pcWeightBase = 35 + Math.random()*(170-35);
+ updateSizeDisplay();
+}
+function updateSizeDisplay(){
+ const race = document.getElementById('a-race').value;
+ const mod = RACE_SIZE_MODS[race] || RACE_SIZE_MODS.human;
+ const hEl = document.getElementById('a-height');
+ const wEl = document.getElementById('a-weight');
+ if(hEl) hEl.value = (window._pcHeightBase!=null) ? (Math.round(window._pcHeightBase*mod.height*10)/10) : '';
+ if(wEl) wEl.value = (window._pcWeightBase!=null) ? (Math.round(window._pcWeightBase*mod.weight*100)/100) : '';
 }
 
 function startGame(){
@@ -30560,6 +31453,12 @@ function startGame(){
  // Build PC
  PC.name=document.getElementById('a-name').value||'Adventurer';
  PC.race=race;PC.type=selectedType;
+ // 身長・体重（未入力なら振っていなかったものとしてこの場でランダムに決定する）
+ if(window._pcHeightBase==null) window._pcHeightBase = 125 + Math.random()*(210-125);
+ if(window._pcWeightBase==null) window._pcWeightBase = 35 + Math.random()*(170-35);
+ const sizeMod = RACE_SIZE_MODS[race] || RACE_SIZE_MODS.human;
+ PC.height = Math.round(window._pcHeightBase*sizeMod.height*10)/10;
+ PC.weight = Math.round(window._pcWeightBase*sizeMod.weight*100)/100;
  Object.assign(PC,applied);
  PC.maxCon=PC.con;PC.maxSt=PC.st;
  PC.gold=startGold||Nd6(3)*10;
@@ -30634,7 +31533,7 @@ function startGame(){
  else PC.spells=[];
 
  // 開始街をランダムに決定してPCに記録
- const startTowns = ['khazan','port_argon','stonehiem','elsia','verda','rimholm','marakai','al_rashid','oasis_fort','saroon','duna'];
+ const startTowns = ['khazan','port_argon','stonehiem','elsia','verda','rimholm','marakai','al_rashid','oasis_fort','saroon','duna','yeldun','frostpeak','ashveil'];
  const startTownsOutlying = ['verda','rimholm','marakai','oasis_fort','saroon','ashveil','nifurvik','iskald'];
  const townPool = _isManual ? startTownsOutlying : startTowns;
  PC._startTown = townPool[Math.floor(Math.random() * townPool.length)];
@@ -31733,6 +32632,30 @@ const BG_FAMILY = {
  '虹の麓に住む一族。夢と幻術を操る術を学んで育った。',
  '悪戯好きな家系の出身。ある悪戯が過ぎて村を追われた。',
  ],
+ troll: [
+ '一族の掟に背き、仲間を手にかけることを拒んで山を追われた。二度と戻れない。',
+ '混沌の軍勢に一族の集落を焼かれた、数少ない生き残り。行く当てもなく人里へ流れ着いた。',
+ '幼い頃、人間の集落に迷い込んで拾われた。育ての親は既にいないが、共通語だけは達者だ。',
+ '同族の誰よりも小柄で非力だと蔑まれ続けた。証明するために故郷を出た。',
+ ],
+ ogre: [
+ '群れの頭を継ぐ座を賭けた戦いに敗れ、生き延びる道として放浪を選んだ。',
+ '人間の傭兵隊に囚われ、戦働きと引き換えに命を拾った。今も足枷の跡が残る。',
+ '一族の誰も知らない「外の世界」への好奇心を抑えられず、自ら群れを離れた。',
+ '混沌に住処を奪われた流民の一団の生き残り。仲間はもう誰も残っていない。',
+ ],
+ orc: [
+ '略奪を是とする一族の因習に嫌気が差し、剣を置いて出奔した。',
+ '人間との交易を担う数少ない一族の生まれで、共通語も交渉ごとも心得ている。',
+ '戦で捕虜となり、労役の末に自由を買い戻した。今も鎖の重さを覚えている。',
+ '一族の中では変わり者と呼ばれた。同族の荒々しさより、遠い土地の話に惹かれた。',
+ ],
+ goblin: [
+ '群れの中の序列争いに疲れ、単身で外の世界に飛び出した。',
+ '盗品の目利きとして人間の裏社会に拾われ、そのまま居着いた。',
+ '一族の縄張りが人間の開拓で奪われ、住処を失った末の放浪。',
+ '好奇心旺盛な性分が災いし、余所者扱いされて群れを追い出された。',
+ ],
 };
 
 const BG_MOTIVE = {
@@ -31953,7 +32876,7 @@ function renderPartyTab(){
 
 function renderPartyList(el, party){
  const typeJa = t=>({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[t]||t);
- const raceJa = r=>({human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[r]||r);
+ const raceJa = r=>({human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'}[r]||r);
  el.innerHTML = party.map((n,i)=>{
  const alive = n.con>0;
  const barW = alive ? Math.round(n.con/n.maxCon*100) : 0;
@@ -31991,11 +32914,13 @@ function renderNPCDetail(el, n, idx){
  if(n.gold === undefined){ n.gold = Nd6(2) * (n.level||1) * 5; }
  if(n.sp   === undefined){ n.sp   = d6() * (n.level||1); }
  if(n.cp   === undefined){ n.cp   = d6(); }
+ // 身長・体重が未設定のNPCは、詳細を開いたこの瞬間に決めてしまう
+ if(n.height==null || n.weight==null){ Object.assign(n, rollBodySize(n.race)); }
  // APからレベルを再計算（旧データの補正）
  const correctLv = calcLevelFromAP(n.ap||0);
  if(correctLv !== n.level) n.level = correctLv;
  const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[n.type]||n.type;
- const raceJa = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[n.race]||n.race;
+ const raceJa = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'}[n.race]||n.race;
  const alive = n.con > 0;
  const conPct = alive ? Math.round(n.con/n.maxCon*100) : 0;
  const conCol = conPct>50?'var(--nature2)':conPct>25?'#ffcc00':'var(--danger)';
@@ -32120,6 +33045,7 @@ function renderNPCDetail(el, n, idx){
  <div style="font-size:calc(var(--font-lg) + 2px);color:#f0ece0;margin-bottom:4px">${alive?'':' '}${n.name}</div>
  ${(()=>{ const birthDay=n.birthDay||(-(400-380)*365); const ageYears=Math.floor((GAME_TIME.totalDays-birthDay)/365); return `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${ageYears}歳</div>`; })()}
  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${raceJa.toUpperCase()}　${typeJa.toUpperCase()}　Lv${n.level||1}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-top:2px">身長 ${n.height!=null ? n.height+'cm' : '-'}　体重 ${n.weight!=null ? n.weight+'kg' : '-'}</div>
  </div>
 
  <!-- CONバー -->
@@ -32290,6 +33216,11 @@ function renderStatusPanel(){
  document.getElementById('sp-age').textContent = `${age}歳`;
  document.getElementById('sp-birthday').textContent =
  `誕生: ${PC.birthYear}年 ${MONTHS_JP[PC.birthMonth-1]} ${PC.birthDay}日`;
+ // 身長・体重（既存キャラで未設定ならハイフン表示）
+ const spSizeEl = document.getElementById('sp-size');
+ if(spSizeEl){
+  spSizeEl.textContent = `身長 ${PC.height!=null ? PC.height+'cm' : '-'}　体重 ${PC.weight!=null ? PC.weight+'kg' : '-'}`;
+ }
  document.getElementById('sp-lifespan-lbl').textContent =
  `寿命 ${lifespan}歳（余命 ${Math.max(0,lifespan-age)}年）`;
  const bar = document.getElementById('sp-life-bar');
@@ -32707,10 +33638,20 @@ function renderStatusPanel(){
   </div>`;
  }
  const destTown = TOWNS[q.toTownId]||{name:q.toTownId||'?'};
- if(q.type === 'escort'){
+ if(q.type==='escort'){
   return `<div style="background:var(--ink);border:1px solid #484848;border-radius:3px;padding:9px;margin-bottom:6px">
   <div style="font-size:var(--font-sm);color:#e0d8c8;margin-bottom:4px"> 護衛依頼</div>
   <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:2px">${q.escortName}を${destTown.name}へ護衛する</div>
+  <div style="font-size:calc(var(--font-sm) - 1px)">報酬: <span style="color:#f0ece0">${q.reward}GP</span>　残り: <span style="color:${urgColor}">${remain}日</span></div>
+  </div>`;
+ }
+ if(q.type==='bounty' || q.type==='assassination' || q.type==='kidnapping'){
+  const titleLabel = {bounty:' 賞金首討伐', assassination:' 暗殺依頼', kidnapping:' 誘拐依頼'}[q.type];
+  const actionLabel = {bounty:'討伐する', assassination:'始末する', kidnapping:'連れ去る'}[q.type];
+  const targetTownName = (TOWNS[q.targetTownId]||{name:q.targetTownId||q.fromTownId}).name;
+  return `<div style="background:var(--info-bg);border:1px solid #484848;border-radius:3px;padding:9px;margin-bottom:6px">
+  <div style="font-size:var(--font-sm);color:#f0ece0;margin-bottom:4px">${titleLabel}：${q.targetTitle||q.targetName||'対象'}</div>
+  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:2px">${targetTownName}にいる${q.targetNPC?.name||q.targetName||'?'}を${actionLabel}</div>
   <div style="font-size:calc(var(--font-sm) - 1px)">報酬: <span style="color:#f0ece0">${q.reward}GP</span>　残り: <span style="color:${urgColor}">${remain}日</span></div>
   </div>`;
  }
@@ -32790,7 +33731,7 @@ function generateLifeNarrative(){
  if(!events.length) return '<span style="color:#c8b8a0">まだ語るべき物語はない。</span>';
 
  const name = PC.name || '冒険者';
- const raceMap = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'};
+ const raceMap = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'};
  const typeMap = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'};
  const race = raceMap[PC.race]||PC.race;
  const type = typeMap[PC.type]||PC.type;
@@ -34095,7 +35036,13 @@ function _restoreNodeChoices(){
     const _ok = document.getElementById('cbt-ok-area');
     if(_ok){ _ok.innerHTML=''; _ok.style.display='none'; }
     document.getElementById('story').innerHTML = ydNodeTxt(node, floor);
-    const _ydChoices = [...ydActionChoices(node, floor), ...ydMoveChoices(node, floor)];
+    const _restoreActionCh = ydActionChoices(node, floor);
+    const _restoreMoveChRaw = ydMoveChoices(node, floor);
+    const _restoreSuppressMove = _restoreActionCh.length > 0 && node.type !== 'stairs';
+    const _ydChoices = [
+     ..._restoreActionCh,
+     ...(_restoreSuppressMove ? _restoreMoveChRaw.filter(c=>c._alwaysShow) : _restoreMoveChRaw),
+    ];
     if((PC.type==='wizard'||PC.type==='rogue') && PC.spells && PC.spells.length && !cbtState){
      _ydChoices.push({ label:' 魔法を使う', fn:()=>openSpellModal('', null), _isMagicBtn:true });
     }
@@ -34159,7 +35106,7 @@ function confirmRetire(){
 function buildContinueHtml(reason){
  const ws = loadWorldState();
  if(!ws || !ws.knownNPCs || ws.knownNPCs.length === 0) return '';
- const raceJa = r=>({human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[r]||r);
+ const raceJa = r=>({human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'}[r]||r);
  const typeJa = t=>({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[t]||t);
  const rows = ws.knownNPCs.map((n,i)=>`
  <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
@@ -34550,10 +35497,12 @@ function go(nodeId){
  const node=NODES[nodeId];
  if(!node){console.warn('Node not found:',nodeId);return;}
  // 手配度：町に新しく入る瞬間の衛兵遭遇チェック（同じ町の再描画では発動しない）
+ // ※ここでcurrentNodeIdを先に更新しておかないと、遭遇戦に勝利してgo()で同じ町へ戻った際に
+ //   「まだ町に到着していない」と誤判定されて衛兵遭遇が無限に再発生してしまう
  if(nodeId.startsWith('TOWN_') && currentNodeId!==nodeId){
   const _wTownId = nodeId.slice(5).toLowerCase();
-  if(TOWNS[_wTownId] && checkWantedAmbush(_wTownId)) return;
-  if(TOWNS[_wTownId] && checkAdmirerEvent(_wTownId)) return;
+  if(TOWNS[_wTownId] && checkWantedAmbush(_wTownId)){ currentNodeId = nodeId; return; }
+  if(TOWNS[_wTownId] && checkAdmirerEvent(_wTownId)){ currentNodeId = nodeId; return; }
  }
  // 死亡到達時：ダンジョン画像・旅イメージ画像の消し忘れ防止（YD/討伐ダンジョン等、独自の画像管理を行うものも含む）
  if(nodeId==='DEAD'){
@@ -36033,7 +36982,7 @@ function _rangedPhaseStep(npcIdx, rangedParty){
 
  // NPC順に処理
  const npc = rangedParty[npcIdx];
- if(!npc || cbtState.enemies.every(e=>e.curMR<=0)){
+ if(!npc || cbtState.enemies.every(e=>(cbtState.isNPC?e.curCon:e.curMR)<=0)){
   // 全員完了→近接フェーズへ
   document.getElementById('npc-action-panel').style.display = 'none';
   _showPCActionChoices();
@@ -36076,7 +37025,7 @@ function _rangedPhaseStep(npcIdx, rangedParty){
 }
 
 function _npcRangedSelectTarget(npc, npcIdx, rangedParty){
- const alive = cbtState.enemies.filter(e=>e.curMR>0);
+ const alive = cbtState.enemies.filter(e=>(cbtState.isNPC?e.curCon:e.curMR)>0);
  if(alive.length === 1){ _npcRangedAttack(npc, alive[0], npcIdx, rangedParty); return; }
 
  const panel = document.getElementById('npc-action-panel');
@@ -36089,7 +37038,7 @@ function _npcRangedSelectTarget(npc, npcIdx, rangedParty){
   const b = document.createElement('button');
   b.className = 'choice-btn';
   b.style.cssText = 'border-color:#d8d0c0;color:#e0d8c8';
-  b.textContent = `${e.name}（CombatRating ${e.curMR}）`;
+  b.textContent = cbtState.isNPC ? `${e.name}（体力 ${e.curCon}）` : `${e.name}（CombatRating ${e.curMR}）`;
   b.onclick = ()=>{ _npcRangedAttack(npc, e, npcIdx, rangedParty); };
   btns.appendChild(b);
  });
@@ -36111,7 +37060,7 @@ function _npcRangedAttack(npc, target, npcIdx, rangedParty){
   const lkAdd  = npc.lk  > 12 ? npc.lk  - 12 : (npc.lk  < 9 ? npc.lk  - 9 : 0);
   const rangedAdds = stAdd + lkAdd + dexAdd;
   const hit = diceRoll + (w.adds||0) + rangedAdds;
-  const armor = target.armor||0;
+  const armor = cbtState.isNPC ? calcNPCArmor(target) : (target.armor||0);
   const dmg = Math.max(0, hit - armor);
   if(cbtState.isNPC){ target.curCon=Math.max(0,target.curCon-dmg); } else { target.curMR=Math.max(0,target.curMR-dmg); }
   cbtState._rangedHitTotal = (cbtState._rangedHitTotal||0) + hit;
@@ -36139,7 +37088,7 @@ function _pcRangedSelectTarget(onDone){
   const b = document.createElement('button');
   b.className = 'choice-btn';
   b.style.cssText = 'border-color:#d8d0c0;color:#e0d8c8';
-  b.textContent = `${e.name}（CombatRating ${e.curMR}）`;
+  b.textContent = cbtState.isNPC ? `${e.name}（体力 ${e.curCon}）` : `${e.name}（CombatRating ${e.curMR}）`;
   b.onclick = ()=>{ _pcRangedAttack(e, onDone); };
   btns.appendChild(b);
  });
@@ -36164,7 +37113,7 @@ function _pcRangedAttack(target, onDone){
    if(w.isRanged && !w.rangedOk){ PC.arrows = Math.max(0,(PC.arrows||0)-1); updateHUD(); }
    else if(w.rangedOk){ cbtState._pcDaggerUsed = true; }
    cbtState._pcDidRanged = true;
-   const armor = target.armor||0;
+   const armor = cbtState.isNPC ? calcNPCArmor(target) : (target.armor||0);
    const diceRoll = Nd6(w.dice);
    const stAdd  = PC.st  > 12 ? PC.st  - 12 : (PC.st  < 9 ? PC.st  - 9 : 0);
    const lkAdd  = PC.lk  > 12 ? PC.lk  - 12 : (PC.lk  < 9 ? PC.lk  - 9 : 0);
@@ -36231,6 +37180,7 @@ function startCombatNPC(en){
   isHunt: false,
   isYD:   en.isYD   || false,
   chaosMode: en.chaosMode || false,  // カオスSR必須フラグ
+  skipLuckSave: en.skipLuckSave || false, // trueなら体力0時に九死に一生を挟まず直接lose先へ（例：衛兵に敗北→投獄）
   turn:   0,
   vorpalActive:      false,
   whammyActive:      false,
@@ -36491,7 +37441,7 @@ function resolveRoundNPC(pRoll, npcActions){
    cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
    updateHUD();
    const _enemyNameForSave = (cbtState?.enemies||[]).map(e=>e.name).join('・') || '敵';
-   if(offerLuckSave(_enemyNameForSave)) return;
+   if(!cbtState?.skipLuckSave && offerLuckSave(_enemyNameForSave)) return;
    showCombatOK(()=>{
     const _onLose = cbtState ? cbtState.onLose : null;
     const _lose   = cbtState ? (cbtState.lose||'DEAD') : 'DEAD';
@@ -36558,7 +37508,7 @@ function resolveRoundNPC(pRoll, npcActions){
  if(PC.con<=0){
   cl.innerHTML += `<span class="red"> 体力0！死亡！</span><br>`;
   const _enemyNameForSave = (cs.enemies||[]).map(e=>e.name).join('・') || '敵';
-  if(offerLuckSave(_enemyNameForSave)) return;
+  if(!cs.skipLuckSave && offerLuckSave(_enemyNameForSave)) return;
   showCombatOK(()=>{
    const _onLose = cs.onLose;
    cbtState = null;
@@ -36759,7 +37709,7 @@ function doFlee(){
  _hidePCActionChoices();
  document.getElementById('npc-action-panel').style.display = 'none';
  const _enemyNameForSave = (cbtState?.enemies||[]).map(e=>e.name).join('・') || '敵';
- if(offerLuckSave(_enemyNameForSave)) return;
+ if(!cbtState?.skipLuckSave && offerLuckSave(_enemyNameForSave)) return;
  showCombatOK(()=>go(cbtState.lose));
  } else {
  updateCombatUI();
@@ -37343,7 +38293,7 @@ function resolveRound(pRoll, npcActions){
  _hidePCActionChoices();
  document.getElementById('npc-action-panel').style.display = 'none';
  const _enemyNameForSave = (cs.enemies||[]).map(e=>e.name).join('・') || '敵';
- if(offerLuckSave(_enemyNameForSave)) return;
+ if(!cs.skipLuckSave && offerLuckSave(_enemyNameForSave)) return;
  showCombatOK(()=>{
   const _onLose = cs.onLose;
   cbtState = null;
@@ -37537,8 +38487,8 @@ function castSpellOutOfCombat(spell, effect){
    // currentNodeIdはダンジョン（yd/ハント）に入る前の街ノードIDが残ったままのことがあるため、
    // ダンジョン系の状態を優先してチェックする
    setTimeout(()=>{
-    if(PC._yeldunDungeon && window._ydState && window._ydState.nodeId){
-     ydGoNode(window._ydState.nodeId, window._ydState.floor);
+    if(PC._yeldunDungeon && _ydState && _ydState.nodeId){
+     ydGoNode(_ydState.nodeId, _ydState.floor);
     } else if(window._currentHuntNode){
      _huntGoNode(window._currentHuntNode._idx);
     } else if(_huntState && _huntState.nodeId){
@@ -37572,8 +38522,8 @@ function castSpellOutOfCombat(spell, effect){
  // ※currentNodeIdはダンジョン（yd/ハント）に入る前の街ノードIDが残ったままになることがあるため、
  //   ダンジョン系の状態を先にチェックしてから、通常ノード（NODES）にフォールバックする
  setTimeout(()=>{
-  if(PC._yeldunDungeon && window._ydState && window._ydState.nodeId){
-   ydGoNode(window._ydState.nodeId, window._ydState.floor);
+  if(PC._yeldunDungeon && _ydState && _ydState.nodeId){
+   ydGoNode(_ydState.nodeId, _ydState.floor);
   } else if(window._currentHuntNode){
    _huntGoNode(window._currentHuntNode._idx);
   } else if(_huntState && _huntState.nodeId){
@@ -38803,7 +39753,7 @@ const NODES = {
  const params = AGING_PARAMS[PC.race] || AGING_PARAMS.human;
  const yearsAdventuring = Math.max(0, age - 20);
  const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[PC.type]||PC.type;
- const raceJa = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[PC.race]||PC.race;
+ const raceJa = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'}[PC.race]||PC.race;
  const gold = (PC.gold||0) + Object.values(PC.properties||{}).reduce((s,p)=>s+(p.storage?.gold||0),0);
  const wealth = gold>=1000?'大富豪として':gold>=500?'余裕のある暮らしで':gold>=100?'慎ましく':gold>0?'わずかな蓄えで':'無一文で';
  const partyNames = (PC.party||[]).filter(n=>n.con>0).map(n=>n.name).join('、');
@@ -38900,11 +39850,11 @@ const NODES = {
  // ══════════════════════════════════════════
 
  BACKGROUND_REVEAL:{
- scene:()=>({khazan:'town_khazan',port_argon:'town_port',stonehiem:'town_stone',elsia:'town_elsia',verda:'town_village',rimholm:'town_village',marakai:'town_village',al_rashid:'town_desert_city',oasis_fort:'town_desert_village',saroon:'town_desert_village',duna:'town_desert_village',neria:'town_stone',dorua:'town_village',sarpe:'town_village',nebra:'town_village'}[PC._startTown]||'town_khazan'),
+ scene:()=>({khazan:'town_khazan',port_argon:'town_port',stonehiem:'town_stone',elsia:'town_elsia',verda:'town_village',rimholm:'town_village',marakai:'town_village',al_rashid:'town_desert_city',oasis_fort:'town_desert_village',saroon:'town_desert_village',duna:'town_desert_village',neria:'town_stone',dorua:'town_village',sarpe:'town_village',nebra:'town_village',yeldun:'town_mountain_city',frostpeak:'town_mountain_village',ashveil:'town_mountain_village'}[PC._startTown]||'town_khazan'),
  txt:()=>{
  const bg = PC.background || {};
  const params = AGING_PARAMS[PC.race] || AGING_PARAMS.human;
- const townNames = {khazan:'カザーヌ',port_argon:'ポートアルゴン',stonehiem:'ストーンヘイム',elsia:'エルマリア',verda:'ヴェルダ村',rimholm:'リムホルム',marakai:'マラカイ',al_rashid:'アル・ラシード',oasis_fort:'オアシス砦',saroon:'サルーン',duna:'デュナ',neria:'ネリア砦',dorua:'ドルアの村',sarpe:'サルペ',nebra:'ネブラ'};
+ const townNames = {khazan:'カザーヌ',port_argon:'ポートアルゴン',stonehiem:'ストーンヘイム',elsia:'エルマリア',verda:'ヴェルダ村',rimholm:'リムホルム',marakai:'マラカイ',al_rashid:'アル・ラシード',oasis_fort:'オアシス砦',saroon:'サルーン',duna:'デュナ',neria:'ネリア砦',dorua:'ドルアの村',sarpe:'サルペ',nebra:'ネブラ',yeldun:'イェルドゥン',frostpeak:'フロストピーク',ashveil:'アッシュヴェイル'};
  const startTownName = townNames[PC._startTown] || 'カザーヌ';
  return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${PC.name}の生い立ち ──</span><br><br>
  <span class="dim" style="font-size:calc(var(--font-sm) - 1px)"> 家族・身分</span><br>
@@ -38921,7 +39871,7 @@ const NODES = {
  },
  choices:[
  {label:'▶ 冒険を始める', fn:()=>{
- const nodeMap = {khazan:'TOWN_KHAZAN',port_argon:'TOWN_PORT_ARGON',stonehiem:'TOWN_STONEHIEM',elsia:'TOWN_ELSIA',verda:'TOWN_VERDA',rimholm:'TOWN_RIMHOLM',marakai:'TOWN_MARAKAI',al_rashid:'TOWN_AL_RASHID',oasis_fort:'TOWN_OASIS_FORT',saroon:'TOWN_SAROON',duna:'TOWN_DUNA',neria:'TOWN_NERIA',dorua:'TOWN_DORUA',sarpe:'TOWN_SARPE',nebra:'TOWN_NEBRA'};
+ const nodeMap = {khazan:'TOWN_KHAZAN',port_argon:'TOWN_PORT_ARGON',stonehiem:'TOWN_STONEHIEM',elsia:'TOWN_ELSIA',verda:'TOWN_VERDA',rimholm:'TOWN_RIMHOLM',marakai:'TOWN_MARAKAI',al_rashid:'TOWN_AL_RASHID',oasis_fort:'TOWN_OASIS_FORT',saroon:'TOWN_SAROON',duna:'TOWN_DUNA',neria:'TOWN_NERIA',dorua:'TOWN_DORUA',sarpe:'TOWN_SARPE',nebra:'TOWN_NEBRA',yeldun:'TOWN_YELDUN',frostpeak:'TOWN_FROSTPEAK',ashveil:'TOWN_ASHVEIL'};
  go(nodeMap[PC._startTown] || 'TOWN_KHAZAN');
  }, go:'__travel__'},
  ]
@@ -38931,7 +39881,7 @@ const NODES = {
  scene:'town_khazan',
  txt:()=>{
  const t=TOWNS.khazan;
- return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -38958,7 +39908,7 @@ const NODES = {
  scene:'town_port',
  txt:()=>{
  const t=TOWNS.port_argon;
- return `<span class="cyn" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span class="cyn" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -38984,7 +39934,7 @@ const NODES = {
  scene:'town_stone',
  txt:()=>{
  const t=TOWNS.stonehiem;
- return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -39004,7 +39954,7 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const t=TOWNS.verda;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -39049,7 +39999,7 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const t=TOWNS.rimholm;
- return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -39094,7 +40044,7 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const t=TOWNS.marakai;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -39142,7 +40092,7 @@ const NODES = {
  scene:'town_desert_city',
  txt:()=>{
  const t=TOWNS.al_rashid;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -39188,7 +40138,7 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const t=TOWNS.oasis_fort;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -39233,7 +40183,7 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const t=TOWNS.saroon;
- return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -40037,7 +40987,7 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const t=TOWNS.duna;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -40663,7 +41613,7 @@ const NODES = {
  scene:'town_mountain_city',
  txt:()=>{
   const t=TOWNS.yeldun;
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -40688,7 +41638,7 @@ const NODES = {
  scene:'town_mountain_village',
  txt:()=>{
   const t=TOWNS.frostpeak;
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -40713,7 +41663,7 @@ const NODES = {
  scene:'town_mountain_village',
  txt:()=>{
   const t=TOWNS.ashveil;
-  return `<span style="color:#e0d8cc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+  return `<span style="color:#e0d8cc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -40742,7 +41692,7 @@ const NODES = {
   const winterWarn = isWinter() ? `<br><span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)"> 冬期：エルマリアへのルートは雪で遮断されています</span>` : '';
   const frostLvl = getFrostbiteLevel();
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${winterWarn}${frostWarn}`;
  },
@@ -40760,7 +41710,7 @@ const NODES = {
   const t=TOWNS.nifurvik;
   const frostLvl = getFrostbiteLevel();
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
  },
@@ -40778,7 +41728,7 @@ const NODES = {
   const t=TOWNS.iskald;
   const frostLvl = getFrostbiteLevel();
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
   <span style="color:#c0b098">${t.desc}</span><br><br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
  },
@@ -40933,7 +41883,7 @@ const NODES = {
  scene:'town_elsia',
  txt:()=>{
  const t=TOWNS.elsia;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
  <span style="color:#c0b098">${t.desc}</span><br><br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
@@ -43891,7 +44841,7 @@ const NODES = {
   scene:'town_port',
   txt:()=>{
    const t=TOWNS.neria;
-   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
 ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
@@ -43941,7 +44891,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   scene:'town_village',
   txt:()=>{
    const t=TOWNS.dorua;
-   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
 ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
@@ -44005,7 +44955,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   scene:'town_village',
   txt:()=>{
    const t=TOWNS.sarpe;
-   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
 ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
@@ -44042,7 +44992,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   scene:'town_village',
   txt:()=>{
    const t=TOWNS.nebra;
-   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
 ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
@@ -44080,7 +45030,7 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   txt:()=>{
    const t=TOWNS.kalvo;
    const gaugeHtml = renderBorderFortGaugeBar();
-   return `<span style="color:#e8d0c0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span><br><br>
+   return `<span style="color:#e8d0c0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
 <span style="color:#c0b098">${t.desc}</span><br><br>
 ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}`;
   },
@@ -46752,6 +47702,9 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVillageIncident('stonehiem','oldtown','oldtown_cult_soup');})" class="dbg-btn" style="border-color:#664488;color:#cc99ff">新興宗教スープ強制表示</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceLocalWanted('stonehiem','admin');})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">ローカル手配犯強制遭遇（行政地区）</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceBountyHideout('stonehiem','oldtown');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">賞金首アジト強制遭遇（要：受注中の賞金首依頼）</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceEliteHunt('stonehiem');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">NPC型精鋭討伐依頼を強制発行して出発</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceTownMiniQuest('stonehiem','oldtown');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">町完結ミニ依頼を強制受注して解決ノードへ</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVaineEncounter();})" class="dbg-btn" style="border-color:#443300;color:#d8c088">空虚な鎧ヴェインとの遭遇を強制発生</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceLocalWanted('stonehiem','oldtown');})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">ローカル手配犯強制遭遇（旧市街）</button>
    <button onclick="dbg(()=>{PC._localWantedBoards=null;showSaveToast('手配書をリセット（次回訪問時に再生成）')})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">手配書リセット</button>
   </div>
