@@ -631,7 +631,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026082201</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026082285</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -3507,6 +3507,460 @@ const HERO_REGIONS = {
  marea_region:    { name:'マレア地方',          towns:['neria','dorua','sarpe','nebra'] },
 };
 
+// ── 封地免状（自分の領地を築く第一歩）：各地方の中心都市の庁舎・宮殿でのみ授与される ──
+// 店売りではなく、その地方で「地元の英雄」になっている町の数に応じて金額が決まる特別な下賜品
+const REGION_CAPITAL_TOWNS = ['khazan','elsia','al_rashid','yeldun','valdheim','neria'];
+const FIEF_CHARTER_BASE_PRICE = 10000;
+const FIEF_CHARTER_DISCOUNT_PER_HERO_TOWN = 0.10; // 英雄になっている町1つにつき10%引き
+const FIEF_CHARTER_MIN_PRICE_RATIO = 0.25; // 基準価格の25%を下限とする
+
+// 指定した地方で、PCが英雄になっている町の数を数える
+function countHeroTownsInRegion(regionKey){
+ const region = HERO_REGIONS[regionKey];
+ if(!region) return 0;
+ return region.towns.filter(t => PC._heroTowns && PC._heroTowns[t]).length;
+}
+
+// 封地免状の価格を計算（10GP単位に丸める）
+function calcFiefCharterPrice(regionKey){
+ const heroCount = countHeroTownsInRegion(regionKey);
+ const ratio = Math.max(FIEF_CHARTER_MIN_PRICE_RATIO, 1 - heroCount*FIEF_CHARTER_DISCOUNT_PER_HERO_TOWN);
+ return Math.round(FIEF_CHARTER_BASE_PRICE * ratio / 10) * 10;
+}
+
+// 中心都市の庁舎・宮殿
+// 領地の領民：3ヶ月ごとにランダムなイベントを判定して増減を反映し、年に1度だけ既存の増加率も適用する
+// （拠点訪問時、経過四半期数分をまとめて処理する）
+// 1-100人:+25%/年 101-200:+20% 201-300:+15% 301-400:+10% 401-500:+5% 501以上:+1〜5%（年1回・複利ではなく単純加算）
+// 上限は200家族＝1000人・下限5人
+function _fiefPopGrowthRate(pop){
+ if(pop <= 100) return 0.25;
+ if(pop <= 200) return 0.20;
+ if(pop <= 300) return 0.15;
+ if(pop <= 400) return 0.10;
+ if(pop <= 500) return 0.05;
+ return 0.01 + Math.random()*0.04;
+}
+
+// 3ヶ月に1度、ランダムに判定される領地の出来事（人口への影響は乗算・%）
+const FIEF_QUARTERLY_EVENTS = [
+ { name:'何もなかった',       pct:40.0, impact:0.0,   log:false },
+ { name:'嵐',                 pct:12.0, impact:0.0,   log:true  },
+ { name:'激しい突風',         pct:10.0, impact:-0.1,  log:true  },
+ { name:'火災、小規模',       pct:10.0, impact:-0.1,  log:true  },
+ { name:'竜巻',                pct:8.0,  impact:-0.5,  log:true  },
+ { name:'地震',                pct:5.0,  impact:-1.0,  log:true  },
+ { name:'洪水',                pct:4.0,  impact:-1.5,  log:true  },
+ { name:'ハリケーン',          pct:3.0,  impact:-2.0,  log:true  },
+ { name:'火災、大規模',       pct:2.5,  impact:-3.0,  log:true  },
+ { name:'流星群',              pct:2.0,  impact:0.0,   log:true  },
+ { name:'疫病',                pct:1.5,  impact:-5.0,  log:true  },
+ { name:'爆発',                pct:1.0,  impact:-0.8,  log:true  },
+ { name:'陥没穴',              pct:0.8,  impact:-0.2,  log:true  },
+ { name:'彗星',                pct:0.1,  impact:0.0,   log:true  },
+ { name:'隕石衝突',            pct:0.1,  impact:-25.0, log:true  },
+];
+function _rollFiefQuarterlyEvent(){
+ const r = Math.random()*100;
+ let cum = 0;
+ for(const e of FIEF_QUARTERLY_EVENTS){
+  cum += e.pct;
+  if(r < cum) return e;
+ }
+ return FIEF_QUARTERLY_EVENTS[FIEF_QUARTERLY_EVENTS.length-1];
+}
+// 四半期キー（年×4＋四半期インデックス0〜3）を返す
+function _fiefQuarterKey(totalDays){
+ const d = daysToDate(totalDays);
+ return d.year*4 + Math.floor((d.month-1)/3);
+}
+
+function _applyFiefYearlyPopulation(prop){
+ if(prop.population == null) return null;
+ const nowQKey = _fiefQuarterKey(GAME_TIME.totalDays);
+ if(prop.lastPopQuarterKey == null){
+  // 旧セーブ移行：lastPopCheckYearがあれば年初のQ0として引き継ぐ。なければ現在の四半期から開始する
+  prop.lastPopQuarterKey = prop.lastPopCheckYear != null ? prop.lastPopCheckYear*4 : nowQKey;
+  return null;
+ }
+ const quarters = nowQKey - prop.lastPopQuarterKey;
+ if(quarters <= 0) return null;
+
+ const before = prop.population;
+ prop.ledger = prop.ledger||[];
+ let eventLines = [];
+ for(let i=0; i<quarters; i++){
+  const qKey = prop.lastPopQuarterKey + i + 1;
+  const y = Math.floor(qKey/4);
+  const qIdx = qKey % 4; // 0〜3（何四半期目か）
+
+  // その四半期のランダムイベントを判定し、乗算で反映する
+  const ev = _rollFiefQuarterlyEvent();
+  if(ev.impact !== 0){
+   prop.population = Math.max(5, Math.min(1000, Math.round(prop.population * (1 + ev.impact/100))));
+  }
+  if(ev.log){
+   prop.ledger.unshift({ type:'fief_event', year:y, quarter:qIdx+1, eventName:ev.name, impact:ev.impact, populationAfter:prop.population });
+   eventLines.push(`${y}年Q${qIdx+1}：${ev.name}${ev.impact!==0?`（${ev.impact}%）`:''}`);
+  }
+
+  // 4四半期（1年）ごとに、既存の年次増加率を適用する
+  if(qIdx === 3){
+   const pop = prop.population;
+   if(pop > 0){
+    const rate = _fiefPopGrowthRate(pop);
+    const growth = Math.round(pop * rate);
+    prop.population = Math.max(5, Math.min(1000, pop + growth));
+   }
+  }
+ }
+ prop.lastPopQuarterKey = nowQKey;
+ if(prop.ledger.length > 200) prop.ledger.length = 200;
+
+ const diff = prop.population - before;
+ const diffText = diff > 0 ? `+${diff}人` : `${diff}人`;
+ let resultHtml = `<div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:8px">
+  <span style="color:#c8b8a0">${quarters}四半期の間に、領地の人口は${before}人から${prop.population}人へ変化した（${diffText}）。</span>`;
+ if(eventLines.length){
+  const shown = eventLines.slice(0, 5);
+  resultHtml += `<br><span style="color:#a89878;font-size:calc(var(--font-sm) - 1px)">${shown.join('、')}${eventLines.length>5?` 他${eventLines.length-5}件`:''}</span>`;
+ }
+ resultHtml += `</div>`;
+ const titleHtml = _updateNobilityTitle();
+ if(titleHtml) resultHtml += titleHtml;
+ return resultHtml;
+}
+
+// ── 貴族の称号 ──
+// 地方ごとに「領民800人を超えた領地の数」を数え、1つ目=男爵／2つ目=子爵／3つ目=伯爵／4つ目以上=侯爵。
+// 表示する二つ名は、最も多く該当領地を持つ地方の称号を使う（同数なら先に見つかった地方を優先）
+const NOBILITY_TITLES = ['男爵', '子爵', '伯爵', '侯爵'];
+
+// 現在の所有状況から、表示すべき称号（地方・段階）を算出する
+function _computeNobilityTitle(){
+ const regionCounts = {};
+ (PC._fiefCharters||[]).forEach(c=>{
+  const p = PC.properties?.[c.fiefId];
+  if((p?.population||0) > 800){
+   regionCounts[c.regionKey] = (regionCounts[c.regionKey]||0) + 1;
+  }
+ });
+ let bestRegion = null, bestCount = 0;
+ for(const [regionKey, count] of Object.entries(regionCounts)){
+  if(count > bestCount){ bestCount = count; bestRegion = regionKey; }
+ }
+ if(bestCount <= 0) return null;
+ const tierIdx = Math.min(bestCount, NOBILITY_TITLES.length) - 1;
+ return { title: NOBILITY_TITLES[tierIdx], regionKey: bestRegion, count: bestCount };
+}
+
+// 称号を再計算し、以前より格が上がっていればその旨のフレーバーHTMLを返す（変化がなければnull）
+function _updateNobilityTitle(){
+ const result = _computeNobilityTitle();
+ const newTitle = result?.title || null;
+ const prevTitle = PC._nobilityTitle || null;
+ const prevIdx = prevTitle ? NOBILITY_TITLES.indexOf(prevTitle) : -1;
+ const newIdx = newTitle ? NOBILITY_TITLES.indexOf(newTitle) : -1;
+ if(newIdx <= prevIdx) return null; // 一度得た称号は格下げしない。現在以下の格ならそのまま据え置く
+ PC._nobilityTitle = newTitle;
+ const region = HERO_REGIONS[result.regionKey];
+ addLifeEvent('', `${region?region.name:'その地方'}にて領地${result.count}つが領民800人を超える繁栄を成し遂げ、${newTitle}として認められた。`);
+ return `<div style="border:2px solid var(--gold);border-radius:4px;padding:10px;margin-top:8px;background:#1a1408">
+  <div style="color:#ffe0a0;font-size:var(--font-sm)"> 領地の繁栄が王国に認められ、あなたは「${newTitle}」の称号を授かった。</div>
+ </div>`;
+}
+
+// ── 領民の信頼度 ──
+// 信頼度 = ((領主の魅力+運+知力) + 設備ポイント合計 + ランダム0〜100) / 4
+// 毎年初めに再計算するが、税収への適用は毎月その時点の値を参照する（年内のイベント変動にも対応するため）
+function _fiefFacilityPoints(prop){
+ return (prop.facilities||[]).reduce((s,id)=>{
+  const f = FIEF_FACILITIES.find(x=>x.id===id);
+  return s + (f?.trustPoints||0);
+ }, 0);
+}
+function _fiefTrustRank(trust){
+ if(trust >= 80) return { label:'理想郷',       taxMult:1.2, unrest:false };
+ if(trust >= 60) return { label:'順調・繁栄',   taxMult:1.1, unrest:false };
+ if(trust >= 40) return { label:'平均・不安定', taxMult:1.0, unrest:false };
+ if(trust >= 20) return { label:'反抗的・挑戦的', taxMult:0.5, unrest:false };
+ return             { label:'動乱・不穏',       taxMult:0,   unrest:true };
+}
+function _applyFiefYearlyTrust(prop){
+ const nowYear = daysToDate(GAME_TIME.totalDays).year;
+ if(prop.lastTrustCheckYear == null){
+  prop.lastTrustCheckYear = nowYear;
+  if(prop.trust == null){
+   const facilityPts = _fiefFacilityPoints(prop);
+   const base = (PC.chr||0) + (PC.lk||0) + (PC.iq||0);
+   const rnd = Math.random()*101; // 0〜100
+   prop.trust = Math.round((base + facilityPts + rnd) / 4);
+  }
+  return null;
+ }
+ const years = nowYear - prop.lastTrustCheckYear;
+ if(years <= 0) return null;
+ const before = prop.trust;
+ const facilityPts = _fiefFacilityPoints(prop);
+ const base = (PC.chr||0) + (PC.lk||0) + (PC.iq||0);
+ const rnd = Math.random()*101;
+ prop.trust = Math.round((base + facilityPts + rnd) / 4);
+ prop.lastTrustCheckYear = nowYear;
+ const rank = _fiefTrustRank(prop.trust);
+ prop.ledger = prop.ledger||[];
+ prop.ledger.unshift({ type:'trust', year:nowYear, before, after:prop.trust, rankLabel:rank.label });
+ if(prop.ledger.length > 200) prop.ledger.length = 200;
+ return `<div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:8px">
+  <span style="color:#c8b8a0">領民の信頼度が見直された：${before} → ${prop.trust}（${rank.label}）</span>
+ </div>`;
+}
+
+// 領地の税収：領民1人あたり月1GP。50%は設備維持費、45%は地方の公爵への上納金として自動的に消え、
+// 残り5%だけが拠点の保管庫に加わる（信頼度による倍率を乗せた上で）。拠点訪問時、経過月数分をまとめて処理する
+function _fiefMonthKey(totalDays){
+ const d = daysToDate(totalDays);
+ return d.year*12 + d.month;
+}
+function _applyFiefMonthlyTax(prop){
+ if(prop.population == null) return null;
+ const nowKey = _fiefMonthKey(GAME_TIME.totalDays);
+ if(prop.lastTaxMonthKey == null){ prop.lastTaxMonthKey = nowKey; return null; }
+ const monthsElapsed = nowKey - prop.lastTaxMonthKey;
+ if(monthsElapsed <= 0) return null;
+
+ prop.ledger = prop.ledger||[];
+ prop.storage = prop.storage||{ gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 };
+ let totalGain = 0, totalUpkeep = 0, totalTribute = 0, totalUnrestLoss = 0;
+ for(let i=0; i<monthsElapsed; i++){
+  const monthKey = prop.lastTaxMonthKey + i + 1;
+  const y = Math.floor((monthKey-1)/12);
+  const m = ((monthKey-1)%12)+1;
+  const pop = prop.population||0;
+  const trust = prop.trust ?? 50;
+  const rank = _fiefTrustRank(trust);
+
+  if(rank.unrest){
+   // 動乱・不穏：税収は完全に途絶し、通常の2〜3倍のペースで人口が減る
+   const monthlyBase = 1 + Math.floor(Math.random()*4); // 通常ペースの月割り目安（1〜4人）
+   const mult = 2 + Math.random(); // 2〜3倍
+   const loss = Math.round(monthlyBase * mult);
+   prop.population = Math.max(5, pop - loss);
+   totalUnrestLoss += loss;
+   prop.ledger.unshift({ type:'tax', year:y, month:m, population:pop, tax:0, upkeep:0, tribute:0, gain:0, unrest:true, unrestLoss:loss });
+   continue;
+  }
+
+  const taxBase = pop * 1;
+  const tax = Math.round(taxBase * rank.taxMult);
+  const upkeep = Math.round(tax*0.50);
+  const tribute = Math.round(tax*0.45);
+  const gain = Math.max(0, tax - upkeep - tribute); // 残り5%相当（丸め誤差はここで吸収）
+  prop.storage.gold = (prop.storage.gold||0) + gain;
+  totalGain += gain; totalUpkeep += upkeep; totalTribute += tribute;
+  prop.ledger.unshift({ type:'tax', year:y, month:m, population:pop, tax, upkeep, tribute, gain });
+ }
+ if(prop.ledger.length > 200) prop.ledger.length = 200;
+ prop.lastTaxMonthKey = nowKey;
+ const titleHtml = _updateNobilityTitle();
+ if(totalGain+totalUpkeep+totalTribute+totalUnrestLoss <= 0) return titleHtml;
+ let msg = `${monthsElapsed}ヶ月分の税収を処理した。`;
+ if(totalGain+totalUpkeep+totalTribute > 0) msg += `維持費${totalUpkeep}GP・上納金${totalTribute}GPを差し引き、保管庫に${totalGain}GPが加わった。`;
+ if(totalUnrestLoss > 0) msg += `<br><span style="color:#c05040">動乱により、領民${totalUnrestLoss}人が離散した。</span>`;
+ return `<div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:8px">
+  <span style="color:#c8b8a0">${msg}</span>
+ </div>` + (titleHtml || '');
+}
+
+// 領地のイベント台帳を表示する
+function showFiefLedger(townId){
+ const prop = PC.properties?.[townId];
+ const ledger = prop?.ledger||[];
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">領地のイベント台帳</span><br><br>`
+  +(ledger.length ? ledger.map(l=>{
+    if(l.type==='tax' && l.unrest){
+     return `<div style="border:1px solid #6a3030;border-radius:4px;padding:8px;margin-top:6px">
+      <span style="color:#c8a8a0;font-size:calc(var(--font-sm) - 1px)">${l.year}年${l.month}月</span>　<span style="color:#e08070">動乱・不穏</span><br>
+      <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">税収は完全に途絶。領民${l.unrestLoss}人が離散した（${l.population}人 → ${Math.max(0,l.population-l.unrestLoss)}人）</span>
+     </div>`;
+    }
+    if(l.type==='tax'){
+     return `<div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:6px">
+      <span style="color:#c8a8a0;font-size:calc(var(--font-sm) - 1px)">${l.year}年${l.month}月</span>　<span style="color:#e0d8c8">税収</span><br>
+      <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">領民${l.population}人＝${l.tax}GP　（維持費${l.upkeep}GP／上納金${l.tribute}GP／保管庫+${l.gain}GP）</span>
+     </div>`;
+    }
+    if(l.type==='population'){
+     const diffText = l.diff > 0 ? `+${l.diff}人` : `${l.diff}人`;
+     return `<div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:6px">
+      <span style="color:#c8a8a0;font-size:calc(var(--font-sm) - 1px)">${l.year}年</span>　<span style="color:#e0d8c8">人口変動</span><br>
+      <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${l.before}人 → ${l.after}人（${diffText}）</span>
+     </div>`;
+    }
+    if(l.type==='fief_event'){
+     const isBad = l.impact < 0;
+     return `<div style="border:1px solid ${isBad?'#6a4030':'var(--border2)'};border-radius:4px;padding:8px;margin-top:6px">
+      <span style="color:#c8a8a0;font-size:calc(var(--font-sm) - 1px)">${l.year}年 第${l.quarter}四半期</span>　<span style="color:${isBad?'#e0a070':'#e0d8c8'}">${l.eventName}</span><br>
+      <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">人口への影響：${l.impact!==0?`${l.impact}%`:'なし'}　（結果：${l.populationAfter}人）</span>
+     </div>`;
+    }
+    if(l.type==='trust'){
+     return `<div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:6px">
+      <span style="color:#c8a8a0;font-size:calc(var(--font-sm) - 1px)">${l.year}年</span>　<span style="color:#e0d8c8">信頼度の見直し</span><br>
+      <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${l.before} → ${l.after}（${l.rankLabel}）</span>
+     </div>`;
+    }
+    return '';
+   }).join('')
+   : '<span style="color:#b0a080">まだ記録はない。</span>');
+ renderChoices([
+  {label:'← 拠点に戻る', fn:()=>_showPropertyMain(townId)},
+ ]);
+}
+
+// 領地の名前をいつでも変更できるようにする
+function renameFief(townId){
+ const prop = PC.properties?.[townId];
+ if(!prop) return;
+ const current = prop.fiefName || '無名の領地';
+ const input = prompt('領地の新しい名前を入力してください。', current);
+ if(input == null) return; // キャンセル
+ const newName = input.trim();
+ if(!newName){
+  showSaveToast('名前が入力されなかったため、変更しなかった');
+  return;
+ }
+ const oldName = prop.fiefName;
+ prop.fiefName = newName;
+ addLifeEvent('', oldName ? `領地の名前を「${oldName}」から「${newName}」に改めた。` : `領地に「${newName}」と名付けた。`);
+ showSaveToast(`領地の名前を「${newName}」に変更した`);
+ _showPropertyMain(townId);
+}
+
+// ── 複数領地対応のためのヘルパー群 ──
+// 領地の拠点キー（PC.properties用）は 'fief_' + 基点となった町のIDで一意に決まる。
+// これにより「町・村1つにつき紐づく領地は1つ」という制約が自然に守られる
+function fiefIdForAnchor(anchorTownId){ return 'fief_' + anchorTownId; }
+function isFiefId(id){ return typeof id === 'string' && id.startsWith('fief_'); }
+function getFiefCharter(fiefId){ return (PC._fiefCharters||[]).find(c=>c.fiefId===fiefId); }
+function getFiefCharterByAnchor(anchorTownId){ return (PC._fiefCharters||[]).find(c=>c.anchorTownId===anchorTownId); }
+
+// 旧形式（PC._fiefCharter単数・PC.properties.fief）のデータが残っていれば新形式に変換する。
+// セーブ読み込み時だけでなく、更新をまたいでリロードせずに遊び続けているセッションでも
+// 主要な領地画面に入るたびに呼び、その場で自己修復できるようにする
+function _migrateFiefDataIfNeeded(){
+ if(PC._fiefCharter && !PC._fiefCharters){
+  const oldCharter = PC._fiefCharter;
+  const fiefId = fiefIdForAnchor(oldCharter.anchorTownId);
+  PC._fiefCharters = [{ ...oldCharter, fiefId }];
+  delete PC._fiefCharter;
+  if(PC.properties && PC.properties.fief){
+   PC.properties[fiefId] = PC.properties.fief;
+   delete PC.properties.fief;
+  }
+ }
+}
+
+function showRegionalPalace(townId){
+ _migrateFiefDataIfNeeded();
+ const town = TOWNS[townId];
+ const regionKey = getRegionKey(townId);
+ const region = HERO_REGIONS[regionKey];
+ const story = document.getElementById('story');
+ const heroCount = countHeroTownsInRegion(regionKey);
+ PC._fiefCharters = PC._fiefCharters||[];
+
+ // 既に持っている領地のうち、領民800人を超えたものの数だけ、次の免状を取得できる
+ const qualifyingCount = PC._fiefCharters.filter(c=>{
+  const p = PC.properties?.[c.fiefId];
+  return (p?.population||0) > 800;
+ }).length;
+ const maxAllowed = 1 + qualifyingCount;
+ const atCap = PC._fiefCharters.length >= maxAllowed;
+ const ownedListText = PC._fiefCharters.map(c=>{
+  const p = PC.properties?.[c.fiefId];
+  const ownedRegion = HERO_REGIONS[c.regionKey];
+  const anchorName = (TOWNS[c.anchorTownId]||{name:c.anchorTownId}).name;
+  const popText = p?.population != null ? `・領民${p.population}人` : '';
+  return `${p?.fiefName||'名もなき領地'}（${ownedRegion?ownedRegion.name:'ある地方'}／${anchorName}より${c.anchorDays}日${popText}）`;
+ }).join('、');
+
+ let body;
+ if(PC._fiefCharters.length > 0 && atCap){
+  body = `<span style="color:#c8b8a0">あなたは既に${ownedListText}を治めている。次の領地を賜るには、いずれかの領地で領民が800人を超える繁栄を成し遂げる必要がある。</span>`;
+ } else if(heroCount === 0){
+  body = `<span style="color:#c8b8a0">受付の役人は${PC.name}の名を聞いて丁重に頭を下げたが、こう告げた。「領地の話は、まだこの地方でお名前が知れ渡ってからということで……」</span>`;
+ } else {
+  const price = calcFiefCharterPrice(regionKey);
+  const introText = PC._fiefCharters.length > 0
+   ? `<span style="color:#c8b8a0">既に${ownedListText}を治めるあなたの繁栄は、王国中の知るところとなっている。</span><br><br>`
+   : '';
+  body = introText
+   + `<span style="color:#e8e0d0">${region.name}の${heroCount}つの町であなたの武名は既に轟いている。役人が恭しく巻物を捧げ持ち、告げた。</span><br><br>`
+   +`<span style="color:#c8b8a0">「${region.name}にて領地を賜りたいとの由、承知いたしました。しかるべき手続きを経れば、この封地免状をお渡しできます」</span><br><br>`
+   +`<span style="color:#ffcc88">封地免状：${price}GP（英雄となっている町：${heroCount}／${region.towns.length}）</span>`;
+ }
+
+ story.innerHTML = ` <span style="color:#e0d8c8">${town?.name || townId} 庁舎・宮殿</span><br><br>${body}`;
+
+ const choices = [];
+ if(!atCap && heroCount > 0){
+  const price = calcFiefCharterPrice(regionKey);
+  choices.push({label:` 封地免状を授かる（${price}GP）`, fn:()=>showFiefLocationSelect(townId, regionKey, price)});
+ }
+ choices.push({label:'← 広場に戻る', fn:()=>smallTownHub(townId)});
+ renderChoices(choices);
+}
+
+// 領地の位置を選ぶ：地方内のどこかの町・集落から15〜20日の地点となる
+function showFiefLocationSelect(townId, regionKey, price){
+ const region = HERO_REGIONS[regionKey];
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#e0d8c8">${(TOWNS[townId]||{}).name || townId} 庁舎・宮殿</span><br><br>`
+  +`<b> 領地の位置を選ぶ</b><br><br>`
+  +`<span style="color:#c8b8a0">領地は${region.name}のいずれかの町・集落から15〜20日ほど離れた地に定められる。基点となる町・集落を選んでください。</span>`;
+ renderChoices([
+  ...region.towns.map(t=>({
+   label:`${(TOWNS[t]||{name:t}).name}から`,
+   fn:()=>showFiefLocationConfirm(townId, regionKey, price, t),
+  })),
+  {label:'← 戻る', fn:()=>showRegionalPalace(townId)},
+ ]);
+}
+
+// 距離を確定し、最終確認を行う
+function showFiefLocationConfirm(townId, regionKey, price, anchorTownId){
+ const region = HERO_REGIONS[regionKey];
+ const days = 15 + Math.floor(Math.random()*6); // 15〜20日
+ const anchorName = (TOWNS[anchorTownId]||{name:anchorTownId}).name;
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#e0d8c8">${(TOWNS[townId]||{}).name || townId} 庁舎・宮殿</span><br><br>`
+  +`<span style="color:#e8e0d0">役人が地図を広げ、${anchorName}から${days}日ほど離れた地点に印をつけた。</span><br><br>`
+  +`<span style="color:#ffcc88">領地の位置：${anchorName}より${days}日</span><br>`
+  +`<span style="color:#ffcc88">封地免状：${price}GP</span>`;
+ renderChoices([
+  {label:` この位置で封地免状を授かる（${price}GP）`, fn:()=>{
+   if((PC.gold||0) < price){
+    showSaveToast('所持金が足りない');
+    return;
+   }
+   PC.gold -= price;
+   PC._fiefCharters = PC._fiefCharters||[];
+   PC._fiefCharters.push({
+    fiefId: fiefIdForAnchor(anchorTownId),
+    regionKey, townId,
+    anchorTownId, anchorDays: days,
+    obtainedDay: GAME_TIME.totalDays,
+   });
+   updateHUD();
+   addLifeEvent('', `${region.name}・${anchorName}より${days}日の地に封地免状を授かった。`);
+   showSaveToast(`封地免状を授かった（${price}GP）`);
+   showRegionalPalace(townId);
+  }},
+  {label:'← 基点を選び直す', fn:()=>showFiefLocationSelect(townId, regionKey, price)},
+ ]);
+}
+
 function checkRegionHero(){
  if(!PC._heroTowns) return;
  if(!PC._heroRegions) PC._heroRegions = {};
@@ -3642,8 +4096,16 @@ function trustRank(townId){
 // 購入可能な村落（大都市は除外）
 const PROPERTY_TOWNS = ['verda','rimholm','marakai','oasis_fort','saroon','duna','frostpeak','ashveil','port_argon','stonehiem','neria','dorua',
  'khazan','elsia','al_rashid','yeldun','valdheim','nifurvik','iskald','sarpe','nebra'];
+// 領地（'fief_'+基点の町ID）が拠点として有効かどうかも合わせて判定するヘルパー
+function isValidPropertyId(id){ return PROPERTY_TOWNS.includes(id) || (isFiefId(id) && !!getFiefCharter(id)); }
 
 const PROPERTY_DEFS = {
+ fief: { basePrice:2000, // 拡張費用の算定に使う（初回の整備自体は専用処理で行い、この購入フローは通らない）
+  tiers:[
+   { name:'領地の砦', desc:'敵を排除し、最低限の生活ができるよう整えた石造りの砦。ここが領地の中心となる。' },
+   { name:'拡張された領地の砦', desc:'宿舎や倉庫が増築され、以前よりも多くの人員を抱えられるようになった砦。' },
+   { name:'城塞化した領地の砦', desc:'本格的な城塞として整備され、大勢の人員と物資を収容できるようになった。もはや単なる砦ではない。' },
+  ]},
  verda:     { basePrice:1200,
   tiers:[
    { name:'ヴェルダ村の廃小屋',      desc:'森の外れにある猟師の廃屋。雨漏りするが直せば住める。' },
@@ -3774,7 +4236,7 @@ const PROPERTY_DEFS = {
 
 // 購入価格を計算（信頼度で変動）
 function calcPropertyPrice(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  if(!def) return null;
  const rank = trustRank(townId);
  if(!rank.disc){
@@ -3787,11 +4249,97 @@ function calcPropertyPrice(townId){
 // 拠点を持っているか
 
 function propTier(townId){ return (PC.properties?.[townId]?.tier)||0; }
-function propName(townId){ const d=PROPERTY_DEFS[townId]; return d.tiers[propTier(townId)].name; }
-function propDesc(townId){ const d=PROPERTY_DEFS[townId]; return d.tiers[propTier(townId)].desc; }
+function propName(townId){
+ if(isFiefId(townId)){
+  const fname = PC.properties?.[townId]?.fiefName;
+  if(fname) return fname;
+  return PROPERTY_DEFS.fief.tiers[propTier(townId)].name;
+ }
+ const d=PROPERTY_DEFS[townId]; return d.tiers[propTier(townId)].name;
+}
+function propDesc(townId){
+ const d = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
+ return d.tiers[propTier(townId)].desc;
+}
+// ── 領地の施設（フレーバーのみ。ゲーム的な効果は一切持たない）──
+const FIEF_FACILITIES = [
+ { id:'well',       name:'井戸',       desc:'領地に掘られた井戸。乾いた土地にも水の恵みをもたらす。', cost:400, trustPoints:20 },
+ { id:'rampart',    name:'防壁',       desc:'砦を取り囲む石造りの防壁。かつての要塞としての威容を取り戻しつつある。', cost:1500, trustPoints:20 },
+ { id:'watchtower', name:'見張り塔',   desc:'砦に併設された見張り塔。周囲を一望でき、領地の象徴として旅人の目を引く。', cost:1000, trustPoints:15 },
+ { id:'guardpost',  name:'警備詰め所', desc:'領地の警備にあたる者たちの詰め所。治安への安心感を領民に与えている。', cost:800, trustPoints:15 },
+ { id:'tavern',     name:'酒場',       desc:'砦の一角に開かれた酒場。領民の憩いの場となり、笑い声が絶えない。', cost:700, trustPoints:15, minPopulation:50 },
+ { id:'temple',     name:'寺院',       desc:'素朴な石造りの寺院。領民たちの心の拠り所となっている。', cost:700, trustPoints:15 },
+ { id:'market',     name:'市場',       desc:'砦の麓に立った市場。行商人が時折立ち寄るようになった。', cost:900, trustPoints:0, minPopulation:100 },
+];
+// 全施設を建て終えた時の設備ポイント合計は必ず100点（20+20+15+15+15+15。市場は信頼度に影響しない）
+
+function showFiefFacilities(townId){
+ const prop = PC.properties[townId];
+ prop.facilities = prop.facilities||[];
+ const story = document.getElementById('story');
+ const built = prop.facilities;
+ const pop = prop.population||0;
+ const unbuilt = FIEF_FACILITIES.filter(f=>!built.includes(f.id));
+ const available = unbuilt.filter(f=>!f.minPopulation || pop >= f.minPopulation);
+ const locked = unbuilt.filter(f=>f.minPopulation && pop < f.minPopulation);
+ const trustPts = _fiefFacilityPoints(prop);
+
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> 施設を増設する</b><br><br>`
+  +`<span style="color:#c8b8a0">施設は領民からの信頼度に影響する。一度建てた施設は建て直せない。</span><br>`
+  +`<span style="color:#c8b8a0">設備ポイント：${trustPts}/100</span><br><br>`
+  +(built.length
+   ? `<span style="color:#e0d8c8">建設済み：${built.map(id=>FIEF_FACILITIES.find(f=>f.id===id)?.name||id).join('、')}</span><br>`
+   : `<span style="color:#b0a080">まだ何も増設していない。</span><br>`)
+  +(locked.length
+   ? `<span style="color:#a08868;font-size:calc(var(--font-sm) - 1px)">未解禁：${locked.map(f=>`${f.name}（領民${f.minPopulation}人超で解禁）`).join('、')}</span>`
+   : '');
+
+ renderChoices([
+  ...available.map(f=>({
+   label:` ${f.name}を建てる（${f.cost}GP・信頼度+${f.trustPoints}pt）`,
+   fn:()=>{
+    if((PC.gold||0) < f.cost){
+     showSaveToast('所持金が足りない');
+     return;
+    }
+    PC.gold -= f.cost;
+    prop.facilities.push(f.id);
+    updateHUD();
+    addLifeEvent('', `領地に${f.name}を増設した。`);
+    showSaveToast(`${f.name}を建てた（${f.cost}GP）`);
+    showFiefFacilities(townId);
+   },
+  })),
+  {label:'← 拠点に戻る', fn:()=>_showPropertyMain(townId)},
+ ]);
+}
+
 function propCaretakerLimit(townId){ const t=propTier(townId); return t>=2?20:t>=1?4:2; }
 
 function hasProperty(townId){ return !!(PC.properties||{})[townId]; }
+
+// 拠点画面から「戻る」際の遷移先ノードID。領地（'fief'）は実在の町ノードを持たないため、
+// 免状の基点となった町へ戻す
+function _propHomeTownNode(townId){
+ if(isFiefId(townId)){
+  const charter = getFiefCharter(townId);
+  return charter?.anchorTownId ? 'TOWN_'+charter.anchorTownId.toUpperCase() : 'TOWN_KHAZAN';
+ }
+ return 'TOWN_'+townId.toUpperCase();
+}
+
+// 拠点メイン画面の「戻る」共通処理。領地なら必ず領地の広場へ、通常の町の拠点ならその町へ
+function _propBackAction(townId){
+ if(isFiefId(townId)){
+  const charter = getFiefCharter(townId);
+  const anchorTownId = charter?.anchorTownId || (PC._fiefCharters||[])[0]?.anchorTownId;
+  if(anchorTownId){ showFiefPlaza(anchorTownId); return; }
+  go('TOWN_KHAZAN');
+  return;
+ }
+ go('TOWN_'+townId.toUpperCase());
+}
 
 // 拠点購入
 function buyProperty(townId){
@@ -3817,9 +4365,12 @@ function renderTrustBadge(townId){
 
 // ── 拠点ノードを動的生成 ──
 function goPropertyNode(townId){
- if(!PROPERTY_TOWNS.includes(townId)) return;
- const def = PROPERTY_DEFS[townId];
+ _migrateFiefDataIfNeeded();
+ if(!isValidPropertyId(townId)) return;
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const owned = hasProperty(townId);
+ currentNodeId = 'PROPERTY_'+townId.toUpperCase(); // セーブ/ロードで拠点画面から正しく再開できるようにする
+ if(owned) autoSave(); // 拠点への到着時にも自動セーブする
  const info = calcPropertyPrice(townId);
  const rank = trustRank(townId);
  const story = document.getElementById('story');
@@ -3827,6 +4378,13 @@ function goPropertyNode(townId){
  html += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${owned?propDesc(townId):def.tiers[0].desc}</span><br>`;
  if(owned){
   const prop = PC.properties[townId];
+  if(isFiefId(townId) && prop.population != null){
+   const trustRankInfo = prop.trust != null ? _fiefTrustRank(prop.trust) : null;
+   html += `<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">領民：${prop.population}人（${Math.floor(prop.population/5)}家族）</span><br>`;
+   if(trustRankInfo){
+    html += `<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">信頼度：${prop.trust}（${trustRankInfo.label}）</span><br>`;
+   }
+  }
   // セリフを説明文の直後に表示（メンバーが確定してから）
   prop.caretakers = prop.caretakers || [];
   prop.children = prop.children || [];
@@ -3865,6 +4423,22 @@ function goPropertyNode(townId){
   const stor = prop.storage;
   const storGP = stor.gold||0, storSP = stor.sp||0, storCP = stor.cp||0;
   const storW = (stor.weapons||[]).length, storA = (stor.armors||[]).length, storJ = (stor.jewels||[]).length, storT = stor.torches||0;
+
+  // 留守番パーティの遠征：帰還予定日を過ぎていれば結果を先に解決する（死亡等でcaretakersが変わりうるため、
+  // 以降の食事代精算より前に、参照を確定する前に済ませておく）
+  const expeditionResult = _checkExpeditionReturn(townId);
+  if(expeditionResult) html += expeditionResult;
+
+  // 領地の領民：年をまたぐたびに増減を反映する
+ if(isFiefId(townId)){
+   const popResult = _applyFiefYearlyPopulation(prop);
+   if(popResult) html += popResult;
+   const trustResult = _applyFiefYearlyTrust(prop);
+   if(trustResult) html += trustResult;
+   const taxResult = _applyFiefMonthlyTax(prop);
+   if(taxResult) html += taxResult;
+  }
+
   const caretakers = prop.caretakers;
 
   // 食事代の精算（保管金から引く。払えないNPCは去る・子どもは去らない）
@@ -4104,7 +4678,7 @@ function goPropertyNode(townId){
     fn: canAfford ? ()=>buyProperty(townId) : null,
     go: canAfford ? '__travel__' : undefined});
   }
-  choices.push({label:'← 戻る', go:'TOWN_'+townId.toUpperCase()});
+  choices.push({label:'← 戻る', go:_propHomeTownNode(townId)});
   if(story) story.innerHTML = html;
   renderChoices(choices);
  }
@@ -4112,7 +4686,7 @@ function goPropertyNode(townId){
 
 // 拠点メイン画面（イベント後のOKまたは直接遷移で表示）
 function _showPropertyMain(townId){
-  const def = PROPERTY_DEFS[townId];
+  const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
   const prop = PC.properties[townId];
   const story = document.getElementById('story');
   prop.caretakers = prop.caretakers || [];
@@ -4130,6 +4704,13 @@ function _showPropertyMain(townId){
   // ストレージ・メンバー表示
   let mhtml = ` <span style="color:#f0ece0">${propName(townId)}</span><br>`;
   mhtml += `<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">${propDesc(townId)}</span><br>`;
+  if(isFiefId(townId) && prop.population != null){
+   const trustRankInfo2 = prop.trust != null ? _fiefTrustRank(prop.trust) : null;
+   mhtml += `<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">領民：${prop.population}人（${Math.floor(prop.population/5)}家族）</span><br>`;
+   if(trustRankInfo2){
+    mhtml += `<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">信頼度：${prop.trust}（${trustRankInfo2.label}）</span><br>`;
+   }
+  }
   if(_allRes2.length){
    const _sp2 = _allRes2[Math.floor(Math.random()*_allRes2.length)];
    const _speeches2 = _sp2.isRetired ? [
@@ -4221,11 +4802,39 @@ function _showPropertyMain(townId){
     ${_summary('拠点を管理する')}
     <div style="padding-left:14px;padding-bottom:4px">
      ${canExpand ? `<button class="choice-btn" onclick="propertyUpgrade('${townId}')">拠点の拡張（${expandCost}GP）</button>` : ''}
+     ${isFiefId(townId) ? `<button class="choice-btn" onclick="showFiefFacilities('${townId}')">施設を増設する</button>` : ''}
+     ${isFiefId(townId) ? `<button class="choice-btn" onclick="showFiefLedger('${townId}')">領地のイベント台帳を見る</button>` : ''}
+     ${isFiefId(townId) ? `<button class="choice-btn" onclick="renameFief('${townId}')">領地の名前を変更する</button>` : ''}
      <details ${_isOpen('manage_residents')} ontoggle="_propMenuSetOpen('manage_residents', this.open)" style="margin:4px 0">
       ${_summary('住人')}
       <div style="padding-left:14px;padding-bottom:4px">
        ${canPropose ? `<button class="choice-btn" onclick="propertyPropose('${townId}')">結婚</button>` : ''}
        <button class="choice-btn" onclick="propertyManageCaretakers('${townId}')">留守番</button>
+      </div>
+     </details>
+     <details ${_isOpen('manage_expedition')} ontoggle="_propMenuSetOpen('manage_expedition', this.open)" style="margin:4px 0">
+      ${_summary('遠征')}
+      <div style="padding-left:14px;padding-bottom:4px">
+       ${(()=>{
+        prop.expeditions = prop.expeditions||[];
+        const caretakersNow = prop.caretakers||[];
+        let out = '';
+        if(caretakersNow.length && prop.expeditions.length < EXPEDITION_MAX_PARTIES){
+         out += `<button class="choice-btn" onclick="propertyExpeditionSelectMembers('${townId}')">遠征に送る（${prop.expeditions.length}/${EXPEDITION_MAX_PARTIES}隊）</button>`;
+        }
+        prop.expeditions.forEach(exp=>{
+         const daysLeft = Math.max(0, exp.returnDay - GAME_TIME.totalDays);
+         const memberNames = (exp.members||[]).map(n=>n.name).join('、');
+         out += `<button class="choice-btn" onclick="_showPropertyMain('${townId}')">（遠征中：${memberNames}／帰還まであと${daysLeft}日）</button>`;
+         if(exp.repeat && !exp.stopRequested){
+          out += `<button class="choice-btn" onclick="_fiefStopExpedition('${townId}', ${exp.id})">　└ ${memberNames}の継続を止める（次の帰還で打ち切り）</button>`;
+         } else if(exp.repeat && exp.stopRequested){
+          out += `<button class="choice-btn" onclick="_showPropertyMain('${townId}')">　└ （次の帰還で打ち切り予定）</button>`;
+         }
+        });
+        out += `<button class="choice-btn" onclick="propertyExpeditionLog('${townId}')">遠征の記録を見る</button>`;
+        return out;
+       })()}
       </div>
      </details>
      <details ${_isOpen('manage_storage')} ontoggle="_propMenuSetOpen('manage_storage', this.open)" style="margin:4px 0">
@@ -4246,13 +4855,13 @@ function _showPropertyMain(townId){
     </div>
    </details>
    <button class="choice-btn" onclick="propertyShop('${townId}')">店を営む</button>
-   <button class="choice-btn" onclick="go('TOWN_${townId.toUpperCase()}')">← 戻る</button>
+   <button class="choice-btn" onclick="_propBackAction('${townId}')">← 戻る</button>
   `;
  }
 
 // ── 墓地ノード ────────────────────────────────────────────
 function propertyViewGraves(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
  prop.graves = prop.graves || [];
  prop.graveyard = prop.graveyard || [];
@@ -4296,7 +4905,7 @@ function propertyViewGraves(townId){
 
 // ── 埋葬システム ──────────────────────────────────────────
 function propertyBury(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
  prop.graves = prop.graves || [];
  const dead = (PC.party||[]).filter(n=>n.con<=0);
@@ -4336,7 +4945,7 @@ function propertyBury(townId){
 
 // ── 拠点拡張 ──────────────────────────────────────────────
 function propertyUpgrade(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
  const tier = prop.tier||0;
  if(tier >= 2){ showSaveToast('これ以上拡張できません'); return; }
@@ -4368,7 +4977,7 @@ function propertyUpgrade(townId){
 }
 
 function propertyBuySR(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const info = calcPropertyPrice(townId);
  setupSavingRoll({
   attr:'chr', level:2,
@@ -4492,7 +5101,7 @@ function _propBack(townId){
 
 // ── 留守番管理サブメニュー ──
 function propertyManageCaretakers(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
  prop.caretakers = prop.caretakers||[];
  prop.children = prop.children||[];
@@ -4526,7 +5135,7 @@ function propertyManageCaretakers(townId){
 
 // ── 拠点間転居 ──────────────────────────────────────────
 function propertyTransfer(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
  const story = document.getElementById('story');
  const otherProps = Object.keys(PC.properties||{}).filter(t=>t!==townId);
@@ -4616,9 +5225,497 @@ function propertyTransferDest(fromTownId, member, destTownIds){
  ]);
 }
 
+// ══════════════════════════════════════════════════
+// ── 留守番パーティの自主遠征 ──
+// 拠点の留守番NPCだけでパーティを組み、PC抜きで1〜6日の遠征に送り出す。
+// 結果は拠点訪問時に自動解決（プレイヤーは操作しない）。報酬・戦利品は拠点の保管庫へ。
+// ══════════════════════════════════════════════════
+// 拠点1つあたり、同時に送り出せる遠征パーティの上限
+const EXPEDITION_MAX_PARTIES = 4;
+
+const EXPEDITION_TYPES = [
+ { id:'hunt',    label:'討伐遠征',     risk:'高',   desc:'地方の脅威となるモンスターを狩りに行く。危険は大きいが実入りも良い。' },
+ { id:'explore', label:'探索遠征',     risk:'中',   desc:'近隣の遺跡や洞窟の未踏エリアを探索する。罠による負傷が中心。' },
+ { id:'escort',  label:'護衛任務',     risk:'低〜中', desc:'商隊や旅人を他の町まで送り届ける。町の信頼度も上がる。' },
+ { id:'forage',  label:'採取・薬草集め', risk:'低',   desc:'安全な範囲で薬草や素材を集める。実入りは少ないがほぼ無傷。' },
+ { id:'trade',   label:'交易随行',     risk:'低',   desc:'隊商に同行して荷運びを手伝う。安定した稼ぎと経験が得られる。' },
+];
+
+// 留守番パーティを送り出すメンバーを選ぶ画面
+function propertyExpeditionSelectMembers(townId, selected){
+ selected = selected || [];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
+ const prop = PC.properties[townId];
+ const caretakers = prop.caretakers||[];
+ const story = document.getElementById('story');
+
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> 遠征メンバーを選ぶ</b><br><br>`
+  +`<span style="color:#c0b098">誰を遠征に送りますか？（1人から可）</span><br>`
+  +(selected.length ? `<span style="color:#ffcc88">選択中：${selected.map(n=>n.name).join('、')}</span><br>` : '')
+  +(selected.length >= caretakers.length ? `<span style="color:#c05040">⚠ 全員を送ると拠点の留守番が不在になり、盗難のリスクが生じます</span><br>` : '');
+
+ const remaining = caretakers.filter(n=>!selected.includes(n));
+ renderChoices([
+  ...remaining.map(n=>({
+   label:` ${n.name}を加える（${({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'})[n.type]||n.type}・Lv${n.level||1}）`,
+   fn:()=>propertyExpeditionSelectMembers(townId, [...selected, n]),
+  })),
+  ...(selected.length ? [{label:' このメンバーで進む', fn:()=>propertyExpeditionSelectType(townId, selected)}] : []),
+  {label:'← 拠点に戻る', fn:()=>_showPropertyMain(townId)},
+ ]);
+}
+
+// 遠征先の候補地名（探索遠征用のフレーバー）
+const EXPEDITION_EXPLORE_SITES = [
+ '旧坑道', '崩れた聖堂の地下', '忘れられた地下墓所', '砂に埋もれた廃墟',
+ '森の奥の遺跡', '打ち捨てられた砦', '古い盗賊のアジト跡', '干上がった水路の奥',
+];
+
+// townIdの地方から、townId以外のランダムな町を1つ選ぶ（護衛・交易の目的地用）
+// 近隣2〜3町を旅程日数順に洗い出し、その中からランダムに1つ選ぶ（本当に近い町の中で毎回変化を持たせる）。
+// ルートが1つも見つからない場合のみ、同地方内からランダムに選ぶフォールバックを使う。
+// 戻り値：{ name: 町名, days: 片道所要日数（フォールバック時はnull） }
+function _pickExpeditionDestTown(townId){
+ const candidates = Object.keys(TOWNS).filter(t=>t!==townId);
+ const withDays = candidates.map(destId=>{
+  const route = getRoute(townId, destId);
+  if(!route) return null;
+  // 留守番NPCは馬車・船を使わず徒歩で移動する想定。徒歩ルートがなければ次点として馬車→船の順で使う
+  const days = route.days.walk ?? route.days.coach ?? route.days.ship ?? Infinity;
+  return isFinite(days) ? {destId, days} : null;
+ }).filter(Boolean).sort((a,b)=>a.days-b.days);
+
+ if(withDays.length){
+  const nearest = withDays.slice(0, Math.min(3, withDays.length));
+  const pick = nearest[Math.floor(Math.random()*nearest.length)];
+  return { name:(TOWNS[pick.destId]||{name:pick.destId}).name, days:pick.days };
+ }
+ const region = getRegionKey(townId);
+ const pool = (region && REGIONS[region]) ? REGIONS[region].filter(t=>t!==townId) : candidates;
+ const best = (pool.length ? pool : candidates)[Math.floor(Math.random()*(pool.length?pool.length:candidates.length))];
+ return { name:(TOWNS[best]||{name:best}).name, days:null };
+}
+
+// 5種の遠征内容を具体的に確定させる（討伐相手・探索先・護衛先などをこの時点で決めて記憶する）
+// 種類を1つ指定して、その内容だけを新しく確定させる（連続遠征の再出発時に使う）
+function _generateSingleExpeditionOffer(townId, typeId){
+ // 拠点が領地の場合、地方・目的地の判定は免状の基点となった町を基準にする
+ const isFief = isFiefId(townId);
+ const fiefCharter = isFief ? getFiefCharter(townId) : null;
+ const regionRefTownId = isFief ? (fiefCharter?.anchorTownId || townId) : townId;
+
+ if(typeId === 'hunt'){
+  const region = getRegionKey(regionRefTownId) || 'khazan_region';
+  const table = HUNT_MONSTER_TABLE[region] || HUNT_MONSTER_TABLE.khazan_region;
+  const totalWeight = table.reduce((s,e)=>s+(e.weight!=null?e.weight:1), 0);
+  let r = Math.random()*totalWeight, mEntry = table[table.length-1];
+  for(const e of table){ const w=e.weight!=null?e.weight:1; if(r<w){ mEntry=e; break; } r-=w; }
+  const count = mEntry.minApp + Math.floor(Math.random()*(mEntry.maxApp-mEntry.minApp+1));
+  return { typeId:'hunt', label:` 討伐遠征：${mEntry.name}${count>1?`（${count}体）`:''}の討伐`, target:{mEntry, count} };
+ }
+ if(typeId === 'explore'){
+  const site = EXPEDITION_EXPLORE_SITES[Math.floor(Math.random()*EXPEDITION_EXPLORE_SITES.length)];
+  const depth = 1 + Math.floor(Math.random()*5);
+  return { typeId:'explore', label:` 探索遠征：${site}を探る`, target:{site, depth} };
+ }
+ if(typeId === 'escort'){
+  // 領地からの護衛は、免状の基点となった町（＝実際に旅で行き来している唯一の町）のみを対象にする
+  const dest = isFief
+   ? { name:(TOWNS[regionRefTownId]||{name:regionRefTownId}).name, days:fiefCharter?.anchorDays }
+   : _pickExpeditionDestTown(townId);
+  return { typeId:'escort', label:` 護衛任務：${dest.name}への隊商護衛（片道${dest.days??'?'}日）`, target:{destName:dest.name, destDays:dest.days} };
+ }
+ if(typeId === 'forage'){
+  return { typeId:'forage', label:' 採取・薬草集め：郊外での採取', target:{} };
+ }
+ if(typeId === 'trade'){
+  // 領地からの交易随行も同様に、基点の町のみを対象にする
+  const dest = isFief
+   ? { name:(TOWNS[regionRefTownId]||{name:regionRefTownId}).name, days:fiefCharter?.anchorDays }
+   : _pickExpeditionDestTown(townId);
+  return { typeId:'trade', label:` 交易随行：${dest.name}への隊商随行（片道${dest.days??'?'}日）`, target:{destName:dest.name, destDays:dest.days} };
+ }
+ return null;
+}
+
+function _generateExpeditionOffers(townId){
+ return {
+  hunt:    _generateSingleExpeditionOffer(townId, 'hunt'),
+  explore: _generateSingleExpeditionOffer(townId, 'explore'),
+  escort:  _generateSingleExpeditionOffer(townId, 'escort'),
+  forage:  _generateSingleExpeditionOffer(townId, 'forage'),
+  trade:   _generateSingleExpeditionOffer(townId, 'trade'),
+ };
+}
+
+// 遠征の種類を選ぶ画面
+function propertyExpeditionSelectType(townId, members){
+ const story = document.getElementById('story');
+ const offers = _generateExpeditionOffers(townId);
+
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> 遠征の内容を選ぶ</b><br><br>`
+  +`<span style="color:#c0b098">メンバー：${members.map(n=>n.name).join('、')}</span><br><br>`
+  +EXPEDITION_TYPES.map(t=>{
+   const offer = offers[t.id];
+   return `<div style="border:1px solid var(--border2);border-radius:4px;padding:6px 8px;margin-top:6px">
+   <span style="color:#e0d8c8">${offer.label}</span>　<span style="color:#c8a8a0;font-size:calc(var(--font-sm) - 1px)">リスク：${t.risk}</span><br>
+   <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${t.desc}</span></div>`;
+  }).join('');
+
+ renderChoices([
+  ...EXPEDITION_TYPES.map(t=>({label:`${offers[t.id].label}に出発させる`, fn:()=>propertyExpeditionConfirmRepeat(townId, members, offers[t.id])})),
+  {label:'← メンバー選択に戻る', fn:()=>propertyExpeditionSelectMembers(townId)},
+ ]);
+}
+
+// 出発前に「1回だけ」か「停止するまで繰り返す」かを選ばせる
+function propertyExpeditionConfirmRepeat(townId, members, offer){
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> ${offer.label.trim()}</b><br><br>`
+  +`<span style="color:#c0b098">メンバー：${members.map(n=>n.name).join('、')}</span><br><br>`
+  +`<span style="color:#c8b8a0">この内容を1回だけ行わせますか？　それとも、あなたが止めるまで同じ内容を繰り返させますか？</span>`;
+ renderChoices([
+  {label:' 1回だけ行かせる', fn:()=>propertyExpeditionDepart(townId, members, offer, false)},
+  {label:' 停止するまで繰り返させる', fn:()=>propertyExpeditionDepart(townId, members, offer, true)},
+  {label:'← 内容選択に戻る', fn:()=>propertyExpeditionSelectType(townId, members)},
+ ]);
+}
+
+// 出発確定
+function propertyExpeditionDepart(townId, members, offer, repeat){
+ const prop = PC.properties[townId];
+ prop.expeditions = prop.expeditions||[];
+ if(prop.expeditions.length >= EXPEDITION_MAX_PARTIES){
+  showSaveToast(`これ以上は同時に遠征に出せない（上限${EXPEDITION_MAX_PARTIES}隊）`);
+  _showPropertyMain(townId);
+  return;
+ }
+ // 護衛・交易随行は実際の目的地への片道日数×2（往復分）。それ以外は1〜6日のランダム
+ const destDays = offer.target && offer.target.destDays;
+ const days = (destDays != null) ? destDays * 2 : (1 + Math.floor(Math.random()*6));
+ // 遠征に出るメンバーは、不在の間は留守番として数えない（泥棒リスク判定を正しく機能させるため、
+ // caretakersから一時的に取り除いて遠征データ側で保持する）
+ const memberIds = members.map(n=>n._npcId);
+ prop.caretakers = (prop.caretakers||[]).filter(n=>!memberIds.includes(n._npcId));
+ prop.expeditions.push({
+  id: Date.now()+Math.random(),
+  members,
+  typeId: offer.typeId,
+  offerLabel: offer.label,
+  target: offer.target,
+  departDay: GAME_TIME.totalDays,
+  returnDay: GAME_TIME.totalDays + days,
+  repeat: !!repeat,
+  stopRequested: false,
+ });
+ const tDef = EXPEDITION_TYPES.find(t=>t.id===offer.typeId);
+ const repeatNote = repeat ? '（停止するまで繰り返す）' : '';
+ addLifeEvent('', `${members.map(n=>n.name).join('、')}が${offer.label.trim()}に出発した${repeatNote}。`);
+ showSaveToast(`${members.map(n=>n.name).join('、')}が${offer.label.trim()}に出発した（${days}日の予定）${repeatNote}`);
+ _showPropertyMain(townId);
+}
+
+// 拠点訪問時：帰還予定日を過ぎていれば結果を解決する。戻り値：解決していれば結果HTML、なければnull
+function _checkExpeditionReturn(townId){
+ const prop = PC.properties[townId];
+ if(!prop || !(prop.expeditions||[]).length) return null;
+
+ const due = prop.expeditions.filter(exp=>GAME_TIME.totalDays >= exp.returnDay);
+ if(!due.length) return null;
+ // 帰還したものだけ配列から取り除き、残り（まだ帰還日を迎えていないもの）は維持する
+ prop.expeditions = prop.expeditions.filter(exp=>GAME_TIME.totalDays < exp.returnDay);
+
+ const MAX_CYCLES_PER_VISIT = 200; // 1回の訪問で追いつかせる周回数の上限（極端な長期放置での処理落ち防止）
+ let combinedHtml = '';
+
+ due.forEach(exp=>{
+  let currentExp = exp;
+  let cycles = 0;
+  let lastHtml = '';
+  let cappedOut = false;
+
+  // 「停止するまで繰り返す」設定の場合、帰還予定日を迎えるたびに自動で再抽選・再出発させ、
+  // 現在の日付に追いつくまでこのまま連鎖させる（PCが訪問していなくても裏で進み続けたことにする）
+  while(currentExp && GAME_TIME.totalDays >= currentExp.returnDay){
+   const members = currentExp.members||[];
+   if(!members.length){
+    combinedHtml += `<div style="color:#c8a890"> 遠征に出た者たちの消息は分からないままだ……</div>`;
+    currentExp = null;
+    break;
+   }
+   const wasRepeat = currentExp.repeat && !currentExp.stopRequested;
+   const { html, survivors } = _resolveExpedition(townId, prop, members, currentExp.typeId, currentExp.target||{}, currentExp.offerLabel, currentExp.returnDay);
+   cycles++;
+   lastHtml = html;
+
+   if(wasRepeat && survivors.length){
+    if(cycles >= MAX_CYCLES_PER_VISIT){ cappedOut = true; break; } // 続きは次回訪問時に持ち越す
+    const newOffer = _generateSingleExpeditionOffer(townId, currentExp.typeId);
+    if(!newOffer){ currentExp = null; break; }
+    const memberIds = survivors.map(n=>n._npcId);
+    prop.caretakers = (prop.caretakers||[]).filter(n=>!memberIds.includes(n._npcId));
+    const destDays = newOffer.target && newOffer.target.destDays;
+    const days = (destDays != null) ? destDays * 2 : (1 + Math.floor(Math.random()*6));
+    // 帰還予定日は「前回の帰還予定日」からの積み上げにする（現在日からの計算だと周回数がズレるため）
+    currentExp = {
+     id: Date.now()+Math.random(),
+     members: survivors,
+     typeId: newOffer.typeId,
+     offerLabel: newOffer.label,
+     target: newOffer.target,
+     departDay: currentExp.returnDay,
+     returnDay: currentExp.returnDay + days,
+     repeat: true,
+     stopRequested: false,
+    };
+   } else {
+    currentExp = null; // 停止指定・全滅・繰り返し設定なしのいずれかで打ち切り
+   }
+  }
+
+  if(cycles > 1){
+   combinedHtml += `<div style="border:1px solid var(--border2);border-radius:4px;padding:10px;margin-top:8px">
+    <div style="color:#f0ece0;font-size:var(--font-sm);margin-bottom:6px"> 留守中に${cycles}回の遠征が繰り返された（直近の結果）</div>
+    ${lastHtml}
+   </div>`;
+  } else if(cycles === 1){
+   combinedHtml += lastHtml;
+  }
+  if(cappedOut){
+   combinedHtml += `<div style="color:#a89878;font-size:calc(var(--font-sm) - 1px);margin-top:4px">（あまりに長期間留守にしていたため、続きは次に訪れた時に持ち越された）</div>`;
+  }
+  // まだ帰還日を迎えていない（あるいは上限で打ち切られた）遠征は、次回訪問時のためにそのまま積み直す
+  if(currentExp) prop.expeditions.push(currentExp);
+ });
+ return combinedHtml;
+}
+
+// 遠征結果の解決本体（targetは出発時に確定済みの対象データ：討伐相手・探索先・護衛先など）
+function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, resolveDay){
+ resolveDay = resolveDay != null ? resolveDay : GAME_TIME.totalDays; // 記録に使う日付（追いつき処理では実際の帰還予定日を渡す）
+ prop.storage = prop.storage || { gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 };
+ const tDef = EXPEDITION_TYPES.find(t=>t.id===typeId);
+ const names = members.map(n=>n.name).join('、');
+ let deathNames = []; // 遠征中に死亡したメンバー名（末尾でcaretakersへの復帰から除外する）
+ let goldGained = 0;  // 記録用：この遠征で保管庫に入ったGP
+ let apGained = 0;    // 記録用：メンバー1人あたりの獲得経験値
+ let eventDesc = '';  // 記録用：道中で何があったか（山賊遭遇・罠発動等）の一言説明
+ let html = `<div style="border:1px solid var(--border2);border-radius:4px;padding:10px;margin-top:8px">
+  <div style="color:#f0ece0;font-size:var(--font-sm);margin-bottom:6px"> ${names}が${(offerLabel||tDef.label).trim()}から帰還した</div>`;
+
+ if(typeId === 'hunt'){
+  const mEntry = target.mEntry;
+  const count = target.count||1;
+  let monsterMR = mEntry.mr * count;
+  const monsterArmor = mEntry.armor||0;
+  const startCON = members.reduce((s,n)=>s+n.con,0);
+  let partyCON = startCON;
+  const partyArmor = members.reduce((s,n)=>s+calcNPCArmor(n),0) / members.length; // 平均防具値
+
+  let rounds = 0;
+  while(monsterMR > 0 && partyCON > 0 && rounds < 10){
+   rounds++;
+   const partyRoll = members.reduce((s,n)=>s+calcNPCRoll(n).total,0);
+   const monsterRoll = monsterCombatRoll(monsterMR).total;
+   const dmgToMonster = Math.max(0, partyRoll - monsterArmor);
+   const dmgToParty = Math.max(0, monsterRoll - partyArmor*members.length);
+   monsterMR -= dmgToMonster;
+   partyCON -= dmgToParty;
+  }
+
+  if(partyCON <= 0){
+   // 大敗：メンバーごとに死亡判定（負担割合に応じて）
+   eventDesc = `${mEntry.name}の群れに大敗した`;
+   html += `<div style="color:#c05040">大敗した。${mEntry.name}の群れに歯が立たなかった。</div>`;
+   const deaths = [];
+   members.forEach(n=>{
+    const dieChance = 0.15 + Math.random()*0.25; // 15〜40%
+    if(Math.random() < dieChance){
+     deaths.push(n.name);
+     addLifeEvent('', `${n.name}が${tDef.label}中に命を落とした。`);
+    } else {
+     n.con = Math.max(1, Math.floor(n.con*0.3));
+    }
+   });
+   if(deaths.length){
+    deathNames = deaths;
+    prop.graves = prop.graves||[];
+    deaths.forEach(name=>prop.graves.push({name, diedDay:resolveDay, cause:tDef.label}));
+    html += `<div style="color:#c05040"> 訃報：${deaths.join('、')}が帰らぬ人となった。</div>`;
+   }
+  } else {
+   const lostRatio = 1 - (partyCON/startCON);
+   const mr0 = mEntry.mr*count;
+   const gp = Math.floor(mr0 * (0.8+Math.random()*0.4));
+   apGained = Math.floor(mr0 / members.length);
+   if(lostRatio < 0.2){
+    eventDesc = `${mEntry.name}を軽傷で討伐した（大成功）`;
+    html += `<div style="color:#f0ece0">大成功。${mEntry.name}を軽傷で退けた。</div>`;
+    goldGained = gp;
+    prop.storage.gold = (prop.storage.gold||0) + gp;
+   } else if(lostRatio < 0.6){
+    eventDesc = `${mEntry.name}を討伐したが手傷を負った`;
+    html += `<div style="color:#e0d8c8">${mEntry.name}を討伐したが、それなりの手傷を負った。</div>`;
+    goldGained = gp;
+    prop.storage.gold = (prop.storage.gold||0) + gp;
+   } else {
+    apGained = Math.floor(apGained*0.5);
+    eventDesc = `${mEntry.name}に苦戦し撤退した`;
+    html += `<div style="color:#c8a890">苦戦の末に撤退した。得るものは少なかった。</div>`;
+    goldGained = Math.floor(gp*0.3);
+    prop.storage.gold = (prop.storage.gold||0) + goldGained;
+   }
+   html += `<div style="color:#ffcc88"> 報酬：${goldGained}GP　経験値+${apGained}</div>`;
+   members.forEach(n=>{ n.con = Math.max(1, Math.round(n.con * (partyCON/startCON))); gainAPFor(n, apGained); });
+  }
+
+ } else if(typeId === 'explore'){
+  const depth = target.depth || (1 + Math.floor(Math.random()*5));
+  const trapLv = ydRollTrapLevel(depth);
+  const avgDex = members.reduce((s,n)=>s+(n.dex||10),0)/members.length;
+  const avgLk  = members.reduce((s,n)=>s+(n.lk||10),0)/members.length;
+  const roll = roll2D6explode().total + avgDex + avgLk;
+  const srTarget = trapLv*5 + 15;
+  if(roll >= srTarget){
+   eventDesc = `${target.site||'未踏エリア'}の探索に成功した`;
+   html += `<div style="color:#f0ece0">${target.site||'未踏エリア'}の探索に成功した。</div>`;
+   goldGained = 10 + Math.floor(Math.random()*trapLv*10);
+   apGained = trapLv * 5;
+   prop.storage.gold = (prop.storage.gold||0) + goldGained;
+   html += `<div style="color:#ffcc88"> 報酬：${goldGained}GP　経験値+${apGained}</div>`;
+   members.forEach(n=>gainAPFor(n, apGained));
+  } else {
+   const dmg = trapLv + Math.floor(Math.random()*trapLv*2+1);
+   const hurt = members[Math.floor(Math.random()*members.length)];
+   hurt.con = Math.max(1, hurt.con-dmg);
+   apGained = Math.floor(trapLv * 2);
+   eventDesc = `${target.site||'未踏エリア'}で罠にかかった（${hurt.name}が負傷）`;
+   html += `<div style="color:#c8a890">${target.site||'未踏エリア'}で罠にかかり、${hurt.name}が負傷した（体力-${dmg}）。収穫は無かったが、経験値+${apGained}は得た。</div>`;
+   members.forEach(n=>gainAPFor(n, apGained));
+  }
+
+ } else if(typeId === 'escort'){
+  const destName = target.destName || 'その町';
+  const ambushed = Math.random() < 0.3;
+  if(ambushed){
+   const partyRoll = members.reduce((s,n)=>s+calcNPCRoll(n).total,0);
+   const banditMR = 15 * members.length;
+   if(partyRoll > monsterCombatRoll(banditMR).total){
+    eventDesc = '道中で山賊に襲われたが、撃退した';
+    html += `<div style="color:#f0ece0">${destName}への道中で山賊に襲われたが、撃退して無事に送り届けた。</div>`;
+    goldGained = 8 + Math.floor(Math.random()*11); // 8〜18GP
+    apGained = 15;
+    prop.storage.gold = (prop.storage.gold||0) + goldGained;
+    html += `<div style="color:#ffcc88"> 報酬：${goldGained}GP　経験値+${apGained}</div>`;
+    changeTrust(townId, 2);
+    members.forEach(n=>gainAPFor(n, apGained));
+   } else {
+    const hurt = members[Math.floor(Math.random()*members.length)];
+    hurt.con = Math.max(1, Math.floor(hurt.con*0.6));
+    apGained = 5;
+    eventDesc = `道中で山賊に襲われ、苦戦した（${hurt.name}が負傷）`;
+    html += `<div style="color:#c8a890">${destName}への道中で山賊に苦戦し、${hurt.name}が負傷した。護衛は不首尾に終わったが、経験値+${apGained}は得た。</div>`;
+    members.forEach(n=>gainAPFor(n, apGained));
+   }
+  } else {
+   eventDesc = '道中は平穏だった';
+   html += `<div style="color:#f0ece0">${destName}までの道中は平穏で、無事に送り届けた。</div>`;
+   goldGained = 5 + Math.floor(Math.random()*8); // 5〜12GP
+   apGained = 8;
+   prop.storage.gold = (prop.storage.gold||0) + goldGained;
+   html += `<div style="color:#ffcc88"> 報酬：${goldGained}GP　経験値+${apGained}</div>`;
+   changeTrust(townId, 1);
+   members.forEach(n=>gainAPFor(n, apGained));
+  }
+
+ } else if(typeId === 'forage'){
+  const avgLk = members.reduce((s,n)=>s+(n.lk||10),0)/members.length;
+  const roll = roll2D6explode().total + avgLk;
+  if(roll >= 20){
+   eventDesc = '上質な薬草がよく採れた';
+   goldGained = 5 + Math.floor(Math.random()*8);
+   apGained = 4;
+   prop.storage.gold = (prop.storage.gold||0) + goldGained;
+   html += `<div style="color:#f0ece0">上質な薬草がよく採れた。</div><div style="color:#ffcc88"> 収穫：${goldGained}GP　経験値+${apGained}</div>`;
+  } else {
+   eventDesc = 'それなりの量を採ってきた';
+   goldGained = 2 + Math.floor(Math.random()*4);
+   apGained = 2;
+   prop.storage.gold = (prop.storage.gold||0) + goldGained;
+   html += `<div style="color:#c8b8a0">それなりの量を採ってきた。</div><div style="color:#ffcc88"> 収穫：${goldGained}GP　経験値+${apGained}</div>`;
+  }
+  members.forEach(n=>gainAPFor(n, apGained));
+
+ } else if(typeId === 'trade'){
+  const destName = target.destName || 'その町';
+  const avgChr = members.reduce((s,n)=>s+(n.chr||10),0)/members.length;
+  const roll = roll2D6explode().total + avgChr;
+  goldGained = roll >= 20 ? (10+Math.floor(Math.random()*8)) : (5+Math.floor(Math.random()*6));
+  apGained = 10;
+  eventDesc = `${destName}への隊商随行を無事に終えた`;
+  prop.storage.gold = (prop.storage.gold||0) + goldGained;
+  html += `<div style="color:#f0ece0">${destName}への隊商随行を無事に終えた。</div><div style="color:#ffcc88"> 報酬：${goldGained}GP　経験値+${apGained}</div>`;
+  members.forEach(n=>gainAPFor(n, apGained));
+ }
+
+ html += `</div>`;
+ // 生存者は留守番として拠点に復帰させる（死亡者は除く）
+ const survivors = members.filter(n=>!deathNames.includes(n.name));
+ prop.caretakers = [...(prop.caretakers||[]), ...survivors];
+
+ // 遠征の記録を保存（新しいものを先頭に、最大20件まで保持）
+ prop.expeditionLog = prop.expeditionLog||[];
+ prop.expeditionLog.unshift({
+  day: resolveDay,
+  label: (offerLabel||tDef.label).trim(),
+  memberNames: names,
+  deathNames: [...deathNames],
+  goldGained,
+  apGained,
+  eventDesc,
+  html,
+ });
+ if(prop.expeditionLog.length > 20) prop.expeditionLog.length = 20;
+
+ return { html, survivors };
+}
+
+// 「拠点を管理する」メニューから、繰り返し遠征の停止を予約する
+function _fiefStopExpedition(townId, expId){
+ const prop = PC.properties[townId];
+ const exp = (prop?.expeditions||[]).find(e=>e.id===expId);
+ if(exp){
+  exp.stopRequested = true;
+  showSaveToast('次に帰還した時点で、遠征の繰り返しを取りやめます');
+ }
+ _showPropertyMain(townId);
+}
+
+// 遠征の記録一覧を表示
+function propertyExpeditionLog(townId){
+ const prop = PC.properties[townId];
+ const log = prop.expeditionLog||[];
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<b> 遠征の記録</b><br><br>`
+  +(log.length ? log.map(l=>`<div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:6px">
+    <span style="color:#c8a8a0;font-size:calc(var(--font-sm) - 1px)">${formatDate(daysToDate(l.day))}</span>　<span style="color:#e0d8c8">${l.label}</span><br>
+    <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">メンバー：${l.memberNames}</span><br>
+    ${l.eventDesc ? `<span style="color:#b8a888;font-size:calc(var(--font-sm) - 1px)">道中：${l.eventDesc}</span><br>` : ''}
+    <span style="color:#ffcc88;font-size:calc(var(--font-sm) - 1px)">報酬：${l.goldGained||0}GP　経験値：+${l.apGained||0}</span>
+    ${l.deathNames.length ? `<br><span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">戦死：${l.deathNames.join('、')}</span>` : ''}
+   </div>`).join('') : '<span style="color:#b0a080">まだ遠征の記録はない。</span>');
+ renderChoices([
+  {label:'← 拠点に戻る', fn:()=>_showPropertyMain(townId)},
+ ]);
+}
+
 // ── 留守番を置く ──
 function propertySetCaretaker(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
  prop.caretakers = prop.caretakers || [];
  const story = document.getElementById('story');
@@ -4648,7 +5745,7 @@ function propertySetCaretaker(townId){
     n._joinedPropertyDay = GAME_TIME.totalDays;
     prop.caretakers.push(n);
     prop._lastVisitDay = GAME_TIME.totalDays;
-    addLifeEvent('', `${n.name}を${PROPERTY_DEFS[townId]?.name||'拠点'}の留守番に置いた。`);
+    addLifeEvent('', `${n.name}を${propName(townId)||'拠点'}の留守番に置いた。`);
     updateHUD(); renderPartyTab();
     showSaveToast(` ${n.name}を留守番に置いた`);
     propertySetCaretaker(townId);
@@ -4660,7 +5757,7 @@ function propertySetCaretaker(townId){
 
 // ── 留守番を引き取る ──
 function propertyPickupCaretaker(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
  prop.caretakers = prop.caretakers || [];
  const story = document.getElementById('story');
@@ -4702,7 +5799,7 @@ function propertyPickupCaretaker(townId){
 
 // ── 拠点での結婚申し込み ──
 function propertyPropose(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const story = document.getElementById('story');
  const targets = (PC.party||[]).filter(n=>n.con>0 && !n.married);
 
@@ -4825,7 +5922,7 @@ function _checkPropertyBabyEvent(townId, callback){
 
  // 子どもが生まれる！
  const story = document.getElementById('story');
- story.innerHTML = `<span style="color:#f0ece0"> ${PROPERTY_DEFS[townId].name}</span><br><br>`
+ story.innerHTML = `<span style="color:#f0ece0"> ${propName(townId)}</span><br><br>`
   +`<div style="border:2px solid var(--nature2);border-radius:4px;padding:14px;background:#060e06;margin:8px 0">`
   +`<div style="color:var(--white);font-size:calc(var(--font-sm) + 1px);margin-bottom:8px"> 新しい命の誕生</div>`
   +`<div style="color:#f0ece0">${spouse.name}との間に子どもが生まれた！</div><br>`
@@ -4876,7 +5973,7 @@ function _checkPropertyBabyEvent(townId, callback){
     prop.children.push(child);
     if(typeof addLifeEvent === 'function') addLifeEvent('', `${spouse.name}との間に${childName}が生まれた。`);
     showSaveToast(` ${childName}が生まれた！`);
-    story.innerHTML = `<span style="color:#f0ece0"> ${PROPERTY_DEFS[townId].name}</span><br><br>`
+    story.innerHTML = `<span style="color:#f0ece0"> ${propName(townId)}</span><br><br>`
      +`<span style="color:var(--white)"> <b>${childName}</b>が生まれた。<br><br>`
      +`${childName}は拠点で大切に育てられる。<br>`
      +`15歳になったらパーティに加えることができる。</span>`;
@@ -4892,7 +5989,7 @@ function _checkPropertyBabyEvent(townId, callback){
 
 // ── 子どもを引き取る（15歳以上） ──
 function propertyPickupChild(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
  prop.children = prop.children||[];
  const story = document.getElementById('story');
@@ -4976,7 +6073,7 @@ function _recruitChild(child, prop, townId){
   propertyPickupChild(townId);
   return;
  }
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  // タイプに応じた装備を設定
  const t = child.type||'warrior';
  child.equippedWeapons = t==='wizard'?[]:[{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30,stReq:7,dexReq:3}];
@@ -5009,7 +6106,7 @@ function _recruitChild(child, prop, townId){
 }
 
 function propertyRest(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const story = document.getElementById('story');
 
  const showUI = (msg='')=>{
@@ -5388,7 +6485,7 @@ function propertyStorageMenu(townId){
 }
 
 function propertyStorageItems(townId){
- const def = PROPERTY_DEFS[townId];
+ const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const stor = _propStor(townId);
  if(!stor) return;
  const story = document.getElementById('story');
@@ -5636,7 +6733,7 @@ function goOtherActions(townId){
  if(rogueGuildCities.includes(townId) && (PC.type==='rogue' || hasPartyRogue)){
   choices.push({label:' 盗賊ギルド', fn:()=>{ PC.town=townId; enterGuild('rogue'); }});
  }
- const wizardGuildCities = ['khazan'];
+ const wizardGuildCities = ['khazan','elsia','al_rashid','yeldun','valdheim','neria'];
  const hasPartyWizard = (PC.party||[]).some(m=>m.type==='wizard'&&m.con>0);
  if(wizardGuildCities.includes(townId) && (PC.type==='wizard' || hasPartyWizard)){
   choices.push({label:' ウィザードズギルド', fn:()=>{ PC.town=townId; enterGuild('wizard'); }});
@@ -6085,7 +7182,7 @@ function generateNPC(level=1){
  equippedClothing: false,
  invWeapons: type!=='wizard' ? [] : weapons,
  invArmors: [],
- spells: type==='wizard' ? [{...SPELLS_L1[2]}] : [],
+ spells: type==='wizard' ? SPELLS_L1.map(s=>({...s})) : [],
  background: rollBackground(race, type),
  alignment_ethics: Math.floor((Math.random()-0.5)*60), // NPCはランダム初期値
  alignment_order:  Math.floor((Math.random()-0.5)*60),
@@ -6232,7 +7329,7 @@ function buildManualImportNPC(fields){
   equippedClothing: false,
   invWeapons: type!=='wizard' ? [] : weapons,
   invArmors: [],
-  spells: type==='wizard' ? [{...SPELLS_L1[2]}] : [],
+  spells: type==='wizard' ? SPELLS_L1.map(s=>({...s})) : [],
   background: rollBackground(race, type),
   alignment_ethics: Math.floor((Math.random()-0.5)*60),
   alignment_order:  Math.floor((Math.random()-0.5)*60),
@@ -7242,7 +8339,8 @@ const extra = {
            '「封じられた神殿の封印が少し弱まっているように見える。何かが干渉している」',
            '「エルシア周辺の薬草が今年は特に質が良い。珍しいことだ」',
            '「密林の奥でハーフオークの集落らしきものが見つかった。人間とオークの混血だそうで、力は侮れない」',
-           '「遺跡の警備が薄い一角にホブゴブリンが住み着いたらしい。ゴブリンより一回り大きく、群れで来ると厄介だ」'] },
+           '「遺跡の警備が薄い一角にホブゴブリンが住み着いたらしい。ゴブリンより一回り大きく、群れで来ると厄介だ」',
+           '「他の地方まで足を延ばす者もいるが、地方をまたぐ旅は長丁場になる分、道中で山賊や獣、悪天候に見舞われる機会もぐっと増える。装備と覚悟を整えてから行くべきだ」'] },
   { name:'魔法薬師のエレン', icon:'',
     intro:'色とりどりの小瓶を並べた女性が試作品の味見をしながら飲んでいる。',
     type:'tip',
@@ -7456,7 +8554,8 @@ const extra = {
     type:'rumor',
     lines:['「最近の砂漠ルートは危ない。盗賊が増えているし、砂嵐の頻度もおかしい」',
            '「隊商の中に密偵が紛れ込んでいることがある。俺は何人かあぶり出したことがある」',
-           '「オアシス砦の補給が滞っているという話がある。誰かが妨害しているのかもしれない」'] },
+           '「オアシス砦の補給が滞っているという話がある。誰かが妨害しているのかもしれない」',
+           '「他の地方まで抜ける長旅は舐めるなよ。道中が長引く分だけ、山賊にも獣にも悪天候にも出くわす回数が増える。俺は護衛の依頼でも、地方をまたぐ仕事は必ず気を引き締める」'] },
   { name:'地元の子供たちのリーダー', icon:'',
     intro:'元気な少年がグループのリーダーらしく仲間を率いている。',
     type:'luck',
@@ -7716,7 +8815,8 @@ const extra = {
            '「フロストトロルは冬になると数が増える。春まで外を出歩くな」',
            '「白竜の幼体が目撃されている。イスカルドの坑道近くだ。近づくな」',
            '「武装したトロル——トロル・レイダーと呼んでる連中だ——が北の氷原に現れた。並の装備じゃ歯が立たない」',
-           '「氷原の外れにハーフオークの群れが住み着いたらしい。人間とオークの混血で、力は馬鹿にできない」'] },
+           '「氷原の外れにハーフオークの群れが住み着いたらしい。人間とオークの混血で、力は馬鹿にできない」',
+           '「南の地方まで下るつもりか。地方をまたぐ旅は日数がかさむ分、山賊にも獣にも天候にも当たる回数が増える。ヴァルドヘイムを出る前に、寒さ対策だけでなく道中の備えも見直しておけ」'] },
   { name:'北方の呪術師ヴォルガ', icon:'',
     intro:'奇妙な装飾品をまとった老人が炉端で何かを唱えている。',
     type:'charm',
@@ -8029,7 +9129,7 @@ const extra = {
  ],
  neria: [
   {icon:'', name:'島の漁師組合の親方', intro:'日焼けした大きな男が今日の漁の話をしている。',
-   type:'rumor', lines:['「ネリア砦の近くに最近、見知らぬ人影が出るようになった。昨日まで何もなかった場所に」','「古老が言うには、霧の夜に砦の外で笛の音が聞こえるという。誰も吹いていないのに」','「この地方、昔は交易路があったらしい。今は見る影もないが」']},
+   type:'rumor', lines:['「ネリア砦の近くに最近、見知らぬ人影が出るようになった。昨日まで何もなかった場所に」','「古老が言うには、霧の夜に砦の外で笛の音が聞こえるという。誰も吹いていないのに」','「この地方、昔は交易路があったらしい。今は見る影もないが」','「本土の他の地方まで渡るつもりか？地方をまたぐ旅は日数がかかる分だけ、山賊にも獣にも荒天にも当たりやすくなる。海路も陸路も油断するな」']},
   {icon:'', name:'離島から来た商人', intro:'塩焼けした服の男がのんびり飲んでいる。',
    type:'drink', line:'「島から初めて本土に来た！感動して一杯余分に頼んでしまった。あなたも飲んでくれ！」男は嬉しそうに奢ってくれた。', gp_delta:0, free_drink:true },
   {icon:'', name:'港の賭け好きの水夫', intro:'コインを弄びながら飲んでいる男がいる。',
@@ -9743,6 +10843,12 @@ function loadAutoSave(){
  const raw = localStorage.getItem(AUTOSAVE_KEY);
  if(!raw) return false;
  const data = JSON.parse(raw);
+ // Object.assignは「上書きマージ」のため、ロード前のセッションに残っていたキーが
+ // ロードするセーブデータに存在しない場合でもクリアされず残ってしまう。
+ // 領地関連のフィールドはこれが原因で新旧データが混線しうるため、代入前に明示的にリセットする
+ delete PC._fiefCharter;
+ delete PC._fiefCharters;
+ if(PC.properties) delete PC.properties.fief;
  Object.assign(PC, data.pc);
  Object.assign(GAME_TIME, data.gameTime);
  if(PC.invEquip){
@@ -9753,17 +10859,39 @@ function loadAutoSave(){
  }
  if(PC._torchStock == null) PC._torchStock = 0;
  if(PC._torchTurns == null) PC._torchTurns = 0;
+ // 旧データ移行：領地の複数所有対応リファクタリング以前のセーブデータを新形式に変換する
+ _migrateFiefDataIfNeeded();
  // 装備参照の結び付け直し（セーブ/ロードで見た目上の複製が生まれる問題の修正）
  _reconcileEquipRefs(PC);
  (PC.party||[]).forEach(npc=>_reconcileEquipRefs(npc));
  ['title-screen','chargen','shop-area'].forEach(id=>{
   document.getElementById(id)?.classList.add('hidden');
  });
+ // モバイルでステータスパネルが開いたまま残らないよう、ロード時に必ず閉じる
+ if(window.innerWidth < 860) document.getElementById('inv-panel')?.classList.add('hidden');
  const g = document.getElementById('game');
  g.classList.remove('hidden'); g.style.display='flex';
  currentNodeId = data.nodeId || 'TOWN_KHAZAN';
  updateHUD(); updateTimebar();
- go(currentNodeId);
+ // 拠点画面・領地の広場は通常のノードシステムを経由しないため、専用のマーカーIDから復元する
+ if(currentNodeId === 'FIEF_PLAZA' || (currentNodeId && currentNodeId.startsWith('FIEF_PLAZA_'))){
+  // 'FIEF_PLAZA'（接尾辞なし）は複数領地対応前の旧マーカー。fiefIdが取れない場合は先頭の領地にフォールバックする
+  const fiefId = currentNodeId.startsWith('FIEF_PLAZA_') ? currentNodeId.slice('FIEF_PLAZA_'.length).toLowerCase() : null;
+  const charter = fiefId ? getFiefCharter(fiefId) : (PC._fiefCharters||[])[0];
+  if(charter) showFiefPlaza(charter.anchorTownId);
+  else go('TOWN_KHAZAN');
+ } else if(currentNodeId && currentNodeId.startsWith('PROPERTY_')){
+  let townId = currentNodeId.slice('PROPERTY_'.length).toLowerCase();
+  // 'PROPERTY_FIEF'（複数領地対応前の旧マーカー）は先頭の領地のfiefIdに読み替える
+  if(townId === 'fief'){
+   const firstCharter = (PC._fiefCharters||[])[0];
+   townId = firstCharter ? firstCharter.fiefId : null;
+  }
+  if(townId && isValidPropertyId(townId)) goPropertyNode(townId);
+  else go('TOWN_KHAZAN');
+ } else {
+  go(currentNodeId);
+ }
  return true;
 }
 const WORLD_KEY = 'tt5_world'; // 世界の継続状態（暦・過去仲間）
@@ -10057,6 +11185,12 @@ function loadGame(slot){
  if(!raw) return;
  const data = JSON.parse(raw);
  currentSaveSlot = slot;
+ // Object.assignは「上書きマージ」のため、ロード前のセッションに残っていたキーが
+ // ロードするセーブデータに存在しない場合でもクリアされず残ってしまう。
+ // 領地関連のフィールドはこれが原因で新旧データが混線しうるため、代入前に明示的にリセットする
+ delete PC._fiefCharter;
+ delete PC._fiefCharters;
+ if(PC.properties) delete PC.properties.fief;
  Object.assign(PC, data.pc);
  Object.assign(GAME_TIME, data.gameTime);
 
@@ -10084,6 +11218,16 @@ function loadGame(slot){
  // 旧データ移行：alignmentがなければランダム初期値を付与（保存データで判定）
  if(!('alignment_ethics' in data.pc)) PC.alignment_ethics = Math.floor((Math.random()-0.5)*60);
  if(!('alignment_order'  in data.pc)) PC.alignment_order  = Math.floor((Math.random()-0.5)*60);
+ // 旧データ移行：魔法使いのPCがLv1呪文を1つも持っていなければ補う
+ // （キャラ作成時の不具合で全滅していたケースの救済。既にunlockKnockKnock等を個別に持っていても重複しないようマージする）
+ if(PC.type==='wizard'){
+  PC.spells = PC.spells || [];
+  const known = new Set(PC.spells.map(s=>s.name));
+  SPELLS_L1.forEach(sp=>{ if(!known.has(sp.name)) PC.spells.push({...sp}); });
+ }
+ // 旧データ移行：領地の複数所有対応リファクタリング以前のセーブデータを新形式に変換する
+ // （PC._fiefCharter単数オブジェクト → PC._fiefCharters配列／PC.properties.fief → PC.properties[fiefId]）
+ _migrateFiefDataIfNeeded();
  // 装備参照の結び付け直し（セーブ/ロードで見た目上の複製が生まれる問題の修正）
  _reconcileEquipRefs(PC);
  (PC.party||[]).forEach(npc=>_reconcileEquipRefs(npc));
@@ -10094,6 +11238,12 @@ function loadGame(slot){
   if(!saved || !('alignment_order'  in saved)) npc.alignment_order  = Math.floor((Math.random()-0.5)*60);
   // 身長・体重がなければこの機会に決めてしまう（既存の仲間NPC向け）
   if(npc.height==null || npc.weight==null) Object.assign(npc, rollBodySize(npc.race));
+  // 魔法使いNPCがLv1呪文を全種持っていなければ補う（Magic Boltのみだった旧仕様の救済）
+  if(npc.type==='wizard'){
+   npc.spells = npc.spells || [];
+   const npcKnown = new Set(npc.spells.map(s=>s.name));
+   SPELLS_L1.forEach(sp=>{ if(!npcKnown.has(sp.name)) npc.spells.push({...sp}); });
+  }
  });
  // 拠点留守番NPCの旧データ移行
  Object.entries(PC.properties||{}).forEach(([tid, prop])=>{
@@ -10107,10 +11257,31 @@ function loadGame(slot){
  ['title-screen','chargen','shop-area'].forEach(id=>{
   document.getElementById(id)?.classList.add('hidden');
  });
+ // モバイルでステータスパネルが開いたまま残らないよう、ロード時に必ず閉じる
+ if(window.innerWidth < 860) document.getElementById('inv-panel')?.classList.add('hidden');
  const g = document.getElementById('game');
  g.classList.remove('hidden'); g.style.display='flex';
+ currentNodeId = data.nodeId || 'TOWN_KHAZAN';
  updateHUD(); updateTimebar();
- go(data.nodeId || 'TOWN_KHAZAN');
+ // 拠点画面・領地の広場は通常のノードシステムを経由しないため、専用のマーカーIDから復元する
+ if(currentNodeId === 'FIEF_PLAZA' || (currentNodeId && currentNodeId.startsWith('FIEF_PLAZA_'))){
+  // 'FIEF_PLAZA'（接尾辞なし）は複数領地対応前の旧マーカー。fiefIdが取れない場合は先頭の領地にフォールバックする
+  const fiefId = currentNodeId.startsWith('FIEF_PLAZA_') ? currentNodeId.slice('FIEF_PLAZA_'.length).toLowerCase() : null;
+  const charter = fiefId ? getFiefCharter(fiefId) : (PC._fiefCharters||[])[0];
+  if(charter) showFiefPlaza(charter.anchorTownId);
+  else go('TOWN_KHAZAN');
+ } else if(currentNodeId && currentNodeId.startsWith('PROPERTY_')){
+  let townId = currentNodeId.slice('PROPERTY_'.length).toLowerCase();
+  // 'PROPERTY_FIEF'（複数領地対応前の旧マーカー）は先頭の領地のfiefIdに読み替える
+  if(townId === 'fief'){
+   const firstCharter = (PC._fiefCharters||[])[0];
+   townId = firstCharter ? firstCharter.fiefId : null;
+  }
+  if(townId && isValidPropertyId(townId)) goPropertyNode(townId);
+  else go('TOWN_KHAZAN');
+ } else {
+  go(currentNodeId);
+ }
 }
 
 function deleteSave(slot){
@@ -16753,6 +17924,41 @@ const DISTRICT_GARRISON_INCIDENTS = [
  },
 ];
 
+// 「関わらずに立ち去る」を出してよいイベントの許可リスト。
+// 対物（罠・落とし物・鉱脈・密輸品の隠し場所等）や、対象が動けない（負傷・閉じ込め・衰弱等で追ってこられない）
+// もの、あるいは人でない相手（モンスター・精霊・自然災害）に限る。
+// ただし、既に発動して自分に直撃しつつある危険（落石が今まさに降っている等）は、
+// 「立ち去る」ではなく「かわす・対処する」しか成立しないため対象外とする。
+// 反応してくる住民・NPCとのやり取り（対人）は、原則としてこのリストに含めない
+const VILLAGE_INCIDENT_LEAVABLE = new Set([
+ 'poison_arrow_hunter',     // 毒矢で動けない若い狩人（動けない）
+ 'hornet_nest',             // 巨大スズメバチの群れ（自然災害・モンスター的脅威）
+ 'fallen_tree_assistant',   // 倒木に閉じ込められた助手（動けない）
+ 'rabid_hound',             // 狂犬（動物）
+ 'golem_remnant',           // 目覚めたゴーレム（モンスター）
+ 'cart_derail',             // 脱線したトロッコ（物）
+ 'blasting_powder',         // 危険な発破用火薬ツボ（未発動・避けて通れる）
+ 'smuggled_ore',            // 隠された希少鉱石（物）
+ 'sandstorm_warning',       // 迫る砂嵐（自然災害）
+ 'sand_spirit_omen',        // サンドスピリット（精霊）
+ 'gas_vent_accident',       // 硫黄ガスの噴出事故（動けない第三者の救助）
+ 'obsidian_smuggler',       // 隠された黒曜石製品（物）
+ 'shrine_offering',         // 灰に埋もれた古い社（場所・物）
+ 'frozen_survivor',         // 半ば凍りついた漂流者（動けない）
+ 'trapped_miners',          // 孤立した坑夫（動けない）
+ 'gas_detection',           // 有毒ガスの気配（未発動・対処を選べる段階）
+ 'ore_appraisal',           // 未掘削の鉱脈（物）
+ 'tax_ledger_discrepancy',  // 帳簿の不正の痕跡（物）
+ 'haunted_rumor',           // 幽霊が出るという噂の家（場所）
+ 'old_curse_ritual',        // 古い呪いの儀式跡（場所）
+ 'collapsing_building',     // 崩れかけた建物に閉じ込められた人（動けない）
+ 'harbor_smuggled_goods_find', // 積み荷の陰の密輸品（物）
+ 'harbor_drowning_sailor',  // 溺れる船乗り（動けない）
+ 'market_counterfeit_goods',// 露店の陰の偽物（物）
+ 'garrison_training_accident', // 動けなくなった訓練中の兵士（動けない）
+ 'lost_pilgrim',            // 倒れかけている巡礼者（動けない）
+]);
+
 // ── ローカル手配システム（賞金首未満スケールの小悪党。中央広場に手配書、街区探索中にランダム遭遇） ──
 const LOCAL_WANTED_CRIMES = [
  {crime:'常習スリ', desc:'雑踏に紛れて懐を狙う常習犯'},
@@ -16790,6 +17996,14 @@ const TOWN_BOARD_NOTICES = [
  { text:'「最近、荷馬車の車輪の盗難が相次いでいます。夜間の駐車にはご注意を」' },
  { text:'「知り合いに言付けを頼みたいのですが、なかなか会えなくて……見かけたら伝えてもらえませんか」', resolveType:'message' },
 ];
+
+// 「知り合いに言付け」の貼り紙は、伝える相手の名前を貼り紙自体にも街での遭遇にも一貫させたいため、
+// 掲示板生成時に名前を1つ選んで貼り紙テキストへ埋め込んでおく（元の配列は書き換えず、複製した上で処理する）
+function _finalizeBoardNotice(notice){
+ if(notice.resolveType !== 'message') return notice;
+ const npcName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+ return { ...notice, npcName, text:`「知り合いの${npcName}に言付けを頼みたいのですが、なかなか会えなくて……見かけたら伝えてもらえませんか」` };
+}
 
 // 拠点ごとの独自貼り紙（各町の特色を反映。汎用の貼り紙プールに追加で混ぜて使う）
 const TOWN_BOARD_NOTICES_BY_TOWN = {
@@ -16874,7 +18088,7 @@ function getLocalWantedBoard(townId){
   const notices = [];
   for(let i=0; i<noticeCount && noticePool.length; i++){
    const idx = Math.floor(Math.random()*noticePool.length);
-   notices.push(noticePool.splice(idx,1)[0]);
+   notices.push(_finalizeBoardNotice(noticePool.splice(idx,1)[0]));
   }
   // 貼り紙の中に解決可能な種類（resolveType）が含まれていれば、街区探索側で対応する遭遇を有効にする
   const activeMiniTypes = [...new Set(notices.filter(n=>n.resolveType).map(n=>n.resolveType))];
@@ -16888,7 +18102,7 @@ function getLocalWantedBoard(townId){
   const notices = [];
   for(let i=0; i<noticeCount && noticePool.length; i++){
    const idx = Math.floor(Math.random()*noticePool.length);
-   notices.push(noticePool.splice(idx,1)[0]);
+   notices.push(_finalizeBoardNotice(noticePool.splice(idx,1)[0]));
   }
   board.notices = notices;
   board.activeMiniTypes = [...new Set(notices.filter(n=>n.resolveType).map(n=>n.resolveType))];
@@ -16897,6 +18111,11 @@ function getLocalWantedBoard(townId){
   // 既存セーブデータ互換：旧バージョンのnotices（文字列配列）しかない場合は解決可能な種類なしとする
   board.activeMiniTypes = board.notices.length && typeof board.notices[0]==='object'
    ? [...new Set(board.notices.filter(n=>n.resolveType).map(n=>n.resolveType))] : [];
+ }
+ // 既存セーブデータ互換：名前を埋め込む前のバージョンで生成された「言付け」の貼り紙が残っていたら、
+ // このタイミングで名前を補って直す（7日の更新を待たず、その場で修正する）
+ if(Array.isArray(board.notices)){
+  board.notices = board.notices.map(n=>(n && typeof n==='object' && n.resolveType==='message' && !n.npcName) ? _finalizeBoardNotice(n) : n);
  }
  return board;
 }
@@ -19519,6 +20738,17 @@ function ydRollTrap(floor){
  return { ...t, result: t.fn(floor) };
 }
 
+// 罠の「レベル」（気づく・解除する際に要求される能力値テストのレベル）を決定する。
+// 常に階層の深さと同じではなく、稀に階層より高いレベルの罠が混じる
+// 階層の深さ＝80%／+1＝15%／+2＝3%／+3＝2%
+function ydRollTrapLevel(floor){
+ const r = Math.random()*100;
+ if(r < 80) return floor;
+ if(r < 95) return floor+1;
+ if(r < 98) return floor+2;
+ return floor+3;
+}
+
 // 罠の網・毒ガス等、罠発動結果を実際に適用する。
 // 網に捕まった場合は逃げられない戦闘に移行するため、trueを返した場合のみ
 // 呼び出し元は続けてOKボタン等を表示してよい（falseなら戦闘に移行済み）
@@ -19690,6 +20920,37 @@ function enterBountyHideout(bq, parentNodeId, parentFloor){
 
 // ── 小規模拠点：中央広場（行政地区／旧市街地区への分岐ハブ） ──
 const SMALL_TOWN_HUB_LIST = Object.keys(SMALL_TOWN_DISTRICTS);
+// 中央広場の掲示物一覧HTMLを組み立てる（手配書＋貼り紙をまとめて1つの掲示板として扱う）
+function _localWantedBoardListHtml(townId){
+ const board = getLocalWantedBoard(townId);
+ const unresolvedTargets = board.targets.filter(t=>!t.resolved);
+ const resolvedMiniTypes = board.resolvedMiniTypes || [];
+ // 解決済みのミニ依頼に対応する貼り紙は、次の掲示板更新まで掲示から下げる
+ const notices = (board.notices || []).filter(n=>!(n.resolveType && resolvedMiniTypes.includes(n.resolveType)));
+ const items = [
+  ...unresolvedTargets.map(t=>({
+   kind:'wanted',
+   html:`<span style="color:#e0d8c8"> ${t.name}</span><br>
+    <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">罪状：${t.crime}（${t.desc}）</span><br>
+    <span style="color:#ffcc88;font-size:calc(var(--font-sm) - 1px)">懸賞金：${t.reward}GP</span>`,
+  })),
+  ...notices.map(n=>({
+   kind:'notice',
+   // 旧セーブ互換：nがまだ文字列のままの場合もそのまま表示する
+   html:`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${typeof n==='string' ? n : n.text}</span>`,
+  })),
+ ];
+ // 表示順もランダムに混ぜる（毎回同じ並びにならないよう描画のたびシャッフル）
+ for(let i=items.length-1;i>0;i--){
+  const j=Math.floor(Math.random()*(i+1));
+  [items[i],items[j]]=[items[j],items[i]];
+ }
+ return items.length
+  ? items.map(it=>`
+    <div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:8px">${it.html}</div>`).join('')
+  : '<br><br><span style="color:#b0a080">（現在、掲示物はない）</span>';
+}
+
 function smallTownHub(townId){
  const town = TOWNS[townId];
  const story = document.getElementById('story');
@@ -19705,12 +20966,13 @@ function smallTownHub(townId){
  const captive = PC._localWantedCaptive;
  const captiveHint = (captive?.villageId===townId)
   ? `<br><br><span style="color:#ff9977"> 【手配犯】${captive.name}（${captive.crime}）を確保している。衛兵に引き渡そう</span>` : '';
+ const boardHtml = `<br><br><span style="color:#a89878;font-size:calc(var(--font-sm) - 1px)">━━ 掲示板 ━━</span>${_localWantedBoardListHtml(townId)}`;
  story.innerHTML = ` <span style="color:#e0d8c8">${town?.name || townId} 中央広場</span><br><br>`
-  + `<span style="color:#c0b098">町の中心となる広場。ここから${districtListText}、それぞれの街路へ入ることができる。（現在：${ph.label}）</span>${dqHint}${captiveHint}`;
+  + `<span style="color:#c0b098">町の中心となる広場。ここから${districtListText}、それぞれの街路へ入ることができる。（現在：${ph.label}）</span>${dqHint}${captiveHint}${boardHtml}`;
  const choices = districtKeys.map(k=>({
   label:` ${districtTypeLabels[k]||k}へ入る`, fn:()=>enterVillageBackAlley(townId, k),
  }));
- choices.push({label:' 掲示板を見る', fn:()=>showLocalWantedBoard(townId)});
+ if(REGION_CAPITAL_TOWNS.includes(townId)) choices.push({label:' 庁舎・宮殿へ入る', fn:()=>showRegionalPalace(townId)});
  if(captive?.villageId===townId){
   choices.push({label:` 衛兵に${captive.name}を引き渡す（+${captive.reward}GP／街の評判+1）`, fn:()=>{
    gainGP(captive.reward);
@@ -19724,6 +20986,7 @@ function smallTownHub(townId){
  choices.push({label:'← 町に戻る', go:'TOWN_'+townId.toUpperCase()});
  renderChoices(choices);
 }
+
 
 // 中央広場の掲示板：手配書の一覧を表示する（掲示板を見て初めて内容が分かる）
 function showLocalWantedBoard(townId){
@@ -20086,6 +21349,10 @@ function dbgForceTownMiniQuest(townId, districtType){
  const floor = dung.currentFloor;
  const newId = ydNewNodeId(floor);
  const node = { id:newId, type:'town_mini_resolve', floor, miniSubtype:subtype, miniResolveKey:'yd_tm_'+newId, pending:['forward'], exits:{} };
+ if(subtype === 'message'){
+  const notice = (board.notices||[]).find(n=>n.resolveType==='message' && n.npcName);
+  if(notice) node.npcName = notice.npcName;
+ }
  ydSaveNode(floor, node);
  ydGoNode(newId, floor);
 }
@@ -20112,8 +21379,8 @@ function ydExplore(fromNodeId, direction){
  const remainingSlots = nodeLimit - nonEntryNodes; // これから生成できるノード数
  const atLimit = floorData.nodeLimit && nonEntryNodes >= floorData.nodeLimit;
 
- // 討伐依頼中の残配置数を計算
- const unplacedCount = dung.isHuntDungeon
+ // 討伐依頼・領地の砦跡討伐 中の残配置数を計算
+ const unplacedCount = (dung.isHuntDungeon || dung.isFiefClearing)
   ? Math.max(0, dung.targetCount - dung.killedKeys.length)
   : 0;
  // 残りスロット数 <= 未配置討伐数になったら強制encounter
@@ -20153,8 +21420,10 @@ function ydExplore(fromNodeId, direction){
 
  // 町完結ミニ依頼：今週の掲示板に解決可能な貼り紙（resolveType）があれば、街区探索中に10%の確率で解決地点を生成
  // ※地区の指定はなく、その町のどの地区でも起こりうる（貼り紙の内容と現地の遭遇が対応するだけの仕組み）
+ // 一度解決した種類は、同じ週（掲示板が次に更新されるまで）は再び出さない
  const miniBoard = dung.districtType ? getLocalWantedBoard(dung.villageId) : null;
- const activeMiniTypes = miniBoard?.activeMiniTypes || [];
+ const resolvedMiniTypes = miniBoard?.resolvedMiniTypes || [];
+ const activeMiniTypes = (miniBoard?.activeMiniTypes || []).filter(t=>!resolvedMiniTypes.includes(t));
  const miniQuestEligible = !mustHunt && !mustAnchor && !atLimit && !deliveryRoll && !bountyRoll && !wantedRoll
   && activeMiniTypes.length > 0;
  const miniQuestRoll = miniQuestEligible && Math.random() < 0.15;
@@ -20274,7 +21543,7 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
    if(rcont.type==='chest'||rcont.type==='monster_treasure'){
     if(!node.treasureFloor) node.treasureFloor = floor;
    }
-   if(rcont.type==='trap' && !dung.isHideoutDungeon){ node.trap = ydRollTrap(floor); node.trapKey = 'yd_t_' + id; }
+   if(rcont.type==='trap' && !dung.isHideoutDungeon){ node.trap = ydRollTrap(floor); node.trapKey = 'yd_t_' + id; node.trapLevel = ydRollTrapLevel(floor); }
    if(rcont.type==='fountain'){ node.fountainKey = 'yd_fn_' + id; }
    if(rcont.type==='statue'){ node.statueKey = 'yd_s_' + id; }
    // roomExitsをpendingに変換
@@ -20314,6 +21583,7 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
    node.trapAttr = t.attr;
    node.trapDesc = t.descs[Math.floor(Math.random()*t.descs.length)];
    node.trapKey  = 'yd_tr_' + id;
+   node.trapLevel = ydRollTrapLevel(floor);
    node.pending  = ['forward'];
    break;
   }
@@ -20366,6 +21636,37 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
      huntDung.killedKeys.push(kk);
     }
     node.huntTargetKeys = huntDung.killedKeys.slice(-countHere);
+   } else if(dung.isFiefClearing && dung.killedKeys.length < dung.targetCount){
+    // 領地の砦跡：山賊・モンスターが住み着いている。全てNPC型で表現する
+    const remaining = dung.targetCount - dung.killedKeys.length;
+    const countHere = Math.min(remaining, 1 + Math.floor(Math.random()*3)); // 1〜3体
+    const isMonster = Math.random() < 0.5;
+    let npcs, mname;
+    if(isMonster){
+     const species = ['troll','ogre','orc','goblin'][Math.floor(Math.random()*4)];
+     const tiers = ELITE_MONSTER_INFO[species].tiers;
+     const tier = tiers[Math.floor(Math.random()*tiers.length)];
+     mname = `住み着いた${ELITE_MONSTER_INFO[species].baseName}`;
+     npcs = Array.from({length:countHere}, (_,i)=>{
+      const npc = generateEliteMonster(species, tier.level);
+      npc.name = countHere>1 ? `${npc.name} #${i+1}` : npc.name;
+      return {...npc, curCon:npc.con};
+     });
+    } else {
+     const banditNames = ['砦に住み着いた山賊','砦の見張り','荒くれの居座り者','砦を占拠した賊'];
+     mname = banditNames[Math.floor(Math.random()*banditNames.length)];
+     npcs = Array.from({length:countHere}, (_,i)=>{
+      const npc = generateNPC(3 + Math.floor(Math.random()*3));
+      npc.name = countHere>1 ? `${mname} #${i+1}` : mname;
+      return npc;
+     });
+    }
+    m = { name: mname, count: countHere, isNPCType:true, npcs, isHuman:!isMonster, isHuntTarget:true };
+    for(let k=0; k<countHere; k++){
+     const kk = 'yd_ht_' + id + '_' + k;
+     dung.killedKeys.push(kk);
+    }
+    node.huntTargetKeys = dung.killedKeys.slice(-countHere);
    } else if(dung.isVillageBackAlley && roll.anchorTag){
     // ヴェルダ裏路地：確定アンカー（野生動物）。テーブルのisHumanフラグ・NPC型をそのまま引き継ぐ
     m = ydRollVillageEncounter(villageCfg(dung).wildlifeTable);
@@ -20438,6 +21739,12 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
    node.miniSubtype = roll.miniSubtype;
    node.miniResolveKey = 'yd_tm_' + id;
    node.pending = ['forward'];
+   // 「知り合いに言付け」の貼り紙は、掲示板に貼られた時点で決めた名前をそのまま街の遭遇にも引き継ぐ
+   if(roll.miniSubtype === 'message' && dung.villageId){
+    const miniBoard = getLocalWantedBoard(dung.villageId);
+    const notice = (miniBoard?.notices||[]).find(n=>n.resolveType==='message' && n.npcName);
+    if(notice) node.npcName = notice.npcName;
+   }
    break;
   }
   case 'village_incident':{
@@ -20706,8 +22013,8 @@ function ydGoNode(nodeId, floor){
   ...(_suppressMove ? _moveChRaw.filter(c=>c._alwaysShow) : _moveChRaw),
  ];
  // 魔法使い・盗賊は魔法ボタンを追加
- if((PC.type==='wizard'||PC.type==='rogue') && PC.spells && PC.spells.length && !cbtState){
-  choices.push({ label:' 魔法を使う', fn:()=>openSpellModal('', null), _isMagicBtn:true });
+ if(_eligibleOutOfCombatCasters(nodeId).length && !cbtState){
+  choices.push({ label:' 魔法を使う', fn:()=>openSpellModal('', null, nodeId), _isMagicBtn:true });
  }
  // ヴァルドヘイム大迷宮限定：保管庫
  if(dung.isValdheimGrand && !cbtState){
@@ -21399,7 +22706,14 @@ function ydNodeTxt(node, floor){
   case 'town_mini_resolve':{
    const mdef = TOWN_MINI_QUEST_TYPES.find(d=>d.subtype===node.miniSubtype);
    const done = PC[node.miniResolveKey];
-   const mtText = mdef ? mdef.findFlavor : '特に何もない、静かな場所だ。';
+   // 既にノードが生成済みでnpcNameを持っていない場合（機能追加前に生成されたノード等）は、
+   // 表示のタイミングで掲示板から名前を補う。それでも見つからなければ汎用の呼び方に逃がす
+   if(mdef && !node.npcName && node.miniSubtype==='message' && dung?.villageId){
+    const miniBoard = getLocalWantedBoard(dung.villageId);
+    const notice = (miniBoard?.notices||[]).find(n=>n.resolveType==='message' && n.npcName);
+    if(notice) node.npcName = notice.npcName;
+   }
+   const mtText = mdef ? mdef.findFlavor.replace(/\{name\}/g, node.npcName || 'その人物') : '特に何もない、静かな場所だ。';
    return `${tBar}${fLabel}<br><br>
     <span style="color:#b8a890">${!done ? mtText : '（もう解決した）'}</span>
     ${darkWarn}`;
@@ -21804,15 +23118,7 @@ function ydActionChoices(node, floor){
       ch.push({label:' 石像に触れる', fn:()=>{
        PC[node.alcoveKey]=true;
        const eff = ydStatueEffect(floor, node.id, node.alcoveKey);
-       const stEl = document.getElementById('story');
-       if(eff !== null){
-        stEl.innerHTML+=`<br><span style="color:#c8b8a0">${eff}</span>`;
-        updateHUD();
-        if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
-       } else {
-        stEl.innerHTML+=`<br><span style="color:#c8b8a0">石像に触れたが、何も起きなかった。</span>`;
-       }
-       renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+       _renderStatueEffectResult(eff, node.id, floor);
       }});
      } else {
       ch.push({label:' 石像（調査済み）', fn:()=>{}});
@@ -21825,6 +23131,10 @@ function ydActionChoices(node, floor){
       renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
      }});
     }
+    ch.push({label:' 気にせず先へ進む', fn:()=>{
+     PC[node.alcoveKey]=true;
+     ydGoNode(node.id, floor);
+    }});
    }
    break;
 
@@ -21912,26 +23222,22 @@ function ydActionChoices(node, floor){
     ch.push({label:' 石像に触れる', fn:()=>{
      PC[node.statueKey]=true;
      const eff = ydStatueEffect(floor, node.id, node.statueKey);
-     const stEl = document.getElementById('story');
-     if(eff !== null){
-      stEl.innerHTML+=`<br><span style="color:#c8b8a0">${eff}</span>`;
-      updateHUD();
-      if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
-     } else {
-      stEl.innerHTML+=`<br><span style="color:#c8b8a0">石像に触れたが、何も起きなかった。</span>`;
-     }
-     // OKを押すまで内容を表示し続ける
-     renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+     _renderStatueEffectResult(eff, node.id, floor);
+    }});
+    ch.push({label:' 触れずに立ち去る', fn:()=>{
+     PC[node.statueKey]=true;
+     ydGoNode(node.id, floor);
     }});
    }
    if(node.roomContent==='trap' && !PC[node.trapKey]){
     const noticed  = PC[node.trapKey+'_noticed'];
     const trapData = node.trap || ydRollTrap(floor);
+    const trapLv = node.trapLevel || floor;
     if(!noticed){
      // まだ足を踏み入れていない：LK SRで罠に気づくか判定
      ch.push({label: dung.isVillageBackAlley ? '▶ 先へ進む' : '▶ 部屋に入る', fn:()=>{
-      selectActorForSR('lk', floor, actor=>{
-       setupSavingRollFor(actor,{attr:'lk', level:floor,
+      selectActorForSR('lk', trapLv, actor=>{
+       setupSavingRollFor(actor,{attr:'lk', level:trapLv,
         onSuccess:()=>{
          PC[node.trapKey+'_noticed']=true; updateHUD();
          document.getElementById('story').innerHTML+=
@@ -21953,8 +23259,8 @@ function ydActionChoices(node, floor){
     } else {
      // 気づいている：解除を試みるか無視して進むか
      ch.push({label:' 罠を解除する（器用さ 能力値テスト）', fn:()=>{
-      selectActorForSR('dex', floor, actor=>{
-       setupSavingRollFor(actor,{attr:'dex', level:floor,
+      selectActorForSR('dex', trapLv, actor=>{
+       setupSavingRollFor(actor,{attr:'dex', level:trapLv,
         onSuccess:()=>{
          PC[node.trapKey]=true; updateHUD();
          const trapName = node.trap?.label || '罠';
@@ -21993,6 +23299,7 @@ function ydActionChoices(node, floor){
   case 'trap':
    if(!PC[node.trapKey]){
     const _nid=node.id, _fl=floor, _tk=node.trapKey;
+    const _trapLv = node.trapLevel || _fl;
     const dmgOnFail = ()=>{
      const dmg = _fl + Math.floor(Math.random()*_fl*2+1);
      PC.con = Math.max(0, PC.con-dmg); updateHUD();
@@ -22001,7 +23308,7 @@ function ydActionChoices(node, floor){
     ch.push({label:` 慎重に調べる（${(node.trapAttr||'dex').toUpperCase()} 能力値テスト）`, fn:()=>{
      dungeonTrySR({
       attr: node.trapAttr||'dex',
-      level: _fl,
+      level: _trapLv,
       flagKey: _tk,
       successTxt: ()=>`<b>【${node.trapName}】を発見！</b><br>危なかった……慎重に解除して安全を確保した。`,
       failFn: ()=>{ PC[_tk]=true; const d=dmgOnFail(); PC[_tk+'_dmg']=d; },
@@ -22221,6 +23528,12 @@ function ydActionChoices(node, floor){
        PC[node.miniResolveKey] = true;
        gainSP(reward);
        changeTrust(dung.villageId, 0.1);
+       // この種類は達成済みとして、今週の掲示板から外し、この探索中も再び出さないようにする
+       const miniBoard = getLocalWantedBoard(dung.villageId);
+       if(miniBoard){
+        miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+        if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+       }
        updateHUD();
        const s = document.getElementById('story');
        if(s) s.innerHTML = `<span style="color:#e0d0d0">${(TOWNS[dung.villageId]||{}).name || dung.villageId}</span><br><br><span style="color:#e8e0d0">${choice.successMsg}（謝礼${reward}SP／信頼度+0.1）</span>`;
@@ -22234,6 +23547,11 @@ function ydActionChoices(node, floor){
      });
     }});
    });
+   ch.push({label:' 関わらずに立ち去る', fn:()=>{
+    PC[node.miniResolveKey] = true;
+    document.getElementById('story').innerHTML+=`<br><br><span style="color:#d0c8b8"> 手を貸さず、その場を立ち去った。</span>`;
+    renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
+   }});
    break;
   }
 
@@ -25725,6 +27043,16 @@ function ydActionChoices(node, floor){
      }});
      break;
    }
+   // どの出来事にも共通して、関わらずに立ち去る選択肢を用意する。ただし対人（NPC・住民など反応してくる相手がいる）
+   // イベントでは出さず、対物（罠・落とし物・鉱脈等）や、対象が動けない（負傷・閉じ込め等で追ってこられない）
+   // イベントに限って出す。判定はVILLAGE_INCIDENT_LEAVABLE許可リストで一元管理する
+   if(VILLAGE_INCIDENT_LEAVABLE.has(node.incidentId)){
+    ch.push({label:' 関わらずに立ち去る', fn:()=>{
+     PC[node.eventKey]=true;
+     document.getElementById('story').innerHTML+=`<br><br><span style="color:#d0c8b8"> 面倒事に関わりたくなく、見て見ぬふりをしてその場を立ち去った。</span>`;
+     renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+    }});
+   }
    break;
   }
 
@@ -25740,7 +27068,7 @@ function ydActionChoices(node, floor){
        win:'__yd_win__', lose:'DEAD',
        onWin:()=>{
         PC[node.monsterKey]=true;
-        // 討伐依頼（NPC型精鋭種族含む）なら討伐対象フラグ・完了判定も行う
+        // 討伐依頼（NPC型精鋭種族含む）・領地の排除なら討伐対象フラグ・完了判定も行う
         if(m.isHuntTarget){
          (node.huntTargetKeys||[]).forEach(k=>{ PC[k]=true; });
          const dung = PC._yeldunDungeon;
@@ -25752,6 +27080,15 @@ function ydActionChoices(node, floor){
            showSaveToast(` ${dung.targetName}を全て討伐した！来た道を戻ろう。`);
           } else {
            showSaveToast(`討伐 ${killed}/${total}体`);
+          }
+         } else if(dung?.isFiefClearing){
+          const killed = dung.killedKeys.filter(k=>PC[k]).length;
+          const total  = dung.targetCount;
+          if(killed>=total){
+           dung.fiefCleared = true;
+           showSaveToast(' 砦跡に住み着いた者たちを全て排除した！来た道を戻ろう。');
+          } else {
+           showSaveToast(`排除 ${killed}/${total}体`);
           }
          }
         }
@@ -25957,6 +27294,31 @@ function ydMoveChoices(node, floor){
      renderChoices([{label:'← 街に戻る', go: backNode}]);
     }});
    }
+  } else if(exitDung?.isFiefClearing){
+   const fiefAnchor = exitDung.fiefAnchorTownId;
+   const fiefCharterHere = exitDung.fiefId ? getFiefCharter(exitDung.fiefId) : null;
+   if(exitDung.fiefCleared){
+    ch.push({label:' 排除完了！その場で整備する', fn:()=>{
+     PC._yeldunDungeon = null;
+     hideDungeonImage();
+     if(fiefCharterHere) fiefCharterHere.cleared = true;
+     addLifeEvent('', '領地の砦跡に住み着いた者たちを排除し、確保した。');
+     showSaveToast('砦跡を確保した！');
+     showFiefImprove(fiefAnchor);
+    }});
+   } else {
+    ch.push({label:' 中断して町に戻る', fn:()=>{
+     PC._yeldunDungeon = null;
+     hideDungeonImage();
+     travelBackFromFief(fiefAnchor);
+    }});
+    ch.push({label:' 別の入り口から入り直す（配置をやり直す）', fn:()=>{
+     PC._yeldunDungeon = null;
+     hideDungeonImage();
+     if(fiefCharterHere) delete fiefCharterHere._clearingDungeon;
+     enterFiefClearing(fiefAnchor||'khazan');
+    }});
+   }
   } else if(exitDung?.isHeroQuestDungeon){
    const backNode = exitDung.heroQuestBackNode || 'TOWN_KHAZAN';
    ch.push({label:' 引き返して街に戻る（依頼継続）', fn:()=>{
@@ -26057,23 +27419,38 @@ function ydStatueEffect(floor, nodeId, statueKey){
  if(r<=53){ const v=ydDn(6,1)*floor; PC.con=Math.max(0,PC.con-v); updateHUD(); return `体が蝕まれた！CON-${v}`; }
  if(r<=58){ PC.con=PC.maxCon; updateHUD(); return '傷がすべて癒えた！CON全回復！'; }
  if(r<=85){
-  // 石像が動き出して攻撃してくる
+  // 石像が動き出して攻撃してくる（呼び出し元でOKボタンを挟んでから戦闘を開始させるため、
+  // ここでは戦闘を起動せず「戦闘が必要」という印を返すだけにする）
   const mr = 20+25*floor;
-  document.getElementById('story').innerHTML +=
-   `<br><span style="color:#f0ddd8"> 石像が動き出した！（CombatRating${mr}）</span>`;
-  setTimeout(()=>{
-   const _nid = nodeId, _fl = floor, _sk = statueKey;
-   startCombat({
-    enemies:[{name:'動く石像', mr, curMR:mr, armor:4}],
-    canFlee:true, isYD:true,
-    win:'__yd_win__',
-    onWin:()=>{ updateHUD(); ydGoNode(_nid, _fl); },
-   });
-   renderChoices([]); scrollToTop();
-  }, 800);
-  return null; // combatを起動するのでtxtは返さない
+  return { combat:true, mr };
  }
  return '石像が光った……何かが起きた気がするが分からなかった。';
+}
+
+// ydStatueEffectの結果を表示し、戦闘が必要な場合はOKボタンを挟んでから開始する（呼び出し元共通処理）
+function _renderStatueEffectResult(eff, nodeId, floor){
+ const stEl = document.getElementById('story');
+ if(eff && typeof eff === 'object' && eff.combat){
+  stEl.innerHTML += `<br><span style="color:#f0ddd8"> 石像が動き出した！（CombatRating${eff.mr}）</span>`;
+  renderChoices([{label:'▶ OK', fn:()=>{
+   startCombat({
+    enemies:[{name:'動く石像', mr:eff.mr, curMR:eff.mr, armor:4}],
+    canFlee:true, isYD:true,
+    win:'__yd_win__',
+    onWin:()=>{ updateHUD(); ydGoNode(nodeId, floor); },
+   });
+   renderChoices([]); scrollToTop();
+  }}]);
+  return;
+ }
+ if(eff !== null){
+  stEl.innerHTML+=`<br><span style="color:#c8b8a0">${eff}</span>`;
+  updateHUD();
+  if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
+ } else {
+  stEl.innerHTML+=`<br><span style="color:#c8b8a0">石像に触れたが、何も起きなかった。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(nodeId, floor)}]);
 }
 
 // テーブルVIII-7: 泉の効果
@@ -26819,8 +28196,8 @@ const TOWN_MINI_QUEST_TYPES = [
  {
   subtype: 'message',
   title: ' 伝言を届けてほしい',
-  clientFlavor: '「知り合いに伝えたいことがあるんだが、手が離せなくて……」',
-  findFlavor: '伝言の相手らしき人物を、人混みの中に見つけた。',
+  clientFlavor: '「知り合いの{name}に伝えたいことがあるんだが、手が離せなくて……」',
+  findFlavor: '伝言の相手である{name}らしき人物を、人混みの中に見つけた。',
   choices: [
    { label:' 愛想よく取り次いでもらう', attr:'chr', level:1, successMsg:'愛想よく話しかけると、快く取り次いでくれた。', failMsg:'怪しまれてしまい、取り合ってもらえなかった。' },
    { label:' 最短ルートを見極めて追いつく', attr:'iq', level:1, successMsg:'人混みの流れを読み、最短ルートで追いついた。', failMsg:'道を誤り、見失ってしまった。' },
@@ -27237,6 +28614,287 @@ function ydInitDungeonForHunt(quest){
  return dung;
 }
 
+// ── 領地の砦跡：討伐依頼と同じランダムダンジョン形式で、住み着いた山賊・モンスターを排除する ──
+function ydInitDungeonForFief(){
+ const dung = ydInitDungeon();
+ dung.design.dungeonStyle = 'fortress'; // 廃砦として表現するため様式を固定する
+ dung.isFiefClearing = true;
+ dung.targetCount = (4 + Math.floor(Math.random()*3)) * 2; // 4〜6体の2倍＝8〜12体
+ dung.targetName  = '砦に住み着いた者たち';
+ dung.killedKeys  = [];
+ Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')).forEach(k=>delete PC[k]);
+ const f = dung.floors[1];
+ const entryNode = {
+  id: f.entryNodeId, type:'entrance', floor:1,
+  exits:{}, pending:['forward'], _facingIdx: Math.floor(Math.random()*4),
+ };
+ f.nodeMap[f.entryNodeId] = entryNode;
+ return dung;
+}
+
+// 領地の砦跡へ出発する（townIdは免状の基点となった町＝現在地）
+// 町から領地へ向かう（免状の基点からの日数分、実際に旅をする）
+// 領地への旅：通常の町間移動と同じ画面（進捗バー・旅の情景・道中イベント）を経由する
+function _fiefTravelAnimated(townId, onArrive){
+ const charter = getFiefCharterByAnchor(townId);
+ const days = charter?.anchorDays || 0;
+ const from = TOWNS[townId] || {name:townId};
+ const fiefLabel = (charter && PC.properties?.[charter.fiefId]?.fiefName) || '領地';
+
+ if(days <= 0){ onArrive(); return; }
+
+ drawScene('travel');
+ showTravelImage('walk', townId, townId); // 目的地は実在の町ではないため、出発地の地方の雰囲気を流用する
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${fiefLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+ }
+ renderChoices([]);
+
+ advanceDaysAnimated(days, onArrive);
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; travelState.destLabel = fiefLabel; }
+ travelLog(`<span style="color:#b8a890">徒歩で <span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${fiefLabel}</span> へ出発。所要: ${days}日　費用: 0GP</span>`);
+}
+
+function travelToFief(townId){
+ _fiefTravelAnimated(townId, ()=>enterFiefClearing(townId));
+}
+
+// 整備に向かう場合も同様に、町から領地までの日数分を旅する
+function travelToFiefImprove(townId){
+ _fiefTravelAnimated(townId, ()=>showFiefImprove(townId));
+}
+
+// 免状の状態に応じて、討伐・整備・拠点管理のいずれかへ自動的に振り分ける（旅の選択肢から使う）
+function travelToFiefAny(townId){
+ _fiefTravelAnimated(townId, ()=>{
+  const charter = getFiefCharterByAnchor(townId);
+  if(!charter) return;
+  if(!charter.cleared) enterFiefClearing(townId);
+  else if(!charter.improved) showFiefImprove(townId);
+  else showFiefPlaza(townId);
+ });
+}
+
+// 領地のメインメニュー（通常の町の中央広場に相当）
+function showFiefPlaza(townId){
+ _migrateFiefDataIfNeeded();
+ const charter = getFiefCharterByAnchor(townId);
+ const fiefId = charter?.fiefId;
+ currentNodeId = fiefId ? 'FIEF_PLAZA_'+fiefId.toUpperCase() : 'FIEF_PLAZA'; // セーブ/ロードで広場から正しく再開できるようにする
+ autoSave(); // 領地の広場への到着時にも自動セーブする
+ const prop = fiefId ? PC.properties?.[fiefId] : null;
+ const story = document.getElementById('story');
+ const plazaLabel = prop?.fiefName ? `${prop.fiefName}の広場` : '広場';
+ story.innerHTML = ` <span style="color:#f0ece0">${plazaLabel}</span><br><br>`
+  +`<span style="color:#c8b8a0">かつての砦跡は、今では小さいながらも自分の領地となっている。広場には静けさが漂う。</span><br>`
+  +(prop?.population != null ? `<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">領民：${prop.population}人（${Math.floor(prop.population/5)}家族）</span>` : '');
+ const built = (prop?.facilities||[]).map(id=>FIEF_FACILITIES.find(f=>f.id===id)).filter(Boolean);
+ renderChoices([
+  {label:' 拠点を確認する', fn:()=>goPropertyNode(fiefId)},
+  ...(built.length ? [{label:' 施設を見る', fn:()=>showFiefFacilityList(townId, fiefId)}] : []),
+  {label:'← 町へ戻る', fn:()=>travelBackFromFief(townId)},
+ ]);
+ scrollToTop();
+}
+
+// 建設済みの施設一覧を1つのメニューにまとめて表示する
+function showFiefFacilityList(townId, fiefId){
+ const prop = PC.properties?.[fiefId];
+ const built = (prop?.facilities||[]).map(id=>FIEF_FACILITIES.find(f=>f.id===id)).filter(Boolean);
+ const story = document.getElementById('story');
+ const plazaLabel = prop?.fiefName ? `${prop.fiefName}の施設` : '施設を見る';
+ story.innerHTML = ` <span style="color:#f0ece0">${plazaLabel}</span><br><br>`
+  +`<span style="color:#c8b8a0">どこに行きますか？</span>`;
+ renderChoices([
+  ...built.map(f=>({label:` ${f.name}に行く`, fn:()=>showFiefFacilityVisit(fiefId, f.id)})),
+  {label:'← 広場に戻る', fn:()=>showFiefPlaza(townId)},
+ ]);
+ scrollToTop();
+}
+
+// 広場から、建設済みの施設の様子を見に行く（フレーバーのみ）
+// 施設ごとの、領民の数に応じた接点フレーバー（4段階：閑散／ちらほら／賑わい／活況）
+const FIEF_FACILITY_POP_FLAVOR = {
+ well: [
+  '井戸の周りには誰もいない。桶だけが静かに置かれている。',
+  '井戸端で、領民が一人、桶に水を汲んでいる。目が合うと軽く会釈された。',
+  '井戸端に数人の領民が集まり、水を汲みながら世間話に花を咲かせている。',
+  '井戸の周りは領民でごった返し、水汲みの行列ができている。笑い声が絶えない。',
+ ],
+ rampart: [
+  '防壁の上に人影はない。風の音だけが吹き抜けている。',
+  '防壁の一角で、領民が一人、崩れた箇所を黙々と補修している。',
+  '防壁の上を数人の領民が行き来し、点検や修繕にあたっている。',
+  '防壁沿いには大勢の領民が働いており、活気ある槌音があちこちから響いている。',
+ ],
+ watchtower: [
+  '見張り塔には誰もいない。がらんとした静けさが漂う。',
+  '見張り塔の上に、一人の見張りが退屈そうに遠くを眺めている。',
+  '見張り塔の周りには数人が集まり、交代の順番を待っている。',
+  '見張り塔の下は多くの領民で賑わい、遠方の噂話に花が咲いている。',
+ ],
+ guardpost: [
+  '詰め所はひっそりとして、人の気配がない。',
+  '詰め所の前で、一人の警備が退屈そうに槍にもたれている。',
+  '詰め所には数人の警備が集まり、巡回の打ち合わせをしている。',
+  '詰め所の周りは大勢の領民と警備でごった返し、安心感に満ちた喧騒がある。',
+ ],
+ tavern: [
+  '酒場の扉を開けても、客の姿はまばらだ。',
+  '酒場の隅で、領民が一人、静かに杯を傾けている。',
+  '酒場には数人の領民が集まり、笑い声混じりに酒を酌み交わしている。',
+  '酒場は領民でぎっしりと埋まり、歌声と笑い声が絶え間なく響いている。',
+ ],
+ temple: [
+  '寺院の中はしんと静まり返り、誰の姿もない。',
+  '寺院の片隅で、領民が一人、静かに祈りを捧げている。',
+  '寺院には数人の領民が集まり、それぞれの祈りを捧げている。',
+  '寺院は大勢の領民で埋め尽くされ、祈りの声が堂内に満ちている。',
+ ],
+ market: [
+  '市場には商人の姿も客の姿もなく、閑散としている。',
+  '市場の一角に、一人の行商人が退屈そうに品物を並べている。',
+  '市場には数軒の露店が並び、領民が品定めをしている。',
+  '市場は多くの露店と領民でひしめき、活気ある呼び込みの声が飛び交っている。',
+ ],
+};
+function _fiefFacilityPopFlavor(facilityId, population){
+ const arr = FIEF_FACILITY_POP_FLAVOR[facilityId];
+ if(!arr) return '';
+ const tier = population < 20 ? 0 : population < 100 ? 1 : population < 300 ? 2 : 3;
+ return arr[tier];
+}
+
+function showFiefFacilityVisit(fiefId, facilityId){
+ const f = FIEF_FACILITIES.find(x=>x.id===facilityId);
+ const prop = PC.properties?.[fiefId];
+ const population = prop?.population||0;
+ const popFlavor = _fiefFacilityPopFlavor(facilityId, population);
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${f?.name||'施設'}</span><br><br>`
+  +`<span style="color:#c8b8a0">${f?.desc||''}</span>`
+  +(popFlavor ? `<br><br><span style="color:#b8a888">${popFlavor}</span>` : '');
+ renderChoices([
+  {label:'← 施設一覧に戻る', fn:()=>{
+   const charter = getFiefCharter(fiefId);
+   showFiefFacilityList(charter?.anchorTownId, fiefId);
+  }},
+ ]);
+ scrollToTop();
+}
+
+// 領地から基点の町への帰路。行きと同じ日数をかけて旅する（切り離された遠隔地という位置づけを保つ）
+function travelBackFromFief(anchorTownId){
+ const townId = anchorTownId || getFiefCharter(PC._fiefCharters?.[0]?.fiefId)?.anchorTownId;
+ if(!townId){ go('TOWN_KHAZAN'); return; }
+ const charter = getFiefCharterByAnchor(townId);
+ const days = charter?.anchorDays || 0;
+ const to = TOWNS[townId] || {name:townId};
+ const fiefLabel = (charter && PC.properties?.[charter.fiefId]?.fiefName) || '領地';
+
+ if(days <= 0){ go('TOWN_'+townId.toUpperCase()); return; }
+
+ drawScene('travel');
+ showTravelImage('walk', townId, townId);
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${fiefLabel}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+ }
+ renderChoices([]);
+
+ advanceDaysAnimated(days, ()=>go('TOWN_'+townId.toUpperCase()));
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890">徒歩で <span style="color:#f0ece0">${fiefLabel}</span> → <span style="color:#f0ece0">${to.name}</span> へ出発。所要: ${days}日　費用: 0GP</span>`);
+}
+
+function enterFiefClearing(townId){
+ const _pp = document.getElementById('patron-panel');
+ if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
+
+ const charter = getFiefCharterByAnchor(townId);
+ if(!charter) return;
+ if(!charter._clearingDungeon){
+  charter._clearingDungeon = ydInitDungeonForFief();
+  charter._clearingDungeon.fiefId = charter.fiefId;
+  charter._clearingDungeon.fiefAnchorTownId = townId;
+ }
+ const dung = charter._clearingDungeon;
+
+ const torches = countTorches();
+ const storyEl = document.getElementById('story');
+ const torchMsg = torches > 0
+  ? `<span style="color:#f0ece0"> 松明を ${torches}本 持っている。</span>`
+  : `<span style="color:#e0d0d0"> 松明を持っていない！暗闇の中を進むことになる。</span>`;
+ const killed = dung.killedKeys.filter(k=>PC[k]).length;
+
+ storyEl.innerHTML = `
+  <div style="border:1px solid #484848;border-radius:4px;padding:12px;background:#0c0900">
+   <div style="color:#f0ece0;font-size:var(--font-base);margin-bottom:8px"> 領地の砦跡</div>
+   <div style="color:#c8b8a0;font-size:var(--font-sm);margin-bottom:4px">かつて主を失った石造りの砦。今は山賊や獣が住み着いている。ここを排除できれば、あなた自身の拠点として整備できる。</div>
+   <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">排除：<span style="color:${killed>=dung.targetCount?'var(--gold2)':'var(--dim)'}">${killed}/${dung.targetCount}体</span></div>
+   <div style="font-size:var(--font-sm)">${torchMsg}</div>
+  </div>`;
+
+ renderChoices([
+  { label:' 出発する', fn:()=>{
+   PC._yeldunDungeon = dung;
+   initTorch();
+   ydGoNode(dung.floors[1].entryNodeId, 1);
+  }},
+  { label:'← 町に戻る', fn:()=>travelBackFromFief(townId) },
+ ]);
+ scrollToTop();
+}
+
+// 領地の砦跡を1000GPで最低限の拠点として整備する
+function showFiefImprove(townId){
+ const story = document.getElementById('story');
+ const price = 1000;
+ story.innerHTML = ` <span style="color:#e0d8c8">領地の砦跡</span><br><br>`
+  +`<span style="color:#c8b8a0">敵は排除したが、このままではとても人が住める状態ではない。崩れた壁を直し、最低限の設備を整えれば、拠点として使えるようになるだろう。</span><br><br>`
+  +`<span style="color:#ffcc88">整備費用：${price}GP</span>`;
+ renderChoices([
+  {label:` 整備する（${price}GP）`, fn:()=>{
+   if((PC.gold||0) < price){
+    showSaveToast('所持金が足りない');
+    return;
+   }
+   const charter = getFiefCharterByAnchor(townId);
+   if(!charter) return;
+   PC.gold -= price;
+   PC.properties = PC.properties||{};
+   const startFamilies = d6(); // D6家族
+   const startPop = startFamilies * 5;
+   let fiefName = (prompt('あなたの領地に名前を付けてください。', '') || '').trim();
+   if(!fiefName) fiefName = '無名の領地';
+   PC.properties[charter.fiefId] = { boughtAt:price, day:GAME_TIME.totalDays, tier:0, storage:{ gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 },
+    population: startPop, lastPopQuarterKey: _fiefQuarterKey(GAME_TIME.totalDays), lastTaxMonthKey: _fiefMonthKey(GAME_TIME.totalDays), facilities: [], ledger: [], fiefName };
+   charter.improved = true;
+   delete charter._clearingDungeon;
+   updateHUD();
+   addLifeEvent('', `領地の砦跡を整備し、「${fiefName}」と名付けて自身の拠点とした（領民${startFamilies}家族・${startPop}人が住み着いた）。`);
+   showSaveToast(`「${fiefName}」を整備した！領民${startFamilies}家族（${startPop}人）が住み着いた`);
+   showFiefPlaza(townId);
+  }},
+  {label:'← 町に戻る', fn:()=>travelBackFromFief(townId)},
+ ]);
+}
+
 // 討伐ダンジョン：指定ノードIDへ移動
 function _huntGoNode(nodeIdOrIdx, opts){
  opts = opts||{};
@@ -27393,8 +29051,8 @@ function _huntGoNode(nodeIdOrIdx, opts){
 
  // 魔法ボタンを追加（魔法使い・盗賊）
  const allChoices = [...actionChoices, ...moveChoices];
- if((PC.type==='wizard'||PC.type==='rogue') && PC.spells && PC.spells.length && !cbtState){
-  allChoices.push({ label:' 魔法を使う', fn:()=>openSpellModal('', null), _isMagicBtn:true });
+ if(_eligibleOutOfCombatCasters(node.id).length && !cbtState){
+  allChoices.push({ label:' 魔法を使う', fn:()=>openSpellModal('', null, node.id), _isMagicBtn:true });
  }
  renderChoices(allChoices);
  scrollToTop();
@@ -28477,6 +30135,7 @@ function travelTo(toId, method){
 
 // 移動メニューのノード生成
 function makeTravelChoices(fromId){
+ _migrateFiefDataIfNeeded();
  const MAREA_VILLAGES = ['dorua','sarpe','nebra'];
  const others = Object.keys(TOWNS).filter(id => id !== fromId);
  const choices = [];
@@ -28508,6 +30167,16 @@ function makeTravelChoices(fromId){
  fn:()=>travelTo(toId,'ship'), go:'__travel__'
  });
  }
+ });
+ // 領地：免状の基点となった町ごとに、それぞれ旅の選択肢として表示する（複数の領地があればその数だけ並ぶ）
+ (PC._fiefCharters||[]).filter(c=>c.anchorTownId === fromId).forEach(charter=>{
+  const days = charter.anchorDays || 0;
+  const stageLabel = !charter.cleared ? '（討伐）' : !charter.improved ? '（整備）' : '';
+  const fiefLabel = PC.properties?.[charter.fiefId]?.fiefName || '領地';
+  choices.push({
+   label:` ${fiefLabel}へ 徒歩${stageLabel}（${days}日）`,
+   fn:()=>travelToFiefAny(fromId), go:'__travel__'
+  });
  });
  choices.push({label:'← 戻る', go:'TOWN_'+fromId.toUpperCase()});
  return choices;
@@ -30155,6 +31824,22 @@ function travelTick(){
  };
  choices.appendChild(attack);
 
+ // 噂を聞くボタン（勧誘できる友好的なNPC限定）
+ const rumor = document.createElement('button'); rumor.className='choice-btn';
+ rumor.textContent=` ${npc.epithet?npc.epithet+' ':''}${npc.name} と情報交換する`;
+ rumor.onclick=()=>{
+  ts._pendingNPC=null;
+  choices.innerHTML='';
+  const line = pick(TRAVEL_ROAD_RUMORS);
+  travelLog(`<span style="color:#e8e4d8"> ${npc.name}としばらく立ち話をした。</span><br><span style="color:#c8b8a0">${line}</span>`);
+  renderChoices([{label:'▶ 旅を続ける', fn:()=>{
+   renderChoices([]);
+   ts._resumeWithoutIncrement = true;
+   setTimeout(travelTick, ts.interval);
+  }}]);
+ };
+ choices.appendChild(rumor);
+
  const skip = document.createElement('button'); skip.className='choice-btn';
  skip.textContent='そのまま旅を続ける';
  skip.onclick=()=>{
@@ -30291,8 +31976,9 @@ function travelTick(){
  renderTravelEvents(ts.events);
  hideTravelProgress();
  document.querySelectorAll('.choice-btn').forEach(b=>b.disabled=false);
- // 到着メッセージを旅ログの最新部分に表示（PC.townは出発時点で目的地に更新済み）
- const destTownName = (TOWNS[PC.town]||{}).name || PC.town;
+ // 到着メッセージを旅ログの最新部分に表示（PC.townは出発時点で目的地に更新済み。
+ // 領地への旅はPC.townを変えないため、ts.destLabelがあればそちらを優先する）
+ const destTownName = ts.destLabel || (TOWNS[PC.town]||{}).name || PC.town;
  travelLog(`<span style="color:#f0ece0"> ${destTownName}に到着した。</span>`);
  // 自動遷移せず、旅ログを確認してから「町に入る」ボタンで進めるようにする
  const choices = document.getElementById('choices');
@@ -30317,6 +32003,40 @@ function travelTick(){
 }
 
 // 移動中戦闘：通常のstartCombatを使い、勝利後に移動再開
+// 旅の道中で人型の相手から聞ける、噂・小ネタのプール
+const TRAVEL_ROAD_RUMORS = [
+ '「隣の地方じゃ、山賊の親玉が変わったらしい。前より用心深くなったってもっぱらの噂だ」',
+ '「北の方で妙な光を見た旅人がいるらしい。流れ星にしちゃ長く尾を引いていたそうだ」',
+ '「街道の途中に新しい木戸番所ができたと聞いた。通行料を取られるかもしれないから気をつけろ」',
+ '「最近、腕の立つ傭兵が方々の町で仕事を探しているらしい。景気がいいのか悪いのか」',
+ '「この先の村で、井戸から変な臭いがすると評判になっている。近づかない方がいいかもな」',
+ '「王都の方じゃ、貴族連中が妙にピリピリしているという噂だ。何かあったのかもしれない」',
+ '「ある行商人が、地方をまたいで妙に高く売れる品があるとこぼしていた。詳しくは聞けなかったが」',
+ '「森の奥で狼の遠吠えが増えたと猟師が言っていた。今年の冬は厳しくなるのかもな」',
+ '「宿場町の酒場で、賭け事に強い流れ者がいると評判だ。真剣勝負は避けた方がいい」',
+ '「旧い神殿の跡地で灯りが揺れているのを見た者がいるらしい。盗掘者か、それとも……」',
+ // ── 以下、ゲーム内の実際の仕組みに結びつく噂 ──
+ '「町の酒場に貼ってある討伐依頼、この時期はやたら実入りがいいらしい。腕に覚えがあるなら見ておいて損はない」',
+ '「町の掲示板は、手配書だけじゃなく雑多な貼り紙も同じ場所に並んでいる。たまに掘り出し物の頼まれ事があるそうだ」',
+ '「よそ者でも、その町で名を上げれば『地元の英雄』として遇されるという話だ。信頼を積めば扱いも変わるらしい」',
+ '「地方の中心都市の庁舎では、よほどの功績を積んだ者に領地を与えることがあるらしい。おとぎ話かと思っていたが、本当の話らしいぞ」',
+ '「腕の立つ流れ者は、ギルドに入って正式に稼業を始めることもできる。中心都市には大抵、盗賊ギルドか魔法使いギルドがあるはずだ」',
+ '「賞金首は、ただの噂じゃなく本当にそこら中に潜んでいるらしい。ダンジョンの奥に隠れ家を構えている輩もいると聞く」',
+ '「町外れの空き家を安く買い取って、留守番を置いて暮らしている冒険者もいるそうだ。拠点があると何かと便利らしい」',
+ '「あまりに名を上げすぎた冒険者には、闇から刺客が送られることもあるという。功名も過ぎれば身を滅ぼす、とはよく言ったものだ」',
+ '「珍しい種族の血を引く傭兵を見たという話がある。トロールやオークの血が混じった者は、力だけならただ者じゃないらしい」',
+ '「独り身の冒険者が、行く先々の町で浮いた話を持ちかけられることがあるという。腰を落ち着ける気があるなら悪くない話かもな」',
+ // ── 上位モンスターの噂 ──
+ '「並のホブゴブリンとは格が違う奴を見た。頑丈な鎧を着込んでいて、生半可な武器じゃ弾かれるらしい」',
+ '「森の奥でハーフオークの一団を見た者がいる。人間とオークの混血で、力は生半可なオークの比じゃないそうだ」',
+ '「トロル・レイダーと呼ばれる、武装したトロールの一団が出るという。並の冒険者パーティでは太刀打ちできないと専らの噂だ」',
+ '「エルダー・トロールという古強者がいるらしい。並のトロールとは貫禄からして違う、歴戦の証だという年輪のような傷跡があるとか」',
+ '「オーガ・ブルートと呼ばれる、一際図体のでかいオーガが出るという話だ。並のオーガより数段しぶといらしい」',
+ '「オーク・チャンピオンと呼ばれる手練れが、部族を率いているという噂を聞いた。並のオークの群れとは統率が違うそうだ」',
+ '「ハイ・ゴブリンと呼ばれる、妙に狡猾なゴブリンがいるという。並のゴブリンと侮ると痛い目を見るらしい」',
+ '「討伐依頼の相手は、たまに恐ろしく強い個体が混じっていることがあるという。手強い相手が出た時は、無理せず引き返すのも手だそうだ」',
+];
+
 // 移動中：人間系エンカウントの話術オプション
 function startTravelTalk(enemy, ts){
  drawScene('travel');
@@ -31529,7 +33249,6 @@ function startGame(){
 
  // Wizard starts with all L1 spells
  if(PC.type==='wizard') PC.spells=[...SPELLS_L1];
- if(PC.type==='rogue') PC.spells=[];
  else PC.spells=[];
 
  // 開始街をランダムに決定してPCに記録
@@ -32743,7 +34462,7 @@ function updateHUD(){
  document.getElementById('d-gp').innerHTML=formatMoney();
  document.getElementById('d-lv').textContent=PC.level;
  document.getElementById('d-ap').textContent=PC.ap;
- document.getElementById('hdr-char').textContent=(PC.epithet?PC.epithet+' ':'')+PC.name+' '+(PC.type==='warrior'?'[W]':PC.type==='wizard'?'[M]':PC.type==='rogue'?'[R]':'');
+ document.getElementById('hdr-char').textContent=(PC._nobilityTitle?PC._nobilityTitle+' ':'')+(PC.epithet?PC.epithet+' ':'')+PC.name+' '+(PC.type==='warrior'?'[W]':PC.type==='wizard'?'[M]':PC.type==='rogue'?'[R]':'');
 
  // 食料ポイント
  const food = PC._food || 0;
@@ -32803,7 +34522,7 @@ function updateMiniHUD(){
  const nameEl = document.getElementById('mh-name');
  if(nameEl){
  const typeIcon = PC.type === 'warrior' ? '' : '';
- nameEl.textContent = `${PC.epithet?PC.epithet+' ':''}${PC.name} ${typeIcon} Lv${PC.level}`;
+ nameEl.textContent = `${PC._nobilityTitle?PC._nobilityTitle+' ':''}${PC.epithet?PC.epithet+' ':''}${PC.name} ${typeIcon} Lv${PC.level}`;
  }
  // 日付・年齢
  const dateEl = document.getElementById('mh-date');
@@ -33208,7 +34927,7 @@ function renderStatusPanel(){
  const townName = TOWNS[PC.town]?.name || PC.town;
 
  // ── ステータスタブ ──
- document.getElementById('sp-name').textContent = PC.name;
+ document.getElementById('sp-name').textContent = (PC._nobilityTitle?PC._nobilityTitle+' ':'')+PC.name;
  document.getElementById('sp-epithet').textContent = PC._isRaidUnit ? ' 独立遊撃小隊' : '';
  document.getElementById('sp-subtitle').textContent =
  `${PC.race.toUpperCase()} ${PC.type==='warrior'?' WARRIOR':PC.type==='rogue'?' ROGUE':' WIZARD'} Lv${PC.level}`;
@@ -34490,12 +36209,13 @@ const DUNGEON_EVENTS = [
     const story = document.getElementById('story');
     // モンスター出現
     story.innerHTML += `<div style="color:#f0ddd8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>上の通路で何かが動いた！</b>すぐに足音が近づいてくる……</div>`;
-    setTimeout(()=>{
+    renderChoices([{label:'▶ OK', fn:()=>{
      startCombat({ name:'地下の徘徊者', mr:20, armor:2, isHuman:false, canFlee:true, win:'__noop__', lose:'DEAD',
        onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; _restoreNodeChoices(); }
       });
      renderChoices([]); scrollToTop();
-    }, 2000);
+    }}]);
+    scrollToTop();
     return;
    } else {
     const story = document.getElementById('story');
@@ -34521,12 +36241,13 @@ const DUNGEON_EVENTS = [
     const story = document.getElementById('story');
     // 追跡者：即戦闘
     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>追跡者！</b>背後から足音が迫ってくる——!</div>`;
-    setTimeout(()=>{
+    renderChoices([{label:'▶ OK', fn:()=>{
      startCombat({ name:'追跡者', mr:30, armor:3, isHuman:false, canFlee:true, win:'__noop__', lose:'DEAD',
        onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; _restoreNodeChoices(); }
       });
      renderChoices([]); scrollToTop();
-    }, 2000);
+    }}]);
+    scrollToTop();
     return;
    } else if(roll <= 4){
     // 幻覚：幸運SR、失敗で強さ-3
@@ -34572,7 +36293,7 @@ const DUNGEON_EVENTS = [
     const story = document.getElementById('story');
     // アンデッド
     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>まだ死んでいなかった！</b>近づくと突然動き出した——アンデッドだ！</div>`;
-    setTimeout(()=>{
+    renderChoices([{label:'▶ OK', fn:()=>{
      startCombat({ name:'不死の冒険者', mr:35, armor:2, isHuman:false, canFlee:true,
       win:'__noop__', lose:'DEAD',
       onWin:()=>{
@@ -34584,7 +36305,8 @@ const DUNGEON_EVENTS = [
       },
      });
      renderChoices([]); scrollToTop();
-    }, 2000);
+    }}]);
+    scrollToTop();
     return;
    } else if(roll <= 4){
     const story = document.getElementById('story');
@@ -34643,7 +36365,7 @@ const DUNGEON_EVENTS = [
    if(roll <= 2){
     const story = document.getElementById('story');
     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>食事中のモンスター！</b>近くで何かが死体を食べていた——気づかれた！</div>`;
-    setTimeout(()=>{
+    renderChoices([{label:'▶ OK', fn:()=>{
      startCombat({ name:'腐肉食い', mr:28, armor:1, isHuman:false, canFlee:true,
       win:'__noop__', lose:'DEAD',
       onWin:()=>{
@@ -34655,7 +36377,8 @@ const DUNGEON_EVENTS = [
       },
      });
      renderChoices([]); scrollToTop();
-    }, 2000);
+    }}]);
+    scrollToTop();
     return;
    } else if(roll <= 4){
     const story = document.getElementById('story');
@@ -34777,12 +36500,13 @@ const DUNGEON_EVENTS = [
      const roll = d6();
      if(roll <= 2){
       story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>封じられたもの！</b>壁を壊すと中から危険なモンスターが解放された——！</div>`;
-      setTimeout(()=>{
+      renderChoices([{label:'▶ OK', fn:()=>{
        startCombat({ name:'封印されていた怪物', mr:45, armor:4, isHuman:false, canFlee:false, win:'__noop__', lose:'DEAD',
          onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; _restoreNodeChoices(); }
         });
        renderChoices([]); scrollToTop();
-      }, 2000);
+      }}]);
+      scrollToTop();
       return;
      } else if(roll <= 4){
       const treasure = generateTreasure(30);
@@ -34837,12 +36561,13 @@ const DUNGEON_EVENTS = [
    const roll = d6();
    if(roll <= 2){
     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>狂信者の儀式！</b>近くで邪悪な儀式が行われていた——!</div>`;
-    setTimeout(()=>{
+    renderChoices([{label:'▶ OK', fn:()=>{
      startCombat({ name:'邪教の信徒', mr:32, armor:2, isHuman:true, canFlee:true, win:'__noop__', lose:'DEAD',
        onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; _restoreNodeChoices(); }
       });
      renderChoices([]); scrollToTop();
-    }, 2000);
+    }}]);
+    scrollToTop();
     return;
    } else if(roll <= 4){
     // 聖なる護符：重量1、売値200GP
@@ -34876,12 +36601,13 @@ const DUNGEON_EVENTS = [
    if(roll <= 2){
     const story = document.getElementById('story');
     story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>守護者の目覚め！</b>財宝に触れた瞬間、眠っていた守護者が現れた——！</div>`;
-    setTimeout(()=>{
+    renderChoices([{label:'▶ OK', fn:()=>{
      startCombat({ name:'財宝の守護者', mr:60, armor:6, isHuman:false, canFlee:false, win:'__noop__', lose:'DEAD',
        onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; _restoreNodeChoices(); }
       });
      renderChoices([]); scrollToTop();
-    }, 2000);
+    }}]);
+    scrollToTop();
     return;
    } else if(roll <= 4){
     setupSavingRoll({
@@ -35043,8 +36769,8 @@ function _restoreNodeChoices(){
      ..._restoreActionCh,
      ...(_restoreSuppressMove ? _restoreMoveChRaw.filter(c=>c._alwaysShow) : _restoreMoveChRaw),
     ];
-    if((PC.type==='wizard'||PC.type==='rogue') && PC.spells && PC.spells.length && !cbtState){
-     _ydChoices.push({ label:' 魔法を使う', fn:()=>openSpellModal('', null), _isMagicBtn:true });
+    if(_eligibleOutOfCombatCasters(nodeId).length && !cbtState){
+     _ydChoices.push({ label:' 魔法を使う', fn:()=>openSpellModal('', null, nodeId), _isMagicBtn:true });
     }
     renderChoices(_ydChoices);
     updateHUD();
@@ -35179,6 +36905,8 @@ function startAsNPC(npcIdx){
 
  // 前のキャラクターが最後にいた町を引き継ぐ（Object.assign前に確保しておく）
  const lastTown = PC.town || ws.lastTown || 'khazan';
+ // 爵位は血縁の子にのみ引き継がせるため、クリアされる前に確保しておく
+ const inheritedNobilityTitle = PC._nobilityTitle || null;
 
  // GAME_TIMEを引き継ぐ
  GAME_TIME.totalDays = ws.totalDays;
@@ -35232,6 +36960,11 @@ function startAsNPC(npcIdx){
    family: `冒険者「${parentName}」の子として生まれ育った。${parentGone ? '親の背中を追い、自らも剣を取ることを決めた。' : '親から冒険の心得を受け継ぎ、自らも旅立つことにした。'}`,
    motive: (PC.background && PC.background.motive) || pick(parentGone ? HEIR_MOTIVE_DEAD : HEIR_MOTIVE_RETIRED)
   };
+  // 爵位は血縁の子にのみ引き継がれる（ゲーム内世代交代でも家督として継承される扱い）
+  if(inheritedNobilityTitle){
+   PC._nobilityTitle = inheritedNobilityTitle;
+   addLifeEvent('', `親より「${inheritedNobilityTitle}」の爵位を継いだ。`);
+  }
  }
 
  // ワールドからこのNPCを除去
@@ -35790,10 +37523,25 @@ function _redrawDungeonNode(nodeId){
 }
 
 // 通常ノードのchoices配列にウィザード用魔法ボタンを末尾追加
+// 戦闘外で呪文を唱えられる候補（PC＋パーティNPC）を返す
+// 魔法使い・盗賊とも場所を問わない（盗賊のダンジョン限定という制約は、クラス説明文にも根拠がなかったため撤廃）
+// 呪文を持たない・生存していない者は除外
+function _eligibleOutOfCombatCasters(nodeId){
+ const isEligible = (c) => {
+  if(!c || !c.spells || !c.spells.length) return false;
+  return c.type === 'wizard' || c.type === 'rogue';
+ };
+ const list = [];
+ if(isEligible(PC)) list.push(PC);
+ (PC.party||[]).forEach(n=>{
+  if(n.con > 0 && isEligible(n)) list.push(n);
+ });
+ return list;
+}
+
 function _appendMagicChoice(choices, node, nodeId){
- const isWizard = PC.type === 'wizard';
- const isRogueInDungeon = PC.type === 'rogue' && DUNGEON_NODES && DUNGEON_NODES.has && DUNGEON_NODES.has(nodeId);
- if((!isWizard && !isRogueInDungeon) || !PC.spells || !PC.spells.length) return choices;
+ const casters = _eligibleOutOfCombatCasters(nodeId);
+ if(!casters.length) return choices;
  if(cbtState) return choices; // 戦闘中は追加しない
  // 特殊ノードや装備屋・旅中は追加しない
  const skip = ['DEAD','RESTART','START'].some(s=>nodeId===s)
@@ -35807,7 +37555,7 @@ function _appendMagicChoice(choices, node, nodeId){
  const context = node.spellContext || '';
  return [...choices, {
   label: ' 魔法を使う',
-  fn: () => openSpellModal(context, spellEffects),
+  fn: () => openSpellModal(context, spellEffects, nodeId),
   _isMagicBtn: true,
  }];
 }
@@ -37233,10 +38981,12 @@ function updateCombatUINPC(){
   // 1ターン目以降にCON表示
   const hpLabel = cs.turn>=1 ? `体力 ${Math.max(0,e.curCon)}/${e.maxCon}` : `体力 ?`;
   const typeJa  = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[e.type]||'';
+  const raceJa  = e.race ? ({human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'}[e.race]||e.race) : '';
+  const subLabel = [raceJa, typeJa].filter(Boolean).join('・');
   const w = e.equippedWeapons?.[0];
   const wLabel = w ? w.name : '素手';
   return `<div style="margin-top:4px">
-  <div class="hp-lbl" style="color:${dead?'#555':'var(--white)'}">${dead?'':''} ${e.name}${typeJa?' ('+typeJa+')':''}: ${hpLabel}</div>
+  <div class="hp-lbl" style="color:${dead?'#555':'var(--white)'}">${dead?'':''} ${e.name}${subLabel?' ('+subLabel+')':''}: ${hpLabel}</div>
   <div style="font-size:calc(var(--font-sm) - 3px);color:#c8b8a0;margin-bottom:2px">武器:${wLabel}　防護:${calcNPCArmor(e)}</div>
   <div class="hp-bar-wrap"><div class="hp-bar-fill enemy" style="width:${pct}%;background:${col}"></div></div>
   </div>`;
@@ -38375,17 +40125,45 @@ function showCombatOK(callback){
 
 // 非戦闘時の呪文モーダルを開く
 // nodeSpellEffects: そのノードでの効果テーブル { spellFnName: {desc, fn} }
-function openSpellModal(context, nodeSpellEffects){
- if((PC.type!=='wizard' && PC.type!=='rogue') || !PC.spells.length) return;
+function openSpellModal(context, nodeSpellEffects, nodeId){
+ const casters = _eligibleOutOfCombatCasters(nodeId != null ? nodeId : currentNodeId);
+ if(!casters.length) return;
+ if(casters.length === 1){
+  _openSpellModalFor(casters[0], context, nodeSpellEffects, nodeId);
+  return;
+ }
+ // 唱える者が複数いる場合は先に選ばせる
+ const modal = document.getElementById('spell-modal');
+ const ctxEl = document.getElementById('spell-modal-ctx');
+ const listEl = document.getElementById('spell-modal-list');
+ ctxEl.textContent = '誰が唱えますか？';
+ listEl.innerHTML = '';
+ casters.forEach(c=>{
+  const btn = document.createElement('button');
+  btn.className = 'sm-spell-btn';
+  const typeJa = {wizard:'魔法使い', rogue:'盗賊'}[c.type] || c.type;
+  btn.innerHTML = `
+   <span class="sm-name">${c===PC ? `${c.name}（あなた）` : c.name}</span>
+   <span class="sm-desc">${typeJa}　ST ${c.st}</span>`;
+  btn.addEventListener('click', () => {
+   _openSpellModalFor(c, context, nodeSpellEffects, nodeId);
+  });
+  listEl.appendChild(btn);
+ });
+ modal.classList.add('open');
+}
+
+function _openSpellModalFor(caster, context, nodeSpellEffects, nodeId){
  const modal = document.getElementById('spell-modal');
  const ctxEl = document.getElementById('spell-modal-ctx');
  const listEl = document.getElementById('spell-modal-list');
 
- ctxEl.textContent = context || '呪文を選択してください';
+ ctxEl.textContent = (context || '呪文を選択してください') + (caster!==PC ? `（${caster.name}）` : '');
  listEl.innerHTML = '';
 
- PC.spells.forEach(sp => {
-  const canAfford = PC.st > sp.cost;
+ caster.spells.forEach(sp => {
+  const isUnlockTrap = sp.fn === 'knockKnock' && !!_findUnlockableTrapContext(nodeId);
+  const canAfford = isUnlockTrap ? caster.st > 2 : caster.st > sp.cost;
   const effect = nodeSpellEffects && nodeSpellEffects[sp.fn];
   const btn = document.createElement('button');
   btn.className = 'sm-spell-btn';
@@ -38393,12 +40171,16 @@ function openSpellModal(context, nodeSpellEffects){
 
   btn.innerHTML = `
    <span class="sm-name">${sp.name}</span>
-   <span class="sm-desc">${sp.desc}</span>
-   <span class="sm-cost">ST -${sp.cost}　（現在ST ${PC.st}）</span>`;
+   <span class="sm-desc">${isUnlockTrap ? '気づいている罠を解除する（レベルを選択）' : sp.desc}</span>
+   <span class="sm-cost">${isUnlockTrap ? 'ST -2×レベル' : `ST -${sp.cost}`}　（現在ST ${caster.st}）</span>`;
 
   btn.addEventListener('click', () => {
-   closeSpellModal();
-   castSpellOutOfCombat(sp, effect);
+   if(isUnlockTrap){
+    _openUnlockLevelSelect(caster, nodeId);
+   } else {
+    closeSpellModal();
+    castSpellOutOfCombat(sp, effect, caster, nodeId);
+   }
   });
   listEl.appendChild(btn);
  });
@@ -38410,10 +40192,103 @@ function closeSpellModal(){
  document.getElementById('spell-modal').classList.remove('open');
 }
 
-// 非戦闘時の呪文発動
-function castSpellOutOfCombat(spell, effect){
- const discCost = _applyStaffDiscount(PC, spell.cost);
- PC.st = Math.max(0, PC.st - discCost);
+// ── Unlockによる罠解除 ──
+// 「気づいている」罠のみ対象（notice未了の罠には使えない）。街区探索（room内埋め込み）と
+// 旧来のダンジョン独立トラップノード、両方に対応する
+function _findUnlockableTrapContext(nodeId){
+ const dung = PC._yeldunDungeon;
+ if(!dung) return null;
+ const floor = dung.currentFloor;
+ const node = ydGetNode(floor, nodeId);
+ if(!node) return null;
+ if(node.type==='room' && node.roomContent==='trap' && node.trapKey){
+  const noticed = PC[node.trapKey+'_noticed'];
+  const resolved = PC[node.trapKey];
+  if(noticed && !resolved) return { kind:'room', node, floor, requiredLevel: node.trapLevel||floor };
+ }
+ if(node.type==='trap' && node.trapKey && !PC[node.trapKey]){
+  return { kind:'classic', node, floor, requiredLevel: node.trapLevel||floor };
+ }
+ return null;
+}
+
+// Unlockのレベル選択画面（罠が対象の場合のみ呼ばれる）
+function _openUnlockLevelSelect(caster, nodeId){
+ const modal = document.getElementById('spell-modal');
+ const ctxEl = document.getElementById('spell-modal-ctx');
+ const listEl = document.getElementById('spell-modal-list');
+ ctxEl.textContent = '罠の解除に必要な強さでUnlockを唱える' + (caster!==PC?`（${caster.name}）`:'');
+ listEl.innerHTML = '';
+ const maxLv = caster.type === 'rogue' ? 1 : (caster.level||1);
+ for(let lv=1; lv<=maxLv; lv++){
+  const cost = 2*lv;
+  const canAfford = caster.st > cost;
+  const btn = document.createElement('button');
+  btn.className = 'sm-spell-btn';
+  btn.disabled = !canAfford;
+  btn.innerHTML = `
+   <span class="sm-name">Lv${lv}</span>
+   <span class="sm-cost">ST -${cost}　（現在ST ${caster.st}）</span>`;
+  btn.addEventListener('click', () => {
+   closeSpellModal();
+   _castUnlockAtLevel(caster, lv, cost, nodeId);
+  });
+  listEl.appendChild(btn);
+ }
+ modal.classList.add('open');
+}
+
+function _castUnlockAtLevel(caster, lv, cost, nodeId){
+ const ctx = _findUnlockableTrapContext(nodeId);
+ caster.st = Math.max(0, caster.st - cost);
+ gainAPAll(cost);
+ updateHUD();
+ if(!ctx) return; // 罠が既に解決済み等、状況が変わっていた場合は何もしない
+ const story = document.getElementById('story');
+ const { kind, node, floor, requiredLevel } = ctx;
+ const success = lv >= requiredLevel;
+ const casterLabel = caster!==PC ? `${caster.name}の詠唱。` : '';
+
+ if(kind === 'room'){
+  const trapData = node.trap || ydRollTrap(floor);
+  if(success){
+   PC[node.trapKey] = true;
+   const trapName = node.trap?.label || '罠';
+   story.innerHTML += `<br><span style="color:#f0ece0">【${trapName}】がUnlockによって解除された！${casterLabel}</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+  } else {
+   PC[node.trapKey] = true;
+   const res = trapData.result || ydRollTrap(floor).result;
+   story.innerHTML += `<br><span style="color:#e0d0d0">呪文の力が及ばず、罠が発動した！${res.msg}</span>`;
+   if(!_ydApplyTrapResult(res, node, floor)) return;
+   if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
+   renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+  }
+ } else if(kind === 'classic'){
+  const _tk = node.trapKey;
+  if(success){
+   PC[_tk] = true;
+   story.innerHTML += `<br><b>【${node.trapName}】をUnlockで解除した！</b>${casterLabel}`;
+   renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+  } else {
+   PC[_tk] = true;
+   const dmg = floor + Math.floor(Math.random()*floor*2+1);
+   PC.con = Math.max(0, PC.con-dmg); updateHUD();
+   PC[_tk+'_dmg'] = dmg;
+   story.innerHTML += `<br><span style="color:#e0d0d0">呪文の力が及ばず、罠が発動した！【${node.trapName}】CON-${dmg}</span>`;
+   if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
+   renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+  }
+ }
+ scrollToTop();
+}
+
+// 非戦闘時の呪文発動（casterはPCまたはパーティNPC。未指定ならPC）
+function castSpellOutOfCombat(spell, effect, caster, nodeId){
+ caster = caster || PC;
+ const casterLabel = caster !== PC ? `${caster.name}が` : '';
+ const discCost = _applyStaffDiscount(caster, spell.cost);
+ caster.st = Math.max(0, caster.st - discCost);
  gainAPAll(spell.cost);
  updateHUD();
 
@@ -38422,11 +40297,11 @@ function castSpellOutOfCombat(spell, effect){
 
  // ダンジョン専用呪文（fn基準で直接処理）
  if(spell.fn === 'poorBaby'){
-  if(PC.con >= PC.maxCon){
-   PC.st += spell.cost; // 効果不発のためST返還
+  if(caster.con >= caster.maxCon){
+   caster.st += spell.cost; // 効果不発のためST返還
    resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #585858;border-radius:4px">
     <div style="color:var(--white);font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
-    <div style="color:var(--white2);font-size:var(--font-sm)">体力はすでに最大値です。</div>
+    <div style="color:var(--white2);font-size:var(--font-sm)">${casterLabel}体力はすでに最大値です。</div>
    </div>`;
    story.innerHTML += resultHtml;
    updateHUD();
@@ -38434,12 +40309,12 @@ function castSpellOutOfCombat(spell, effect){
    return;
   }
   let healed = 0;
-  while(PC.st >= 2 && PC.con < PC.maxCon){
-   PC.st -= 2; PC.con++; healed++;
+  while(caster.st >= 2 && caster.con < caster.maxCon){
+   caster.st -= 2; caster.con++; healed++;
   }
   resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
    <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
-   <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">体力+${healed}回復！（体力 ${PC.con}/${PC.maxCon}）</div>
+   <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${casterLabel}体力+${healed}回復！（${caster!==PC?`${caster.name}の`:''}体力 ${caster.con}/${caster.maxCon}）</div>
   </div>`;
   story.innerHTML += resultHtml;
   updateHUD();
@@ -38456,7 +40331,7 @@ function castSpellOutOfCombat(spell, effect){
    </div>`;
    story.innerHTML += resultHtml;
    scrollToTop();
-   _redrawDungeonNode(currentNodeId);
+   renderChoices([{label:'▶ OK', fn:()=>_redrawDungeonNode(currentNodeId)}]);
   } else {
    resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #585858;border-radius:4px">
     <div style="color:var(--white);font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
@@ -38472,7 +40347,7 @@ function castSpellOutOfCombat(spell, effect){
  if(effect && typeof effect.fn === 'function'){
   const fnResult = effect.fn();
   resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
-   <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
+   <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>
    <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${typeof fnResult==='string'?fnResult:(effect.desc||'')}</div>
    <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">ST -${spell.cost}　経験値+${spell.cost}</div>
   </div>`;
@@ -38483,10 +40358,10 @@ function castSpellOutOfCombat(spell, effect){
    const ac = typeof effect.afterChoices === 'function' ? effect.afterChoices() : effect.afterChoices;
    renderChoices(ac);
   } else {
-   PC._pendingMsg = (PC._pendingMsg||'') + resultHtml;
+   // 結果を確認できるよう、自動タイムアウトではなく「▶ OK」ボタンを挟んでから再描画する
    // currentNodeIdはダンジョン（yd/ハント）に入る前の街ノードIDが残ったままのことがあるため、
    // ダンジョン系の状態を優先してチェックする
-   setTimeout(()=>{
+   renderChoices([{label:'▶ OK', fn:()=>{
     if(PC._yeldunDungeon && _ydState && _ydState.nodeId){
      ydGoNode(_ydState.nodeId, _ydState.floor);
     } else if(window._currentHuntNode){
@@ -38496,7 +40371,7 @@ function castSpellOutOfCombat(spell, effect){
     } else {
      go(currentNodeId);
     }
-   }, 400);
+   }}]);
   }
   return;
  }
@@ -38510,7 +40385,7 @@ function castSpellOutOfCombat(spell, effect){
  ];
  const flavor = flavors[Math.floor(Math.random()*flavors.length)];
  resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #585858;border-radius:4px">
-  <div style="color:var(--white);font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
+  <div style="color:var(--white);font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>
   <div style="color:var(--white2);font-size:var(--font-sm)">${flavor}</div>
   <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">ST -${spell.cost}　経験値+${spell.cost}</div>
  </div>`;
@@ -38518,10 +40393,10 @@ function castSpellOutOfCombat(spell, effect){
  story.innerHTML += resultHtml;
  scrollToTop();
 
- // 選択肢を再描画（魔法ボタン維持）
+ // 結果を確認できるよう、自動タイムアウトではなく「▶ OK」ボタンを挟んでから再描画する
  // ※currentNodeIdはダンジョン（yd/ハント）に入る前の街ノードIDが残ったままになることがあるため、
  //   ダンジョン系の状態を先にチェックしてから、通常ノード（NODES）にフォールバックする
- setTimeout(()=>{
+ const redraw = ()=>{
   if(PC._yeldunDungeon && _ydState && _ydState.nodeId){
    ydGoNode(_ydState.nodeId, _ydState.floor);
   } else if(window._currentHuntNode){
@@ -38537,7 +40412,8 @@ function castSpellOutOfCombat(spell, effect){
     go(currentNodeId);
    }
   }
- }, 200);
+ };
+ renderChoices([{label:'▶ OK', fn:redraw}]);
 }
 
 // renderChoicesをウィザード対応に拡張するヘルパー
@@ -47704,6 +49580,9 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceBountyHideout('stonehiem','oldtown');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">賞金首アジト強制遭遇（要：受注中の賞金首依頼）</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceEliteHunt('stonehiem');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">NPC型精鋭討伐依頼を強制発行して出発</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceTownMiniQuest('stonehiem','oldtown');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">町完結ミニ依頼を強制受注して解決ノードへ</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';PC._heroTowns=PC._heroTowns||{};PC._heroTowns['khazan']=true;PC.town='khazan';showRegionalPalace('khazan');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">カザーヌで英雄扱いにして庁舎へ</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';PC._fiefCharters=PC._fiefCharters||[];PC._fiefCharters.push({fiefId:fiefIdForAnchor('khazan'),regionKey:'khazan_region',townId:'khazan',anchorTownId:'khazan',anchorDays:20,obtainedDay:GAME_TIME.totalDays});PC.town='khazan';enterFiefClearing('khazan');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">封地免状を強制取得して砦跡討伐へ</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';const c=(PC._fiefCharters||[])[0];if(c){PC.properties[c.fiefId].population=850;_updateNobilityTitle();updateHUD();showSaveToast('先頭の領地の領民を850人に設定・称号を再計算：'+(PC._nobilityTitle||'なし'));}else{showSaveToast('先に領地を取得してください');}})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">先頭の領地の領民を850人にして称号チェック</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVaineEncounter();})" class="dbg-btn" style="border-color:#443300;color:#d8c088">空虚な鎧ヴェインとの遭遇を強制発生</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceLocalWanted('stonehiem','oldtown');})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">ローカル手配犯強制遭遇（旧市街）</button>
    <button onclick="dbg(()=>{PC._localWantedBoards=null;showSaveToast('手配書をリセット（次回訪問時に再生成）')})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">手配書リセット</button>
