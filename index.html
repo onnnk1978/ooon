@@ -631,7 +631,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026083008</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026083042</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -3500,8 +3500,8 @@ function startChaosNestBattle(townId){
 
 // ── 闘技場 共通データ ──
 const ARENA_RANKS = {
- warrior:     { name:'戦士',       minLv:1,  maxLv:3,  feePerPerson:2,   prizeBase:1 },
- swordmaster: { name:'剣豪',       minLv:4,  maxLv:6,  feePerPerson:5,   prizeBase:3 },
+ warrior:     { name:'戦士',       minLv:1,  maxLv:3,  feePerPerson:5,   prizeBase:10 },
+ swordmaster: { name:'剣豪',       minLv:4,  maxLv:6,  feePerPerson:10,  prizeBase:20 },
  hero:        { name:'英雄',       minLv:7,  maxLv:9,  feePerPerson:10,  prizeBase:5 },
  champion:    { name:'チャンピオン', minLv:10, maxLv:12, feePerPerson:50,  prizeBase:25 },
  grandhero:   { name:'大英雄',     minLv:13, maxLv:15, feePerPerson:100, prizeBase:50 },
@@ -3532,6 +3532,13 @@ function getRegionCapitalName(townId){
  if(!regionKey || !HERO_REGIONS[regionKey]) return null;
  const capitalId = HERO_REGIONS[regionKey].towns.find(t=>REGION_CAPITAL_TOWNS.includes(t));
  return capitalId ? (TOWNS[capitalId]?.name || null) : null;
+}
+
+// townIdが属する地方の中心都市の「町ID」を返す（中規模闘技場の解禁判定に使う）
+function getRegionCapitalId(townId){
+ const regionKey = getRegionKey(townId);
+ if(!regionKey || !HERO_REGIONS[regionKey]) return null;
+ return HERO_REGIONS[regionKey].towns.find(t=>REGION_CAPITAL_TOWNS.includes(t)) || null;
 }
 
 // 闘技場の週次クールダウン（残り日数。0なら挑戦可能）
@@ -3648,10 +3655,10 @@ function _arenaComputeOdds(sideEast, sideWest){
  const probEast = pe/total;
  const probWest = pw/total;
  const houseEdge = 0.85; // 胴元の取り分
- const clamp = v => Math.round(Math.max(1.2, Math.min(5, v))*10)/10;
+ const clamp = v => Math.round(Math.max(1.05, Math.min(1.5, v))*100)/100;
  return {
-  oddsEast: clamp((1/Math.max(0.05,probEast))*houseEdge),
-  oddsWest: clamp((1/Math.max(0.05,probWest))*houseEdge),
+  oddsEast: clamp((1/Math.max(0.3,probEast))*houseEdge),
+  oddsWest: clamp((1/Math.max(0.3,probWest))*houseEdge),
  };
 }
 
@@ -3739,30 +3746,62 @@ function arenaWatchResolveRound(){
  w.round++;
  let log = `<b>── ラウンド${w.round} ──</b> <span onclick="var d=document.getElementById('arena-watch-detail');if(d){d.style.display=d.style.display==='none'?'':'none';}" style="cursor:pointer;font-size:var(--font-sm);color:#d0c8b8;border:1px solid #c0b098;border-radius:2px;padding:1px 4px;margin-left:4px">詳細</span><br>`;
  let detail = '';
+ let sideBonusEast = 0, sideBonusWest = 0; // Detonate/Ice Bind/Atomizationの近接判定への上乗せ分
 
- // ── 魔法フェーズ：両陣営のwizard型を素早さ順にまとめて処理 ──
+ // ── 魔法フェーズ：両陣営のwizard型を素早さ順にまとめて処理（使える攻撃魔法からランダム）──
  const casters = [
   ..._arenaWatchAlive(w.sideEast).filter(n=>n.type==='wizard').map(n=>({n, side:'東'})),
   ..._arenaWatchAlive(w.sideWest).filter(n=>n.type==='wizard').map(n=>({n, side:'西'})),
  ].sort((a,b)=>(b.n.spd||0)-(a.n.spd||0));
 
+ const spDisplayNames = {ttyf:'Magic Bolt', blastingPower:'Detonate', freezePleeze:'Ice Bind', turnToStone:'Turn to Stone', atomization:'Atomization'};
+
  casters.forEach(({n, side})=>{
   if(n.curCon<=0) return;
   const npcLv = n.level||1;
-  const cost = 6*npcLv;
-  if((n.st||0) <= cost) return;
-  n.st -= cost;
+  const picked = (typeof _npcPickAttackSpell==='function') ? _npcPickAttackSpell(n, (typeof NPC_ATTACK_SPELL_FNS_VS_ENEMY!=='undefined')?NPC_ATTACK_SPELL_FNS_VS_ENEMY:['ttyf']) : null;
+  if(!picked) return;
+  n.st -= picked.cost;
   const targets = _arenaWatchAlive(side==='東' ? w.sideWest : w.sideEast);
   if(targets.length===0) return;
   const target = targets[Math.floor(Math.random()*targets.length)];
-  const dmg = (n.iq||0)*npcLv;
-  const dr = _arenaWatchDodgeRoll(npcLv, target);
-  detail += `　<span style="color:#c8b8a0">[魔法] ${n.name}（${side}）→${target.name}：IQ${n.iq||0}×Lv${npcLv}=${dmg}／回避判定[${dr.diceA},${dr.diceB}]+運(${target.lk||0})=${dr.grand} vs ${dr.targetVal} → ${dr.success?'回避成功':'被弾'}</span><br>`;
-  if(dr.success){
-   log += `<span style="color:#c8b8a0">${n.name}のMagic Boltを${target.name}が回避！</span><br>`;
-  } else {
-   target.curCon = Math.max(0, target.curCon - dmg);
-   log += `<span style="color:#e0a070">${n.name}のMagic Boltが${target.name}に直撃！（-${dmg}）</span><br>`;
+  const spName = spDisplayNames[picked.fn] || picked.name;
+
+  if(picked.fn === 'ttyf'){
+   const dmg = (n.iq||0)*npcLv;
+   const dr = _arenaWatchDodgeRoll(npcLv, target);
+   detail += `　<span style="color:#c8b8a0">[魔法:${spName}] ${n.name}（${side}）→${target.name}：IQ${n.iq||0}×Lv${npcLv}=${dmg}／回避判定[${dr.diceA},${dr.diceB}]+運(${target.lk||0})=${dr.grand} vs ${dr.targetVal} → ${dr.success?'回避成功':'被弾'}</span><br>`;
+   if(dr.success){
+    log += `<span style="color:#c8b8a0">${n.name}の${spName}を${target.name}が回避！</span><br>`;
+   } else {
+    target.curCon = Math.max(0, target.curCon - dmg);
+    log += `<span style="color:#e0a070">${n.name}の${spName}が${target.name}に直撃！（-${dmg}）</span><br>`;
+   }
+  } else if(picked.fn === 'blastingPower' || picked.fn === 'freezePleeze'){
+   const dmg = Nd6(npcLv);
+   if(side==='東') sideBonusEast += dmg; else sideBonusWest += dmg;
+   detail += `　<span style="color:#c8b8a0">[魔法:${spName}] ${n.name}（${side}）：${npcLv}D6=${dmg}を近接判定に上乗せ</span><br>`;
+   log += `<span style="color:#e0a070">${n.name}が${spName}を詠唱！（${side}軍の近接判定に${dmg}上乗せ）</span><br>`;
+  } else if(picked.fn === 'turnToStone'){
+   const dr = _arenaWatchDodgeRoll(6, target);
+   detail += `　<span style="color:#c8b8a0">[魔法:${spName}] ${n.name}（${side}）→${target.name}：回避判定[${dr.diceA},${dr.diceB}]+運(${target.lk||0})=${dr.grand} vs ${dr.targetVal} → ${dr.success?'回避成功':'石化'}</span><br>`;
+   if(dr.success){
+    log += `<span style="color:#c8b8a0">${target.name}は咄嗟に身をこわばらせ、${n.name}の${spName}を逃れた！</span><br>`;
+   } else {
+    target.curCon = 0;
+    log += `<span style="color:#e0a070">${n.name}の${spName}で${target.name}が石と化した！戦闘から除外される。</span><br>`;
+   }
+  } else if(picked.fn === 'atomization'){
+   const dr = _arenaWatchDodgeRoll(7, target);
+   const heatDmg = Nd6(npcLv);
+   if(side==='東') sideBonusEast += heatDmg; else sideBonusWest += heatDmg;
+   detail += `　<span style="color:#c8b8a0">[魔法:${spName}] ${n.name}（${side}）→${target.name}：回避判定[${dr.diceA},${dr.diceB}]+運(${target.lk||0})=${dr.grand} vs ${dr.targetVal} → ${dr.success?'回避成功（熱のみ残る）':'消滅'}／熱で近接に${heatDmg}上乗せ</span><br>`;
+   if(dr.success){
+    log += `<span style="color:#e0a070">${target.name}は間一髪で${n.name}の${spName}を逃れた！しかしその空間にあったものは分解され、${side}軍の近接判定に${heatDmg}上乗せ！</span><br>`;
+   } else {
+    target.curCon = 0;
+    log += `<span style="color:#e0a070">${n.name}の${spName}で${target.name}が消滅した！発生した熱で${side}軍の近接判定に${heatDmg}上乗せ！</span><br>`;
+   }
   }
  });
 
@@ -3806,10 +3845,10 @@ function arenaWatchResolveRound(){
  if(meleeEast.length>0 && meleeWest.length>0){
   const rollsEast = meleeEast.map(n=>({n, rv:calcNPCRoll(n)}));
   const rollsWest = meleeWest.map(n=>({n, rv:calcNPCRoll(n)}));
-  const rollEast = rollsEast.reduce((s,r)=>s+r.rv.total, 0);
-  const rollWest = rollsWest.reduce((s,r)=>s+r.rv.total, 0);
-  detail += `　<span style="color:#c8b8a0">[近接] 東：${rollsEast.map(r=>`${r.n.name}[${r.rv.dice.join(',')}]=${r.rv.total}`).join('、')}</span><br>`;
-  detail += `　<span style="color:#c8b8a0">[近接] 西：${rollsWest.map(r=>`${r.n.name}[${r.rv.dice.join(',')}]=${r.rv.total}`).join('、')}</span><br>`;
+  const rollEast = rollsEast.reduce((s,r)=>s+r.rv.total, 0) + sideBonusEast;
+  const rollWest = rollsWest.reduce((s,r)=>s+r.rv.total, 0) + sideBonusWest;
+  detail += `　<span style="color:#c8b8a0">[近接] 東：${rollsEast.map(r=>`${r.n.name}[${r.rv.dice.join(',')}]=${r.rv.total}`).join('、')}${sideBonusEast>0?`　魔法上乗せ+${sideBonusEast}`:''}</span><br>`;
+  detail += `　<span style="color:#c8b8a0">[近接] 西：${rollsWest.map(r=>`${r.n.name}[${r.rv.dice.join(',')}]=${r.rv.total}`).join('、')}${sideBonusWest>0?`　魔法上乗せ+${sideBonusWest}`:''}</span><br>`;
   log += `<span style="color:#c0b098">近接：東 ${rollEast} vs 西 ${rollWest}</span><br>`;
   if(rollEast > rollWest){
    const dmg = rollEast - rollWest;
@@ -3897,7 +3936,10 @@ function arenaChallengeRank(rankKey, returnNodeId, arenaTitle, townId){
     }
    } else if(isHighest && streak>0 && streak%5===0){
     const capitalName = getRegionCapitalName(townId);
-    if(capitalName){
+    const capitalId = getRegionCapitalId(townId);
+    if(capitalName && capitalId){
+     if(!PC._arenaRecommended) PC._arenaRecommended = {};
+     PC._arenaRecommended[capitalId] = true;
      extraMsg = `<br><br><span style="color:#e0d8c8">観客の一人が声をかけてきた。「これだけ連勝するとはな……お前は、${capitalName}の闘技場に行くべきだ」</span>`;
     }
    }
@@ -7851,6 +7893,7 @@ function checkPartyDepartureCandidate(){
  const candidates = [];
  (PC.party||[]).forEach(npc=>{
   if(npc.con<=0) return;
+  if(npc._isTemporaryCompanion) return; // 同行者募集・同行配達の一時的な同行者は独立希望を出さない
   if(isNpcPcSpouse(npc)) return; // 配偶者・PCの子の父/母となるNPCは離脱しない
   if(npc._departureCooldownUntil && npc._departureCooldownUntil > GAME_TIME.totalDays) return;
   evalDepartureReasons(npc).forEach(reason=>candidates.push({npc, reason}));
@@ -8093,6 +8136,17 @@ function _recruitFormerCompanionChild(npc, townId){
 
 function rollNPCStat(base=8){ return base + Nd6(2) - 2; }
 
+// レベル2以上のNPC wizardは、自身のレベル÷2（切り捨て）までの呪文レベルを全てマスターしている
+function _npcSpellsForLevel(level){
+ const maxSpellLv = Math.floor((level||1) / 2);
+ let spells = SPELLS_L1.map(s=>({...s}));
+ for(let lv=2; lv<=Math.min(maxSpellLv, 7); lv++){
+  const table = SPELL_LEVEL_TABLES[lv];
+  if(table) spells = spells.concat(table.map(s=>({...s})));
+ }
+ return spells;
+}
+
 function generateNPC(level=1){
  // 通常はNPC_RACESから、ごく低確率（0.5%）でモンスター種族が紛れ込む
  const race = (Math.random() < 0.005)
@@ -8107,7 +8161,7 @@ function generateNPC(level=1){
  iq: rollNPCStat(8 + (level-1)*2),
  lk: rollNPCStat(8),
  con: rollNPCStat(8 + (level-1)*2),
- dex: rollNPCStat(8),
+ dex: rollNPCStat(8 + (level-1)*2),
  chr: rollNPCStat(8),
  spd: rollNPCStat(8),
  };
@@ -8171,10 +8225,7 @@ function generateNPC(level=1){
  arrows: npcArrows,
  invWeapons: type!=='wizard' ? [] : weapons,
  invArmors: [],
- spells: type==='wizard' ? SPELLS_L1.map(s=>({...s})) : [],
- background: rollBackground(race, type),
- alignment_ethics: Math.floor((Math.random()-0.5)*60), // NPCはランダム初期値
- alignment_order:  Math.floor((Math.random()-0.5)*60),
+ spells: type==='wizard' ? _npcSpellsForLevel(level) : [],
  ...(_rollMarriagePref()),
  _npcId: Date.now() + Math.random(),
  birthDay: GAME_TIME.totalDays - Math.floor((18 + Math.floor(Math.random()*30)) * 365), // 18〜47歳でスポーン
@@ -8368,7 +8419,12 @@ function buildFileImportNPC(saveData){
 }
 
 // NPC戦闘ロール（プレイヤーと同じ算出方法）
+
 function calcNPCRoll(npc){
+ if(npc._shapeshifted){
+  // Shapeshift中は武器・能力値によるロールを一切行わず、CRのダイス数+戦闘修正で近接判定を行う
+  return monsterCombatRoll(npc._shapeshiftCR||0);
+ }
  const adds = calcAdds(npc);
  const equipped = npc.equippedWeapons||[];
  const vorpal = npc._vorpalNext;
@@ -8466,6 +8522,7 @@ function renderPartyStatus(){
 // NPC装備操作
 function npcEquipRanged(npcIdx, invIdx){
  const n = PC.party[npcIdx]; if(!n) return;
+ if(n.type === 'wizard'){ showSaveToast('魔法使いは飛び道具を装備できません'); return; }
  const w = (n.invWeapons||[])[invIdx]; if(!w || !isRangedWeapon(w)) return;
  if(n.equippedRanged) n.invWeapons.push(n.equippedRanged);
  n.invWeapons.splice(invIdx,1);
@@ -10698,10 +10755,11 @@ function enterGuild(type){
 
 function learnSpell(spellName, lv){
  const actor = _guildActor || PC;
- const table = lv===2 ? SPELLS_L2 : lv===3 ? SPELLS_L3 : SPELLS_L4;
+ const table = SPELL_LEVEL_TABLES[lv] || SPELLS_L4;
  const sp = table.find(s=>s.name===spellName);
  if(!sp) return;
- const iqReq = lv===2?12:lv===3?14:16, dexReq = lv===2?9:lv===3?10:11;
+ const req = SPELL_LEVEL_REQS[lv] || SPELL_LEVEL_REQS[4];
+ const iqReq = req.iq, dexReq = req.dex;
  if((actor.iq||0)<iqReq||(actor.dex||0)<dexReq){ alert(`IQ${iqReq}・DEX${dexReq}が必要です`); return; }
  if(totalCP(actor)<sp.learnCost*100){ alert('所持金が足りません'); return; }
  if((actor.spells||[]).some(s=>s.name===sp.name)){ alert('すでに習得済みです'); return; }
@@ -10770,15 +10828,13 @@ function npcCastSpellOutside(npcIdx, spellIdx){
 function learnSpellRogue(spellName, lv){
  const actor = _guildActor || PC;
  if(actor.type !== 'rogue'){ alert('盗賊のみ利用できます'); return; }
- let sp;
- if(lv===1) sp = SPELLS_L1.find(s=>s.name===spellName);
- else if(lv===2) sp = SPELLS_L2.find(s=>s.name===spellName);
- else if(lv===3) sp = SPELLS_L3.find(s=>s.name===spellName);
- else sp = SPELLS_L4.find(s=>s.name===spellName);
+ if(lv > 4){ alert('盗賊ギルドではLv4までの呪文しか扱っていません'); return; }
+ const tables = {1:SPELLS_L1, ...SPELL_LEVEL_TABLES};
+ const sp = (tables[lv]||[]).find(s=>s.name===spellName);
  if(!sp) return;
- const iqReq = lv===1 ? 10 : lv===2 ? 12 : lv===3 ? 14 : 16;
- const dexReq = lv===1 ? 8  : lv===2 ? 9  : lv===3 ? 10 : 11;
- if((actor.iq||0)<iqReq||(actor.dex||0)<dexReq){ alert(`IQ${iqReq}・DEX${dexReq}が必要です`); return; }
+ const req1 = {iq:10, dex:8};
+ const req = lv===1 ? req1 : (SPELL_LEVEL_REQS[lv] || SPELL_LEVEL_REQS[4]);
+ if((actor.iq||0)<req.iq||(actor.dex||0)<req.dex){ alert(`IQ${req.iq}・DEX${req.dex}が必要です`); return; }
  const cost = lv===1 ? 500 : sp.learnCost*2;
  if(totalCP(actor)<cost*100){ alert('所持金が足りません'); return; }
  if((actor.spells||[]).some(s=>s.name===sp.name)){ alert('すでに習得済みです'); return; }
@@ -10797,15 +10853,17 @@ function npcLearnSpell(npcIdx, spellName, lv, isRogue){
  if(!n) return;
  const typeOk = isRogue ? n.type==='rogue' : n.type==='wizard';
  if(!typeOk){ showSaveToast('職業が合いません'); return; }
+ if(isRogue && lv > 4){ showSaveToast('盗賊ギルドではLv4までの呪文しか扱っていません'); return; }
 
  // 呪文テーブルから取得
- const tables = {1:SPELLS_L1, 2:SPELLS_L2, 3:SPELLS_L3, 4:SPELLS_L4};
+ const tables = {1:SPELLS_L1, ...SPELL_LEVEL_TABLES};
  const sp = (tables[lv]||[]).find(s=>s.name===spellName);
  if(!sp) return;
 
  // 能力値要件
- const iqReq  = lv===1 ? 10 : lv===2 ? 12 : lv===3 ? 14 : 16;
- const dexReq = lv===1 ? (isRogue?8:9) : lv===2 ? 9 : lv===3 ? 10 : 11;
+ const req1 = {iq: isRogue?8:10, dex: isRogue?8:9};
+ const req = lv===1 ? req1 : (SPELL_LEVEL_REQS[lv] || SPELL_LEVEL_REQS[4]);
+ const iqReq  = req.iq, dexReq = req.dex;
  if((n.iq||0)<iqReq||(n.dex||0)<dexReq){
   showSaveToast(`${n.name} IQ${iqReq}・DEX${dexReq}が必要`); return;
  }
@@ -11604,7 +11662,8 @@ function savingRoll(attr, level, pc=PC){
 // Warriors get double armor protection
 function effectiveArmor(pc=PC){
  const base = (pc.equippedArmors||[]).reduce((s,a)=>s+a.hits,0);
- return pc.type==='warrior' ? base*2 : base;
+ const warriorBase = pc.type==='warrior' ? base*2 : base;
+ return (pc===PC && (PC._fortifyArmorTurns||0) > 0) ? warriorBase*3 : warriorBase;
 }
 
 // ── LEVEL & 経験値 ─────────────────────────
@@ -12221,7 +12280,7 @@ function loadGame(slot){
  if(PC._torchStock == null) PC._torchStock = 0;
  if(PC._torchTurns == null) PC._torchTurns = 0;
  // 呪文名・説明を最新定義と同期（セーブデータの名称が古い場合に対応）
- const allSpellDefs = [...(SPELLS_L1||[]),...(SPELLS_L2||[]),...(SPELLS_L3||[]),...(SPELLS_L4||[])];
+ const allSpellDefs = [...(SPELLS_L1||[]),...(SPELLS_L2||[]),...(SPELLS_L3||[]),...(SPELLS_L4||[]),...(SPELLS_L5||[]),...(SPELLS_L6||[]),...(SPELLS_L7||[])];
  (PC.spells||[]).forEach(s=>{
   const def = allSpellDefs.find(d=>d.fn===s.fn);
   if(def){ s.name = def.name; s.desc = def.desc; }
@@ -13540,9 +13599,11 @@ function startLuckSaveSequence(enemyName){
  const textWin = document.getElementById('text-win');
  if(textWin) textWin.style.display = '';
 
- // 同行者募集ダンジョン内だったかを、状態をクリアする前に記録しておく
+ // 同行者募集ダンジョン内・同行配達中だったかを、状態をクリアする前に記録しておく
  const _companionQuestOnSave = _isCompanionHuntCombat()
-  ? (PC.quests||[]).find(qq=>qq.id===PC._yeldunDungeon.huntQuestId)
+  ? (PC._yeldunDungeon?.isHuntDungeon
+     ? (PC.quests||[]).find(qq=>qq.id===PC._yeldunDungeon.huntQuestId)
+     : _getActiveCompanionDeliveryQuest())
   : null;
 
  // 旅の途中・ダンジョン内どちらで倒れても、残った画像・状態を確実にクリアする
@@ -13589,14 +13650,16 @@ function _finishLuckSave(enemyName, companionQuest){
 
  updateHUD();
  showSaveToast(` 九死に一生を得た……「${injury.name}」の後遺症が残った。`);
- // 同行者募集ダンジョン内で倒れた場合、生き延びても一時パーティは解散する
- if(companionQuest?.isCompanionHunt){
+ // 同行者募集ダンジョン内・同行配達中で倒れた場合、生き延びても一時パーティは解散する
+ if(companionQuest?.isCompanionHunt || companionQuest?.isCompanionDelivery){
   PC.party = [];
   PC.quests = (PC.quests||[]).filter(qq=>qq.id !== companionQuest.id);
-  if(!PC._huntCooldown) PC._huntCooldown = {};
-  const _d = getCurrentDate();
-  PC._huntCooldown[companionQuest.fromTownId] = _d.year * 12 + _d.month;
-  delete _tavernBoard[companionQuest.fromTownId];
+  if(companionQuest.isCompanionHunt){
+   if(!PC._huntCooldown) PC._huntCooldown = {};
+   const _d = getCurrentDate();
+   PC._huntCooldown[companionQuest.fromTownId] = _d.year * 12 + _d.month;
+   delete _tavernBoard[companionQuest.fromTownId];
+  }
  }
  const destTown = 'TOWN_' + (PC.town||'khazan').toUpperCase();
  go(destTown);
@@ -14045,6 +14108,43 @@ const ROUTES = {
  // カルヴォ砦：ドルアの先、奥地への一本道（他の島からは直接行けない）
  dorua_kalvo:       { days:{walk:15,coach:null,ship:null}, cost:{walk:0,coach:null,ship:null}, hasShip:false },
 };
+
+// ROUTESを無向グラフとして扱い、2町間の最短経路（徒歩・馬車のみ。冬季閉鎖区間・船区間は除外）を求める
+function findTownRoute(fromTown, toTown){
+ if(fromTown === toTown) return [fromTown];
+ const allTowns = Object.keys(TOWNS);
+ // ダイクストラ法（getRouteで隣接町を都度取得。船区間・冬季閉鎖区間は除外）
+ const dist = {[fromTown]:0};
+ const prev = {};
+ const visited = new Set();
+ const pq = [[0, fromTown]];
+ while(pq.length){
+  pq.sort((x,y)=>x[0]-y[0]);
+  const [d, u] = pq.shift();
+  if(visited.has(u)) continue;
+  visited.add(u);
+  if(u === toTown) break;
+  allTowns.forEach(v=>{
+   if(v === u || visited.has(v)) return;
+   const r = getRoute(u, v);
+   if(!r || r.hasShip || r.winterBlocked) return;
+   const days = r.days.walk!=null ? r.days.walk : r.days.coach;
+   if(days == null) return;
+   const nd = d + days;
+   if(dist[v]==null || nd < dist[v]){
+    dist[v] = nd;
+    prev[v] = u;
+    pq.push([nd, v]);
+   }
+  });
+ }
+ if(dist[toTown] == null) return null; // 到達不能
+ const path = [toTown];
+ while(path[path.length-1] !== fromTown){
+  path.push(prev[path[path.length-1]]);
+ }
+ return path.reverse();
+}
 
 // ══════════════════════════════════════════
 // DELIVERY QUEST SYSTEM
@@ -22950,16 +23050,20 @@ function ydGoNode(nodeId, floor){
 
  // 松明消費（先に消費してからチェック）重量オーバーなら2倍消費
  // ヴェルダ裏路地では明るい時間帯（朝・昼・午後）は松明を消費しない／賞金首アジトは屋内のため松明不要
- if(node.type!=='entrance' && !dung.isHideoutDungeon && !(dung.isVillageBackAlley && dung.design.isNaturalLight)){
-  const _ydConsume = checkWeightPenalty().over ? 2 : 1;
-  for(let _tc=0; _tc<_ydConsume; _tc++){
-   if(PC._torchTurns>0){
-    PC._torchTurns--;
-    if(PC._torchTurns<=0 && PC._torchStock>0){
-     PC._torchStock--;
-     PC._torchTurns=10;
-    }
-   } else break;
+ if(node.type!=='entrance'){
+  // Enchant Weapon/Fortify Armorの残りターンは、松明消費の有無（ダンジョン種別・昼夜）に関わらずノード移動1回につき1回だけ減らす
+  _decrementWizardBuffTurns();
+  if(!dung.isHideoutDungeon && !(dung.isVillageBackAlley && dung.design.isNaturalLight)){
+   const _ydConsume = checkWeightPenalty().over ? 2 : 1;
+   for(let _tc=0; _tc<_ydConsume; _tc++){
+    if(PC._torchTurns>0){
+     PC._torchTurns--;
+     if(PC._torchTurns<=0 && PC._torchStock>0){
+      PC._torchStock--;
+      PC._torchTurns=10;
+     }
+    } else break;
+   }
   }
  }
 
@@ -29682,6 +29786,41 @@ function generateCompanionHuntQuest(fromTownId){
  return q;
 }
 
+// 同行配達依頼を生成する（出発町と異なる地方の町をランダムに目的地とし、ROUTESグラフで経路を求める）
+function generateCompanionDeliveryQuest(fromTownId){
+ const fromRegion = getRegionKey(fromTownId);
+ const candidates = Object.keys(TOWNS).filter(t => t!==fromTownId && getRegionKey(t)!==fromRegion);
+ if(!candidates.length) return null;
+ const toTownId = candidates[Math.floor(Math.random()*candidates.length)];
+ const route = findTownRoute(fromTownId, toTownId);
+ if(!route || route.length < 2) return null; // 到達不能な組み合わせは諦める
+
+ const leaderLevel = _rollCompanionNPCLevel();
+ const leaderType = ['warrior','rogue','wizard'][Math.floor(Math.random()*3)];
+ const leader = generateNPC(leaderLevel);
+ leader.type = leaderType;
+ if(leaderType==='wizard'){ leader.equippedWeapons=[]; }
+ const personality = COMPANION_HUNT_LEADER_PERSONALITIES[Math.floor(Math.random()*COMPANION_HUNT_LEADER_PERSONALITIES.length)];
+ leader.name = pickNPC();
+ const otherLevel = _rollCompanionNPCLevel();
+ const other = generateNPC(otherLevel);
+ other.name = pickNPC();
+
+ // 報酬は通常の討伐依頼と同じ算出式を流用（総距離感を反映するため、経由町数×レベル帯で簡易計算）
+ const totalLegs = route.length - 1;
+ const reward = Math.floor((20 + totalLegs*15) * (1 + leaderLevel*0.3));
+
+ return {
+  id: Date.now()+Math.random(), type:'companionDelivery', status:'active',
+  isCompanionDelivery: true,
+  fromTownId, toTownId, route,
+  legIndex: 0, // 現在、route[legIndex] → route[legIndex+1] の区間を担当中
+  isPausedAt: null, // 経由町で一泊・自由行動中なら、その町IDが入る
+  leader, leaderPersonality: personality, companion: other,
+  reward, issuedDay: GAME_TIME.totalDays,
+ };
+}
+
 function generateHuntQuest(fromTownId){
  const region = getRegionKey(fromTownId) || 'khazan_region';
  const table = HUNT_MONSTER_TABLE[region] || HUNT_MONSTER_TABLE.khazan_region;
@@ -30147,16 +30286,20 @@ function _huntGoNode(nodeIdOrIdx, opts){
  }
 
  // 松明消費（入口以外・灯り復活時はスキップ）重量オーバーなら2倍消費
- if(!opts.skipTorch && node.type !== 'entrance'){
-  const _hdConsume = checkWeightPenalty().over ? 2 : 1;
-  for(let _tc=0; _tc<_hdConsume; _tc++){
-   if(PC._torchTurns > 0){
-    PC._torchTurns--;
-    if(PC._torchTurns <= 0 && PC._torchStock > 0){
-     PC._torchStock--;
-     PC._torchTurns = 10;
-    }
-   } else break;
+ if(node.type !== 'entrance'){
+  // Enchant Weapon/Fortify Armorの残りターンは、松明消費の有無に関わらずノード移動1回につき1回だけ減らす
+  _decrementWizardBuffTurns();
+  if(!opts.skipTorch){
+   const _hdConsume = checkWeightPenalty().over ? 2 : 1;
+   for(let _tc=0; _tc<_hdConsume; _tc++){
+    if(PC._torchTurns > 0){
+     PC._torchTurns--;
+     if(PC._torchTurns <= 0 && PC._torchStock > 0){
+      PC._torchStock--;
+      PC._torchTurns = 10;
+     }
+    } else break;
+   }
   }
  }
 
@@ -30401,7 +30544,7 @@ function acceptHuntQuest(i){
  _refreshTavernBoard(PC.town);
 }
 
-// 討伐同行者募集を受ける。リーダー・同行者を一時的にパーティへ加え、その場で出発する
+// 討伐同行者募集を受ける（この時点ではまだ出発しない。掲示板の「出発する」ボタンから開始する）
 function acceptCompanionHuntQuest(i){
  if(!PC.quests) PC.quests=[];
  if((PC.party||[]).length > 0){
@@ -30416,8 +30559,22 @@ function acceptCompanionHuntQuest(i){
  if(!q || !q.isCompanionHunt){ alert('依頼データが見つかりません'); return; }
  board.splice(i, 1);
  PC.quests.push(q);
+ showSaveToast(` 同行者募集を受けました：${q.caveName}の${q.monsterName}`);
+ _refreshTavernBoard(PC.town);
+}
 
+// 討伐同行者募集を実際に開始する（掲示板の「出発する」ボタンから呼ぶ）
+function startCompanionHuntQuest(questId){
+ const q = (PC.quests||[]).find(qq=>qq.id===questId);
+ if(!q || !q.isCompanionHunt){ return; }
+ if((PC.party||[]).length > 0){
+  showSaveToast('自分のパーティを率いている間は同行できません');
+  return;
+ }
+ q._started = true;
  // リーダー・同行者を一時的にパーティへ加える（このクエストの間だけ）
+ q.leader._isTemporaryCompanion = true;
+ q.companion._isTemporaryCompanion = true;
  PC.party = [q.leader, q.companion];
  updateHUD();
 
@@ -30431,6 +30588,185 @@ function acceptCompanionHuntQuest(i){
   {label:' 出発する', fn:()=>{ startHuntQuest(q.id); }},
  ]);
  scrollToTop();
+}
+
+// 松明切れ等で一度ダンジョンを出た同行討伐に、再びダンジョンへ戻る
+function resumeCompanionHuntQuest(questId){
+ const q = (PC.quests||[]).find(qq=>qq.id===questId);
+ if(!q || !q.isCompanionHunt || !q._started){ return; }
+ if(!q.ydDungeon){ showSaveToast('依頼データが見つかりません'); return; }
+ // パーティが（何らかの理由で）解散されていたら組み直す
+ if((PC.party||[]).length === 0){
+  q.leader._isTemporaryCompanion = true;
+  q.companion._isTemporaryCompanion = true;
+  PC.party = [q.leader, q.companion];
+  updateHUD();
+ }
+ const torches = countTorches();
+ const storyEl = document.getElementById('story');
+ const torchMsg = torches > 0
+  ? `<span style="color:#f0ece0"> 松明を ${torches}本 持っている。</span>`
+  : `<span style="color:#e0d0d0"> 松明を持っていない！暗闇の中を進むことになる。</span>`;
+ const total = q.ydDungeon.targetCount || 0;
+ const killed = q.ydDungeon.killedKeys
+  ? q.ydDungeon.killedKeys.filter(k=>PC[k]).length : 0;
+ storyEl.innerHTML = `
+  <div style="border:1px solid #4a6a34;border-radius:4px;padding:12px;background:#0a0d08">
+   <div style="color:#f0ece0;font-size:var(--font-base);margin-bottom:8px"> ${q.leader.name}の一団と共にダンジョンへ戻る：${q.caveName}</div>
+   <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px">目標：<span style="color:#f4ede0">${q.monsterName}</span>
+    　討伐：<span style="color:${killed>=total?'var(--gold2)':'var(--dim)'}">${killed}/${total}体</span></div>
+   <div style="font-size:var(--font-sm)">${torchMsg}</div>
+  </div>`;
+ renderChoices([
+  { label:' 再突入する', fn:()=>{
+   PC._yeldunDungeon = q.ydDungeon;
+   initTorch();
+   ydGoNode(q.ydDungeon.floors[1].entryNodeId, 1);
+  }},
+  { label:'← 酒場に戻る', fn:()=>{ go(currentNodeId); } },
+ ]);
+ scrollToTop();
+}
+
+// 同行配達依頼を受注する（この時点ではまだ出発しない）
+function acceptCompanionDeliveryQuest(i){
+ if(!PC.quests) PC.quests=[];
+ if((PC.party||[]).length > 0){
+  showSaveToast('自分のパーティを率いている間は同行できません');
+  return;
+ }
+ if(PC.quests.filter(q=>q.status==='active').length>=5){
+  alert('依頼は同時に5件までです！'); return;
+ }
+ const board = _tavernBoard[PC.town];
+ const q = board && board[i];
+ if(!q || !q.isCompanionDelivery){ alert('依頼データが見つかりません'); return; }
+ board.splice(i, 1);
+ PC.quests.push(q);
+ const destName = (TOWNS[q.toTownId]||{}).name || q.toTownId;
+ showSaveToast(` 同行配達依頼を受けました：${destName}まで`);
+ _refreshTavernBoard(PC.town);
+}
+
+// 同行配達依頼の「今の区間」の旅を開始する。到着時、最終目的地かどうかで処理を分岐する
+function startCompanionDeliveryLeg(questId){
+ const q = (PC.quests||[]).find(qq=>qq.id===questId);
+ if(!q){ return; }
+ if(!q._started){
+  // 掲示板の「出発する」ボタンから最初に呼ばれた場合：まずパーティに加える
+  if((PC.party||[]).length > 0){
+   showSaveToast('自分のパーティを率いている間は同行できません');
+   return;
+  }
+  q._started = true;
+  q.leader._isTemporaryCompanion = true;
+ q.companion._isTemporaryCompanion = true;
+ PC.party = [q.leader, q.companion];
+  updateHUD();
+ }
+ const fromId = q.route[q.legIndex];
+ const toId = q.route[q.legIndex+1];
+ if(!toId){ return; } // 既に最終目的地（呼び出し側のバグ避け）
+ const route = getRoute(fromId, toId);
+ if(!route){ return; }
+ const days = route.days.walk!=null ? route.days.walk : route.days.coach;
+ const isFinalLeg = (q.legIndex+1) === q.route.length-1;
+
+ const from = TOWNS[fromId], to = TOWNS[toId];
+ PC.town = toId;
+ updateHUD();
+ drawScene('travel');
+ showTravelImage('walk', fromId, toId);
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+ }
+ renderChoices([]);
+ advanceDaysAnimated(days, ()=>{
+  if(isFinalLeg){
+   _finishCompanionDelivery(q);
+  } else {
+   q.legIndex++;
+   q.isPausedAt = toId;
+   const leaderName = q.leaderPersonality ? q.leader.name : 'リーダー';
+   PC.party = []; // 一時的に解散し、経由町では自由行動
+   updateHUD();
+   // 必ず一泊（時刻を朝にリセットし、1日消費）
+   GAME_TIME.totalDays++;
+   GAME_TIME.hour = 6;
+   updateTimebar();
+   checkAging();
+   // go()呼び出し前に_pendingMsgへ積んでおく（町ノードのtxtの前に確実に表示される）
+   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
+    <span style="color:#a8d0e0">${to.name}に到着した。${leaderName}たちは宿を取り、一晩休むことにしたようだ。</span><br>
+    <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">明日以降、この町の酒場に行けば旅を再開できる。</span>
+   </div>`;
+   go('TOWN_'+toId.toUpperCase());
+  }
+ });
+ // advanceDaysAnimatedが旅ログ欄を作った直後に出発メッセージを追加する
+ travelLog(`<span style="color:#b8a890">徒歩で <span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${to.name}</span> へ出発。所要: ${days}日　費用: 0GP</span>`);
+ // advanceDaysAnimatedはcrossRegionをfalse固定で初期化するため、地方またぎ移動なら正しく上書きする
+ // （travelStateは上のadvanceDaysAnimated呼び出し内で同期的に作成済みなのでここで安全に設定できる）
+ if(travelState) travelState.crossRegion = getRegionKey(fromId) !== getRegionKey(toId);
+}
+
+// 同行配達依頼の完了処理（最終目的地に到着した時に呼ぶ）
+function _finishCompanionDelivery(q){
+ const partyCount = 1 + (PC.party||[]).filter(n=>n.con>0).length;
+ const share = Math.floor(Math.floor(q.reward / partyCount) / 2);
+ gainGP(share, PC);
+ q.status = 'completed';
+ PC.quests = (PC.quests||[]).filter(qq=>qq.id !== q.id);
+ PC.party = [];
+ updateHUD();
+ const leaderName = q.leader.name;
+ PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
+  <span style="color:#a8d0e0">目的地に到着した。無事に荷物を届け終えた${leaderName}が礼を言う。</span><br>
+  <span style="color:#c8b8a0">「${q.leaderPersonality.farewell}」</span><br>
+  <span style="color:#e8e4d8">報酬 ${share}GP を受け取った。</span>
+ </div>`;
+ go('TOWN_'+q.toTownId.toUpperCase());
+}
+
+// 経由町の酒場で、保留中の同行配達依頼を再開する選択肢を返す（酒場ノードから呼ぶ）
+function getCompanionDeliveryResumeChoices(townId){
+ const paused = (PC.quests||[]).filter(q=>q.type==='companionDelivery' && q.status==='active' && q.isPausedAt===townId);
+ return paused.map(q=>{
+  const destName = (TOWNS[q.toTownId]||{}).name || q.toTownId;
+  const nextTownId = q.route[q.legIndex+1];
+  const nextName = (TOWNS[nextTownId]||{}).name || nextTownId;
+  return {
+   label:` 旅を再開する：${destName}へ（次は${nextName}）`,
+   fn:()=>{
+    q.isPausedAt = null;
+    q.leader._isTemporaryCompanion = true;
+ q.companion._isTemporaryCompanion = true;
+ PC.party = [q.leader, q.companion];
+    updateHUD();
+    startCompanionDeliveryLeg(q.id);
+   },
+  };
+ });
+}
+
+// 保留中の同行配達依頼を、酒場に戻らず他の町へ移動しようとした際に自動失敗させる
+function checkCompanionDeliveryAbandon(){
+ const paused = (PC.quests||[]).filter(q=>q.type==='companionDelivery' && q.status==='active' && q.isPausedAt);
+ paused.forEach(q=>{
+  if(q.isPausedAt !== PC.town){
+   q.status = 'completed'; // 失敗として扱い、依頼一覧から除去
+   PC.quests = (PC.quests||[]).filter(qq=>qq.id !== q.id);
+   showSaveToast(`${q.leader.name}たちとはぐれてしまった……同行配達は失敗に終わった`);
+  }
+ });
 }
 
 // 受注中の討伐クエストを実行できる町ノードから呼ぶ
@@ -30871,6 +31207,35 @@ function renderQuestBoard(townId, board){
     依頼主：${q.clientName}　報酬: <span style="color:#f0ece0">${q.reward}GP</span>
     ${isHere ? `<button onclick="startHeroQuest(${JSON.stringify(q.id)})" style="margin-top:5px;width:100%;background:#150f06;border:1px solid #606060;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 出発する</button>` : `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-top:4px">（依頼元：${(TOWNS[q.fromTownId]||{name:q.fromTownId}).name}で出発）</div>`}
     </div>`;
+   } else if(q.isCompanionHunt){
+    const totalCount = q.rooms.reduce((s,r)=>s+r.count,0);
+    const isHere = q.fromTownId === townId;
+    const notStarted = !q._started;
+    const isOutside = q._started && !PC._yeldunDungeon; // 出発済みだが今はダンジョンの外にいる（松明切れ等で撤退した場合）
+    let actionHtml;
+    if(isHere && notStarted){
+     actionHtml = `<button onclick="startCompanionHuntQuest(${JSON.stringify(q.id)})" style="margin-top:5px;width:100%;background:#150f06;border:1px solid #6a8a44;color:#e8e0d0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 出発する</button>`;
+    } else if(isOutside){
+     actionHtml = `<button onclick="resumeCompanionHuntQuest(${JSON.stringify(q.id)})" style="margin-top:5px;width:100%;background:#150f06;border:1px solid #6a8a44;color:#e8e0d0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> ダンジョンに戻る</button>`;
+    } else if(notStarted){
+     actionHtml = `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-top:4px">（依頼元：${(TOWNS[q.fromTownId]||{name:q.fromTownId}).name}で出発）</div>`;
+    } else {
+     actionHtml = `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-top:4px">（討伐に向かっている）</div>`;
+    }
+    html += `<div style="background:#0a0d08;border:1px solid #4a6a34;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
+     <span style="color:#c8e0a8">同行者募集</span>　${q.caveName}の<span style="color:var(--white)">${q.monsterName} ×${totalCount}</span><br>
+    リーダー：${q.leader.name}　報酬: <span style="color:#f0ece0">${q.reward}GP</span>（山分け）
+    ${actionHtml}
+    </div>`;
+   } else if(q.isCompanionDelivery){
+    const destName = (TOWNS[q.toTownId]||{name:q.toTownId}).name;
+    const isHere = q.fromTownId === townId;
+    const notStarted = !q._started;
+    html += `<div style="background:#080a0d;border:1px solid #345a6a;border-radius:3px;padding:8px;margin:5px 0;font-size:var(--font-sm)">
+     <span style="color:#a8d0e0">同行配達依頼</span>　<span style="color:var(--white)">${destName}</span>まで<br>
+    リーダー：${q.leader.name}　報酬: <span style="color:#f0ece0">${q.reward}GP</span>（山分け）
+    ${(isHere && notStarted) ? `<button onclick="startCompanionDeliveryLeg(${JSON.stringify(q.id)})" style="margin-top:5px;width:100%;background:#150f06;border:1px solid #4a7a8a;color:#e8e0d0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 出発する</button>` : notStarted ? `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-top:4px">（依頼元：${(TOWNS[q.fromTownId]||{name:q.fromTownId}).name}で出発）</div>` : `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-top:4px">（道中）</div>`}
+    </div>`;
    } else if(q.type === 'hunt'){
     const totalCount = q.rooms.reduce((s,r)=>s+r.count,0);
     const isHere = q.fromTownId === townId;
@@ -30951,6 +31316,7 @@ function renderQuestBoard(townId, board){
  const contrabandQuests = board.filter(q=>q.type==='contraband');
  const huntQuests = board.filter(q=>q.type==='hunt' && !q.isCompanionHunt);
  const companionHuntQuests = board.filter(q=>q.isCompanionHunt);
+ const companionDeliveryQuests = board.filter(q=>q.isCompanionDelivery);
  const bountyQuests = board.filter(q=>q.type==='bounty');
  const assassinationQuests = board.filter(q=>q.type==='assassination');
  const kidnappingQuests = board.filter(q=>q.type==='kidnapping');
@@ -31081,6 +31447,22 @@ function renderQuestBoard(townId, board){
   });
  }
 
+ if(companionDeliveryQuests.length){
+  html += `<span style="color:#e8e0d0;font-size:calc(var(--font-sm) - 1px)">▸ 同行配達依頼</span><br>`;
+  companionDeliveryQuests.forEach(q=>{
+   const i = board.indexOf(q);
+   const destName = (TOWNS[q.toTownId]||{}).name || q.toTownId;
+   const btn = canTake
+    ? `<button onclick="acceptCompanionDeliveryQuest(${i})" style="margin-top:5px;width:100%;background:var(--coal);border:1px solid #4a7a8a;color:#e8e0d0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 同行する</button>`
+    : `<div style="margin-top:5px;font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${cantTakeMsg}</div>`;
+   html += `<div style="background:#080a0d;border:1px solid #345a6a;border-radius:3px;padding:9px;margin:5px 0;font-size:var(--font-sm)">
+   <span style="color:#a8d0e0"> 同行配達依頼</span>　<span style="color:#f0ece0">${q.leader.name}</span>が仲間を探している<br>
+   <span style="color:var(--white)"><b>${destName}</b></span>までの荷物運びに同行してほしいそうだ（経由${q.route.length-2>0?q.route.length-2:0}町）<br>
+   <span style="color:#d0c8b8;font-size:calc(var(--font-sm) - 1px)">報酬: <span style="color:#f0ece0">${q.reward}GP</span>（山分け）</span>
+   ${btn}</div>`;
+  });
+ }
+
  if(bountyQuests.length){
   html += `<span style="color:#f0ddd8;font-size:calc(var(--font-sm) - 1px)">▸ 賞金首討伐依頼</span><br>`;
   bountyQuests.forEach(q=>{
@@ -31182,6 +31564,14 @@ function getTavernBoard(townId){
  // 討伐同行者募集 1件（PCが自パーティを持たない場合のみ・討伐クールダウンを共有）
  if((PC.party||[]).length === 0 && !hasActiveHunt && (PC._huntCooldown[townId] || 0) < _curMonthKey && Math.random() < 0.5){
   board.push(generateCompanionHuntQuest(townId));
+ }
+ // 同行配達依頼 1件（PCが自パーティを持たず、この町を拠点とする配達依頼が受注中でない場合のみ）
+ {
+  const hasActiveDelivery = (PC.quests||[]).some(q=>q.type==='companionDelivery' && q.status==='active');
+  if((PC.party||[]).length === 0 && !hasActiveDelivery && Math.random() < 0.4){
+   const dq = generateCompanionDeliveryQuest(townId);
+   if(dq) board.push(dq);
+  }
  }
  // 賞金首依頼（中心都市のみ・クールダウン中でなく受注中でなければ1件）
  if(BOUNTY_CITIES.includes(townId)){
@@ -31330,7 +31720,9 @@ function reportBountyQuestFromBoard(townId){
 }
 
 function getQuestBoardChoices(backNode){
- return [{label:'← 戻る', go: backNode}];
+ const townId = backNode.replace(/^TOWN_/, '').toLowerCase();
+ const resumeChoices = getCompanionDeliveryResumeChoices(townId);
+ return [...resumeChoices, {label:'← 戻る', go: backNode}];
 }
 
 function getRoute(fromId, toId){
@@ -31371,6 +31763,7 @@ function travelTo(toId, method){
  if(cost>0) payPrice(cost);
  PC.town = toId;
  updateHUD();
+ checkCompanionDeliveryAbandon(); // 保留中の同行配達を放置して旅立った場合は自動失敗させる
 
  // 移動シーンに切り替えてカウントアップ開始
  // 出発地か目的地のどちらかがエルマリア地方なら緑テーマ
@@ -31761,7 +32154,7 @@ function pickTravelEnemy(){
  const template = TRAVEL_ENEMIES[Math.floor(Math.random() * TRAVEL_ENEMIES.length)];
  const isCross = travelState?.crossRegion || false;
  const minC = isCross ? 1 : template.minCount;
- const maxC = isCross ? 5 : template.maxCount;
+ const maxC = isCross ? 3 : template.maxCount;
  const count = minC + Math.floor(Math.random() * (maxC - minC + 1));
  const enemies = Array.from({length: count}, () => ({
   name: template.name,
@@ -33626,6 +34019,13 @@ function pickTravelRumor(){
 }
 
 // 移動中：人間系エンカウントの話術オプション
+// 進行中（出発済み・経由町で足止め中でない）の同行配達依頼を返す
+function _getActiveCompanionDeliveryQuest(){
+ return (PC.quests||[]).find(q=>
+  q.type==='companionDelivery' && q.status==='active' && q._started && !q.isPausedAt
+ ) || null;
+}
+
 function startTravelTalk(enemy, ts){
  drawScene('travel');
  document.getElementById('dice-area').classList.add('hidden');
@@ -33640,6 +34040,97 @@ function startTravelTalk(enemy, ts){
 
  const srLevel = 2;
  const target = srLevel * 5 + 15;
+
+ // 同行配達依頼で移動中なら、プレイヤーに選ばせず、リーダーが個性に応じて対応を決める
+ const _deliveryQ = _getActiveCompanionDeliveryQuest();
+ if(_deliveryQ){
+  const leaderName = _deliveryQ.leader.name;
+  const personaName = _deliveryQ.leaderPersonality.name;
+  // 個性ごとに、戦う／話術／逃げるの傾向を重み付け
+  const WEIGHTS = {
+   '豪快':   {fight:0.6, talk:0.3, flee:0.1},
+   '熱血':   {fight:0.6, talk:0.3, flee:0.1},
+   '寡黙':   {fight:0.5, talk:0.3, flee:0.2},
+   '慎重':   {fight:0.15,talk:0.55,flee:0.3},
+   '陽気':   {fight:0.2, talk:0.6, flee:0.2},
+   '皮肉屋': {fight:0.25,talk:0.6, flee:0.15},
+  };
+  const w = WEIGHTS[personaName] || {fight:0.34, talk:0.33, flee:0.33};
+  const r = Math.random();
+  const decision = r < w.fight ? 'fight' : (r < w.fight+w.talk ? 'talk' : 'flee');
+  const decisionLines = {
+   fight: `「相手にする必要はない、蹴散らすぞ！」`,
+   talk:  `「待て、まずは話をつけよう」`,
+   flee:  `「まずい、ここは逃げるぞ！」`,
+  };
+  travelLog(`<span style="color:#c8b8a0">リーダーの${leaderName}が判断を下した。${decisionLines[decision]}</span>`);
+  renderChoices([{label:'▶ 続ける', fn:()=>{
+   renderChoices([]);
+   if(decision === 'fight'){
+    document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display = '';
+    document.getElementById('dice-area').classList.add('hidden');
+    cbtState = null;
+    startTravelCombat(enemy);
+   } else if(decision === 'talk'){
+    document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display = '';
+    cbtState = null;
+    setupSavingRollFor(_deliveryQ.leader, {
+     attr: 'chr', level: srLevel,
+     onSuccess: () => {
+      travelLog(`<span style="color:#e8e4d8"> ${leaderName}がうまく言いくるめた！ ${enemy.name}は立ち去っていった。</span>`);
+      renderChoices([{label:'▶ 旅を続ける', fn:()=>{
+       document.getElementById('dice-area').classList.add('hidden');
+       document.getElementById('text-win').style.display='';
+       renderChoices([]);
+       ts._resumeWithoutIncrement = true;
+       setTimeout(travelTick, ts.interval);
+      }}]);
+     },
+     onFail: () => {
+      travelLog(`<span class="red"> 交渉決裂…${enemy.name}は怒りをあらわにした！</span>`);
+      renderChoices([{label:'▶ 戦う', fn:()=>{
+       document.getElementById('dice-area').classList.add('hidden');
+       document.getElementById('text-win').style.display='';
+       setTimeout(() => startTravelCombat(enemy), 200);
+      }}]);
+     },
+    });
+   } else { // flee
+    document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat');
+    document.getElementById('text-win').style.display = '';
+    document.getElementById('dice-area').classList.add('hidden');
+    cbtState = null;
+    setupSavingRollFor(_deliveryQ.leader, {
+     attr: 'spd', level: 1,
+     onSuccess: () => {
+      travelLog(`<span style="color:#e8e4d8"> ${leaderName}の判断で無事に切り抜けた！</span>`);
+      renderChoices([{label:'▶ 旅を続ける', fn:()=>{
+       renderChoices([]);
+       document.getElementById('dice-area').classList.add('hidden');
+       document.getElementById('text-win').style.display='';
+       ts._resumeWithoutIncrement = true;
+       setTimeout(travelTick, ts.interval);
+      }}]);
+     },
+     onFail: () => {
+      const dmg = Math.max(1, Math.floor(enemy.mr / 10));
+      PC.con = Math.max(0, PC.con - dmg);
+      updateHUD();
+      travelLog(`<span class="red"> 逃げ切れず、背中に一撃を受けた！（体力-${dmg}）</span>`);
+      if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 800); return; }
+      renderChoices([{label:'▶ 戦う', fn:()=>{
+       document.getElementById('dice-area').classList.add('hidden');
+       document.getElementById('text-win').style.display='';
+       setTimeout(() => startTravelCombat(enemy), 200);
+      }}]);
+     },
+    });
+   }
+  }}]);
+  return;
+ }
 
  const choices = document.getElementById('choices');
  if(choices){
@@ -33757,6 +34248,14 @@ function startTravelCombat(enemy){
  // 乗合馬車演出：同乗者が逃げ出すメッセージをログに追記
  if(isCoach){
  travelLog(`<span style="color:#c0b098"> 馬車が急停止！乗客たちは悲鳴を上げて逃げ出した！</span>`);
+ }
+
+ // 同行配達依頼で移動中なら、リーダーが個性に応じた台詞で戦闘に入る
+ const _deliveryQ2 = _getActiveCompanionDeliveryQuest();
+ if(_deliveryQ2){
+  const fieldLines = _deliveryQ2.leaderPersonality.field;
+  const line = Array.isArray(fieldLines) ? fieldLines[Math.floor(Math.random()*fieldLines.length)] : fieldLines;
+  travelLog(`<span style="color:#c8b8a0">${_deliveryQ2.leader.name}が声を張り上げた。${line}</span>`);
  }
 
  startCombat({
@@ -33941,7 +34440,35 @@ const SPELLS_L3 = [
 const SPELLS_L4 = [
  {name:'Overdrive', cost:18, level:4, iqReq:16, dexReq:11, learnCost:2000,
  desc:'戦闘中1ラウンド、選択した能力値が2倍になる', fn:'overdrive'},
+ {name:'Enchant Weapon', cost:24, level:4, iqReq:16, dexReq:11, learnCost:2000,
+ desc:'6〜24ターンの間、武器のヒットダイスを×3する（戦闘中は使えない）', fn:'enchantWeapon'},
 ];
+
+// ── SPELLS (Level 5) ── IQ≥18, DEX≥12, 学習4000GP ──
+const SPELLS_L5 = [
+ {name:'Summon', cost:25, level:5, iqReq:18, dexReq:12, learnCost:4000,
+ desc:'悪魔を召喚して戦闘に参加させる（CR＝知力+運+魅力、戦闘終了で消える。戦闘中のみ使用可）', fn:'summon'},
+ {name:'Fortify Armor', cost:30, level:5, iqReq:18, dexReq:12, learnCost:4000,
+ desc:'6〜24ターンの間、防具の防御点を×3する（戦闘中は使えない）', fn:'fortifyArmor'},
+];
+
+// ── SPELLS (Level 6) ── IQ≥20, DEX≥13, 学習8000GP ──
+const SPELLS_L6 = [
+ {name:'Shapeshift', cost:24, level:6, iqReq:20, dexReq:13, learnCost:8000,
+ desc:'悪魔に変身して戦闘に参加する（CR＝能力値の合計、戦闘終了で解除。戦闘中のみ使用可）', fn:'shapeshift'},
+ {name:'Turn to Stone', cost:30, level:6, iqReq:20, dexReq:13, learnCost:8000,
+ desc:'敵一体を石化させ、戦闘から除外する（戦闘中のみ使用可）', fn:'turnToStone'},
+];
+
+// ── SPELLS (Level 7) ── IQ≥22, DEX≥14, 学習16000GP ──
+const SPELLS_L7 = [
+ {name:'Atomization', cost:36, level:7, iqReq:22, dexReq:14, learnCost:16000,
+ desc:'敵一体を消滅させ即死させる。発生する熱で近接戦闘に追加ヒット（詠唱者Lv×D6＋戦闘修正）が加わる（戦闘中のみ使用可）', fn:'atomization'},
+];
+
+// レベル→呪文テーブル・IQ/DEX要件の対応表（SPELLS_L1〜L7が全て定義された後に置く：TDZエラー回避）
+const SPELL_LEVEL_TABLES = {2:SPELLS_L2, 3:SPELLS_L3, 4:SPELLS_L4, 5:SPELLS_L5, 6:SPELLS_L6, 7:SPELLS_L7};
+const SPELL_LEVEL_REQS = {2:{iq:12,dex:9}, 3:{iq:14,dex:10}, 4:{iq:16,dex:11}, 5:{iq:18,dex:12}, 6:{iq:20,dex:13}, 7:{iq:22,dex:14}};
 
 // ── WEAPON TABLE ───────────────────────
 const WEAPONS_TABLE = [
@@ -33955,6 +34482,7 @@ const WEAPONS_TABLE = [
  {name:'棍棒',dice:3,adds:0,stReq:5,dexReq:2,cost:15,weight:50,twoHand:false},
  {name:'グレートソード',dice:6,adds:0,stReq:21,dexReq:18,cost:120,weight:170,twoHand:true},
  {name:'ヘビーメイス',dice:5,adds:2,stReq:17,dexReq:3,cost:120,weight:200,twoHand:true},
+ {name:'軽弓',dice:3,adds:0,stReq:12,dexReq:15,cost:60,weight:40,twoHand:true,isRanged:true,range:65},
 ];
 
 
@@ -36158,6 +36686,12 @@ function updateHUD(){
     a._overdrivePending = null;
    }
   });
+  // 戦闘が終了しているのに召喚された悪魔が残っていたら取り除く
+  if((PC.party||[]).some(n=>n._isSummonedDemon)){
+   PC.party = PC.party.filter(n=>!n._isSummonedDemon);
+  }
+  // 戦闘が終了しているのにPC自身がShapeshiftしたままなら元に戻す
+  if(PC._shapeshiftOriginal || (PC.party||[]).some(n=>n._shapeshiftOriginal)){ _restoreShapeshiftIfNeeded(); }
  }
  const adds=calcAdds();
  const armor=effectiveArmor();
@@ -39030,6 +39564,9 @@ function go(nodeId){
  }
  }
 
+ // Enchant Weapon/Fortify Armorの残りターンは、ダンジョン内外・松明の有無に関わらずノード移動1回につき1回だけ減らす
+ _decrementWizardBuffTurns();
+
  // Blind Spot カウントダウン
  if(DUNGEON_NODES.has(nodeId) && !DUNGEON_SAFE_NODES.has(nodeId)){
  if(PC._blindSpotRounds > 0){
@@ -39898,7 +40435,11 @@ function startCombat(en, winNode){
  // Overdriveが残っていればリセット
  [PC, ...(PC.party||[])].forEach(a=>{
   if(a._overdrivePending){ a[a._overdrivePending.key] = a._overdrivePending.orig; a._overdrivePending = null; }
+  a._shapeshifted = false; // 前回の戦闘のShapeshiftをリセット
  });
+ _restoreShapeshiftIfNeeded(); // PC自身が変身したままなら元に戻す
+ // 前回の戦闘の召喚された悪魔が残っていれば取り除く
+ PC.party = (PC.party||[]).filter(n=>!n._isSummonedDemon);
  // 第2引数でwinノードを上書き可能（後方互換）
  if(winNode) en = Object.assign({}, en, {win: winNode});
  // enemies配列を構築（単体 or 複数体）
@@ -39993,10 +40534,12 @@ function _startNewRound(){
   cbtState[`_npcDidRanged_${i}`]  = false;
   cbtState[`_npcDaggerUsed_${i}`] = false;
  });
- // 討伐同行者募集の戦闘：ラウンド開始時にリーダーが指示を飛ばす
+ // 討伐同行者募集・同行配達の戦闘：ラウンド開始時にリーダーが指示を飛ばす
  if(_isCompanionHuntCombat()){
   const dung = PC._yeldunDungeon;
-  const q = (PC.quests||[]).find(qq=>qq.id===dung.huntQuestId);
+  const q = (dung?.isHuntDungeon)
+   ? (PC.quests||[]).find(qq=>qq.id===dung.huntQuestId)
+   : _getActiveCompanionDeliveryQuest();
   if(q?.leaderPersonality){
    const fieldLines = q.leaderPersonality.field;
    const line = Array.isArray(fieldLines) ? fieldLines[Math.floor(Math.random()*fieldLines.length)] : fieldLines;
@@ -40046,11 +40589,46 @@ function _handlePCZeroCon(cl){
 
 
 // 現在、討伐同行者募集ダンジョン内かどうかを直接判定する（cbtState.autoNPCの受け渡し漏れに備えた保険）
+// Enchant Weapon / Fortify Armorの持続ターンを減らす（PC._torchTurns--と同じタイミングで呼ぶ）
+function _decrementWizardBuffTurns(){
+ if((PC._enchantWeaponTurns||0) > 0){
+  PC._enchantWeaponTurns--;
+  if(PC._enchantWeaponTurns === 0){
+   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-bottom:8px"> Enchant Weaponの効果が切れた。</div>`;
+  }
+ }
+ if((PC._fortifyArmorTurns||0) > 0){
+  PC._fortifyArmorTurns--;
+  if(PC._fortifyArmorTurns === 0){
+   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-bottom:8px"> Fortify Armorの効果が切れた。</div>`;
+  }
+ }
+}
+
+// Shapeshiftで変えたPC自身の能力値・名前を元に戻す
+function _restoreShapeshiftIfNeeded(){
+ [PC, ...(PC.party||[])].forEach(a=>{
+  if(a._shapeshiftOriginal){
+   a.name = a._shapeshiftOriginal.name;
+   a._shapeshiftOriginal = null;
+  }
+  a._shapeshiftCR = null;
+  a._shapeshifted = false;
+ });
+}
+
 function _isCompanionHuntCombat(){
  const dung = PC._yeldunDungeon;
- if(!dung?.isHuntDungeon) return false;
- const q = (PC.quests||[]).find(qq=>qq.id===dung.huntQuestId);
- return !!(q?.isCompanionHunt);
+ if(dung?.isHuntDungeon){
+  const q = (PC.quests||[]).find(qq=>qq.id===dung.huntQuestId);
+  if(q?.isCompanionHunt) return true;
+ }
+ // 同行配達依頼で移動中（出発済み・経由町で足止め中でない）の戦闘も同じ自動化ロジックにする
+ const hasActiveDelivery = (PC.quests||[]).some(q=>
+  q.type==='companionDelivery' && q.status==='active' && q._started && !q.isPausedAt
+ );
+ if(hasActiveDelivery) return true;
+ return false;
 }
 
 // NPCのタイプに応じた戦い方の描写（同行者募集の戦闘で、自動行動するNPCの動きを見せるため）
@@ -40062,6 +40640,72 @@ const NPC_COMBAT_STYLE_LINES = {
 function _npcCombatStyleLine(npc){
  const pool = NPC_COMBAT_STYLE_LINES[npc.type] || NPC_COMBAT_STYLE_LINES.warrior;
  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+// ── 各魔法の発動テキストのバリエーションプール ──
+// {caster}={target}のプレースホルダを含む文字列を用意し、_spellFlavor()で置換する
+const SPELL_EFFECT_FLAVOR = {
+ ttyf_hit: [
+  '{caster}の放ったMagic Boltが{target}を打ち据えた！',
+  '閃光と共に、魔力の奔流が{target}の体を貫いた！',
+  '{target}は避けきれず、{caster}の一撃をまともに受けた！',
+  '空気を切り裂く光条が、容赦なく{target}に突き刺さる！',
+  '{caster}の指先から放たれた光弾が、{target}を吹き飛ばした！',
+ ],
+ ttyf_dodge: [
+  '{target}は寸前で身をひるがえし、光の奔流を躱した！',
+  '{target}は間一髪で飛び退き、直撃を免れた！',
+  '光条は{target}の脇をかすめ、地面を焦がしただけだった。',
+  '{target}は本能的に体をひねり、致命の一撃を回避した！',
+ ],
+ detonate_cast: [
+  '{caster}が手のひらに炎を凝縮させ、Detonateを解き放った！',
+  '{caster}の周囲に熱気が渦巻き、爆炎の呪文が完成する！',
+  '大気が震え、{caster}の詠唱と共に業火が渦を巻いた！',
+ ],
+ icebind_cast: [
+  '{caster}の周囲の空気が急速に冷え込み、Ice Bindが編まれる！',
+  '{caster}の詠唱と共に、鋭い氷片が虚空に生まれる！',
+  '冷気が渦を巻き、{caster}の手から氷の刃が放たれる！',
+ ],
+ turnToStone_hit: [
+  '{target}の体が、足先からゆっくりと石へと変わっていく……！',
+  '灰色の波が{target}を包み込み、その動きを永遠に止めた！',
+  '{target}は悲鳴を上げる間もなく、その場で石像と化した！',
+  '呪文の余波を浴びた{target}の肌が、みるみる硬く冷たい石に変わった。',
+ ],
+ turnToStone_dodge: [
+  '{target}は咄嗟に身をこわばらせ、石化の呪いを弾き返した！',
+  '灰色の波が{target}に触れる寸前、意志の力でそれを振り払った！',
+  '{target}の体に一瞬石の質感が走ったが、すぐに元に戻った。',
+ ],
+ atomization_hit: [
+  '{target}の輪郭が光の粒となって崩れ、跡形もなく消え去った！',
+  '一瞬の閃光の後、{target}がいた場所には何も残っていなかった。',
+  '{target}の存在そのものが、原子の塵となって虚空へ散った！',
+ ],
+ atomization_dodge: [
+  '{target}は間一髪でその場を離れ、分解の光を逃れた！',
+  '{target}は虫の知らせのように飛びのき、消滅を免れた！',
+  'すんでのところで{target}は身をかわしたが、周囲の空間は容赦なく分解された。',
+ ],
+ summon_cast: [
+  '{caster}の足元に禍々しい魔法陣が浮かび上がり、悪魔が姿を現した！',
+  '大気が裂け、{caster}の呼びかけに応じて悪魔が這い出てきた！',
+  '硫黄の匂いと共に、{caster}の傍らに悪魔が降り立った！',
+ ],
+ shapeshift_cast: [
+  '{caster}の体が軋み、骨格が悪魔のそれへと作り変えられていく……！',
+  '{caster}の輪郭が歪み、獣じみた悪魔の姿へと変貌を遂げた！',
+  '一陣の黒煙と共に、{caster}はもはや人ならざる悪魔の姿となった！',
+ ],
+};
+function _spellFlavor(key, vars){
+ const pool = SPELL_EFFECT_FLAVOR[key];
+ if(!pool || !pool.length) return '';
+ let line = pool[Math.floor(Math.random()*pool.length)];
+ Object.keys(vars||{}).forEach(k=>{ line = line.split('{'+k+'}').join(vars[k]); });
+ return line;
 }
 
 function _npcCombatTtyfDodge(casterLevel, target, onResult){
@@ -40099,16 +40743,16 @@ function _npcCombatTtyfDodge(casterLevel, target, onResult){
 // ── NPC型戦闘専用：素早さ順の魔法フェーズ ──
 function _startMagicPhaseNPC(){
  const casters = [];
- if((PC.type==='wizard'||PC.type==='rogue') && (PC.spells||[]).length>0 && PC.con>0){
+ if((PC.type==='wizard'||PC.type==='rogue') && (PC.spells||[]).length>0 && PC.con>0 && !PC._shapeshifted){
   casters.push({ kind:'pc', actor:PC, spd:PC.spd||0 });
  }
  (PC.party||[]).forEach(npc=>{
-  if(npc.con>0 && (npc.type==='wizard'||npc.type==='rogue') && (npc.spells||[]).length>0){
+  if(npc.con>0 && (npc.type==='wizard'||npc.type==='rogue') && (npc.spells||[]).length>0 && !npc._shapeshifted){
    casters.push({ kind:'party', actor:npc, spd:npc.spd||0 });
   }
  });
  (cbtState.enemies||[]).forEach(e=>{
-  if(e.curCon>0 && e.type==='wizard'){
+  if(e.curCon>0 && e.type==='wizard' && !e._shapeshifted){
    casters.push({ kind:'enemy', actor:e, spd:e.spd||0 });
   }
  });
@@ -40201,7 +40845,7 @@ function _magicPhaseSpellSelectNPC(){
  btns.innerHTML='';
 
  PC.spells.forEach(sp=>{
-  if(['wisp','cateyes','blindSpot'].includes(sp.fn)) return;
+  if(['wisp','cateyes','blindSpot','enchantWeapon','fortifyArmor'].includes(sp.fn)) return;
   const canAfford = PC.st > sp.cost;
   const b = document.createElement('button');
   b.className='choice-btn';
@@ -40261,20 +40905,32 @@ function _magicPhaseNPCSpellSelectNPC(npc){
  btns.appendChild(back);
 }
 
-// ── NPC型戦闘専用：敵wizardの自動詠唱（毎ターン可能・対象は常にPC）──
+// ── NPC型戦闘専用：敵wizardの自動詠唱（毎ターン可能・対象は常にPC・使える攻撃魔法からランダム）──
 function _enemyCastTtyfNPC(enemy, onDone){
+ if(enemy._shapeshifted){ onDone(); return; }
  const npcLv = enemy.level || 1;
- const ttyfCost = 6 * npcLv;
- if((enemy.st||0) <= ttyfCost){ onDone(); return; } // ST不足なら詠唱せず次へ
- enemy.st -= ttyfCost;
- const dmg = (enemy.iq||0) * npcLv;
+ const picked = _npcPickAttackSpell(enemy, NPC_ATTACK_SPELL_FNS_VS_PC);
+ if(!picked){ onDone(); return; }
+ enemy.st -= picked.cost;
  const cl = document.getElementById('clog');
+ const spDisplayName = {ttyf:'Magic Bolt', blastingPower:'Detonate', freezePleeze:'Ice Bind', turnToStone:'Turn to Stone', atomization:'Atomization'}[picked.fn] || picked.name;
+
+ // Detonate/Ice Bind：詠唱者のレベル数を攻撃ダイスとして近接判定の合計に上乗せするだけ（防護値無視の直接ダメージなし・PC側の回避判定も不要）
+ if(picked.fn === 'blastingPower' || picked.fn === 'freezePleeze'){
+  const dmg = Nd6(npcLv);
+  enemy._castDetonateThisRound = true;
+  enemy._detonateHitThisRound = dmg;
+  const flavorKey = picked.fn==='blastingPower' ? 'detonate_cast' : 'icebind_cast';
+  cl.innerHTML += `<span style="color:#e0d8c8"> ${_spellFlavor(flavorKey, {caster:enemy.name})}（${npcLv}D6=${dmg}を近接判定に上乗せ）</span><br>`;
+  onDone();
+  return;
+ }
 
  const panel = document.getElementById('npc-action-panel');
  const title = document.getElementById('npc-action-title');
  const btns  = document.getElementById('npc-action-btns');
  panel.style.display='';
- title.innerHTML = `<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${enemy.name}がMagic Boltを放とうとしている！</span>`;
+ title.innerHTML = `<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${enemy.name}が${spDisplayName}を放とうとしている！</span>`;
  btns.innerHTML = '';
  const braceBtn = document.createElement('button');
  braceBtn.className='choice-btn';
@@ -40282,18 +40938,55 @@ function _enemyCastTtyfNPC(enemy, onDone){
  braceBtn.textContent='▶ 続ける';
  braceBtn.onclick = ()=>{
   panel.style.display='none';
-  cl.innerHTML += `<span style="color:#e0d8c8"> ${enemy.name}がMagic Bolt Lv${npcLv}を詠唱！</span><br>`;
+  cl.innerHTML += `<span style="color:#e0d8c8"> ${enemy.name}が${spDisplayName}を詠唱！</span><br>`;
+
+  // Turn to Stone / Atomization：固定レベル（6/7）でPCの運の能力値テスト
+  if(picked.fn === 'turnToStone' || picked.fn === 'atomization'){
+   _npcCombatTtyfDodge(picked.fn==='atomization'?7:6, PC, (dodged)=>{
+    if(picked.fn === 'atomization'){
+     const heatDmg = Nd6(npcLv);
+     enemy._castDetonateThisRound = true;
+     enemy._detonateHitThisRound = (enemy._detonateHitThisRound||0) + heatDmg;
+     if(dodged){
+      cl.innerHTML += `<span style="color:#e8e0d8"> ${_spellFlavor('atomization_dodge', {target:'あなた'})}（発生した熱で近接判定に${heatDmg}上乗せ）</span><br>`;
+      onDone();
+      return;
+     }
+     cl.innerHTML += `<span class="red"> ${_spellFlavor('atomization_hit', {target:'あなた'})}（発生した熱で近接判定にも${heatDmg}上乗せ）</span><br>`;
+     PC.con = 0;
+     updateHUD();
+     if(_handlePCZeroCon(cl)) return;
+     onDone();
+     return;
+    }
+    // turnToStone
+    if(dodged){
+     cl.innerHTML += `<span style="color:#e8e0d8"> ${_spellFlavor('turnToStone_dodge', {target:'あなた'})}</span><br>`;
+     onDone();
+     return;
+    }
+    cl.innerHTML += `<span class="red"> ${_spellFlavor('turnToStone_hit', {target:'あなた'})}</span><br>`;
+    PC.con = 0;
+    updateHUD();
+    if(_handlePCZeroCon(cl)) return;
+    onDone();
+   });
+   return;
+  }
+
+  // Magic Bolt（ttyf）
   _npcCombatTtyfDodge(npcLv, PC, (dodged)=>{
    if(dodged){
-    cl.innerHTML += `<span style="color:#e8e0d8"> とっさに身をかわし、魔法を回避した！</span><br>`;
+    cl.innerHTML += `<span style="color:#e8e0d8"> ${_spellFlavor('ttyf_dodge', {target:'あなた'})}</span><br>`;
     enemy._castTtyfThisRound = false;
     enemy._ttyfHitThisRound = 0;
     onDone();
     return;
    }
+   const dmg = (enemy.iq||0)*npcLv;
    PC.con = Math.max(0, PC.con - dmg);
    updateHUD();
-   cl.innerHTML += `<span class="red"> 魔法が直撃！PC CON-${dmg}（防護値無視・残り${PC.con}）</span><br>`;
+   cl.innerHTML += `<span class="red"> ${_spellFlavor('ttyf_hit', {caster:enemy.name, target:'あなた'})}（CON-${dmg}・防護値無視・残り${PC.con}）</span><br>`;
    enemy._castTtyfThisRound = true;
    enemy._ttyfHitThisRound = dmg;
    if(PC.con <= 0){
@@ -40307,7 +41000,7 @@ function _enemyCastTtyfNPC(enemy, onDone){
 
 function _magicPhaseStep(npcIdx, magicParty, pcDone){
  // まずPC（pcDone=trueの場合はスキップ）
- if(npcIdx === 0 && !pcDone && !cbtState._pcDidCast && (PC.type==='wizard'||PC.type==='rogue') && PC.spells.length>0){
+ if(npcIdx === 0 && !pcDone && !cbtState._pcDidCast && !PC._shapeshifted && (PC.type==='wizard'||PC.type==='rogue') && PC.spells.length>0){
   const panel = document.getElementById('npc-action-panel');
   const title = document.getElementById('npc-action-title');
   const btns  = document.getElementById('npc-action-btns');
@@ -40356,14 +41049,20 @@ function _magicPhaseStep(npcIdx, magicParty, pcDone){
   return;
  }
 
- // autoNPCモード：UIを出さず自動で詠唱するか決める（レベル1固定・対象はランダム）
+ // autoNPCモード：UIを出さず自動で詠唱するか決める（使える攻撃魔法からランダム・対象はランダム）
  if(cbtState.autoNPC || _isCompanionHuntCombat()){
-  const ttyfSpell = (npc.spells||[]).find(sp=>sp.fn==='ttyf');
+  if(npc._shapeshifted){ _magicPhaseStep(npcIdx+1, magicParty); return; }
   const alive = cbtState.enemies.filter(e=>(cbtState.isNPC?e.curCon:e.curMR)>0);
-  if(ttyfSpell && (npc.st||0) > ttyfSpell.cost && alive.length>0){
+  const picked = _npcPickAttackSpell(npc, NPC_ATTACK_SPELL_FNS_VS_ENEMY);
+  if(picked && alive.length>0){
    cbtState[`_npcDidCast_${partyIdx}`] = true;
    const target = alive[Math.floor(Math.random()*alive.length)];
-   _npcTtyfApply(npc, ttyfSpell, 1, ttyfSpell.cost, target, ()=>_magicPhaseStep(npcIdx+1, magicParty));
+   const onDone = ()=>_magicPhaseStep(npcIdx+1, magicParty);
+   if(picked.fn==='ttyf'){
+    _npcTtyfApply(npc, picked, 1, picked.cost, target, onDone);
+   } else {
+    _npcAttackSpellApply(npc, picked, target, onDone);
+   }
   } else {
    _magicPhaseStep(npcIdx+1, magicParty);
   }
@@ -40413,7 +41112,7 @@ function _magicPhaseSpellSelect(npcIdx, magicParty){
 
  PC.spells.forEach(sp=>{
   // 戦闘外専用呪文は除外
-  if(['wisp','cateyes','blindSpot'].includes(sp.fn)) return;
+  if(['wisp','cateyes','blindSpot','enchantWeapon','fortifyArmor'].includes(sp.fn)) return;
   const canAfford = PC.st > sp.cost;
   const b = document.createElement('button');
   b.className='choice-btn';
@@ -40549,6 +41248,93 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp, customOnDone){
  if(sp.fn === 'blindSpot'){
   cl.innerHTML += `<span style="color:#f0ddd8"> ${npc.name}が${sp.name}を詠唱しようとしたが、戦闘中は効果がない。</span><br>`;
   onDone(); return;
+ }
+
+ if(sp.fn === 'enchantWeapon' || sp.fn === 'fortifyArmor'){
+  cl.innerHTML += `<span style="color:#f0ddd8"> ${npc.name}が${sp.name}を詠唱しようとしたが、戦闘中は使えない呪文だった。</span><br>`;
+  onDone(); return;
+ }
+
+ if(sp.fn === 'summon'){
+  npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
+  const cr = (npc.iq||0)+(npc.lk||0)+(npc.chr||0);
+  const demon = {
+   name: '召喚された悪魔', type: 'warrior', race: 'demon',
+   st: cr, iq: 8, lk: cr, con: cr, dex: cr, chr: 8, spd: 8,
+   maxCon: cr, curCon: cr, maxSt: cr, level: npc.level||1,
+   epithet: '', ap: 0, gold: 0, sp: 0, cp: 0,
+   equippedWeapons: [{name:'鉤爪', dice:2, adds:0, twoHand:false}],
+   equippedArmors: [], equippedBoots:false, equippedClothing:false,
+   invWeapons: [], invArmors: [], spells: [],
+   alignment_ethics:0, alignment_order:0,
+   _isSummonedDemon: true,
+  };
+  PC.party = [...(PC.party||[]), demon];
+  cl.innerHTML += `<span style="color:#e8e4d8"> ${_spellFlavor('summon_cast', {caster:npc.name})}（CombatRating ${cr}）パーティに加わった！</span><br>`;
+  updateCombatUI();
+  onDone(); return;
+ }
+
+ if(sp.fn === 'shapeshift'){
+  npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
+  const cr = (npc.st||0)+(npc.iq||0)+(npc.lk||0)+(npc.con||0)+(npc.dex||0)+(npc.chr||0)+(npc.spd||0);
+  const origName = npc.name;
+  npc._shapeshiftOriginal = { name:npc.name };
+  npc.name = `悪魔と化した${origName}`;
+  npc._shapeshiftCR = cr; // 戦闘が終わるまで、近接判定は毎ラウンドこの値そのものを使う
+  npc._shapeshifted = true;
+  cl.innerHTML += `<span style="color:#e8e4d8"> ${_spellFlavor('shapeshift_cast', {caster:origName})}（CombatRating ${cr}）</span><br>`;
+  updateCombatUI();
+  onDone(); return;
+ }
+
+ if(sp.fn === 'turnToStone' || sp.fn === 'atomization'){
+  npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
+  const isNPCCbt = cbtState.isNPC;
+  const alive = cbtState.enemies.filter(e=>(isNPCCbt?e.curCon:e.curMR)>0);
+  const applyOne = (target)=>{
+   const dodgeLv = sp.fn==='atomization' ? 7 : 6;
+   _npcCombatTtyfDodge(dodgeLv, target, (dodged)=>{
+    if(sp.fn==='atomization'){
+     const heatDmg = Nd6(npc.level||1);
+     cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + heatDmg;
+     if(dodged){
+      cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を詠唱！${_spellFlavor('atomization_dodge', {target:target.name})}（熱で近接戦闘に${heatDmg}ヒット追加）</span><br>`;
+     } else {
+      if(isNPCCbt) target.curCon = 0; else target.curMR = 0;
+      cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を詠唱！${_spellFlavor('atomization_hit', {target:target.name})}（熱で近接戦闘に${heatDmg}ヒット追加）</span><br>`;
+     }
+    } else {
+     if(dodged){
+      cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を詠唱！${_spellFlavor('turnToStone_dodge', {target:target.name})}</span><br>`;
+     } else {
+      if(isNPCCbt) target.curCon = 0; else target.curMR = 0;
+      cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を詠唱！${_spellFlavor('turnToStone_hit', {target:target.name})}</span><br>`;
+     }
+    }
+    updateCombatUI();
+    onDone();
+   });
+  };
+  if(alive.length<=1){
+   if(alive.length===1) applyOne(alive[0]); else onDone();
+  } else {
+   const panel = document.getElementById('npc-action-panel');
+   const title = document.getElementById('npc-action-title');
+   const btns  = document.getElementById('npc-action-btns');
+   panel.style.display='';
+   title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${npc.name}の${sp.name} — 対象を選択</span>`;
+   btns.innerHTML='';
+   alive.forEach(e=>{
+    const b=document.createElement('button');
+    b.className='choice-btn';
+    b.style.cssText='border-color:#d8d0c0;color:#e0d8c8';
+    b.textContent = `${e.name}（${isNPCCbt?`体力${e.curCon}`:`CombatRating${e.curMR}`}）`;
+    b.onclick=()=>{ applyOne(e); };
+    btns.appendChild(b);
+   });
+  }
+  return;
  }
 
  // その他の呪文（未定義効果）：ST消費してログ出力のみ
@@ -40736,7 +41522,111 @@ function _npcTtyfApply(npc, sp, lv, stCost, target, onDone){
  doHit();
 }
 
-// ── 遠距離攻撃フェーズ ──────────────────────────────────────────────
+// 味方NPC・敵NPCが使える攻撃魔法のプール
+const NPC_ATTACK_SPELL_FNS_VS_PC = ['ttyf','blastingPower','freezePleeze','turnToStone','atomization']; // 敵→PC（高レベル魔法も解禁）
+const NPC_ATTACK_SPELL_FNS_VS_ENEMY = ['ttyf','blastingPower','freezePleeze','turnToStone','atomization']; // 味方→敵
+
+// 攻撃魔法を1つランダムに選ぶ（使用可能なものがなければnull）
+function _npcPickAttackSpell(npc, pool){
+ const usable = (npc.spells||[]).filter(sp=>{
+  if(!pool.includes(sp.fn)) return false;
+  const cost = sp.fn==='ttyf' ? sp.cost : sp.cost; // ttyfもLv1固定なのでsp.costそのまま
+  return (npc.st||0) > cost;
+ });
+ if(!usable.length) return null;
+ return usable[Math.floor(Math.random()*usable.length)];
+}
+
+// ttyf以外の攻撃魔法（blastingPower/freezePleeze/turnToStone/atomization）をNPCが対象に適用する
+function _npcAttackSpellApply(npc, sp, target, onDone){
+ const isNPCCbt = cbtState.isNPC;
+ npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
+ const cl = document.getElementById('clog');
+ const npcLv = npc.level||1;
+
+ const checkWipeAndDone = ()=>{
+  _updateCombatBars();
+  if(cbtState.enemies.every(e=>(isNPCCbt?e.curCon:e.curMR)<=0)){
+   gainAPAll(cbtState.totalMR);
+   const cs = cbtState;
+   showCombatOK(()=>{
+    if(cs.win==='__noop__'){
+     document.getElementById('cbt-area').classList.add('hidden');
+     document.getElementById('scroll-area').classList.remove('in-combat');
+     document.getElementById('text-win').style.display='';
+     cbtState=null; if(cs.onWin)cs.onWin();
+    } else {
+     if(cs.onWin) cs.onWin();
+     go(cs.win||currentNodeId);
+    }
+   });
+   return true;
+  }
+  onDone();
+  return false;
+ };
+
+ if(sp.fn==='blastingPower' || sp.fn==='freezePleeze'){
+  const spName = sp.fn==='blastingPower' ? 'Detonate' : 'Ice Bind';
+  const flavorKey = sp.fn==='blastingPower' ? 'detonate_cast' : 'icebind_cast';
+  // NPC型戦闘：詠唱者のレベル数を攻撃ダイスとして、対象の近接判定に上乗せするだけ（回避判定・直接ダメージなし）
+  if(isNPCCbt){
+   const dmg = Nd6(npcLv);
+   target._castDetonateThisRound = true;
+   target._detonateHitThisRound = (target._detonateHitThisRound||0) + dmg;
+   cl.innerHTML += `<span style="color:#e0d8c8"> ${_spellFlavor(flavorKey, {caster:npc.name})}（${target.name}の近接判定に${npcLv}D6=${dmg}を上乗せ）</span><br>`;
+   onDone();
+   return;
+  }
+  // MR型戦闘：敵は個別ロールを持たないため、従来通り回避判定＋直接ダメージ
+  cl.innerHTML += `<span style="color:#e0d8c8"> ${_spellFlavor(flavorKey, {caster:npc.name})}</span><br>`;
+  _npcCombatTtyfDodge(npcLv, target, (dodged)=>{
+   if(dodged){
+    cl.innerHTML += `<span style="color:#e8e0d8"> ${target.name}は咄嗟に身をかわし、魔法を回避した！</span><br>`;
+    onDone();
+    return;
+   }
+   const dmg = Nd6(npcLv);
+   const prevHp = target.curMR;
+   target.curMR = Math.max(0, target.curMR - dmg);
+   const afterHp = target.curMR;
+   cl.innerHTML += `<span style="color:var(--white)"> ${target.name}に${dmg}ダメージ！ CombatRating: ${prevHp}→${afterHp}</span><br>`;
+   checkWipeAndDone();
+  });
+  return;
+ }
+ if(sp.fn==='turnToStone'){
+  cl.innerHTML += `<span style="color:#e0d8c8"> ${npc.name}がTurn to Stoneを詠唱！</span><br>`;
+  _npcCombatTtyfDodge(6, target, (dodged)=>{
+   if(dodged){
+    cl.innerHTML += `<span style="color:#e8e0d8"> ${_spellFlavor('turnToStone_dodge', {target:target.name})}</span><br>`;
+   } else {
+    if(isNPCCbt) target.curCon = 0; else target.curMR = 0;
+    cl.innerHTML += `<span style="color:var(--white)"> ${_spellFlavor('turnToStone_hit', {target:target.name})}</span><br>`;
+   }
+   checkWipeAndDone();
+  });
+  return;
+ }
+ if(sp.fn==='atomization'){
+  cl.innerHTML += `<span style="color:#e0d8c8"> ${npc.name}がAtomizationを詠唱！</span><br>`;
+  _npcCombatTtyfDodge(7, target, (dodged)=>{
+   const heatDmg = Nd6(npcLv);
+   cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + heatDmg;
+   if(dodged){
+    cl.innerHTML += `<span style="color:#e8e0d8"> ${_spellFlavor('atomization_dodge', {target:target.name})}（発生した熱で近接戦闘に${heatDmg}ヒット追加）</span><br>`;
+   } else {
+    if(isNPCCbt) target.curCon = 0; else target.curMR = 0;
+    cl.innerHTML += `<span style="color:var(--white)"> ${_spellFlavor('atomization_hit', {target:target.name})}（発生した熱で近接戦闘に${heatDmg}ヒット追加）</span><br>`;
+   }
+   checkWipeAndDone();
+  });
+  return;
+ }
+ onDone();
+}
+
+
 function _startRangedPhase(){
  // NPC型戦闘は素早さ順の専用フローへ
  if(cbtState?.isNPC){ _startRangedPhaseNPC(); return; }
@@ -41212,6 +42102,11 @@ function gainAPCombatNPC(enemies){
 }
 
 function startCombatNPC(en){
+ // 前回の戦闘のShapeshiftをリセット
+ [PC, ...(PC.party||[])].forEach(a=>{ a._shapeshifted = false; });
+ _restoreShapeshiftIfNeeded(); // PC自身が変身したままなら元に戻す
+ // 前回の戦闘の召喚された悪魔が残っていれば取り除く
+ PC.party = (PC.party||[]).filter(n=>!n._isSummonedDemon);
  // enemies: [{name, race, type, st, iq, lk, con, maxCon, dex, chr, spd,
  //            equippedWeapons:[{name,dice,adds}], equippedArmors:[{name,hits,isShield}]}]
  const enemies = (en.enemies||[]).map(e=>({
@@ -41361,7 +42256,10 @@ function _doFightNPCCore(cs){
  }
  const equipped=PC.equippedWeapons||[];
  let pRoll,pDice;
- if(!equipped.length){ const rv=rollNd6(1); pRoll=rv.total+adds; pDice=rv.dice; }
+ if(PC._shapeshifted){
+  // Shapeshift中は武器・能力値によるロールを一切行わず、CRのダイス数+戦闘修正で近接判定を行う
+  const rv = monsterCombatRoll(PC._shapeshiftCR||0); pRoll = rv.total; pDice = rv.dice;
+ } else if(!equipped.length){ const rv=rollNd6(1); pRoll=rv.total+adds; pDice=rv.dice; }
  else {
   // 全装備武器のダイスを合計（二刀流対応。addsは武器ごとに合算）
   let totalDice = 0; let totalWeaponAdds = 0;
@@ -41369,6 +42267,7 @@ function _doFightNPCCore(cs){
    let dice = w.dice;
    if(wi===0 && cs.vorpalActive && !cs._pcDidCast){ dice*=2; }
    if(wi===0 && cs.whammyActive && !cs._pcDidCast){ dice*=3; }
+   if((PC._enchantWeaponTurns||0) > 0){ dice*=3; }
    totalDice += dice;
    totalWeaponAdds += (w.adds||0);
   });
@@ -41428,7 +42327,9 @@ function resolveRoundNPC(pRoll, npcActions){
  const pcHit = spellCaster
   ? (ttyfHit>0?ttyfHit:0)+spellHitBonus
   : pRoll + spellHitBonus;
- const totalPlayerRoll = pcHit + partyRoll;
+ // Summon/Shapeshiftは戦闘終了まで持続する加算（毎ラウンド反映）
+ const summonBonus = (cs._summonCR||0) + (cs._shapeshiftCR||0);
+ const totalPlayerRoll = pcHit + partyRoll + summonBonus;
 
  // ── 敵ロール（能力値型）──
  const aliveEnemies = cs.enemies.filter(e=>e.curCon>0);
@@ -41440,6 +42341,13 @@ function resolveRoundNPC(pRoll, npcActions){
    e._castTtyfThisRound = false;
    e._ttyfHitThisRound = 0;
    return {enemy:e, roll:ttyfVal, dice:[], ttyf:ttyfVal};
+  }
+  // Detonate/Ice Bindで詠唱済みなら、そのダイス分を通常の近接ロールの代わりに使う（防護値を無視しない通常ヒットのため、ショック効果の控除対象にはしない＝ttyf:0）
+  if(e._castDetonateThisRound){
+   const bonusVal = e._detonateHitThisRound||0;
+   e._castDetonateThisRound = false;
+   e._detonateHitThisRound = 0;
+   return {enemy:e, roll:bonusVal, dice:[], ttyf:0};
   }
   // 遠距離攻撃の回避を試みた敵は、今ラウンドの近接ロールに参加しない
   if(e._dodgedRangedThisRound){
@@ -41860,7 +42768,7 @@ function _showPCActionChoices(){
   btns.innerHTML = '';
   const b = document.createElement('button');
   b.className = 'choice-btn';
-  b.textContent = ' 様子を見る';
+  b.textContent = PC._shapeshifted ? ' 攻撃する' : ' 様子を見る';
   b.onclick = ()=>{ _hidePCActionChoices(); doDefend(); };
   btns.appendChild(b);
   return;
@@ -41871,7 +42779,7 @@ function _showPCActionChoices(){
 
  const actions = [
   { label:' 戦う', fn: doFight, id:'ft-btn' },
-  { label:' 様子を見る', fn: doDefend, id:'def-btn' },
+  { label: PC._shapeshifted ? ' 攻撃する' : ' 様子を見る', fn: doDefend, id:'def-btn' },
  ];
  if(cbtState?.canFlee){
   actions.push({ label:' 逃走', fn: doFlee, id:'flee-btn' });
@@ -41949,6 +42857,7 @@ let _cbtNPCActions = []; // 各NPCの選択した行動
 
 function doDefend(){
  if(!cbtState) return;
+ if(PC._shapeshifted){ doFight(); return; } // 変身中は様子を見ることができず、常にCRで戦う
  if(cbtState.isNPC){ doDefendNPC(); return; }
  const cs = cbtState; cs.turn++;
  cs._pcDefending = true;
@@ -41992,7 +42901,10 @@ function doFight(){
  // ── プレイヤーロール ──
  let pRoll; let pDice=[];
  const equipped = PC.equippedWeapons||[];
- if(!equipped.length){
+ if(PC._shapeshifted){
+  // Shapeshift中は武器・能力値によるロールを一切行わず、CRのダイス数+戦闘修正で近接判定を行う
+  const rv = monsterCombatRoll(PC._shapeshiftCR||0); pRoll = rv.total; pDice = rv.dice;
+ } else if(!equipped.length){
   const rv=rollNd6(1); pDice=rv.dice; pRoll=rv.total+adds;
  } else {
   // 全装備武器のダイスを合計（adds は1回のみ）
@@ -42001,6 +42913,7 @@ function doFight(){
    let dice = w.dice;
    if(wi===0 && cs.vorpalActive && !cs._pcDidCast){ dice*=2; }
    if(wi===0 && cs.whammyActive && !cs._pcDidCast){ dice*=3; }
+   if((PC._enchantWeaponTurns||0) > 0){ dice*=3; }
    totalDice += dice;
    totalWeaponAdds += (w.adds||0);
   });
@@ -42239,7 +43152,7 @@ function resolveRound(pRoll, npcActions){
  // NPC魔法フェーズTTYF分（ヒット比較には加算、差分ダメージには含めない）
  const npcTtyfMagicHit = cs._npcTtyfMagicHit || 0;
  cs._npcTtyfMagicHit = 0;
- const totalPlayerRoll = pcHit + partyRoll + npcTtyfMagicHit;
+ const totalPlayerRoll = pcHit + partyRoll + npcTtyfMagicHit + (cs._summonCR||0) + (cs._shapeshiftCR||0);
 
  // ── 各敵ロール（ttyfでダメージ適用後のcurMRで計算）──
  const aliveEnemies = cs.enemies.filter(e=>e.curMR>0);
@@ -42665,6 +43578,26 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
   }
   return;
  }
+ // Enchant Weapon / Fortify Armor：戦闘外でPC自身に恒久バフをかける（ノード固有の反応ではなく常時発動）
+ if(spell.fn === 'enchantWeapon' || spell.fn === 'fortifyArmor'){
+  const turns = 6 + Math.floor(Math.random()*19); // 6〜24
+  if(spell.fn === 'enchantWeapon'){
+   caster._enchantWeaponTurns = turns;
+  } else {
+   caster._fortifyArmorTurns = turns;
+  }
+  const label = spell.fn === 'enchantWeapon' ? '武器が魔力を帯びて輝いた！' : '防具が魔力で覆われた！';
+  const effectDesc = spell.fn === 'enchantWeapon' ? 'ヒットダイスが3倍' : '防護点が3倍';
+  resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
+   <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>
+   <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${casterLabel}${label}${turns}ターンの間、${effectDesc}になる。</div>
+   <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">ST -${spell.cost}　経験値+${spell.cost}</div>
+  </div>`;
+  story.innerHTML += resultHtml;
+  updateHUD();
+  scrollToTop();
+  return;
+ }
  if(spell.fn === 'healingFeeling'){
   const wasAfflicted = caster._poisoned || caster._diseased;
   caster._poisoned = false; caster._diseased = false;
@@ -42843,7 +43776,7 @@ function _ttyfApply(spell, ttyfLv, stCost, target){
   _npcCombatTtyfDodge(ttyfLv, target, (dodged)=>{
    if(dodged){
     result.innerHTML = ` <span class="wizard-c">Magic Bolt</span> Lv${ttyfLv}<br>
-     <span style="color:var(--white)">${target.name}は咄嗟に身をかわし、魔法を回避した！</span><br>
+     <span style="color:var(--white)">${_spellFlavor('ttyf_dodge', {target:target.name})}</span><br>
      <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">強さ-${discCost}</span>`;
     cbtState._spellCaster = true;
     cbtState._ttyfHit = 0;
@@ -42887,6 +43820,7 @@ function _ttyfApplyHit(spell, ttyfLv, stCost, target, discCost, result, isNPCCbt
  cbtState._ttyfPRoll = dmg;
 
  result.innerHTML = ` <span class="wizard-c">Magic Bolt</span> Lv${ttyfLv}<br>
+  <span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">${_spellFlavor('ttyf_hit', {caster:PC.name, target:target.name})}</span><br>
   <span style="color:var(--white)">${target.name}に ${dmg}ダメージ！（IQ${PC.iq} × Lv${ttyfLv}）</span><br>
   <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">${hpLabel}: ${prevHp} → ${afterHp}　強さ-${discCost}</span><br>
   <span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 2px)">近接戦闘では詠唱者の攻撃ヒット＝${dmg}として処理</span>`;
@@ -42972,7 +43906,10 @@ function showMagicInCombat(){
 }
 function renderSpellList(ctx){
  const el=document.getElementById('spell-list');el.innerHTML='';
+ const inCombat = !!cbtState;
  PC.spells.forEach(sp=>{
+ // 戦闘中は使えない呪文（戦闘外専用）は、そもそも選択肢に出さない
+ if(inCombat && (sp.fn==='enchantWeapon' || sp.fn==='fortifyArmor')) return;
  const canAfford=PC.st>sp.cost;
  const btn=document.createElement('button');btn.className='spell-btn';
  btn.innerHTML=`${sp.name} <span class="sp-cost">強さ-${sp.cost}</span><br><span style="color:var(--white2);font-size:calc(var(--font-lg) + 4px)">${sp.desc}</span>`;
@@ -43224,6 +44161,156 @@ function castSpell(spell,ctx){
  result.innerHTML=' <span class="wizard-c">Purify</span>: 体内の毒・病が浄化された！';
  PC._poisoned = false; PC._diseased = false;
  break;
+
+ // ── Level 4 ──────────────────────────
+ case 'enchantWeapon':
+ if(!cbtState){
+  const turns = 6 + Math.floor(Math.random()*19); // 6〜24
+  PC._enchantWeaponTurns = turns;
+  result.innerHTML = ` <span class="wizard-c">Enchant Weapon</span>: 武器が魔力を帯びて輝いた！${turns}ターンの間、ヒットダイスが3倍になる。`;
+ } else {
+  PC.st += spell.cost; // ST返還
+  result.textContent = '戦闘中は使用できない';
+  updateHUD();
+ }
+ break;
+
+ // ── Level 5 ──────────────────────────
+ case 'summon':
+ if(cbtState){
+  const cr = (PC.iq||0) + (PC.lk||0) + (PC.chr||0);
+  const demon = {
+   name: '召喚された悪魔', type: 'warrior', race: 'demon',
+   st: cr, iq: 8, lk: cr, con: cr, dex: cr, chr: 8, spd: 8,
+   maxCon: cr, curCon: cr, maxSt: cr, level: PC.level||1,
+   epithet: '', ap: 0, gold: 0, sp: 0, cp: 0,
+   equippedWeapons: [{name:'鉤爪', dice:2, adds:0, twoHand:false}],
+   equippedArmors: [], equippedBoots:false, equippedClothing:false,
+   invWeapons: [], invArmors: [], spells: [],
+   alignment_ethics:0, alignment_order:0,
+   _isSummonedDemon: true, // 戦闘終了時に取り除く目印
+  };
+  PC.party = [...(PC.party||[]), demon];
+  result.innerHTML = ` <span class="wizard-c">Summon</span>: ${_spellFlavor('summon_cast', {caster:PC.name})}（CombatRating ${cr}）パーティの一員として戦闘に参加する。戦闘が終わるまで共に戦う。`;
+  updateCombatUI();
+ } else {
+  PC.st += spell.cost;
+  result.textContent = '戦闘中のみ使用可';
+  updateHUD();
+ }
+ break;
+ case 'fortifyArmor':
+ if(!cbtState){
+  const turns = 6 + Math.floor(Math.random()*19);
+  PC._fortifyArmorTurns = turns;
+  result.innerHTML = ` <span class="wizard-c">Fortify Armor</span>: 防具が魔力で覆われた！${turns}ターンの間、防御点が3倍になる。`;
+ } else {
+  PC.st += spell.cost;
+  result.textContent = '戦闘中は使用できない';
+  updateHUD();
+ }
+ break;
+
+ // ── Level 6 ──────────────────────────
+ case 'shapeshift':
+ if(cbtState){
+  const cr = (PC.st||0)+(PC.iq||0)+(PC.lk||0)+(PC.con||0)+(PC.dex||0)+(PC.chr||0)+(PC.spd||0);
+  const origName = PC.name;
+  PC._shapeshiftOriginal = { name:PC.name };
+  PC.name = `悪魔と化した${origName}`;
+  PC._shapeshiftCR = cr; // 戦闘が終わるまで、近接判定は毎ラウンドこの値そのものを使う
+  PC._shapeshifted = true; // 変身後は魔法を使えない（変身中かどうかの判定にも流用）
+  result.innerHTML = ` <span class="wizard-c">Shapeshift</span>: ${_spellFlavor('shapeshift_cast', {caster:origName})}（CombatRating ${cr}）戦闘が終わるまでCR${cr}の悪魔としてこの姿で戦う。変身が解けるまで魔法は使えない。`;
+  updateCombatUI();
+ } else {
+  PC.st += spell.cost;
+  result.textContent = '戦闘中のみ使用可';
+  updateHUD();
+ }
+ break;
+ case 'turnToStone':
+ if(cbtState){
+  const isNPCCbt = cbtState.isNPC;
+  const alive = cbtState.enemies.filter(e=>(isNPCCbt?e.curCon:e.curMR)>0);
+  const applyStone = (target)=>{
+   _npcCombatTtyfDodge(6, target, (dodged)=>{
+    if(dodged){
+     result.innerHTML = ` <span class="wizard-c">Turn to Stone</span>: ${_spellFlavor('turnToStone_dodge', {target:target.name})}`;
+    } else {
+     if(isNPCCbt) target.curCon = 0; else target.curMR = 0;
+     result.innerHTML = ` <span class="wizard-c">Turn to Stone</span>: ${_spellFlavor('turnToStone_hit', {target:target.name})}`;
+    }
+    cbtState._spellCaster = true;
+    updateCombatUI();
+    if(cbtState._magicPhaseNext){ const n=cbtState._magicPhaseNext; cbtState._magicPhaseNext=null; n(); }
+   });
+  };
+  if(alive.length<=1){
+   applyStone(alive[0]);
+  } else {
+   const choicesEl = document.getElementById('choices');
+   result.innerHTML = ' <span class="wizard-c">Turn to Stone</span>: 誰を石化しますか？';
+   choicesEl.innerHTML = '';
+   alive.forEach(e=>{
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = `${e.name}（${isNPCCbt?`体力${e.curCon}`:`CombatRating${e.curMR}`}）`;
+    btn.onclick = ()=>{ choicesEl.innerHTML=''; applyStone(e); };
+    choicesEl.appendChild(btn);
+   });
+   return;
+  }
+ } else {
+  PC.st += spell.cost;
+  result.textContent = '戦闘中のみ使用可';
+  updateHUD();
+ }
+ break;
+
+ // ── Level 7 ──────────────────────────
+ case 'atomization':
+ if(cbtState){
+  const isNPCCbt = cbtState.isNPC;
+  const alive = cbtState.enemies.filter(e=>(isNPCCbt?e.curCon:e.curMR)>0);
+  const applyAtomize = (target)=>{
+   _npcCombatTtyfDodge(7, target, (dodged)=>{
+    const dice = PC.level||1;
+    const adds = Math.max(0, calcAdds());
+    const heatDmg = Nd6(dice) + adds;
+    cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + heatDmg;
+    if(dodged){
+     result.innerHTML = ` <span class="wizard-c">Atomization</span>: ${_spellFlavor('atomization_dodge', {target:target.name})}（発生した熱で近接戦闘に${heatDmg}ヒット追加！）<br><span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 2px)">近接戦闘のヒットに加算されます</span>`;
+    } else {
+     if(isNPCCbt) target.curCon = 0; else target.curMR = 0;
+     result.innerHTML = ` <span class="wizard-c">Atomization</span>: ${_spellFlavor('atomization_hit', {target:target.name})}<br>発生した熱で近接戦闘に${heatDmg}ヒット追加！<br><span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 2px)">近接戦闘のヒットに加算されます</span>`;
+    }
+    cbtState._spellCaster = true;
+    updateCombatUI();
+    if(cbtState._magicPhaseNext){ const n=cbtState._magicPhaseNext; cbtState._magicPhaseNext=null; n(); }
+   });
+  };
+  if(alive.length<=1){
+   applyAtomize(alive[0]);
+  } else {
+   const choicesEl = document.getElementById('choices');
+   result.innerHTML = ' <span class="wizard-c">Atomization</span>: 誰を消滅させますか？';
+   choicesEl.innerHTML = '';
+   alive.forEach(e=>{
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = `${e.name}（${isNPCCbt?`体力${e.curCon}`:`CombatRating${e.curMR}`}）`;
+    btn.onclick = ()=>{ choicesEl.innerHTML=''; applyAtomize(e); };
+    choicesEl.appendChild(btn);
+   });
+   return;
+  }
+ } else {
+  PC.st += spell.cost;
+  result.textContent = '戦闘中のみ使用可';
+  updateHUD();
+ }
+ break;
+
  default:result.innerHTML=` ${spell.name} 使用。`;
  }
  renderSpellList(ctx);
@@ -43731,6 +44818,8 @@ function _consumeDungeonTorch(){
    updateHUD();
   } else break;
  }
+ // Enchant Weapon/Fortify Armorの残りターンは、松明の有無に関わらずノード移動1回につき1回だけ減らす
+ _decrementWizardBuffTurns();
 }
 
 const RUIN_MONSTER_TABLE = [
@@ -44755,14 +45844,30 @@ const NODES = {
  // ══════════════════════════════════════════
  ARENA_AL_RASHID:{
  scene:'town_desert_city',
- txt:()=>` <span style="color:#f0ece0">アル・ラシードの闘技場</span><br><br>
- <span style="color:#c0b098">石造りの観客席を備えた、地方でも有数の闘技場だ。剣豪クラスからチャンピオンクラスまでの猛者が名を連ねる。</span><br><br>
- <span style="color:#c8b8a0">（現在は観戦のみ受け付けている）</span>`,
- choices:[
-  {label:' 殿堂の石碑を見る', go:'ARENA_AL_RASHID_MONUMENT'},
-  {label:' 試合を観覧する', go:'ARENA_AL_RASHID_WATCH_SELECT'},
-  {label:'← 戻る', go:'TOWN_AL_RASHID'},
- ],
+ txt:()=>{
+  const recommended = !!(PC._arenaRecommended||{}).al_rashid;
+  return ` <span style="color:#f0ece0">アル・ラシードの闘技場</span><br><br>
+  <span style="color:#c0b098">石造りの観客席を備えた、地方でも有数の闘技場だ。剣豪クラスからチャンピオンクラスまでの猛者が名を連ねる。</span><br><br>
+  ${recommended ? '' : '<span style="color:#c8b8a0">（現在は観戦のみ受け付けている）</span>'}`;
+ },
+ choices:()=>{
+  const recommended = !!(PC._arenaRecommended||{}).al_rashid;
+  const ch = [];
+  if(recommended){
+   const cooldown = arenaCooldownRemaining();
+   const count = arenaPartySize();
+   ['swordmaster','hero','champion'].forEach(key=>{
+    const rank = ARENA_RANKS[key];
+    const fee = rank.feePerPerson*count;
+    const prize = rank.prizeBase*count;
+    ch.push({label:` ${rank.name}クラスに挑戦（Lv${rank.minLv}-${rank.maxLv}・参加費${fee}GP・賞金${prize}GP）${cooldown>0?`（あと${cooldown}日）`:''}`, fn:()=>arenaChallengeRank(key, 'ARENA_AL_RASHID', 'アル・ラシードの闘技場', 'al_rashid')});
+   });
+  }
+  ch.push({label:' 殿堂の石碑を見る', go:'ARENA_AL_RASHID_MONUMENT'});
+  ch.push({label:' 試合を観覧する', go:'ARENA_AL_RASHID_WATCH_SELECT'});
+  ch.push({label:'← 戻る', go:'TOWN_AL_RASHID'});
+  return ch;
+ },
  },
  ARENA_AL_RASHID_WATCH_SELECT:{
  scene:'town_desert_city',
@@ -44795,14 +45900,30 @@ const NODES = {
 
  ARENA_ELSIA:{
  scene:'town_elsia',
- txt:()=>` <span style="color:#f0ece0">エルシアの闘技場</span><br><br>
- <span style="color:#c0b098">木々に囲まれた円形の闘技場だ。剣豪クラスからチャンピオンクラスまでの猛者が名を連ねる。</span><br><br>
- <span style="color:#c8b8a0">（現在は観戦のみ受け付けている）</span>`,
- choices:[
-  {label:' 殿堂の石碑を見る', go:'ARENA_ELSIA_MONUMENT'},
-  {label:' 試合を観覧する', go:'ARENA_ELSIA_WATCH_SELECT'},
-  {label:'← 戻る', go:'TOWN_ELSIA'},
- ],
+ txt:()=>{
+  const recommended = !!(PC._arenaRecommended||{}).elsia;
+  return ` <span style="color:#f0ece0">エルシアの闘技場</span><br><br>
+  <span style="color:#c0b098">木々に囲まれた円形の闘技場だ。剣豪クラスからチャンピオンクラスまでの猛者が名を連ねる。</span><br><br>
+  ${recommended ? '' : '<span style="color:#c8b8a0">（現在は観戦のみ受け付けている）</span>'}`;
+ },
+ choices:()=>{
+  const recommended = !!(PC._arenaRecommended||{}).elsia;
+  const ch = [];
+  if(recommended){
+   const cooldown = arenaCooldownRemaining();
+   const count = arenaPartySize();
+   ['swordmaster','hero','champion'].forEach(key=>{
+    const rank = ARENA_RANKS[key];
+    const fee = rank.feePerPerson*count;
+    const prize = rank.prizeBase*count;
+    ch.push({label:` ${rank.name}クラスに挑戦（Lv${rank.minLv}-${rank.maxLv}・参加費${fee}GP・賞金${prize}GP）${cooldown>0?`（あと${cooldown}日）`:''}`, fn:()=>arenaChallengeRank(key, 'ARENA_ELSIA', 'エルシアの闘技場', 'elsia')});
+   });
+  }
+  ch.push({label:' 殿堂の石碑を見る', go:'ARENA_ELSIA_MONUMENT'});
+  ch.push({label:' 試合を観覧する', go:'ARENA_ELSIA_WATCH_SELECT'});
+  ch.push({label:'← 戻る', go:'TOWN_ELSIA'});
+  return ch;
+ },
  },
  ARENA_ELSIA_WATCH_SELECT:{
  scene:'town_elsia',
@@ -44835,14 +45956,30 @@ const NODES = {
 
  ARENA_YELDUN:{
  scene:'town_mountain_city',
- txt:()=>` <span style="color:#f0ece0">イェルダンの闘技場</span><br><br>
- <span style="color:#c0b098">山肌を削って作られた岩造りの闘技場だ。剣豪クラスからチャンピオンクラスまでの猛者が名を連ねる。</span><br><br>
- <span style="color:#c8b8a0">（現在は観戦のみ受け付けている）</span>`,
- choices:[
-  {label:' 殿堂の石碑を見る', go:'ARENA_YELDUN_MONUMENT'},
-  {label:' 試合を観覧する', go:'ARENA_YELDUN_WATCH_SELECT'},
-  {label:'← 戻る', go:'TOWN_YELDUN'},
- ],
+ txt:()=>{
+  const recommended = !!(PC._arenaRecommended||{}).yeldun;
+  return ` <span style="color:#f0ece0">イェルダンの闘技場</span><br><br>
+  <span style="color:#c0b098">山肌を削って作られた岩造りの闘技場だ。剣豪クラスからチャンピオンクラスまでの猛者が名を連ねる。</span><br><br>
+  ${recommended ? '' : '<span style="color:#c8b8a0">（現在は観戦のみ受け付けている）</span>'}`;
+ },
+ choices:()=>{
+  const recommended = !!(PC._arenaRecommended||{}).yeldun;
+  const ch = [];
+  if(recommended){
+   const cooldown = arenaCooldownRemaining();
+   const count = arenaPartySize();
+   ['swordmaster','hero','champion'].forEach(key=>{
+    const rank = ARENA_RANKS[key];
+    const fee = rank.feePerPerson*count;
+    const prize = rank.prizeBase*count;
+    ch.push({label:` ${rank.name}クラスに挑戦（Lv${rank.minLv}-${rank.maxLv}・参加費${fee}GP・賞金${prize}GP）${cooldown>0?`（あと${cooldown}日）`:''}`, fn:()=>arenaChallengeRank(key, 'ARENA_YELDUN', 'イェルダンの闘技場', 'yeldun')});
+   });
+  }
+  ch.push({label:' 殿堂の石碑を見る', go:'ARENA_YELDUN_MONUMENT'});
+  ch.push({label:' 試合を観覧する', go:'ARENA_YELDUN_WATCH_SELECT'});
+  ch.push({label:'← 戻る', go:'TOWN_YELDUN'});
+  return ch;
+ },
  },
  ARENA_YELDUN_WATCH_SELECT:{
  scene:'town_mountain_city',
@@ -44875,14 +46012,30 @@ const NODES = {
 
  ARENA_VALDHEIM:{
  scene:'town_stone',
- txt:()=>` <span style="color:#f0ece0">ヴァルドヘイムの闘技場</span><br><br>
- <span style="color:#c0b098">石造りの重厚な闘技場だ。剣豪クラスからチャンピオンクラスまでの猛者が名を連ねる。</span><br><br>
- <span style="color:#c8b8a0">（現在は観戦のみ受け付けている）</span>`,
- choices:[
-  {label:' 殿堂の石碑を見る', go:'ARENA_VALDHEIM_MONUMENT'},
-  {label:' 試合を観覧する', go:'ARENA_VALDHEIM_WATCH_SELECT'},
-  {label:'← 戻る', go:'TOWN_VALDHEIM'},
- ],
+ txt:()=>{
+  const recommended = !!(PC._arenaRecommended||{}).valdheim;
+  return ` <span style="color:#f0ece0">ヴァルドヘイムの闘技場</span><br><br>
+  <span style="color:#c0b098">石造りの重厚な闘技場だ。剣豪クラスからチャンピオンクラスまでの猛者が名を連ねる。</span><br><br>
+  ${recommended ? '' : '<span style="color:#c8b8a0">（現在は観戦のみ受け付けている）</span>'}`;
+ },
+ choices:()=>{
+  const recommended = !!(PC._arenaRecommended||{}).valdheim;
+  const ch = [];
+  if(recommended){
+   const cooldown = arenaCooldownRemaining();
+   const count = arenaPartySize();
+   ['swordmaster','hero','champion'].forEach(key=>{
+    const rank = ARENA_RANKS[key];
+    const fee = rank.feePerPerson*count;
+    const prize = rank.prizeBase*count;
+    ch.push({label:` ${rank.name}クラスに挑戦（Lv${rank.minLv}-${rank.maxLv}・参加費${fee}GP・賞金${prize}GP）${cooldown>0?`（あと${cooldown}日）`:''}`, fn:()=>arenaChallengeRank(key, 'ARENA_VALDHEIM', 'ヴァルドヘイムの闘技場', 'valdheim')});
+   });
+  }
+  ch.push({label:' 殿堂の石碑を見る', go:'ARENA_VALDHEIM_MONUMENT'});
+  ch.push({label:' 試合を観覧する', go:'ARENA_VALDHEIM_WATCH_SELECT'});
+  ch.push({label:'← 戻る', go:'TOWN_VALDHEIM'});
+  return ch;
+ },
  },
  ARENA_VALDHEIM_WATCH_SELECT:{
  scene:'town_stone',
@@ -45843,27 +46996,25 @@ const NODES = {
  txt:()=>{
  const actor = _guildActor || PC;
  const isWizard = actor.type==='wizard';
- const iqOk2 = (actor.iq||0)>=12, dexOk2 = (actor.dex||0)>=9;
- const iqOk3 = (actor.iq||0)>=14, dexOk3 = (actor.dex||0)>=10;
- const iqOk4 = (actor.iq||0)>=16, dexOk4 = (actor.dex||0)>=11;
  const known = new Set((actor.spells||[]).map(s=>s.name));
- const l2avail = isWizard ? SPELLS_L2.filter(s=>!known.has(s.name)) : [];
- const l3avail = isWizard ? SPELLS_L3.filter(s=>!known.has(s.name)) : [];
- const l4avail = isWizard ? SPELLS_L4.filter(s=>!known.has(s.name)) : [];
+ const okFor = lv => { const r=SPELL_LEVEL_REQS[lv]; return (actor.iq||0)>=r.iq && (actor.dex||0)>=r.dex; };
+ const availFor = lv => isWizard ? SPELL_LEVEL_TABLES[lv].filter(s=>!known.has(s.name)) : [];
 
  let txt = ` <span class="gold" style="font-size:var(--font-base)">ウィザードズギルド</span>`;
  txt += actor !== PC ? ` <span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 2px)">[${actor.name}]</span>` : '';
  txt += `<br><br><span style="color:#c0b098">魔法の書物が並ぶ静かな部屋。ギルドマスターが迎える。</span><br><br>`;
- txt += `<b>習得条件：</b><br>
-  Lv2呪文: 知力≥12・器用さ≥9・各500GP　${iqOk2&&dexOk2?'<span style="color:#e8e4d8"> 条件達成</span>':'<span class="red"> 未達成</span>'}<br>
-  Lv3呪文: 知力≥14・器用さ≥10・各1000GP　${iqOk3&&dexOk3?'<span style="color:#e8e4d8"> 条件達成</span>':'<span class="red"> 未達成</span>'}<br>
-  Lv4呪文: 知力≥16・器用さ≥11・各${SPELLS_L4[0]?.learnCost||2000}GP　${iqOk4&&dexOk4?'<span style="color:#e8e4d8"> 条件達成</span>':'<span class="red"> 未達成</span>'}<br>
-  所持金: ${actor.gold||0}GP ${actor.sp||0}SP ${actor.cp||0}CP<br><br>`;
+ txt += `<b>習得条件：</b><br>`;
+ [2,3,4,5,6,7].forEach(lv=>{
+  const r = SPELL_LEVEL_REQS[lv];
+  const cost = SPELL_LEVEL_TABLES[lv][0]?.learnCost || 0;
+  txt += `  Lv${lv}呪文: 知力≥${r.iq}・器用さ≥${r.dex}・各${cost}GP　${okFor(lv)?'<span style="color:#e8e4d8"> 条件達成</span>':'<span class="red"> 未達成</span>'}<br>\n`;
+ });
+ txt += `  所持金: ${actor.gold||0}GP ${actor.sp||0}SP ${actor.cp||0}CP<br><br>`;
 
  // 呪文一覧をtxt内に表示（choicesではなくstory内でスクロール可能に）
  const spellRow = (sp, lv, cost, canLearn) => {
-  const reqIq = lv===2?12:lv===3?14:16, reqDex = lv===2?9:lv===3?10:11;
-  const disabledReason = !canLearn ? (PC.iq<reqIq||PC.dex<reqDex?'能力値不足':'GP不足') : '';
+  const req = SPELL_LEVEL_REQS[lv];
+  const disabledReason = !canLearn ? (PC.iq<req.iq||PC.dex<req.dex?'能力値不足':'GP不足') : '';
   return `<div style="background:#110c06;border:1px solid ${canLearn?'var(--white2)':'var(--info-border)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;gap:8px">
    <div>
     <div style="font-size:calc(var(--font-sm) - 1px);color:${canLearn?'#e8e0d0':'var(--info-border)'}"> [Lv${lv}] ${sp.name}</div>
@@ -45877,30 +47028,20 @@ const NODES = {
   </div>`;
  };
 
- if(l2avail.length > 0){
-  txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--white);margin-bottom:6px">── Level 2 呪文 ──</div>`;
-  l2avail.forEach(sp=>{
-   const can = iqOk2 && dexOk2 && totalCP(actor)>=sp.learnCost*100;
-   txt += spellRow(sp, 2, sp.learnCost, can);
-  });
-  txt += '<br>';
- }
- if(l3avail.length > 0){
-  txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--white);margin-bottom:6px">── Level 3 呪文 ──</div>`;
-  l3avail.forEach(sp=>{
-   const can = iqOk3 && dexOk3 && totalCP(actor)>=sp.learnCost*100;
-   txt += spellRow(sp, 3, sp.learnCost, can);
-  });
-  txt += '<br>';
- }
- if(l4avail.length > 0){
-  txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--white);margin-bottom:6px">── Level 4 呪文 ──</div>`;
-  l4avail.forEach(sp=>{
-   const can = iqOk4 && dexOk4 && totalCP(actor)>=sp.learnCost*100;
-   txt += spellRow(sp, 4, sp.learnCost, can);
-  });
- }
- if(l2avail.length===0 && l3avail.length===0 && l4avail.length===0){
+ let anyAvail = false;
+ [2,3,4,5,6,7].forEach(lv=>{
+  const avail = availFor(lv);
+  if(avail.length > 0){
+   anyAvail = true;
+   txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--white);margin-bottom:6px">── Level ${lv} 呪文 ──</div>`;
+   avail.forEach(sp=>{
+    const can = okFor(lv) && totalCP(actor)>=sp.learnCost*100;
+    txt += spellRow(sp, lv, sp.learnCost, can);
+   });
+   txt += '<br>';
+  }
+ });
+ if(!anyAvail){
   txt += '<span style="color:#e8e4d8">習得可能な呪文はすべて習得済みです。</span>';
  }
 
@@ -45910,47 +47051,23 @@ const NODES = {
   txt += `<br><div style="font-size:calc(var(--font-sm) - 2px);color:var(--white);margin-bottom:6px;border-top:1px solid var(--white2);padding-top:8px">── 仲間の魔法使い ──</div>`;
   wizNPCs.forEach(({m,i})=>{
    const mKnown = new Set((m.spells||[]).map(s=>s.name));
-   const ml2 = SPELLS_L2.filter(s=>!mKnown.has(s.name));
-   const ml3 = SPELLS_L3.filter(s=>!mKnown.has(s.name));
-   const ml4 = SPELLS_L4.filter(s=>!mKnown.has(s.name));
-   const mIqOk2=( m.iq||0)>=12, mDexOk2=(m.dex||0)>=9;
-   const mIqOk3=(m.iq||0)>=14, mDexOk3=(m.dex||0)>=10;
-   const mIqOk4=(m.iq||0)>=16, mDexOk4=(m.dex||0)>=11;
+   const mAvailFor = lv => SPELL_LEVEL_TABLES[lv].filter(s=>!mKnown.has(s.name));
+   const mOkFor = lv => { const r=SPELL_LEVEL_REQS[lv]; return (m.iq||0)>=r.iq && (m.dex||0)>=r.dex; };
+   const mAllAvail = [2,3,4,5,6,7].flatMap(lv=>mAvailFor(lv).map(sp=>({sp,lv})));
    txt += `<div style="background:#110c06;border:1px solid #585858;border-radius:4px;padding:8px;margin-bottom:8px">`;
    txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:#e8e0d0;margin-bottom:6px"> ${m.name}（Lv${m.level||1}・知力${m.iq}・器用さ${m.dex}）</div>`;
-   if(ml2.length+ml3.length+ml4.length===0){
+   if(mAllAvail.length===0){
     txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0">習得可能な呪文はすべて習得済み</div>`;
    }
-   ml2.forEach(sp=>{
-    const can=mIqOk2&&mDexOk2&&totalCP()>=sp.learnCost*100;
-    const dis2=can?'':'disabled';
+   mAllAvail.forEach(({sp,lv})=>{
+    const can = mOkFor(lv) && totalCP()>=sp.learnCost*100;
+    const dis = can?'':'disabled';
+    const r = SPELL_LEVEL_REQS[lv];
     txt += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-    <div><div style="font-size:calc(var(--font-sm) - 1px);color:${can?'#e8e0d0':'var(--info-border)'}"> [Lv2] ${sp.name}</div>
+    <div><div style="font-size:calc(var(--font-sm) - 1px);color:${can?'#e8e0d0':'var(--info-border)'}"> [Lv${lv}] ${sp.name}</div>
     <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${sp.desc}</div>
-    ${!can?`<div style="font-size:calc(var(--font-sm) - 3px);color:#f0ddd8">${(!mIqOk2||!mDexOk2)?'能力値不足':'GP不足'}</div>`:''}</div>
-    <button onclick="npcLearnSpell(${i},'${sp.name}',2,false)" ${dis2}
-     style="font-size:calc(var(--font-sm) - 3px);padding:5px 8px;background:${can?'var(--ink)':'#110c06'};border:1px solid ${can?'var(--white2)':'var(--info-border)'};color:${can?'#e8e0d0':'var(--info-border)'};font-family:system-ui,sans-serif;cursor:${can?'pointer':'default'};border-radius:2px;opacity:${can?1:0.5}"
-     >${sp.learnCost}GP</button></div>`;
-   });
-   ml3.forEach(sp=>{
-    const can=mIqOk3&&mDexOk3&&totalCP()>=sp.learnCost*100;
-    const dis3=can?'':'disabled';
-    txt += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-    <div><div style="font-size:calc(var(--font-sm) - 1px);color:${can?'#e8e0d0':'var(--info-border)'}"> [Lv3] ${sp.name}</div>
-    <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${sp.desc}</div>
-    ${!can?`<div style="font-size:calc(var(--font-sm) - 3px);color:#f0ddd8">${(!mIqOk3||!mDexOk3)?'能力値不足':'GP不足'}</div>`:''}</div>
-    <button onclick="npcLearnSpell(${i},'${sp.name}',3,false)" ${dis3}
-     style="font-size:calc(var(--font-sm) - 3px);padding:5px 8px;background:${can?'var(--ink)':'#110c06'};border:1px solid ${can?'var(--white2)':'var(--info-border)'};color:${can?'#e8e0d0':'var(--info-border)'};font-family:system-ui,sans-serif;cursor:${can?'pointer':'default'};border-radius:2px;opacity:${can?1:0.5}"
-     >${sp.learnCost}GP</button></div>`;
-   });
-   ml4.forEach(sp=>{
-    const can=mIqOk4&&mDexOk4&&totalCP()>=sp.learnCost*100;
-    const dis4=can?'':'disabled';
-    txt += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-    <div><div style="font-size:calc(var(--font-sm) - 1px);color:${can?'#e8e0d0':'var(--info-border)'}"> [Lv4] ${sp.name}</div>
-    <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${sp.desc}</div>
-    ${!can?`<div style="font-size:calc(var(--font-sm) - 3px);color:#f0ddd8">${(!mIqOk4||!mDexOk4)?'能力値不足':'GP不足'}</div>`:''}</div>
-    <button onclick="npcLearnSpell(${i},'${sp.name}',4,false)" ${dis4}
+    ${!can?`<div style="font-size:calc(var(--font-sm) - 3px);color:#f0ddd8">${((m.iq||0)<r.iq||(m.dex||0)<r.dex)?'能力値不足':'GP不足'}</div>`:''}</div>
+    <button onclick="npcLearnSpell(${i},'${sp.name}',${lv},false)" ${dis}
      style="font-size:calc(var(--font-sm) - 3px);padding:5px 8px;background:${can?'var(--ink)':'#110c06'};border:1px solid ${can?'var(--white2)':'var(--info-border)'};color:${can?'#e8e0d0':'var(--info-border)'};font-family:system-ui,sans-serif;cursor:${can?'pointer':'default'};border-radius:2px;opacity:${can?1:0.5}"
      >${sp.learnCost}GP</button></div>`;
    });
@@ -45970,23 +47087,20 @@ const NODES = {
   const actor = _guildActor || PC;
   if(actor.type !== 'rogue') return ` <span style="color:#f0ece0">盗賊ギルド</span><br><br><span class="red">盗賊のみ入会できます。</span>`;
   const known = new Set((actor.spells||[]).map(s=>s.name));
-  const l1avail = SPELLS_L1.filter(s=>!known.has(s.name));
-  const l2avail = SPELLS_L2.filter(s=>!known.has(s.name));
-  const l3avail = SPELLS_L3.filter(s=>!known.has(s.name));
-  const l4avail = SPELLS_L4.filter(s=>!known.has(s.name));
-  const iqOk2=(actor.iq||0)>=12, dexOk2=(actor.dex||0)>=9;
-  const iqOk3=(actor.iq||0)>=14, dexOk3=(actor.dex||0)>=10;
-  const iqOk1=(actor.iq||0)>=10, dexOk1=(actor.dex||0)>=8;
-  const iqOk4=(actor.iq||0)>=16, dexOk4=(actor.dex||0)>=11;
+  const req1 = {iq:10, dex:8};
+  const reqFor = lv => lv===1 ? req1 : SPELL_LEVEL_REQS[lv];
+  const costFor = lv => lv===1 ? 500 : SPELL_LEVEL_TABLES[lv][0]?.learnCost*2;
+  const availFor = lv => (lv===1?SPELLS_L1:SPELL_LEVEL_TABLES[lv]).filter(s=>!known.has(s.name));
+  const okFor = lv => { const r=reqFor(lv); return (actor.iq||0)>=r.iq && (actor.dex||0)>=r.dex; };
   let txt = ` <span class="gold" style="font-size:var(--font-base)">盗賊ギルド</span>`;
   txt += actor !== PC ? ` <span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 2px)">[${actor.name}]</span>` : '';
   txt += `<br><br><span style="color:#c0b098">薄暗い隠し部屋。ギルドマスターが低い声で迎える。「呪文の知識を売ろう——ただし二倍の値だ」</span><br><br>`;
-  txt += `<b>習得費用：</b><br>
-  Lv1呪文: 知力≥10・器用さ≥8・各500GP　${iqOk1&&dexOk1?'<span style="color:#e8e4d8"></span>':'<span class="red"></span>'}<br>
-  Lv2呪文: 知力≥12・器用さ≥9・各1000GP　${iqOk2&&dexOk2?'<span style="color:#e8e4d8"></span>':'<span class="red"></span>'}<br>
-  Lv3呪文: 知力≥14・器用さ≥10・各2000GP　${iqOk3&&dexOk3?'<span style="color:#e8e4d8"></span>':'<span class="red"></span>'}<br>
-  Lv4呪文: 知力≥16・器用さ≥11・各${(SPELLS_L4[0]?.learnCost||2000)*2}GP　${iqOk4&&dexOk4?'<span style="color:#e8e4d8"></span>':'<span class="red"></span>'}<br>
-  所持金: ${actor.gold||0}GP ${actor.sp||0}SP ${actor.cp||0}CP<br><br>`;
+  txt += `<b>習得費用：</b><br>`;
+  [1,2,3,4].forEach(lv=>{
+   const r = reqFor(lv);
+   txt += `  Lv${lv}呪文: 知力≥${r.iq}・器用さ≥${r.dex}・各${costFor(lv)}GP　${okFor(lv)?'<span style="color:#e8e4d8"></span>':'<span class="red"></span>'}<br>\n`;
+  });
+  txt += `  所持金: ${actor.gold||0}GP ${actor.sp||0}SP ${actor.cp||0}CP<br><br>`;
 
   const spellRow = (sp, lv, cost, canLearn, reason) =>
    `<div style="background:#060e06;border:1px solid ${canLearn?'var(--nature-border)':'#221122'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -46001,43 +47115,22 @@ const NODES = {
     </button>
    </div>`;
 
-  if(l1avail.length>0){
-   txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;margin-bottom:6px">── Level 1 呪文 ──</div>`;
-   l1avail.forEach(sp=>{
-    const can = iqOk1&&dexOk1&&totalCP(actor)>=500*100;
-    const reason = !can?((!iqOk1||!dexOk1)?'能力値不足（知力≥10・器用さ≥8）':'GP不足'):'';
-    txt += spellRow(sp,1,500,can,reason);
-   });
-   txt += '<br>';
-  }
-  if(l2avail.length>0){
-   txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;margin-bottom:6px">── Level 2 呪文 ──</div>`;
-   l2avail.forEach(sp=>{
-    const can = iqOk2&&dexOk2&&totalCP(actor)>=1000*100;
-    const reason = !can?((!iqOk2||!dexOk2)?'能力値不足':'GP不足'):'';
-    txt += spellRow(sp,2,1000,can,reason);
-   });
-   txt += '<br>';
-  }
-  if(l3avail.length>0){
-   txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;margin-bottom:6px">── Level 3 呪文 ──</div>`;
-   l3avail.forEach(sp=>{
-    const can = iqOk3&&dexOk3&&totalCP(actor)>=2000*100;
-    const reason = !can?((!iqOk3||!dexOk3)?'能力値不足':'GP不足'):'';
-    txt += spellRow(sp,3,2000,can,reason);
-   });
-   txt += '<br>';
-  }
-  if(l4avail.length>0){
-   const l4cost = (SPELLS_L4[0]?.learnCost||2000)*2;
-   txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;margin-bottom:6px">── Level 4 呪文 ──</div>`;
-   l4avail.forEach(sp=>{
-    const can = iqOk4&&dexOk4&&totalCP(actor)>=l4cost*100;
-    const reason = !can?((!iqOk4||!dexOk4)?'能力値不足':'GP不足'):'';
-    txt += spellRow(sp,4,l4cost,can,reason);
-   });
-  }
-  if(l1avail.length===0&&l2avail.length===0&&l3avail.length===0&&l4avail.length===0){
+  let anyAvail = false;
+  [1,2,3,4].forEach(lv=>{
+   const avail = availFor(lv);
+   if(avail.length>0){
+    anyAvail = true;
+    txt += `<div style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;margin-bottom:6px">── Level ${lv} 呪文 ──</div>`;
+    avail.forEach(sp=>{
+     const cost = costFor(lv);
+     const can = okFor(lv) && totalCP(actor)>=cost*100;
+     const reason = !can?(!okFor(lv)?'能力値不足':'GP不足'):'';
+     txt += spellRow(sp,lv,cost,can,reason);
+    });
+    txt += '<br>';
+   }
+  });
+  if(!anyAvail){
    txt += '<span style="color:#e8e4d8">習得可能な呪文はすべて習得済みです。</span>';
   }
 
@@ -46045,32 +47138,27 @@ const NODES = {
   const rogueNPCs = actor===PC ? (PC.party||[]).map((m,i)=>({m,i})).filter(({m})=>m.type==='rogue'&&m.con>0) : [];
   if(rogueNPCs.length>0){
    txt += `<br><div style="font-size:calc(var(--font-sm) - 2px);color:#f0ece0;margin-bottom:6px;border-top:1px solid var(--nature-border);padding-top:8px">── 仲間の盗賊 ──</div>`;
-   const costs = {1:500, 2:1000, 3:2000, 4:(SPELLS_L4[0]?.learnCost||2000)*2};
    rogueNPCs.forEach(({m,i})=>{
     const mKnown = new Set((m.spells||[]).map(s=>s.name));
-    const ml1=SPELLS_L1.filter(s=>!mKnown.has(s.name));
-    const ml2=SPELLS_L2.filter(s=>!mKnown.has(s.name));
-    const ml3=SPELLS_L3.filter(s=>!mKnown.has(s.name));
-    const ml4=SPELLS_L4.filter(s=>!mKnown.has(s.name));
+    const mAvailFor = lv => (lv===1?SPELLS_L1:SPELL_LEVEL_TABLES[lv]).filter(s=>!mKnown.has(s.name));
+    const mAllAvail = [1,2,3,4].flatMap(lv=>mAvailFor(lv).map(sp=>({sp,lv})));
     txt += `<div style="background:#060e06;border:1px solid #505050;border-radius:4px;padding:8px;margin-bottom:8px">`;
     txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:#f0ece0;margin-bottom:6px"> ${m.name}（Lv${m.level||1}・知力${m.iq}・器用さ${m.dex}）</div>`;
-    if(ml1.length+ml2.length+ml3.length+ml4.length===0){
+    if(mAllAvail.length===0){
      txt += `<div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0">習得可能な呪文はすべて習得済み</div>`;
     }
-    [[ml1,1],[ml2,2],[ml3,3],[ml4,4]].forEach(([list,lv])=>{
-     list.forEach(sp=>{
-      const iqR=lv===1?10:lv===2?12:lv===3?14:16, dexR=lv===1?8:lv===2?9:lv===3?10:11;
-      const cost=costs[lv];
-      const can=(m.iq||0)>=iqR&&(m.dex||0)>=dexR&&totalCP()>=cost*100;
-      const disR=can?'':'disabled';
-      txt += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-       <div><div style="font-size:calc(var(--font-sm) - 1px);color:${can?'#f0ece0':'#808080'}"> [Lv${lv}] ${sp.name}</div>
-       <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${sp.desc}</div>
-       ${!can?`<div style="font-size:calc(var(--font-sm) - 3px);color:#f0ddd8">${((m.iq||0)<iqR||(m.dex||0)<dexR)?'能力値不足':'GP不足'}</div>`:''}</div>
-       <button onclick="npcLearnSpell(${i},'${sp.name}',${lv},true)" ${disR}
-        style="font-size:calc(var(--font-sm) - 3px);padding:5px 8px;background:${can?'var(--nature-bg)':'#060e06'};border:1px solid ${can?'var(--nature-border)':'var(--nature-border)'};color:${can?'#f0ece0':'#808080'};font-family:system-ui,sans-serif;cursor:${can?'pointer':'default'};border-radius:2px;opacity:${can?1:0.5}"
-        >${cost}GP</button></div>`;
-     });
+    mAllAvail.forEach(({sp,lv})=>{
+     const r = reqFor(lv);
+     const cost = costFor(lv);
+     const can=(m.iq||0)>=r.iq&&(m.dex||0)>=r.dex&&totalCP()>=cost*100;
+     const disR=can?'':'disabled';
+     txt += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div><div style="font-size:calc(var(--font-sm) - 1px);color:${can?'#f0ece0':'#808080'}"> [Lv${lv}] ${sp.name}</div>
+      <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${sp.desc}</div>
+      ${!can?`<div style="font-size:calc(var(--font-sm) - 3px);color:#f0ddd8">${((m.iq||0)<r.iq||(m.dex||0)<r.dex)?'能力値不足':'GP不足'}</div>`:''}</div>
+      <button onclick="npcLearnSpell(${i},'${sp.name}',${lv},true)" ${disR}
+       style="font-size:calc(var(--font-sm) - 3px);padding:5px 8px;background:${can?'var(--nature-bg)':'#060e06'};border:1px solid ${can?'var(--nature-border)':'var(--nature-border)'};color:${can?'#f0ece0':'#808080'};font-family:system-ui,sans-serif;cursor:${can?'pointer':'default'};border-radius:2px;opacity:${can?1:0.5}"
+       >${cost}GP</button></div>`;
     });
     txt += `</div>`;
    });
