@@ -631,7 +631,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026083042</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026091401</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -3986,6 +3986,18 @@ function countHeroTownsInRegion(regionKey){
  const region = HERO_REGIONS[regionKey];
  if(!region) return 0;
  return region.towns.filter(t => PC._heroTowns && PC._heroTowns[t]).length;
+}
+
+// 指定した地方の「英雄」情報を返す。PCが現に地方英雄ならPC自身（yearsSinceDeath:-1＝存命）、
+// そうでなければ歴代の伝説（PC._regionLegends）から死後経過年数を算出して返す。記録が無ければnull
+function getRegionLegendHero(regionKey){
+ if(PC._heroRegions && PC._heroRegions[regionKey]){
+  return { name: PC.name, yearsSinceDeath: -1 };
+ }
+ const legend = PC._regionLegends && PC._regionLegends[regionKey];
+ if(!legend) return null;
+ const yearsSinceDeath = Math.max(0, Math.floor((GAME_TIME.totalDays - legend.deathDay) / 365));
+ return { name: legend.name, yearsSinceDeath };
 }
 
 // 封地免状の価格を計算（10GP単位に丸める）
@@ -10425,6 +10437,28 @@ function talkToPatron(townId){
   }
  }
 
+ // 地方伝説の英雄：死後の年月に応じて記憶が薄れていく噂
+ {
+  const regionKey = getRegionKey(townId);
+  const legend = regionKey ? getRegionLegendHero(regionKey) : null;
+  if(legend && legend.yearsSinceDeath >= 100 && Math.random() < 0.06){
+   const line = `「人間の記憶というものは、儚いものです。いまではかつての英雄${legend.name}のことは、誰も覚えていません。あなたもご存じではないでしょう？」`;
+   const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+    <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席にいたエルフの客が、静かに語りかけてきた。</div>`;
+   const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+   _showPatronPanel(header + msgBox(line), ()=>{ updateHUD(); });
+   return;
+  }
+  if(legend && legend.yearsSinceDeath >= 50 && legend.yearsSinceDeath < 100 && Math.random() < 0.06){
+   const line = `「ほら、昔の英雄でなんて名前だっけ？……そうだ、${legend.name}だ！　あの人は本当に立派だったらしいぜ」`;
+   const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+    <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が、思い出したように世間話をしている。</div>`;
+   const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+   _showPatronPanel(header + msgBox(line), ()=>{ updateHUD(); });
+   return;
+  }
+ }
+
  // 架空のNPCを腕利きとして紹介する噂（レア）
  if(Math.random() < 0.06){
   const rumorName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
@@ -11922,7 +11956,7 @@ function loadAutoSave(){
  // 領地関連のフィールドはこれが原因で新旧データが混線しうるため、代入前に明示的にリセットする
  delete PC._fiefCharter;
  delete PC._fiefCharters;
- if(PC.properties) delete PC.properties.fief;
+ PC.properties = {}; // 拠点データもロード前のセッションの残留を防ぐため必ず空にリセットしてから代入する
  Object.assign(PC, data.pc);
  Object.assign(GAME_TIME, data.gameTime);
  if(PC.invEquip){
@@ -12031,6 +12065,15 @@ function archiveCurrentPC(reason){
  // 地方英雄・各町英雄フラグを保存（噂話用）
  if(PC._heroRegions) ws.heroRegions = JSON.parse(JSON.stringify(PC._heroRegions));
  if(PC._heroTowns) ws.heroTowns = JSON.parse(JSON.stringify(PC._heroTowns));
+ // 地方伝説の英雄（歴代）を保存。既存の記録を引き継ぎつつ、今回死亡した代がその地方の英雄なら記録を更新する
+ ws.regionLegends = Object.assign({}, PC._regionLegends || {});
+ if(reason === 'dead' && PC._heroRegions){
+  Object.keys(PC._heroRegions).forEach(regionKey=>{
+   if(PC._heroRegions[regionKey]){
+    ws.regionLegends[regionKey] = { name: PC.name, deathDay: GAME_TIME.totalDays };
+   }
+  });
+ }
  // 農業の豊凶状況を保存
  if(PC._harvestYear) ws.harvestYear = PC._harvestYear;
  if(PC._harvestResult) ws.harvestResult = PC._harvestResult;
@@ -12266,7 +12309,7 @@ function loadGame(slot){
  // 領地関連のフィールドはこれが原因で新旧データが混線しうるため、代入前に明示的にリセットする
  delete PC._fiefCharter;
  delete PC._fiefCharters;
- if(PC.properties) delete PC.properties.fief;
+ PC.properties = {}; // 拠点データもロード前のセッションの残留を防ぐため必ず空にリセットしてから代入する
  Object.assign(PC, data.pc);
  Object.assign(GAME_TIME, data.gameTime);
 
@@ -13636,10 +13679,8 @@ function _finishLuckSave(enemyName, companionQuest){
  checkAging(true); // 加齢・寿命チェックは実行、かつての仲間の死亡判定はスキップ
  checkQuestDeadlines(); // クエスト期限切れチェックは実行
 
- // 所持品を全て喪失（呪文・技能・拠点・不動産は残る）
+ // 所持金のみ失う（装備・所持品・呪文・技能・拠点・不動産は残る）
  PC.gold = 0; PC.sp = 0; PC.cp = 0;
- PC.equippedWeapons = []; PC.equippedArmors = []; PC.equippedBoots = false; PC.equippedClothing = false;
- PC.invWeapons = []; PC.invArmors = []; PC.invBoots = false; PC.invBootsName = null; PC.invEquip = []; PC.invSpecialties = [];
 
  PC.con = 1;
 
@@ -19016,6 +19057,21 @@ const DISTRICT_OLDTOWN_INCIDENTS = [
   names: NPC_NAMES,
   flavor:'廃屋の陰から、{name}と名乗る人物がこちらに近づいてきた。「すまねえが、これを行政地区にいる知り合いに届けちゃくれねえか。表立って役所に出入りできる身分じゃなくてよ……」油紙に包んだ品を差し出してくる。',
  },
+ // ── 地方の英雄になったPC本人限定：旧市街地の日常風景 ──
+ {
+  id:'oldtown_parent_scolds_child_region_hero',
+  phases:['dawn','morning','noon','afternoon','night','midnight'],
+  title:' 子を叱る親の声',
+  requiresRegionHero:true,
+  flavor:'狭い路地の一角で、母親らしき女が幼い子どもの手を強く引いていた。「そんなことだと、{hero}様みたいになれないよ！　ちゃんと言うこと聞きな！」子どもはしゅんとしながらも、こちらをちらちらと盗み見ている。',
+ },
+ {
+  id:'oldtown_children_playing_region_hero',
+  phases:['dawn','morning','noon','afternoon','night','midnight'],
+  title:' ごっこ遊びをする子どもたち',
+  requiresRegionHero:true,
+  flavor:'廃材の剣を振り回した子どもが、仲間たちに向かって胸を張っていた。「おれが{hero}だ！　悪者はお前らな！」他の子どもたちが「ずるいぞ、いつもお前ばっかり！」と口々に文句を言っている、微笑ましい光景だった。',
+ },
 ];
 
 // ── 港湾地区専用の共通事件イベント（全拠点で使い回す） ──
@@ -19160,6 +19216,9 @@ const TOWN_BOARD_NOTICES = [
  { text:'「今年の収穫祭は例年より遅い開催になる見込みです。詳細は追ってお知らせします」' },
  { text:'「夜間、大声で歌う行為が近隣より苦情多数。心当たりのある者は自重されたし」' },
  { text:'「井戸端の噂：最近、街の外れで奇妙な光を見たという者が複数いる。真偽は不明」', resolveType:'rumor' },
+ { text:'「井戸端の噂：どこぞの商家が、裏で密輸品を扱っているらしいという話がまことしやかに囁かれている」', resolveType:'rumor' },
+ { text:'「井戸端の噂：夜な夜な墓地から奇妙な唸り声が聞こえるという者がいる。気味が悪いと専らの評判だ」', resolveType:'rumor' },
+ { text:'「井戸端の噂：町のどこかに、先代の英雄が遺したお宝が眠っているという言い伝えがあるらしい」', resolveType:'rumor' },
  { text:'「若い衆、求む。力仕事、日払い可。詳細は西の倉庫番まで」' },
  { text:'「壁の落書きを見つけ次第、消去にご協力ください。町の美観維持のため」──清掃組合' },
  { text:'「旅の吟遊詩人、明晩、酒場にて弾き語りを予定。木戸銭は投げ銭のみ」' },
@@ -22930,7 +22989,9 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
    const phase = villagePhase(getGameHour()).key;
    // 「地元の英雄」限定イベント（requiresHeroTrust）は、当該拠点で信頼度75以上の場合のみ抽選対象に含める
    const heroEligible = !!dung.districtType && getTrust(dung.villageId) >= 75;
-   const allIncidents = villageCfg(dung).incidents.filter(ev=>!ev.requiresHeroTrust || heroEligible);
+   // 「地方の英雄」限定イベント（requiresRegionHero）は、PCがその地方の英雄になっている場合のみ抽選対象に含める
+   const regionHeroEligible = !!dung.districtType && (()=>{ const rk = getRegionKey(dung.villageId); return !!(rk && PC._heroRegions && PC._heroRegions[rk]); })();
+   const allIncidents = villageCfg(dung).incidents.filter(ev=>(!ev.requiresHeroTrust || heroEligible) && (!ev.requiresRegionHero || regionHeroEligible));
    const pool = allIncidents.filter(ev=>ev.phases.includes(phase));
    const choices = pool.length ? pool : allIncidents;
    const chosen = ydWeightedPick(choices);
@@ -23896,16 +23957,23 @@ function ydNodeTxt(node, floor){
     const notice = (miniBoard?.notices||[]).find(n=>n.resolveType==='message' && n.npcName);
     if(notice) node.npcName = notice.npcName;
    }
+   // 「噂の真偽を確かめてほしい」は、掲示板に貼られている実際の噂の内容を併記する
+   let rumorText = '';
+   if(mdef && node.miniSubtype==='rumor' && dung?.villageId){
+    const miniBoard = getLocalWantedBoard(dung.villageId);
+    const notice = (miniBoard?.notices||[]).find(n=>n.resolveType==='rumor');
+    if(notice) rumorText = `<br><br><span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">（掲示板の貼り紙にあった、あの噂だ──${notice.text}）</span>`;
+   }
    const mtText = mdef ? mdef.findFlavor.replace(/\{name\}/g, node.npcName || 'その人物') : '特に何もない、静かな場所だ。';
    return `${tBar}${fLabel}<br><br>
-    <span style="color:#b8a890">${!done ? mtText : '（もう解決した）'}</span>
+    <span style="color:#b8a890">${!done ? mtText + rumorText : '（もう解決した）'}</span>
     ${darkWarn}`;
   }
 
   case 'village_incident':{
    const ev = villageCfg(dung).incidents.find(e=>e.id===node.incidentId) || villageCfg(dung).incidents[0];
    const done = PC[node.eventKey];
-   const flavorTxt = node.npcName ? ev.flavor.replace(/\{name\}/g, node.npcName) : ev.flavor;
+   const flavorTxt = (node.npcName ? ev.flavor.replace(/\{name\}/g, node.npcName) : ev.flavor).replace(/\{hero\}/g, PC.name);
    const titleTxt = node.npcName ? `${ev.title}「${node.npcName}」` : ev.title;
    return `${tBar}${fLabel}<br><br>
     <span style="color:#e0d8c8">${titleTxt}</span><br><br>
@@ -26305,6 +26373,23 @@ function ydActionChoices(node, floor){
         finish(`<span style="color:#e0d0d0"> 酔客の意外な粘りに手こずり、殴り合いになってしまった。（体力-${dmg}）</span>`);
        },
       });
+     }});
+     break;
+
+    // ── 地方の英雄になったPC本人限定：旧市街地の日常風景（見守るだけの一幕） ──
+    case 'oldtown_parent_scolds_child_region_hero':
+     ch.push({label:' 微笑ましく見守って立ち去る', fn:()=>{
+      finish(`<span style="color:#f0ece0"> 親子のやり取りに、思わず頬が緩んだ。自分の名が、こんなところで子育ての引き合いに出されているとは。</span>`);
+     }});
+     break;
+
+    case 'oldtown_children_playing_region_hero':
+     ch.push({label:' 声をかけずにそっと見守る', fn:()=>{
+      finish(`<span style="color:#f0ece0"> 無邪気にごっこ遊びに興じる子どもたちの声を背に、静かにその場を後にした。</span>`);
+     }});
+     ch.push({label:' 「頑張れよ」と声をかける', fn:()=>{
+      changeTrust(dung.villageId, 1, 'incident');
+      finish(`<span style="color:#f0ece0"> 声をかけると、子どもたちは目を輝かせて「本物だ！」と大はしゃぎした。（${dung.districtType?"街の評判":"村の評判"}+1）</span>`);
      }});
      break;
 
@@ -30517,6 +30602,13 @@ function huntQuestComplete(q){
  }).find(([k])=>k===q.fromTownId);
  const backNode = townNode ? townNode[1] : 'TOWN_KHAZAN';
  showSaveToast(` 討伐完了！+${_rewardDisplay}GP　信頼度+2`);
+ if(q.isTutorial){
+  // チュートリアルの討伐完了：老NPCと共に、そのままチュートリアルを終える
+  PC.party = [];
+  updateHUD();
+  renderChoices([{label:'▶ 続ける', go:'TUTORIAL_FAREWELL_AFTER_HUNT'}]);
+  return;
+ }
  if(q.isCompanionHunt){
   // 同行者募集の完了：一時パーティを解散し、リーダーの別れの台詞を添える
   story.innerHTML += `<div style="margin-top:8px;padding:10px;background:#0a0d08;border:1px solid #4a6a34;border-radius:4px">
@@ -31722,7 +31814,9 @@ function reportBountyQuestFromBoard(townId){
 function getQuestBoardChoices(backNode){
  const townId = backNode.replace(/^TOWN_/, '').toLowerCase();
  const resumeChoices = getCompanionDeliveryResumeChoices(townId);
- return [...resumeChoices, {label:'← 戻る', go: backNode}];
+ const tutorialResumeChoices = getTutorialDeliveryResumeChoice(townId);
+ const tutorialHomecomingChoices = getTutorialHomecomingResumeChoice(townId);
+ return [...tutorialResumeChoices, ...tutorialHomecomingChoices, ...resumeChoices, {label:'← 戻る', go: backNode}];
 }
 
 function getRoute(fromId, toId){
@@ -32143,6 +32237,33 @@ const TRAVEL_ENEMIES = [
  { name:'トロール', mr:55, armor:5, isHuman:false, language:'トロール語', minCount:1, maxCount:1, desc:'巨大なトロールが道を塞いだ！', talkDesc:'トロールが低い声で唸っている。トロール語が分かれば、話は通じるかもしれない。' },
 ];
 
+// ── 地方色を出す専用モンスター（TRAVEL_ENEMIESの共通枠に加えて抽選される） ──
+const REGION_TRAVEL_ENEMIES = {
+ khazan_region: [
+  { name:'巨大アリ', mr:35, armor:5, isHuman:false, minCount:1, maxCount:1, desc:'体長1.5mはあろうかという巨大アリが数匹、大顎を鳴らしながら押し寄せてきた！' },
+  { name:'大ネズミ', mr:15, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'体長1mはある大ネズミが、鋭い前歯を剥き出しにして飛びかかってきた！' },
+  { name:'巨大甲虫', mr:25, armor:5, isHuman:false, minCount:1, maxCount:1, desc:'体長1mの巨大甲虫が、硬い甲殻を鳴らしながら向かってきた！' },
+ ],
+ elmaria_region: [
+  { name:'人食い熊', mr:45, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'体長1.8mはある人食い熊が、低く唸りながら立ちはだかった！' },
+  { name:'大蛇', mr:40, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'体長2mの大蛇が、鎌首をもたげてこちらを睨みつけている！' },
+  { name:'巨大蜘蛛', mr:30, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'体長2mの巨大蜘蛛が、糸を吐きながら木々の間から降りてきた！' },
+ ],
+ zahara_region: [
+  { name:'スコーピオン', mr:25, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'体長1mのスコーピオンが、毒針の付いた尾を高く掲げて迫ってきた！' },
+  { name:'リザードマン', mr:30, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'トカゲの頭と尾を持つ人間型のリザードマンが、槍を構えて現れた！' },
+  { name:'巨大甲虫', mr:25, armor:5, isHuman:false, minCount:1, maxCount:1, desc:'体長1mの巨大甲虫が、硬い甲殻を鳴らしながら向かってきた！' },
+ ],
+ draklim_region: [
+  { name:'人食い熊', mr:45, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'体長1.8mはある人食い熊が、低く唸りながら立ちはだかった！' },
+  { name:'大ネズミ', mr:15, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'体長1mはある大ネズミが、鋭い前歯を剥き出しにして飛びかかってきた！' },
+ ],
+ valdheim_region: [
+  { name:'人食い熊', mr:45, armor:0, isHuman:false, minCount:1, maxCount:1, desc:'体長1.8mはある人食い熊が、低く唸りながら立ちはだかった！' },
+ ],
+};
+
+
 // 移動中エンカウント状態
 let travelState = null; // { totalDays, daysDone, destId, onDone, events }
 
@@ -32151,7 +32272,9 @@ function rollTravelEncounter(){
 }
 
 function pickTravelEnemy(){
- const template = TRAVEL_ENEMIES[Math.floor(Math.random() * TRAVEL_ENEMIES.length)];
+ const regionKey = getRegionKey(PC.town);
+ const pool = TRAVEL_ENEMIES.concat(REGION_TRAVEL_ENEMIES[regionKey] || []);
+ const template = pool[Math.floor(Math.random() * pool.length)];
  const isCross = travelState?.crossRegion || false;
  const minC = isCross ? 1 : template.minCount;
  const maxC = isCross ? 3 : template.maxCount;
@@ -33493,8 +33616,13 @@ function travelTick(){
    }
    const enemy = pickTravelEnemy();
    const countTxt = enemy.count > 1 ? `（${enemy.count}体）` : '';
-   travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：${enemy.desc}${countTxt}</span>`);
    const canTalk = enemy.isHuman || (enemy.language && (PC.languages||['共通語']).includes(enemy.language));
+   // チュートリアル中は「道を塞いで金品を要求する」交渉イベントを発生させない（そのまま素通りする）
+   if(canTalk && PC._tutorial){
+    setTimeout(travelTick, ts.interval);
+    return;
+   }
+   travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：${enemy.desc}${countTxt}</span>`);
    if(canTalk){
     startTravelTalk(enemy, ts);
    } else {
@@ -33750,6 +33878,8 @@ function travelTick(){
  return;
  }
  if(evType === 'toll'){
+ // チュートリアル中は金品要求イベントを発生させない
+ if(PC._tutorial){ setTimeout(travelTick, ts.interval); return; }
  startTollEvent(ts);
  return;
  }
@@ -33866,6 +33996,9 @@ const TRAVEL_ROAD_RUMORS = [
  '「オーク・チャンピオンと呼ばれる手練れが、部族を率いているという噂を聞いた。並のオークの群れとは統率が違うそうだ」',
  '「ハイ・ゴブリンと呼ばれる、妙に狡猾なゴブリンがいるという。並のゴブリンと侮ると痛い目を見るらしい」',
  '「討伐依頼の相手は、たまに恐ろしく強い個体が混じっていることがあるという。手強い相手が出た時は、無理せず引き返すのも手だそうだ」',
+ '「道中で戦いに敗れたが、幸運にも生き残った冒険者がいたそうだ。所持金はなくなり、装備もなくなった上に、受けていた依頼の期日まで切れてしまって散々だったらしい。それでも死なずに済んだんだから、良かったと言うべきなんだろうな」',
+ '「大飢饉の時分は、いくら依頼を受けても食料が高くて所持金が目減りする一方だったという話を聞いた。結局、食料の値が落ち着くまでアルバイトで食いつないでいたそうだ」',
+ '「こうして旅をしていると、足元の装備が突然ダメになることもあるらしい。隣の地方に移動している最中に靴を履き潰して、裸足で残りの道中を歩き通したなんて話も聞いたことがあるが……旅する者として、予備の一足くらいは持っておかないものかね」',
  // ── 追加：まだ触れていない実在の仕組みに絡めた噂 ──
  '「一角の領地を賜った冒険者が、更に功績を積んで爵位を得たという話がある。男爵どころか、子爵にまで上り詰めた者もいるらしい」',
  '「長年連れ添った仲間が、ある日突然パーティを抜けると言い出すことがあるそうだ。理由は人それぞれ、独り立ちだったり、身を固めたかったりと様々らしい」',
@@ -34490,6 +34623,8 @@ const WEAPONS_TABLE = [
 function isRangedWeapon(w){ return !!(w && (w.isRanged || w.rangedOk)); }
 const ARMOR_TABLE = [
  {name:'革製の鎧',hits:6,stReq:2, cost:50, weight:200, isShield:false},
+ {name:'布製の鎧',hits:3,stReq:1, cost:40, weight:100, isShield:false},
+ {name:'バックラー', hits:3, stReq:1, cost:10, weight:75, isShield:true},
 ];
 
 const EQUIP_TABLE = [
@@ -34544,7 +34679,7 @@ const ARMOR_TABLE_KHAZAN = [
  // Parts
  // Shields
  {name:'タワーシールド', hits:6, stReq:6, cost:100, weight:550, isShield:true},
- {name:"Knight's Shield", hits:5, stReq:5, cost:65, weight:450, isShield:true},
+ {name:'ナイトシールド', hits:5, stReq:5, cost:65, weight:450, isShield:true},
  {name:'バックラー', hits:3, stReq:1, cost:10, weight:75, isShield:true},
 ];
 
@@ -34599,7 +34734,17 @@ const WEAPONS_TABLE_NERIA = [
 const ARMOR_TABLE_NERIA = ARMOR_TABLE;
 const ARMOR_TABLE_ELSIA = [
  {name:'革製の鎧', hits:6, stReq:2, cost:50, weight:200,isShield:false},
+ {name:'布製の鎧',hits:3,stReq:1, cost:40, weight:100, isShield:false},
+ {name:'スケイルアーマー', hits:8, stReq:7, cost:80, weight:750, isShield:false},
  {name:'バックラー', hits:3, stReq:1, cost:10, weight:75, isShield:true },
+ {name:'ナイトシールド', hits:5, stReq:5, cost:65, weight:450, isShield:true},
+];
+
+// ── イェルドゥン・ヴァルドヘイム・アル・ラシード（各地方の中心都市）共通：スケイルアーマー・ナイトシールドを追加した防具テーブル ──
+const ARMOR_TABLE_WITH_SCALE = [
+ ...ARMOR_TABLE,
+ {name:'スケイルアーマー', hits:8, stReq:7, cost:80, weight:750, isShield:false},
+ {name:'ナイトシールド', hits:5, stReq:5, cost:65, weight:450, isShield:true},
 ];
 
 // ──────────────────────────────────────
@@ -35323,10 +35468,12 @@ function startGame(){
  GAME_TIME.totalDays = 0;
  }
  PC._inheritTime = undefined;
- // 拠点の引き継ぎ
+ // 拠点の引き継ぎ（暦を引き継ぐ新規PCの場合のみ）。それ以外は前のキャラクターのデータが残らないよう必ず空にリセットする
  if(PC._inheritedProperties){
   PC.properties = PC._inheritedProperties;
   PC._inheritedProperties = undefined;
+ } else {
+  PC.properties = {};
  }
  // 混沌・飢饉の引き継ぎ
  if(PC._inheritedChaosNest){
@@ -35342,6 +35489,15 @@ function startGame(){
  // 英雄ステータス（町・地方）は代々引き継がず、新しいキャラクターが自分で獲得する必要がある
  PC._inheritedHeroRegions = undefined;
  PC._inheritedHeroTowns = undefined;
+ // 地方伝説の英雄（歴代）は引き継ぐ。記録のない地方は、50〜80年前に死んだ英雄をランダムに設定する
+ PC._regionLegends = PC._inheritedRegionLegends || {};
+ PC._inheritedRegionLegends = undefined;
+ Object.keys(HERO_REGIONS).forEach(regionKey=>{
+  if(!PC._regionLegends[regionKey]){
+   const yearsAgo = 50 + Math.floor(Math.random()*31); // 50〜80年前
+   PC._regionLegends[regionKey] = { name: pickNPC(), deathDay: GAME_TIME.totalDays - yearsAgo*365 };
+  }
+ });
  if(PC._inheritedHarvestYear){
   PC._harvestYear = PC._inheritedHarvestYear;
   PC._harvestResult = PC._inheritedHarvestResult;
@@ -35775,6 +35931,21 @@ function closeIngameShop(){
   setTimeout(travelTick, travelState.interval);
   return;
  }
+ // チュートリアルの装備購入中なら、買った物に関わらず次のフェーズへ進む（所持金不足等は自己責任）
+ if(PC._tutorial && PC._tutorial.step==='intro'){
+  go('TUTORIAL_DELIVERY_INTRO');
+  return;
+ }
+ // チュートリアルの討伐前（松明購入等）に立ち寄った場合は、討伐案内画面に戻す
+ if(PC._tutorial && PC._tutorial.step==='delivery_done'){
+  go('TUTORIAL_HUNT_INTRO');
+  return;
+ }
+ // チュートリアルの帰郷前（食料購入等）に立ち寄った場合は、帰郷案内画面に戻す
+ if(PC._tutorial && PC._tutorial.step==='homecoming_ask'){
+  go('TUTORIAL_HOMECOMING_ASK');
+  return;
+ }
  // townIdから正しい街ノードに戻る（カザーヌへの誤帰還を防ぐ）
  const shopTownId = _igsTownId || PC.town;
  const shopNode = 'SHOP_' + shopTownId.toUpperCase();
@@ -35999,8 +36170,10 @@ function renderIgsList(townId){
                  }
                  return WEAPONS_TABLE;
                 })();
+ // ヴァルドヘイム・エルシアはそれぞれの地方の中心都市のみが対象（同地方の他の町では売らない）
  const aTable = isKhazan   ? ARMOR_TABLE_KHAZAN
               : isElsia    ? ARMOR_TABLE_ELSIA
+              : (isAlRashid || isYeldun || isValdheim) ? ARMOR_TABLE_WITH_SCALE
               : ARMOR_TABLE;
  const el = document.getElementById('igs-list');
  el.innerHTML = '';
@@ -36458,6 +36631,355 @@ function finishShopping(){
 }
 
 // 生い立ち・動機を「運命に任せる」か「自分で選ぶ」か選択させる
+// ══════════════════════════════════════════
+// チュートリアル：同行系システムの学習
+// ══════════════════════════════════════════
+// 全町ID → 武器屋・装備屋ノードIDの対応表（命名規則が町ごとに不統一なため明示的に定義する）
+// sarpe/nebraには専用の店がないため、マレア地方の中心地neriaの店を代わりに案内する
+const TUTORIAL_SHOP_MAP = {
+ khazan:'SHOP_KHAZAN', port_argon:'SHOP_PORT', stonehiem:'SHOP_STONE',
+ elsia:'SHOP_ELSIA', verda:'SHOP_VERDA', rimholm:'SHOP_RIMHOLM', marakai:'SHOP_MARAKAI',
+ al_rashid:'SHOP_AL_RASHID', oasis_fort:'SHOP_OASIS', saroon:'SHOP_SAROON', duna:'SHOP_DUNA',
+ neria:'SHOP_NERIA', dorua:'SHOP_DORUA', sarpe:'SHOP_NERIA', nebra:'SHOP_NERIA', kalvo:'SHOP_KALVO',
+ yeldun:'SHOP_YELDUN', frostpeak:'SHOP_FROSTPEAK', ashveil:'SHOP_ASHVEIL',
+ valdheim:'SHOP_VALDHEIM', nifurvik:'SHOP_NIFURVIK', iskald:'SHOP_ISKALD',
+};
+
+function startTutorial(){
+ const oldNPC = generateNPC(5);
+ oldNPC.type = 'wizard';
+ oldNPC.name = pickNPC();
+ oldNPC.equippedWeapons = [];
+ oldNPC.race = 'human'; // 寿命を人間基準（80歳）に固定し、老NPCとして扱えるようにする
+ // 老NPCらしく70〜79歳に設定する（80歳ちょうどだと即座に天寿を全うしてしまうため80未満に収める）
+ const oldAge = 70 + Math.floor(Math.random()*10);
+ oldNPC.birthDay = GAME_TIME.totalDays - oldAge*365;
+ // 老化による能力値低下が道中で一気に発生しないよう、既に経過したはずの低下回数を先に記録しておく
+ oldNPC._declineCount = Math.floor((oldAge - 40) / 5);
+ const personality = COMPANION_HUNT_LEADER_PERSONALITIES.find(p=>p.name==='熱血') || COMPANION_HUNT_LEADER_PERSONALITIES[0];
+ // 同地方内の「隣町」を1つ選ぶ（自分の出発地以外の同地方の町からランダム）
+ const myRegion = getRegionKey(PC._startTown);
+ const sameRegionTowns = (HERO_REGIONS[myRegion]?.towns||[]).filter(t=>t!==PC._startTown);
+ const nearTownId = sameRegionTowns[Math.floor(Math.random()*sameRegionTowns.length)] || PC._startTown;
+ // 最も近い「別地方」の町を、findTownRouteの距離で全町から検索
+ const allTowns = Object.keys(TOWNS).filter(t=>getRegionKey(t)!==myRegion && getRegionKey(t));
+ let bestTown = null, bestDist = Infinity;
+ allTowns.forEach(t=>{
+  const route = findTownRoute(PC._startTown, t);
+  if(!route) return;
+  // 経路の合計日数を概算（区間ごとにgetRouteで積算）
+  let days = 0;
+  for(let i=0;i<route.length-1;i++){
+   const r = getRoute(route[i], route[i+1]);
+   if(!r) return;
+   days += (r.days.walk!=null ? r.days.walk : r.days.coach) || 9999;
+  }
+  if(days < bestDist){ bestDist = days; bestTown = t; }
+ });
+
+ PC._tutorial = {
+  step: 'intro',
+  oldNPC, oldNPCPersonality: personality,
+  nearTownId, homeRegionTownId: bestTown,
+ };
+ go('TUTORIAL_INTRO');
+}
+
+// チュートリアル中の装備チェック（防寒着と荷物袋・ブーツ・食料30日分以上・武器1つ以上・防具1つ以上）
+function _tutorialCheckEquip(){
+ const hasClothingBag = PC.invClothing || PC.equippedClothing; // 「防寒着と荷物袋」は衣服枠として扱われる想定
+ const hasBoots = PC.invBoots;
+ const hasFood = (PC._food||0) >= 30;
+ const hasWeapon = (PC.equippedWeapons||[]).length > 0;
+ const hasArmor = (PC.equippedArmors||[]).length > 0;
+ return { ok: hasClothingBag && hasBoots && hasFood && hasWeapon && hasArmor, hasClothingBag, hasBoots, hasFood, hasWeapon, hasArmor };
+}
+
+// ── チュートリアル：配達フェーズ ──
+// お守り役NPCを生成し、隣町への同行配達を開始する
+// NPC紹介（お守り役を生成し、TUTORIAL_DELIVERY_MEETノードで顔合わせさせる）
+function tutorialIntroduceEscort(){
+ const t = PC._tutorial;
+ const escort = generateNPC(2 + Math.floor(Math.random()*3));
+ escort.name = pickNPC();
+ t.escortNPC = escort;
+ go('TUTORIAL_DELIVERY_MEET');
+}
+
+// 顔合わせ後、実際に出発する
+function tutorialStartDelivery(){
+ const t = PC._tutorial;
+ const escort = t.escortNPC;
+ t.deliveryLeg = 'outbound'; // outbound（往路）/ paused（隣町で足止め中）/ return（復路）
+ escort._isTemporaryCompanion = true;
+ PC.party = [escort];
+ updateHUD();
+ t.step = 'delivery';
+ tutorialDeliveryTravel();
+}
+
+// 現在のdeliveryLegに応じて、区間の旅を開始する（往路・復路共通）
+function tutorialDeliveryTravel(){
+ const t = PC._tutorial;
+ const isOutbound = t.deliveryLeg === 'outbound';
+ const fromId = isOutbound ? PC._startTown : t.nearTownId;
+ const toId = isOutbound ? t.nearTownId : PC._startTown;
+ const route = getRoute(fromId, toId);
+ if(!route){ go('TUTORIAL_DELIVERY_INTRO'); return; } // 到達不能なら（ありえないはずだが）安全に戻す
+ const days = route.days.walk!=null ? route.days.walk : route.days.coach;
+ const from = TOWNS[fromId], to = TOWNS[toId];
+ PC.town = toId;
+ updateHUD();
+ drawScene('travel');
+ showTravelImage('walk', fromId, toId);
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+ }
+ renderChoices([]);
+ advanceDaysAnimated(days, ()=>{
+  if(isOutbound){
+   t.deliveryLeg = 'paused';
+   PC.party = [];
+   updateHUD();
+   GAME_TIME.totalDays++;
+   GAME_TIME.hour = 6;
+   updateTimebar();
+   checkAging();
+   const recipientName = pickNPC();
+   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
+    <span style="color:#a8d0e0">${to.name}に到着した。荷物の届け先を訪ねると、依頼主の${recipientName}が出迎えた。</span><br>
+    <span style="color:#c8b8a0">${recipientName}「ああ、待っていたよ！　これで助かる。ここまで運んでくれてありがとう」</span><br><br>
+    <span style="color:#a8d0e0">用件を終えると、${t.escortNPC.name}は宿を取り、一晩休むことにしたようだ。</span><br>
+    <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">明日以降、この町の酒場に行けば旅を再開できる。</span>
+   </div>`;
+   const townNode = 'TOWN_' + toId.toUpperCase();
+   go(NODES[townNode] ? townNode : 'TOWN_KHAZAN');
+  } else {
+   PC.party = [];
+   updateHUD();
+   t.step = 'delivery_done';
+   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
+    <span style="color:#a8d0e0">${to.name}に帰着した。${t.escortNPC.name}が礼を言う。</span><br>
+    <span style="color:#c8b8a0">「送り届けてくれてありがとう。おかげで助かったよ」</span>
+   </div>`;
+   const townNode = 'TOWN_' + toId.toUpperCase();
+   go(NODES[townNode] ? townNode : 'TOWN_KHAZAN');
+   setTimeout(()=>{ go('TUTORIAL_HUNT_INTRO'); }, 50);
+  }
+ });
+}
+
+// 経由町の酒場で「旅を再開する」選択肢を返す（getQuestBoardChoicesから呼ぶ）
+function getTutorialDeliveryResumeChoice(townId){
+ const t = PC._tutorial;
+ if(!t || t.step!=='delivery' || t.deliveryLeg!=='paused' || t.nearTownId!==townId) return [];
+ return [{
+  label:` ${t.escortNPC.name}と共に帰路につく（${(TOWNS[PC._startTown]||{}).name}へ）`,
+  fn:()=>{
+   t.deliveryLeg = 'return';
+   t.escortNPC._isTemporaryCompanion = true;
+   PC.party = [t.escortNPC];
+   updateHUD();
+   // 食料が心許なければ、同行NPCが分けてくれる（旅立つ前に一言添える）
+   if((PC._food||0) < 30){
+    PC._food = (PC._food||0) + 30;
+    updateHUD();
+    const story = document.getElementById('story');
+    if(story){
+     story.innerHTML = `<div style="border:1px solid #345a6a;border-radius:4px;padding:12px;background:#080a0d">
+      <span style="color:#a8d0e0">${t.escortNPC.name}「食料が心許ないようだね。私の分から少し分けてあげるよ」</span><br>
+      <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">食料を30日分受け取った。</span>
+     </div>`;
+    }
+    renderChoices([{label:'▶ 出発する', fn:()=>{ tutorialDeliveryTravel(); }}]);
+    return;
+   }
+   tutorialDeliveryTravel();
+  },
+ }];
+}
+
+// ── チュートリアル：討伐フェーズ ──
+// ゴブリン3体固定の同行討伐クエストを生成する（老NPC＋新規同行者）
+function tutorialStartHunt(){
+ const t = PC._tutorial;
+
+ const quest = {
+  id: 'tutorial_hunt', type: 'hunt', isCompanionHunt: true, isTutorial: true,
+  fromTownId: PC._startTown,
+  monsterName: 'ゴブリン', monsterMR: 18, monsterArmor: 0,
+  isEliteHunt: false, eliteSpecies: null, eliteLevel: null, eliteRank: null,
+  rooms: [{ count: 3, mr: 18, roomMR: 54 }],
+  totalMR: 54,
+  caveName: '郊外の洞穴',
+  clientName: t.oldNPC.name,
+  reward: 40,
+  deadlineDays: 30,
+  issuedDay: GAME_TIME.totalDays,
+  status: 'active',
+  crossRegion: false,
+  leader: t.oldNPC, leaderPersonality: t.oldNPCPersonality, companion: null,
+  _started: true,
+ };
+ if(!PC.quests) PC.quests = [];
+ PC.quests.push(quest);
+ t.step = 'hunt';
+ t.huntQuestId = quest.id;
+ t.oldNPC._isTemporaryCompanion = true;
+ PC.party = [t.oldNPC];
+ updateHUD();
+ initTorch(); // 松明を持っていれば入場時に点火する
+ go('TUTORIAL_HUNT_1');
+}
+
+// チュートリアル討伐ダンジョン：固定5ノードの一本道。ノード2にゴブリン1体、ノード4に2体
+function _tutorialHuntQuest(){
+ return (PC.quests||[]).find(q=>q.id===PC._tutorial?.huntQuestId);
+}
+function _tutorialHuntEnemies(count){
+ const q = _tutorialHuntQuest();
+ return Array.from({length:count},(_,i)=>({
+  name: count>1 ? `${q.monsterName} #${i+1}` : q.monsterName,
+  mr: q.monsterMR, curMR: q.monsterMR, armor: q.monsterArmor||0,
+ }));
+}
+
+// ── チュートリアル：帰郷フェーズ（地方またぎ移動）──
+function tutorialStartHomecoming(){
+ const t = PC._tutorial;
+ if(!t.homeRegionTownId){
+  // 万一、到達可能な他地方が見つからなかった場合の保険（起こらないはずだが、安全に終了する）
+  tutorialFinishWithoutHomecoming();
+  return;
+ }
+ const route = findTownRoute(PC._startTown, t.homeRegionTownId);
+ if(!route || route.length < 2){
+  tutorialFinishWithoutHomecoming();
+  return;
+ }
+ t.homeRoute = route;
+ t.homeLegIndex = 0;
+ t.step = 'homecoming';
+ t.oldNPC._isTemporaryCompanion = true;
+ PC.party = [t.oldNPC];
+ updateHUD();
+ tutorialHomecomingTravel();
+}
+
+// 帰郷ルートの現在区間を旅する（複数区間、最終到着でTUTORIAL_FAREWELLへ）
+function tutorialHomecomingTravel(){
+ const t = PC._tutorial;
+ const fromId = t.homeRoute[t.homeLegIndex];
+ const toId = t.homeRoute[t.homeLegIndex+1];
+ const route = getRoute(fromId, toId);
+ if(!route){ go('TUTORIAL_HOMECOMING_ASK'); return; }
+ const days = route.days.walk!=null ? route.days.walk : route.days.coach;
+ const isFinalLeg = (t.homeLegIndex+1) === t.homeRoute.length-1;
+ const from = TOWNS[fromId], to = TOWNS[toId];
+ PC.town = toId;
+ updateHUD();
+ drawScene('travel');
+ showTravelImage('walk', fromId, toId);
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+ }
+ renderChoices([]);
+ advanceDaysAnimated(days, ()=>{
+  if(travelState) travelState.crossRegion = getRegionKey(fromId) !== getRegionKey(toId);
+  if(isFinalLeg){
+   t.step = 'farewell';
+   go('TUTORIAL_FAREWELL');
+  } else {
+   t.homeLegIndex++;
+   // 経由町では同行配達と同じく一泊し、自由行動をはさんでから次の区間へ進む
+   t.homecomingPausedAt = toId;
+   PC.party = [];
+   updateHUD();
+   GAME_TIME.totalDays++;
+   GAME_TIME.hour = 6;
+   updateTimebar();
+   checkAging();
+   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
+    <span style="color:#a8d0e0">${to.name}に到着した。${t.oldNPC.name}は宿を取り、一晩休むことにしたようだ。</span><br>
+    <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">明日以降、この町の酒場に行けば旅を再開できる。</span>
+   </div>`;
+   const townNode = 'TOWN_' + toId.toUpperCase();
+   go(NODES[townNode] ? townNode : 'TOWN_KHAZAN');
+  }
+ });
+}
+
+// 帰郷ルートの経由町の酒場で「旅を再開する」選択肢を返す（getQuestBoardChoicesから呼ぶ）
+function getTutorialHomecomingResumeChoice(townId){
+ const t = PC._tutorial;
+ if(!t || t.step!=='homecoming' || t.homecomingPausedAt!==townId) return [];
+ const nextTownId = t.homeRoute[t.homeLegIndex+1];
+ const nextName = (TOWNS[nextTownId]||{}).name || nextTownId;
+ return [{
+  label:` ${t.oldNPC.name}と共に旅を再開する（次は${nextName}）`,
+  fn:()=>{
+   t.homecomingPausedAt = null;
+   t.oldNPC._isTemporaryCompanion = true;
+   PC.party = [t.oldNPC];
+   updateHUD();
+   tutorialHomecomingTravel();
+  },
+ }];
+}
+
+// 到達可能な他地方が見つからなかった場合の保険的終了
+function tutorialFinishWithoutHomecoming(){
+ const t = PC._tutorial;
+ t.step = 'farewell';
+ PC.party = [];
+ updateHUD();
+ go('TUTORIAL_FAREWELL_NO_HOMECOMING');
+}
+
+// チュートリアル全体の終了処理：パーティ解散、老NPCの死亡タイマー設定、通常の冒険開始地点へ
+function tutorialFinish(){
+ const t = PC._tutorial;
+ PC.party = [];
+ // 老NPCは6ヶ月後（30日×6=180日）に老衰で死ぬ。噂として後で耳にする
+ if(!PC._tutorialDeaths) PC._tutorialDeaths = [];
+ PC._tutorialDeaths.push({ name: t.oldNPC.name, dueDay: GAME_TIME.totalDays + 180, told: false });
+ t.step = 'done';
+ updateHUD();
+ const nodeMap = {khazan:'TOWN_KHAZAN',port_argon:'TOWN_PORT_ARGON',stonehiem:'TOWN_STONEHIEM',elsia:'TOWN_ELSIA',verda:'TOWN_VERDA',rimholm:'TOWN_RIMHOLM',marakai:'TOWN_MARAKAI',al_rashid:'TOWN_AL_RASHID',oasis_fort:'TOWN_OASIS_FORT',saroon:'TOWN_SAROON',duna:'TOWN_DUNA',neria:'TOWN_NERIA',dorua:'TOWN_DORUA',sarpe:'TOWN_SARPE',nebra:'TOWN_NEBRA',yeldun:'TOWN_YELDUN',frostpeak:'TOWN_FROSTPEAK',ashveil:'TOWN_ASHVEIL'};
+ go(nodeMap[PC.town] || 'TOWN_KHAZAN');
+}
+
+// 町ノードに入るたびに呼び、噂として伝えるべき死亡イベントがあれば_pendingMsgに積む
+function checkTutorialDeathRumors(){
+ if(!PC._tutorialDeaths || !PC._tutorialDeaths.length) return;
+ PC._tutorialDeaths.forEach(d=>{
+  if(!d.told && GAME_TIME.totalDays >= d.dueDay){
+   d.told = true;
+   addLifeEvent('', `風の噂で、かつての恩人 ${d.name} が老衰で亡くなったと聞いた。`);
+   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #585858;border-radius:4px;padding:10px;background:#0a0c0a;margin-bottom:10px">
+    <span style="color:#c8b8a0">酒場で交わされる噂話が、ふと耳に入った。</span><br>
+    <span style="color:#e0d8c8">「そういえば、かつて名が知られていた冒険者だった<b>${d.name}</b>が、老衰で死んだらしい」</span>
+   </div>`;
+  }
+ });
+}
+
 function chooseBackgroundMode(){
  if(window.innerWidth < 860) document.getElementById('inv-panel')?.classList.add('hidden'); // モバイルでステータスパネルが開いたままにならないようにする
  const story = document.getElementById('story');
@@ -39171,7 +39693,7 @@ function startAsNPC(npcIdx){
  PC.lifeEvents = []; // ライフイベントは新PCのものからスタート
  PC.spdBase = PC.spd;
  // 前PCの_フラグ類をクリア（世界状態はworldStateから引き継ぐ）
- const keepFlags = new Set(['_startTown','_npcId']);
+ const keepFlags = new Set(['_startTown','_npcId','_fiefCharters']);
  Object.keys(PC).filter(k=>k.startsWith('_') && !keepFlags.has(k)).forEach(k=>{ delete PC[k]; });
  // 年齢・誕生日を、後継NPC自身のデータから算出し直す
  // （NPCのbirthDayは起点からの経過日数、PCのbirthDay/Month/Yearは暦の年月日で意味が異なるため、
@@ -39227,6 +39749,7 @@ function startAsNPC(npcIdx){
  if(ws.famineYear) PC._famineYear = ws.famineYear;
  if(ws.famineHeroName) PC._famineHeroName = ws.famineHeroName;
  // 地方英雄・英雄フラグは引き継がない（新しいキャラクターが自分で獲得する必要がある）
+ if(ws.regionLegends) PC._regionLegends = JSON.parse(JSON.stringify(ws.regionLegends)); // 地方伝説の英雄（歴代）は引き継ぐ
  PC.food = 0; // 前の代の食料は引き継がない
  rollLanguages(PC); // 後継キャラクターも新たにモンスター語の習得判定を行う
  PC.spouse = []; // 前の代の配偶者記録は引き継がない
@@ -39257,6 +39780,7 @@ function startNewPCInherit(){
  if(ws && ws.famineYear){ PC._inheritedFamineYear = ws.famineYear; PC._inheritedFamineHeroName = ws.famineHeroName||''; }
  if(ws && ws.heroRegions) PC._inheritedHeroRegions = JSON.parse(JSON.stringify(ws.heroRegions));
  if(ws && ws.heroTowns) PC._inheritedHeroTowns = JSON.parse(JSON.stringify(ws.heroTowns));
+ if(ws && ws.regionLegends) PC._inheritedRegionLegends = JSON.parse(JSON.stringify(ws.regionLegends));
  if(ws && ws.harvestYear){ PC._inheritedHarvestYear = ws.harvestYear; PC._inheritedHarvestResult = ws.harvestResult; PC._inheritedFoodPriceMult = ws.foodPriceMult; PC._inheritedHarvestPriceApplied = ws.harvestPriceApplied; }
  ['title-screen','shop-area','game'].forEach(id=>{
  const el = document.getElementById(id);
@@ -39412,6 +39936,11 @@ function go(nodeId){
  const _pp = document.getElementById('patron-panel');
  if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
 
+ // 町ノードに入るたびに、チュートリアルの死亡イベントの噂をチェックする
+ if(typeof nodeId==='string' && nodeId.startsWith('TOWN_')){
+  checkTutorialDeathRumors();
+ }
+
  if(nodeId==='__bounty_win__'){
  // 賞金首討伐勝利 → 衛兵に報告する画面
  const bq = window._bountyQ;
@@ -39497,7 +40026,8 @@ function go(nodeId){
  _huntState = null;
  travelState = null;
  }
- const _prevWasDungeon = DUNGEON_NODES.has(currentNodeId);
+ const _isDungeonLikeNode = id => DUNGEON_NODES.has(id) || (typeof id==='string' && /^TUTORIAL_HUNT_\d+$/.test(id));
+ const _prevWasDungeon = _isDungeonLikeNode(currentNodeId);
  currentNodeId = nodeId;
  setRegionTheme(nodeId);
 
@@ -39531,7 +40061,7 @@ function go(nodeId){
  checkChaosNestTick();
 
  // ── 松明ターン消費（ダンジョン内移動） ──
- if(DUNGEON_NODES.has(nodeId) && !DUNGEON_SAFE_NODES.has(nodeId)){
+ if((DUNGEON_NODES.has(nodeId) && !DUNGEON_SAFE_NODES.has(nodeId)) || (typeof nodeId==='string' && /^TUTORIAL_HUNT_\d+$/.test(nodeId) && nodeId!=='TUTORIAL_HUNT_1')){
  PC._torchStock = PC._torchStock || 0;
  if(PC._torchTurns == null) PC._torchTurns = 0;
  // 重量オーバーなら1回の移動で松明の消費が2倍（2ターン分）かかる
@@ -39616,14 +40146,14 @@ function go(nodeId){
  hideMagicArea();
  document.getElementById('text-win').style.display = ''; // 戦闘中に隠したtext-winを復元
  if(window.innerWidth < 860) document.getElementById('inv-panel').classList.add('hidden');
- closeIngameShop(); // ノード遷移時は装備屋を必ず閉じる
+ if(_shopActor) closeIngameShop(); // ノード遷移時、装備屋が実際に開いていれば閉じる
  rollPending=null;cbtState=null;multiRollState=null;
 
  // Scene
  drawScene((typeof node.scene==='function'?node.scene():node.scene)||'dungeon');
 
  // ── ダンジョン画像制御 ──
- const _nowDungeon = DUNGEON_NODES.has(nodeId);
+ const _nowDungeon = _isDungeonLikeNode(nodeId);
  if(!_prevWasDungeon && _nowDungeon){
   // 入場：画像を表示してカウンターリセット
   _dngStepCount = 0;
@@ -40628,6 +41158,12 @@ function _isCompanionHuntCombat(){
   q.type==='companionDelivery' && q.status==='active' && q._started && !q.isPausedAt
  );
  if(hasActiveDelivery) return true;
+ // チュートリアルの配達・討伐・帰郷フェーズも同じ自動化ロジックにする
+ if(PC._tutorial && (
+  (PC._tutorial.step==='delivery' && PC._tutorial.deliveryLeg!=='paused') ||
+  PC._tutorial.step==='hunt' ||
+  (PC._tutorial.step==='homecoming' && !PC._tutorial.homecomingPausedAt)
+ )) return true;
  return false;
 }
 
@@ -42633,17 +43169,17 @@ function doFlee(){
  const aliveEnemies = isNPCCombat
   ? cbtState.enemies.filter(e=>e.curCon>0)
   : cbtState.enemies.filter(e=>e.curMR>0);
- const eTotal = aliveEnemies.reduce((s,e)=>{
-  if(isNPCCombat){
-   // NPC型：能力値ロール
-   const rv = calcNPCRoll(e); return s + rv.total;
-  }
-  return s + monsterCombatRoll(e.curMR).total;
- },0);
+ const eRolls = aliveEnemies.map(e=>{
+  const rv = isNPCCombat ? calcNPCRoll(e) : monsterCombatRoll(e.curMR);
+  return {name:e.name, total:rv.total, dice:rv.dice};
+ });
+ const eTotal = eRolls.reduce((s,r)=>s+r.total, 0);
  const myArmor = effectiveArmor();
  const dmg = Math.max(1, eTotal - myArmor);
  PC.con -= dmg;
- cl.innerHTML += `<span class="red"> 逃走失敗！ 背中に攻撃を受けた！ 体力-${dmg}</span><br>`;
+ const rollDetail = eRolls.map(r=>`${r.name} <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">${diceStr(r.dice)}</span>=<span style="color:#f0ece0">${r.total}</span>`).join('、');
+ cl.innerHTML += `<span class="red"> 逃走失敗！ 背中に攻撃を受けた！</span><br>
+  <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${rollDetail}　合計${eTotal} − 防護${myArmor} = <span class="red">体力-${dmg}</span></span><br>`;
  // HPバーのみ更新（行動選択パネルは死亡判定後まで再構築しない）
  _updateCombatBars(); updateHUD();
  if(PC.con <= 0){
@@ -45235,7 +45771,283 @@ const NODES = {
  const nodeMap = {khazan:'TOWN_KHAZAN',port_argon:'TOWN_PORT_ARGON',stonehiem:'TOWN_STONEHIEM',elsia:'TOWN_ELSIA',verda:'TOWN_VERDA',rimholm:'TOWN_RIMHOLM',marakai:'TOWN_MARAKAI',al_rashid:'TOWN_AL_RASHID',oasis_fort:'TOWN_OASIS_FORT',saroon:'TOWN_SAROON',duna:'TOWN_DUNA',neria:'TOWN_NERIA',dorua:'TOWN_DORUA',sarpe:'TOWN_SARPE',nebra:'TOWN_NEBRA',yeldun:'TOWN_YELDUN',frostpeak:'TOWN_FROSTPEAK',ashveil:'TOWN_ASHVEIL'};
  go(nodeMap[PC._startTown] || 'TOWN_KHAZAN');
  }, go:'__travel__'},
+ {label:'▶ チュートリアルを始める', fn:()=>{ startTutorial(); }, go:'__travel__'},
  ]
+ },
+
+ TUTORIAL_INTRO:{
+ scene:()=>({khazan:'town_khazan',port_argon:'town_port',stonehiem:'town_stone',elsia:'town_elsia',verda:'town_village',rimholm:'town_village',marakai:'town_village',al_rashid:'town_desert_city',oasis_fort:'town_desert_village',saroon:'town_desert_village',duna:'town_desert_village',neria:'town_stone',dorua:'town_village',sarpe:'town_village',nebra:'town_village',yeldun:'town_mountain_city',frostpeak:'town_mountain_village',ashveil:'town_mountain_village'}[PC._startTown]||'town_khazan'),
+ txt:()=>{
+  const t = PC._tutorial;
+  return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── 酒場にて ──</span><br><br>
+  <span style="color:#c0b098">酒場の片隅で一人、静かに酒を飲む老人がいた。旅装束は年季が入っているが、纏う空気はどこか只者ではない。ふと目が合うと、彼の方から声をかけてきた。</span><br><br>
+  <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
+   <div style="color:#f0ece0;font-size:var(--font-sm);margin-bottom:6px"> ${t.oldNPC.name}</div>
+   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「おお、見ん顔じゃな。旅立ったばかりのようじゃが……よし、わしが少しばかり手ほどきをしてやろうかの。まずは腹ごしらえより先に、装備を整えることじゃ」</div>
+  </div>`;
+ },
+ choices:[
+  {label:'▶ 話を聞く', go:'TUTORIAL_EQUIP_INSTRUCT'},
+ ],
+ },
+
+ TUTORIAL_EQUIP_INSTRUCT:{
+ scene:()=>NODES.TUTORIAL_INTRO.scene(),
+ txt:()=>{
+  const t = PC._tutorial;
+  return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${t.oldNPC.name}の指南 ──</span><br><br>
+  <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「まずは<b>武器屋・装備屋</b>で、旅の基本を揃えてくるといい。<br>
+  ・防寒着と荷物袋<br>
+  ・ブーツ<br>
+  ・食料は30日分<br>
+  ・お前さんの得物と、身を守る防具を好きに選ぶといい<br>
+  これだけあれば、当面は困らんはずじゃ。<br><br>
+  防寒着は、極寒の地に踏み込んだときに持っておらんと凍傷になるでな。侮ってはいかん。<br>
+  背負袋がなけりゃ、持てる荷物はほんのわずかじゃ。すぐに手一杯になってしまうぞ。<br>
+  ブーツやサンダルは、いざというとき素早く動くために要るもんじゃ。裸足では話にならん。<br>
+  それと、町を出てしまえば食料は手に入らん。旅立つ前には必ず買い足しておくことじゃ。<br>
+  ……ああ、それと。買っただけで満足するでないぞ。ちゃんと<b>装備</b>せんことには、何の意味もないでな。<br><br>
+  ……なに、懐具合と相談してくれて構わんよ」</div>`;
+ },
+ choices:()=>{
+  const shopNode = TUTORIAL_SHOP_MAP[PC._startTown] || ('SHOP_'+PC._startTown.toUpperCase());
+  return [{label:' 武器屋・装備屋へ行く', fn:()=>{
+   PC._pendingMsg = `<span style="color:#c0b098">「ほれほれ、油売っとらんでさっさと行ってこい」と、${PC._tutorial.oldNPC.name}に背中を押されるようにして酒場を追い出された。</span><br><br>`;
+   go(NODES[shopNode] ? shopNode : 'SHOP_KHAZAN');
+  }}];
+ },
+ },
+
+ TUTORIAL_DELIVERY_INTRO:{
+ scene:()=>NODES.TUTORIAL_INTRO.scene(),
+ txt:()=>{
+  const t = PC._tutorial;
+  const nearName = (TOWNS[t.nearTownId]||{}).name || t.nearTownId;
+  return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${t.oldNPC.name}の指南 ──</span><br><br>
+  <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「ほう、装備は揃ったようじゃな。次は<b>旅の基本</b>を教えてやろう。<br>
+  お前さんもこれから生きていくには、金を稼がにゃならん。冒険者として真っ当に暮らすなら、酒場に貼り出された依頼を受けて、その報酬をもらうのが一番じゃ。<br>
+  中でも一番簡単なのが<b>宅配の依頼</b>じゃ。荷物を目的の町まで運ぶだけで、ちゃんと金になる。まずはそいつで慣らしていくとしよう。<br>
+  ちょうど${nearName}まで荷を届けてほしいという者がおる。一人で行かせるのも忍びない、酒場で仲間を紹介してやろう」<br><br>
+  「ひとつ言っておくがの。道中で厄介ごとに出くわすこともあるじゃろうが、たとえ二人組でも、明らかに敵わない相手だと感じたら無理はするでないぞ。<b>逃げるのも冒険者の腕のうちじゃ</b>」</div>`;
+ },
+ choices:[
+  {label:'▶ 仲間を紹介してもらう', fn:()=>{ tutorialIntroduceEscort(); }},
+ ],
+ },
+
+ TUTORIAL_DELIVERY_MEET:{
+ scene:()=>NODES.TUTORIAL_INTRO.scene(),
+ txt:()=>{
+  const t = PC._tutorial;
+  const nearName = (TOWNS[t.nearTownId]||{}).name || t.nearTownId;
+  return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── 顔合わせ ──</span><br><br>
+  <span style="color:#c0b098">${t.oldNPC.name}に連れられて、一人の旅人が現れた。</span><br><br>
+  <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
+   <div style="color:#f0ece0;font-size:var(--font-sm);margin-bottom:6px"> ${t.escortNPC.name}</div>
+   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「よろしく頼むよ。${nearName}まで、一緒に行ってくれるんだってな。心強い」</div>
+  </div>`;
+ },
+ choices:[
+  {label:'▶ 出発する', fn:()=>{ tutorialStartDelivery(); }},
+ ],
+ },
+
+ TUTORIAL_HUNT_INTRO:{
+ scene:()=>NODES.TUTORIAL_INTRO.scene(),
+ txt:()=>{
+  const t = PC._tutorial;
+  const totalTorches = (PC._torchStock||0) + (PC._torchTurns>0?1:0);
+  let msg = ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${t.oldNPC.name}の指南 ──</span><br><br>
+  <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「無事に届けられたようじゃな！　次は<b>戦いの基本</b>を教えてやろう。<br>
+  酒場にはさっきの宅配のような依頼だけでなく、<b>討伐依頼</b>ってのも貼り出されておる。何かしらの脅威が棲み着いた場所に乗り込んで、そいつを排除してくるって依頼じゃ。<br>
+  ちょうど郊外の洞穴にゴブリンの一団が棲み着いたと聞く。わしが魔法で援護してやるから、一緒に片付けに行こうかの」</div>`;
+  if(totalTorches <= 0){
+   msg += `<br><div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「おっと、待った。<b>松明</b>を持っとらんな？　洞穴の中は真っ暗じゃ。先に買っておくといい」</div>`;
+  }
+  return msg;
+ },
+ choices:()=>{
+  const totalTorches = (PC._torchStock||0) + (PC._torchTurns>0?1:0);
+  const ch = [];
+  if(totalTorches <= 0){
+   const shopNode = TUTORIAL_SHOP_MAP[PC._startTown] || ('SHOP_'+PC._startTown.toUpperCase());
+   ch.push({label:' 武器屋・装備屋へ松明を買いに行く', go: NODES[shopNode] ? shopNode : 'SHOP_KHAZAN'});
+  }
+  ch.push({label:'▶ 討伐に同行する', fn:()=>{ tutorialStartHunt(); }});
+  return ch;
+ },
+ },
+
+ TUTORIAL_HUNT_1:{
+ scene:'dungeon',
+ txt:()=>{
+  const q = _tutorialHuntQuest();
+  const tBar = torchIndicator ? torchIndicator() : '';
+  return `${tBar} <span style="color:#e8e0d0;font-size:var(--font-base)">討伐出撃：${q.caveName}</span><br><br>
+  <span style="color:#d0c8b8">薄暗い洞穴の入り口をくぐる。奥から獣臭い風が吹いてくる。</span><br><br>
+  <span style="color:#d0c8b8">目標：${q.monsterName} ×3</span>`;
+ },
+ choices:[
+  {label:'▶ 奥へ進む', go:'TUTORIAL_HUNT_2'},
+ ],
+ },
+
+ TUTORIAL_HUNT_2:{
+ scene:'dungeon',
+ txt:()=>{
+  const q = _tutorialHuntQuest();
+  const tBar = torchIndicator ? torchIndicator() : '';
+  const cleared = PC._tutorialHunt2Cleared;
+  return `${tBar}<span style="color:#b8a890">狭い通路を進むと、少し開けた場所に出た。</span><br><br>
+  ${cleared ? `<span style="color:#b0a080">（戦闘済みだ。先へ進める。）</span>` : `<span style="color:#f0ddd8"> <b>${q.monsterName}</b>が<b>1体</b>現れた！</span>`}`;
+ },
+ choices:()=>{
+  if(PC._tutorialHunt2Cleared) return [{label:'▶ 奥へ進む', go:'TUTORIAL_HUNT_3'}];
+  const q = _tutorialHuntQuest();
+  return [{label:` 戦う（${q.monsterName} ×1）`, fn:()=>{
+   if(q.leaderPersonality){
+    const s = document.getElementById('story');
+    if(s) s.innerHTML += `<br><span style="color:#c8e0a8">${q.leaderPersonality.field}</span><br>`;
+   }
+   startCombat({enemies:_tutorialHuntEnemies(1), canFlee:true, isHunt:true, autoNPC:true,
+    onWin:()=>{ PC._tutorialHunt2Cleared=true; },
+    win:'TUTORIAL_HUNT_2', lose:'DEAD',
+   });
+   renderChoices([]); scrollToTop();
+  }}];
+ },
+ },
+
+ TUTORIAL_HUNT_3:{
+ scene:'dungeon',
+ txt:()=>{
+  const tBar = torchIndicator ? torchIndicator() : '';
+  return `${tBar}<span style="color:#b8a890">戦いの痕を越え、さらに奥へと通路が続いている。</span>`;
+ },
+ choices:[
+  {label:'▶ 奥へ進む', go:'TUTORIAL_HUNT_4'},
+ ],
+ },
+
+ TUTORIAL_HUNT_4:{
+ scene:'dungeon',
+ txt:()=>{
+  const q = _tutorialHuntQuest();
+  const tBar = torchIndicator ? torchIndicator() : '';
+  const cleared = PC._tutorialHunt4Cleared;
+  return `${tBar}<span style="color:#b8a890">広間に出ると、複数の気配がこちらに気づいた。</span><br><br>
+  ${cleared ? `<span style="color:#b0a080">（戦闘済みだ。先へ進める。）</span>` : `<span style="color:#f0ddd8"> <b>${q.monsterName}</b>が<b>2体</b>現れた！</span>`}`;
+ },
+ choices:()=>{
+  if(PC._tutorialHunt4Cleared) return [{label:'▶ 奥へ進む', go:'TUTORIAL_HUNT_5'}];
+  const q = _tutorialHuntQuest();
+  return [{label:` 戦う（${q.monsterName} ×2）`, fn:()=>{
+   if(q.leaderPersonality){
+    const s = document.getElementById('story');
+    if(s) s.innerHTML += `<br><span style="color:#c8e0a8">${q.leaderPersonality.field}</span><br>`;
+   }
+   startCombat({enemies:_tutorialHuntEnemies(2), canFlee:true, isHunt:true, autoNPC:true,
+    onWin:()=>{ PC._tutorialHunt4Cleared=true; },
+    win:'TUTORIAL_HUNT_4', lose:'DEAD',
+   });
+   renderChoices([]); scrollToTop();
+  }}];
+ },
+ },
+
+ TUTORIAL_HUNT_5:{
+ scene:'dungeon',
+ txt:()=>{
+  const tBar = torchIndicator ? torchIndicator() : '';
+  return `${tBar} <span style="color:#e8e0d0">最奥部</span><br><br>
+  <span style="color:#f0ece0"> 討伐完了！出口へ向かおう。</span>`;
+ },
+ choices:[
+  {label:' 洞穴を出る（討伐完了）', fn:()=>{
+   const q = _tutorialHuntQuest();
+   delete PC._tutorialHunt2Cleared;
+   delete PC._tutorialHunt4Cleared;
+   huntQuestComplete(q);
+  }},
+ ],
+ },
+
+ TUTORIAL_FAREWELL_AFTER_HUNT:{
+ scene:()=>NODES.TUTORIAL_INTRO.scene(),
+ txt:()=>{
+  const t = PC._tutorial;
+  return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── 別れ ──</span><br><br>
+  <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
+   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「装備の揃え方、旅の仕方、戦いの基本……これでひと通り教えられたはずじゃ。<br>
+   あとはお前さん次第じゃな。気長に色んなところを見て回るといい。自分なりに好きなようにやってみることじゃ。<br>
+   とにかく、生き延びればチャンスはある。じゃあ元気でな」</div>
+  </div><br>
+  <span style="color:#c8b8a0">${t.oldNPC.name}は軽く手を挙げると、そのまま去っていった。</span>`;
+ },
+ choices:[
+  {label:'▶ 冒険へ出発する', fn:()=>{ tutorialFinish(); }},
+ ],
+ },
+
+ TUTORIAL_HOMECOMING_ASK:{
+ scene:()=>NODES.TUTORIAL_INTRO.scene(),
+ txt:()=>{
+  const t = PC._tutorial;
+  const homeName = (TOWNS[t.homeRegionTownId]||{}).name || '故郷';
+  let msg = ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${t.oldNPC.name}の頼み ──</span><br><br>
+  <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「ふう……歳のせいか、近頃はどうも故郷が恋しくてな。${homeName}まで、もう一度戻ってみたいんだ。<br>
+  すまんが、もう少しだけ付き合ってくれんか？　<b>地方をまたぐ長旅</b>になるが、良い経験になるはずだ」</div>`;
+  if((PC._food||0) < 30){
+   msg += `<br><div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「おっと、その前に食料を見てみろ。長旅にはとても足りねぇな。ほら、これで買っておけ」</div>`;
+  }
+  return msg;
+ },
+ choices:()=>{
+  const ch = [];
+  if((PC._food||0) < 30){
+   const shopNode = TUTORIAL_SHOP_MAP[PC._startTown] || ('SHOP_'+PC._startTown.toUpperCase());
+   ch.push({label:' 75GPを受け取り、食料を買いに行く', fn:()=>{
+    gainGP(75, PC);
+    updateHUD();
+    go(NODES[shopNode] ? shopNode : 'SHOP_KHAZAN');
+   }});
+  }
+  ch.push({label:'▶ 同行する', fn:()=>{ tutorialStartHomecoming(); }});
+  return ch;
+ },
+ },
+
+ TUTORIAL_FAREWELL:{
+ scene:()=>({khazan:'town_khazan',port_argon:'town_port',stonehiem:'town_stone',elsia:'town_elsia',verda:'town_village',rimholm:'town_village',marakai:'town_village',al_rashid:'town_desert_city',oasis_fort:'town_desert_village',saroon:'town_desert_village',duna:'town_desert_village',neria:'town_stone',dorua:'town_village',sarpe:'town_village',nebra:'town_village',yeldun:'town_mountain_city',frostpeak:'town_mountain_village',ashveil:'town_mountain_village'}[PC._tutorial?.homeRegionTownId]||'town_khazan'),
+ txt:()=>{
+  const t = PC._tutorial;
+  const homeName = (TOWNS[t.homeRegionTownId]||{}).name || '故郷';
+  return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${homeName}にて ──</span><br><br>
+  <span style="color:#c0b098">胸いっぱいに故郷の空気を吸い込み、${t.oldNPC.name}は目を細めた。</span><br><br>
+  <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
+   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「ここまで付き合わせて悪かったな。装備も、旅も、戦いも、これでひと通り分かったはずだ。<br>
+   お前ならもう大丈夫だろう。……達者でな」</div>
+  </div><br>
+  <span style="color:#c8b8a0">${t.oldNPC.name}は振り返ることなく、故郷の町へ歩いていった。</span>`;
+ },
+ choices:[
+  {label:'▶ 冒険へ出発する', fn:()=>{ tutorialFinish(); }},
+ ],
+ },
+
+ TUTORIAL_FAREWELL_NO_HOMECOMING:{
+ scene:()=>NODES.TUTORIAL_INTRO.scene(),
+ txt:()=>{
+  const t = PC._tutorial;
+  return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── 別れ ──</span><br><br>
+  <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
+   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「これでひと通り、旅の基本は教えられたはずだ。……達者でな」</div>
+  </div><br>
+  <span style="color:#c8b8a0">${t.oldNPC.name}はそう言って去っていった。</span>`;
+ },
+ choices:[
+  {label:'▶ 冒険へ出発する', fn:()=>{ tutorialFinish(); }},
+ ],
  },
 
  TOWN_KHAZAN:{
