@@ -631,7 +631,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026091401</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026091901</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -8258,6 +8258,91 @@ function generateNPC(level=1){
   return min + Math.floor(Math.random() * (max - min + 1));
  })(),
  };
+}
+
+// 種族を確実にゴブリンに固定してNPCを生成する（通行料イベント等、特定種族の敵役を作りたい場合に使用）
+function generateGoblinGuard(level){
+ const npc = generateNPC(level);
+ const base = {
+  st: rollNPCStat(8 + (level-1)*2),
+  iq: rollNPCStat(8 + (level-1)*2),
+  lk: rollNPCStat(8),
+  con: rollNPCStat(8 + (level-1)*2),
+  dex: rollNPCStat(8 + (level-1)*2),
+  chr: rollNPCStat(8),
+  spd: rollNPCStat(8),
+ };
+ Object.assign(npc, applyRace(base, 'goblin'));
+ npc.maxCon = npc.con;
+ npc.maxSt = npc.st;
+ npc.race = 'goblin';
+ npc.type = 'warrior';
+ npc.name = 'ゴブリンの守衛';
+ return npc;
+}
+
+// 正気を失った半裸のドワーフ戦士（種族をドワーフに固定して生成）
+function generateInsaneDwarf(level){
+ const npc = generateNPC(level);
+ const base = {
+  st: rollNPCStat(8 + (level-1)*2),
+  iq: rollNPCStat(8 + (level-1)*2),
+  lk: rollNPCStat(8),
+  con: rollNPCStat(8 + (level-1)*2),
+  dex: rollNPCStat(8 + (level-1)*2),
+  chr: rollNPCStat(8),
+  spd: rollNPCStat(8),
+ };
+ Object.assign(npc, applyRace(base, 'dwarf'));
+ npc.maxCon = npc.con;
+ npc.maxSt = npc.st;
+ npc.race = 'dwarf';
+ npc.type = 'warrior';
+ npc.equippedArmors = []; // 半裸のため防具は身につけていない
+ npc.name = '正気を失ったドワーフ';
+ return npc;
+}
+
+// オークの戦士（種族を確実にオークに固定して生成）
+function generateOrcWarrior(level){
+ const npc = generateNPC(level);
+ const base = {
+  st: rollNPCStat(8 + (level-1)*2),
+  iq: rollNPCStat(8 + (level-1)*2),
+  lk: rollNPCStat(8),
+  con: rollNPCStat(8 + (level-1)*2),
+  dex: rollNPCStat(8 + (level-1)*2),
+  chr: rollNPCStat(8),
+  spd: rollNPCStat(8),
+ };
+ Object.assign(npc, applyRace(base, 'orc'));
+ npc.maxCon = npc.con;
+ npc.maxSt = npc.st;
+ npc.race = 'orc';
+ npc.type = 'warrior';
+ npc.name = 'オークの戦士';
+ return npc;
+}
+
+// オークの魔法使い（種族を確実にオークに固定して生成）
+function generateOrcMage(level){
+ const npc = generateNPC(level);
+ const base = {
+  st: rollNPCStat(8 + (level-1)*2),
+  iq: rollNPCStat(8 + (level-1)*2),
+  lk: rollNPCStat(8),
+  con: rollNPCStat(8 + (level-1)*2),
+  dex: rollNPCStat(8 + (level-1)*2),
+  chr: rollNPCStat(8),
+  spd: rollNPCStat(8),
+ };
+ Object.assign(npc, applyRace(base, 'orc'));
+ npc.maxCon = npc.con;
+ npc.maxSt = npc.st;
+ npc.race = 'orc';
+ npc.type = 'wizard';
+ npc.name = 'オークの魔法使い';
+ return npc;
 }
 
 // ── NPCインポート機能 ──────────────────────────────
@@ -31224,9 +31309,12 @@ function popRaidUnitMsg(){
 }
 
 // 町メニューに現在の時間帯を表示する（街区・裏路地探索で進んだGAME_TIME.hourをそのまま反映する。保持のみで進行はさせない）
-function popTimeOfDayMsg(){
+function popTimeOfDayMsg(townId){
  const ph = villagePhase(getGameHour());
- return `<br><span style="color:#a89880;font-size:calc(var(--font-sm) - 1px)">現在：${ph.label}</span>`;
+ const regionKey = townId ? getRegionKey(townId) : null;
+ const weather = regionKey ? getTodayWeather(regionKey) : null;
+ const weatherPart = weather ? `、${WEATHER_LABELS[weather] || weather}` : '';
+ return `<br><span style="color:#a89880;font-size:calc(var(--font-sm) - 1px)">現在：${ph.label}${weatherPart}</span>`;
 }
 
 // 酒場のクエスト掲示板HTML生成
@@ -32712,6 +32800,581 @@ const MERCHANT_DESC = [
  '行商人が声をかけてきた。「この辺りは物が少ないだろう？いい品を持ってるよ。」',
  '荷物をたくさん積んだ商人に出くわした。「通りがかりだが、売れるものがあれば引き取るよ。」',
 ];
+
+// ══════════════════════════════════════════
+//  町の天候フレーバーシステム
+//  地方・季節ごとの確率でその日の天候を決め（同じ日は同じ結果）、
+//  天候×時間帯（朝/昼/夜）に応じた一文を町のメイン画面に表示する
+// ══════════════════════════════════════════
+
+// 文字列と日数からその日固有の疑似乱数（0-1）を作る。Math.random()と違い同じ入力なら常に同じ値を返す
+function seededRandom(seedStr){
+ let h = 0;
+ for(let i=0;i<seedStr.length;i++){
+  h = Math.imul(h ^ seedStr.charCodeAt(i), 2654435761);
+ }
+ // 追加の攪拌（mulberry32相当）：単純な多項式ハッシュだけだと連番の入力（日数など）で偏りが出るため
+ h = h ^ (h >>> 15);
+ h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+ h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+ h = h ^ (h >>> 16);
+ return (h >>> 0) / 4294967296;
+}
+
+// villagePhaseの6区分（未明/朝/昼/午後/夜/深夜）を、天候表示用の3区分（朝/昼/夜）にまとめる
+function getTownTimeOfDay(){
+ const phase = villagePhase(getGameHour()).key;
+ if(phase === 'dawn' || phase === 'morning') return 'morning';
+ if(phase === 'noon' || phase === 'afternoon') return 'noon';
+ return 'night'; // night, midnight
+}
+
+// 地方・季節ごとの天候出現確率（重み）
+const REGION_WEATHER_TABLE = {
+ khazan_region: {
+  spring: [{type:'sunny', weight:40}, {type:'cloudy', weight:35}, {type:'rain', weight:25}],
+  summer: [{type:'sunny', weight:45}, {type:'cloudy', weight:20}, {type:'storm', weight:35}],
+  autumn: [{type:'cloudy', weight:40}, {type:'sunny', weight:30}, {type:'rain', weight:30}],
+  winter: [{type:'snow', weight:40}, {type:'cloudy', weight:35}, {type:'sunny', weight:25}],
+ },
+ elmaria_region: {
+  spring: [{type:'sunny', weight:35}, {type:'cloudy', weight:35}, {type:'rain', weight:20}, {type:'fog', weight:10}],
+  summer: [{type:'sunny', weight:40}, {type:'cloudy', weight:25}, {type:'rain', weight:20}, {type:'fog', weight:15}],
+  autumn: [{type:'cloudy', weight:35}, {type:'fog', weight:25}, {type:'rain', weight:25}, {type:'sunny', weight:15}],
+  winter: [{type:'snow', weight:45}, {type:'cloudy', weight:30}, {type:'fog', weight:15}, {type:'sunny', weight:10}],
+ },
+ zahara_region: {
+  spring: [{type:'sunny', weight:60}, {type:'scorching', weight:20}, {type:'sandstorm', weight:20}],
+  summer: [{type:'scorching', weight:45}, {type:'sunny', weight:30}, {type:'sandstorm', weight:25}],
+  autumn: [{type:'sunny', weight:55}, {type:'scorching', weight:25}, {type:'sandstorm', weight:20}],
+  winter: [{type:'sunny', weight:75}, {type:'sandstorm', weight:25}],
+ },
+ draklim_region: {
+  spring: [{type:'sunny', weight:40}, {type:'cloudy', weight:35}, {type:'snow', weight:25}],
+  summer: [{type:'sunny', weight:50}, {type:'cloudy', weight:25}, {type:'storm', weight:25}],
+  autumn: [{type:'cloudy', weight:40}, {type:'snow', weight:30}, {type:'sunny', weight:30}],
+  winter: [{type:'snow', weight:35}, {type:'blizzard', weight:35}, {type:'cloudy', weight:20}, {type:'sunny', weight:10}],
+ },
+ valdheim_region: {
+  spring: [{type:'sunny', weight:35}, {type:'cloudy', weight:35}, {type:'snow', weight:30}],
+  summer: [{type:'sunny', weight:50}, {type:'cloudy', weight:35}, {type:'snow', weight:15}],
+  autumn: [{type:'cloudy', weight:40}, {type:'snow', weight:35}, {type:'sunny', weight:25}],
+  winter: [{type:'blizzard', weight:40}, {type:'snow', weight:35}, {type:'cloudy', weight:15}, {type:'sunny', weight:10}],
+ },
+};
+
+// 地方・天候・時間帯ごとのフレーバーテキスト（各3種）
+const TOWN_WEATHER_FLAVOR = {
+ khazan_region: {
+  sunny: {
+   morning: [
+    '朝日が通りを照らし、屋根がきらきらと光っている。',
+    '澄んだ朝の空気の中、市場ではすでに商人たちが威勢よく声を張り上げている。',
+    '朝日を受けた広場が、まぶしいほどに輝いている。',
+   ],
+   noon: [
+    '雲一つない空の下、広場に降り注ぐ日差しが眩しい。',
+    'からりと晴れ渡った空の下、屋台に人だかりができている。',
+    '強い日差しを避け、人々は軒先の陰に集まっている。',
+   ],
+   night: [
+    '澄み切った夜空に星々が瞬いている。',
+    '雲のない夜、宿の窓から漏れる灯りが通りを照らしている。',
+    '月明かりが通りを白く浮かび上がらせている。',
+   ],
+  },
+  cloudy: {
+   morning: [
+    '灰色の雲が低く垂れ込め、町全体がどこか薄暗い。',
+    '曇り空の下、朝仕事に向かう人々の足音が通りに響いている。',
+    '太陽の見えない朝、市場はいつもより静かだ。',
+   ],
+   noon: [
+    '太陽の位置さえ判然としないほど、厚い雲が空を覆っている。',
+    '曇天の下、広場の噴水だけが変わらず涼やかな音を立てている。',
+    '薄暗い空模様に、行き交う人々の足取りもどこか重い。',
+   ],
+   night: [
+    '雲に隠れた月明かりが、屋根の輪郭をぼんやりと浮かび上がらせている。',
+    '星の見えない夜、表通りの灯りが心細く揺れている。',
+    '厚い雲が空を覆い、いつもより暗い夜だ。',
+   ],
+  },
+  rain: {
+   morning: [
+    '静かな雨が通りを濡らしている。',
+    '朝から降り続く雨に、行商人たちが軒先で退屈そうにしている。',
+    '雨音に混じって、朝市の呼び声がくぐもって聞こえる。',
+   ],
+   noon: [
+    '絶え間ない雨が通りを叩き、あちこちに水たまりができている。',
+    '屋根から滴る雫の音が、雨の昼にやけに大きく響いている。',
+    '雨脚が強まり、通りから人影が消えていく。',
+   ],
+   night: [
+    '屋根を打つ雨音だけが、静まり返った町に響いている。',
+    '雨の夜、灯りの落ちた窓の奥はしんと静かだ。',
+    '冷たい雨が降り続き、町は眠りについている。',
+   ],
+  },
+  storm: {
+   morning: [
+    '東の空に不穏な入道雲が湧き上がっている。',
+    '蒸し暑い朝、遠くでかすかな雷鳴が聞こえている。',
+    '市場の商人たちが、今日の空模様を気にしながら店を開いている。',
+   ],
+   noon: [
+    '遠雷が轟いたかと思うと、激しいにわか雨が屋根を叩き始めている。',
+    '突然の雷雨に、人々が一斉に軒先へと駆け込んでいく。',
+    '雨上がりの熱気が、じっとりと町を包んでいる。',
+   ],
+   night: [
+    '夜半に響く雷鳴が、寝静まった町の窓を震わせている。',
+    '稲光が一瞬、暗い町並みを白く照らし出す。',
+    '雷雨の後の生ぬるい風が、夜の通りを吹き抜けていく。',
+   ],
+  },
+  snow: {
+   morning: [
+    '一面の銀世界。屋根という屋根に雪が降り積もっている。',
+    '朝日を受けた新雪が、まぶしいほどに輝いている。',
+    '冷え込んだ朝、白い息を吐きながら人々が行き交っている。',
+   ],
+   noon: [
+    'しんしんと降り続く雪が、町並みの輪郭を白く塗りつぶしていく。',
+    '雪の積もった広場を、足跡がぽつぽつと横切っている。',
+    '冷たい風に雪が舞い、人通りもまばらだ。',
+   ],
+   night: [
+    '音を吸い込むような雪の夜、灯りの灯る窓だけが浮かんでいる。',
+    '静かに降り積もる雪が、夜の町をいっそう静寂に包んでいる。',
+    '凍てつく夜気の中、雪だけが音もなく降り続けている。',
+   ],
+  },
+ },
+ elmaria_region: {
+  sunny: {
+   morning: [
+    '木々の梢からこぼれる朝日が、屋根の上にまだらな光の模様を描いている。',
+    '澄んだ朝の空気に、鳥のさえずりが軒先まで届いている。',
+    '木漏れ日が通りに落ち、朝市の品々をやわらかく照らしている。',
+   ],
+   noon: [
+    '高い梢に遮られながらも、昼の光が屋根の隙間から差し込んでいる。',
+    '木立の合間から覗く空は青く澄み渡り、市場は賑わいを見せている。',
+    '木漏れ日の下、屋台の陰で涼む人々の姿が見える。',
+   ],
+   night: [
+    '梢の隙間から覗く星々が、通りをかすかに照らしている。',
+    '静かな夜、木々のざわめきに混じって宿の灯りが揺れている。',
+    '木々の合間を抜けた月明かりが、屋根を淡く照らしている。',
+   ],
+  },
+  cloudy: {
+   morning: [
+    '分厚い梢と灰色の雲が重なり、朝だというのに薄暗い。',
+    '曇った空の下、森の湿った匂いが町全体に漂っている。',
+    '太陽の見えない朝、市場の人通りもどこか少ない。',
+   ],
+   noon: [
+    '木々と雲に覆われ、昼でも薄暗い光が通りに落ちている。',
+    '曇天の下、広場の空気は湿り気を帯びて重く感じられる。',
+    '灰色の空の下、屋根の上の葉音だけが妙にはっきり聞こえる。',
+   ],
+   night: [
+    '分厚い雲と梢に阻まれ、月明かりひとつ届かない夜だ。',
+    '森の奥から響く物音に、通りの灯りがどこか心細く見える。',
+    '曇り空の下、いつもより暗い夜が町を包んでいる。',
+   ],
+  },
+  fog: {
+   morning: [
+    '森から流れ込んだ霧が、通りの向こうを白く霞ませている。',
+    '朝霧が町を包み、遠くの屋根がぼんやりとしか見えない。',
+    '白い霧の中、朝市の呼び声だけがくぐもって響いている。',
+   ],
+   noon: [
+    '昼だというのに霧が晴れず、屋根の輪郭さえおぼろげだ。',
+    '濃い霧が町を包み、道の先が白く閉ざされている。',
+    '霧に沈んだ広場を、人々がおぼつかない足取りで行き交っている。',
+   ],
+   night: [
+    '濃い霧に包まれた夜、灯りの光がぼんやりとにじんで見える。',
+    '霧の夜、宿の窓明かりだけが白く浮かび上がっている。',
+    '音までも吸い込むような深い霧が、夜の町を覆っている。',
+   ],
+  },
+  rain: {
+   morning: [
+    '森の湿気を含んだ雨が、静かに屋根を濡らしている。',
+    '朝から降る雨に、行商人たちが軒先で肩をすくめている。',
+    '雨音に混じって、森の葉擦れの音が微かに聞こえる。',
+   ],
+   noon: [
+    '絶え間ない雨音に、市場の呼び声がかき消されそうになる。',
+    '雨脚の強い昼、屋根から滴る雫が石段を濡らしている。',
+    '雨に煙る町並みが、いつもより静かに感じられる。',
+   ],
+   night: [
+    '雨音と森のざわめきが重なり、夜の町を包み込んでいる。',
+    '屋根を打つ雨音だけが、静まり返った夜に響いている。',
+    '冷たい雨が降り続き、灯りの落ちた窓が濡れそぼっている。',
+   ],
+  },
+  snow: {
+   morning: [
+    '常緑の梢に積もった雪が、朝日を受けて白く輝いている。',
+    '冷え込んだ朝、屋根に積もった雪が静かに輝いている。',
+    '雪化粧した屋根の下、白い息を吐きながら人々が行き交っている。',
+   ],
+   noon: [
+    'しんしんと降る雪が、緑の残る屋根をゆっくり覆っていく。',
+    '雪の積もった広場を、足跡がぽつぽつと横切っている。',
+    '常緑樹の緑と雪の白が、静かな昼の町を彩っている。',
+   ],
+   night: [
+    '雪の重みで軋む木々の音が、静かな夜にかすかに響いている。',
+    '音を吸い込むような雪の夜、窓明かりだけが浮かんでいる。',
+    '静かに降り積もる雪が、夜の森と町を白く包んでいる。',
+   ],
+  },
+ },
+ zahara_region: {
+  sunny: {
+   morning: [
+    '朝の澄んだ空気の中、市場の露店が次々と開いていく。',
+    'まだ幾分涼しい朝、井戸端に水を汲む人々の列ができている。',
+    '朝日を浴びた砂色の壁が、やわらかな橙色に染まっている。',
+   ],
+   noon: [
+    '乾いた青空の下、日陰を選んで人々が行き交っている。',
+    '強い日差しの中、屋根付きの市場だけが賑わいを見せている。',
+    'からりと晴れた空の下、井戸の周りに人だかりができている。',
+   ],
+   night: [
+    '澄み切った夜空に、燃え尽きんばかりの星々が瞬いている。',
+    '昼の熱がまだ壁に残る夜、涼をとる人々が屋上に集まっている。',
+    '満天の星の下、灯りをともした夜市が静かに賑わっている。',
+   ],
+  },
+  scorching: {
+   morning: [
+    '早朝だというのに、すでに焼けるような日差しが照りつけている。',
+    '朝から容赦のない暑さに、市場の商人たちが日陰に品物を移している。',
+    '朝日が昇るなり、たちまち肌を刺すような熱気が町を包んでいる。',
+   ],
+   noon: [
+    '天頂から降り注ぐ太陽に、人通りがすっかり絶えている。',
+    '焼けつくような日差しの中、誰もが日陰を求めて身を寄せ合っている。',
+    '熱気がゆらゆらと立ち昇り、遠くの建物が揺らいで見える。',
+   ],
+   night: [
+    '日が沈んでもなお、壁も地面も熱を孕んだままだ。',
+    '生ぬるい夜風が吹いても、昼の熱気はいっこうに引かない。',
+    '寝苦しい熱気の中、屋上で夜風を待つ人々の姿が見える。',
+   ],
+  },
+  sandstorm: {
+   morning: [
+    '黄色く濁った空から、細かい砂粒が舞い込んでくる。',
+    '朝から吹き荒れる砂交じりの風に、人々が窓を固く閉ざしている。',
+    '砂塵が舞う朝、市場の商人たちが品物に布をかぶせている。',
+   ],
+   noon: [
+    '視界を遮る砂嵐に、人々が布で顔を覆いながら足早に行き交う。',
+    '砂を含んだ風が通りを吹き抜け、開けた場所には誰もいない。',
+    '黄褐色に染まった空の下、町全体が息をひそめているようだ。',
+   ],
+   night: [
+    '唸るような風の音が、閉ざされた窓の外で吹き荒れている。',
+    '砂交じりの風が夜通し吹き続け、屋根を絶えず打っている。',
+    '砂嵐の夜、灯りの下でも視界が霞んで見える。',
+   ],
+  },
+ },
+ draklim_region: {
+  sunny: {
+   morning: [
+    '澄み切った朝の空気の中、遠くの峰々がくっきりと浮かび上がっている。',
+    '朝日を受けた石造りの家々が、山の冷気の中で静かに輝いている。',
+    '高地らしい澄んだ朝日が、通りの隅々まで届いている。',
+   ],
+   noon: [
+    '雲一つない空の下、乾いた冷気が心地よく町を包んでいる。',
+    '突き抜けるような青空の下、市場に人々の声が響いている。',
+    '高地の陽光は強いが、風は涼やかで過ごしやすい。',
+   ],
+   night: [
+    '手を伸ばせば届きそうなほど、星々が近く鋭く輝いている。',
+    '澄んだ夜空の下、宿の窓明かりが冷えた通りを照らしている。',
+    '山の夜気は肌を刺すように冷たく、星明かりだけがやけに眩しい。',
+   ],
+  },
+  cloudy: {
+   morning: [
+    '低く垂れ込めた雲が、山肌と町の境目を曖昧にしている。',
+    '曇り空の下、朝の冷え込みがいつもより厳しく感じられる。',
+    '灰色の雲に覆われた朝、市場の人通りもまばらだ。',
+   ],
+   noon: [
+    '厚い雲が峰々を隠し、町全体が薄暗い光に包まれている。',
+    '曇天の下、乾いた風が通りの砂埃を巻き上げている。',
+    '太陽の見えない昼、人々は早々に屋内へ引き上げていく。',
+   ],
+   night: [
+    '雲に閉ざされた夜、月明かりひとつ届かない暗さだ。',
+    '冷え込みの厳しい曇り空の下、通りの灯りが心細く揺れている。',
+    '分厚い雲が星々を隠し、いつもより暗い夜が町を包んでいる。',
+   ],
+  },
+  snow: {
+   morning: [
+    '屋根に降り積もった雪が、朝日を受けて眩しく輝いている。',
+    '冷え込んだ朝、雪をかぶった屋根の下で人々が動き出している。',
+    '一晩で積もった雪が、町並みを白く染め上げている。',
+   ],
+   noon: [
+    '静かに降り続く雪が、町並みを白く塗りつぶしていく。',
+    '雪の積もった通りを、足跡がぽつぽつと横切っている。',
+    '灰色の空から絶え間なく降る雪が、町の輪郭をぼかしていく。',
+   ],
+   night: [
+    '音を吸い込むような雪の夜、灯る窓だけが浮かんで見える。',
+    '静かに降り積もる雪が、夜の町をいっそう静寂に包んでいる。',
+    '凍てつく夜気の中、雪だけが音もなく降り続けている。',
+   ],
+  },
+  blizzard: {
+   morning: [
+    '唸る風とともに雪が横殴りに吹きつけ、視界を奪っている。',
+    '朝から荒れ狂う吹雪に、人々が外出をためらっている。',
+    '猛烈な地吹雪が、通り全体を白く覆い尽くしている。',
+   ],
+   noon: [
+    '激しい地吹雪に、人々が身を寄せ合いながら通りを急いでいる。',
+    '視界の利かない吹雪の中、市場も早々に店じまいしている。',
+    '容赦のない雪嵐が、屋根や壁に容赦なく吹きつけている。',
+   ],
+   night: [
+    '吹きすさぶ雪嵐の音が、閉ざされた窓の外で荒れ狂っている。',
+    '夜通し続く吹雪に、灯りの届かない通りは白闇に沈んでいる。',
+    '猛烈な風雪が、寝静まった町の屋根を絶えず叩いている。',
+   ],
+  },
+  storm: {
+   morning: [
+    '山の稜線に暗雲が立ち込め、遠雷がかすかに聞こえている。',
+    '不穏な雲行きに、旅の支度をする人々が空を気にしている。',
+    '朝から立ち込めた暗雲が、いまにも雨を降らせそうだ。',
+   ],
+   noon: [
+    '突然の雷鳴とともに、激しい雨が屋根を叩き始めている。',
+    '山あいに轟く雷鳴に、人々が一斉に軒先へ駆け込んでいく。',
+    '激しい雨脚が、市場の露店を慌てて畳ませている。',
+   ],
+   night: [
+    '稲光が一瞬、山あいの町を鋭く白く照らし出す。',
+    '夜半に響く雷鳴が、寝静まった町の窓を震わせている。',
+    '雷雨の過ぎ去った後、湿った冷たい風が夜の通りを吹き抜けていく。',
+   ],
+  },
+ },
+ valdheim_region: {
+  sunny: {
+   morning: [
+    '凍てつく朝日が、雪原の縁に積もった屋根を鋭く照らしている。',
+    '澄み切った朝の大気に、白い息が幾筋も立ち昇っている。',
+    '凍った窓越しに差し込む朝日が、氷の結晶をきらきらと輝かせている。',
+   ],
+   noon: [
+    '力の弱い太陽が、それでも凍った通りを白く照らしている。',
+    '澄んだ空の下、雪を踏みしめる足音だけが響いている。',
+    '凍える晴天の下、人々は厚い毛皮にくるまって行き交っている。',
+   ],
+   night: [
+    '凍える夜空に、緑と紫の光の帯がゆらめいて見える。',
+    '澄み切った夜、無数の星々が凍った空気の中で鋭く輝いている。',
+    '極寒の夜、宿の窓明かりだけが凍土に温もりを灯している。',
+   ],
+  },
+  cloudy: {
+   morning: [
+    '灰色の雲が低く垂れ込め、朝だというのに薄暗い凍土が広がっている。',
+    '曇った朝の凍てつく大気に、人々の吐く息が白く漂っている。',
+    '太陽の見えない朝、凍った屋根の輪郭だけがぼんやり浮かんでいる。',
+   ],
+   noon: [
+    '厚い雲に覆われた昼、凍った通りに人影もまばらだ。',
+    '曇天の下、冷え切った風が凍土を吹き抜けていく。',
+    '灰色の空の下、屋根に積もった雪が重く沈んでいる。',
+   ],
+   night: [
+    '雲に閉ざされた夜、凍った通りに月明かりひとつ届かない。',
+    '曇り空の下、凍える夜風が窓を鳴らし続けている。',
+    '分厚い雲の向こうで、夜の凍土がただ静かに眠っている。',
+   ],
+  },
+  snow: {
+   morning: [
+    '一晩で積もった雪が、凍った屋根をさらに白く覆っている。',
+    '冷え込んだ朝、雪をかぶった屋根の下で人々が動き出している。',
+    '真っ白に染まった通りに、最初の足跡がぽつんと刻まれている。',
+   ],
+   noon: [
+    '絶え間なく降る雪が、凍土の輪郭をゆっくり塗りつぶしていく。',
+    '雪の積もった通りを、人々が黙々と歩いている。',
+    '灰色の空から降り続く雪が、町全体を静かに覆っていく。',
+   ],
+   night: [
+    '音を吸い込むような雪の夜、凍った窓明かりだけが浮かんでいる。',
+    '静かに降り積もる雪が、夜の凍土をいっそう深い静寂に包んでいる。',
+    '凍てつく夜気の中、雪だけが音もなく降り続けている。',
+   ],
+  },
+  blizzard: {
+   morning: [
+    '猛烈な地吹雪が、朝から視界のすべてを白く塗りつぶしている。',
+    '朝から荒れ狂う吹雪に、人々が外出をためらっている。',
+    '天と地の境も見えない吹雪が、町を丸ごと呑み込んでいる。',
+   ],
+   noon: [
+    '天と地の境も見えない吹雪の中、人々は屋内に閉じこもっている。',
+    '視界の利かない猛吹雪に、通りから人影が完全に消えている。',
+    '容赦のない雪嵐が、凍った壁や屋根に絶え間なく吹きつけている。',
+   ],
+   night: [
+    '凍りつくような吹雪の音が、寝静まった凍土に荒れ狂っている。',
+    '夜通し続く猛吹雪に、灯りの届かない通りは白闇に沈んでいる。',
+    '猛烈な風雪が、凍った屋根を絶えず叩き続けている。',
+   ],
+  },
+ },
+ marea_region: {
+  calm: {
+   morning: [
+    '異様なほどの静寂が町を包んでいる。物音ひとつしない朝だ。',
+    '風すら止んだ不気味な凪の中、人々は落ち着かない様子で空を見上げている。',
+    '何の前触れもなく訪れた穏やかさに、かえって誰もが警戒を隠せずにいる。',
+   ],
+   noon: [
+    '嵐が去ったわけでもないのに、町は不自然なほど静まり返っている。',
+    '凪いだ空気の中、誰もが束の間の平穏を疑いながら過ごしている。',
+    'この地には珍しい穏やかな昼だが、長くは続かないと誰もが知っている。',
+   ],
+   night: [
+    '恐ろしいほど静かな夜。この静けさこそが、次の異変の前触れかもしれない。',
+    '珍しく凪いだ夜空の下、誰もが息をひそめるように過ごしている。',
+    '不気味なまでの静寂に包まれた夜、灯りの下で誰もが言葉少なだ。',
+   ],
+  },
+  scorching_wave: {
+   morning: [
+    '何の前触れもなく、灼けつくような熱波が町を襲っている。',
+    'つい先ほどまで涼しかったはずの朝が、突如として炎熱に変わっている。',
+    '説明のつかない熱気が地面から立ち昇り、朝から町を炙っている。',
+   ],
+   noon: [
+    '天候の理を無視したような猛烈な熱波が、容赦なく町を焼いている。',
+    '突然の酷暑に、人々が慌てて日陰へと逃げ込んでいる。',
+    '理不尽なまでの熱気が、石畳から陽炎となって立ち昇っている。',
+   ],
+   night: [
+    '夜だというのに、異常な熱波が去らずに町を包み続けている。',
+    '本来なら涼しいはずの夜が、灼熱の余韻でじっとりと重い。',
+    '説明のつかない熱気が、寝静まった町にまとわりついている。',
+   ],
+  },
+  cold_wave: {
+   morning: [
+    'つい先ほどまでの陽気が嘘のように、骨まで凍る寒波が町を覆っている。',
+    '季節外れの凍える寒気が、朝から町中を凍りつかせている。',
+    '考えられないほどの冷え込みに、人々が慌てて厚着をしている。',
+   ],
+   noon: [
+    '理の外にある異常な寒波が、昼だというのに町を凍えさせている。',
+    '突然訪れた凍てつく寒気に、人通りがすっかり絶えている。',
+    '考えられない冷え込みの中、誰もが身を縮めて足早に歩いている。',
+   ],
+   night: [
+    '説明のつかない極寒が、夜の町をさらに凍りつかせている。',
+    '常軌を逸した寒波が、寝静まった町を静かに凍らせていく。',
+    '異常な冷え込みの夜、吐く息すら凍りつきそうなほどだ。',
+   ],
+  },
+  chaos_storm: {
+   morning: [
+    '赤黒い雷雲が渦巻き、朝から不吉な稲光が町を切り裂いている。',
+    '理を外れた嵐が朝から吹き荒れ、空が不自然な色に染まっている。',
+    '説明のつかない暴風が、朝の町をひっきりなしに叩いている。',
+   ],
+   noon: [
+    '空が禍々しく渦を巻き、絶え間ない雷鳴が町全体を揺らしている。',
+    '常識では測れない嵐が吹き荒れ、人々が建物の中へ逃げ込んでいる。',
+    '天候そのものが狂ったかのような暴風雨が、昼の町を襲っている。',
+   ],
+   night: [
+    '不吉な稲光が絶え間なく走り、夜の町を不気味に照らし出している。',
+    '理を外れた嵐の音が、寝静まった町に荒れ狂い続けている。',
+    '常軌を逸した暴風が、夜通し屋根や壁を叩き続けている。',
+   ],
+  },
+  corrosive_wind: {
+   morning: [
+    '腐食性の異臭を放つ風が、朝からじわりと町に忍び込んでいる。',
+    '肌を刺すような刺激臭を含んだ風が、通りを吹き抜けている。',
+    '得体の知れない風に晒された金属が、朝からうっすらと錆びついている。',
+   ],
+   noon: [
+    '不快な刺激臭を含んだ風が、昼の町にまとわりついている。',
+    '風に晒された木材や布が、目に見えて傷んでいくのが分かる。',
+    '得体の知れない風が、市場の品々にも影響を及ぼしはじめている。',
+   ],
+   night: [
+    '腐食性の風が夜通し吹き続け、翌朝には何かが変質していそうだ。',
+    '異臭を帯びた風が、寝静まった町の隅々にまで忍び込んでいる。',
+    '得体の知れない風の匂いに、誰もが息をひそめて夜を明かしている。',
+   ],
+  },
+ },
+};
+
+// その日の天候を、地方・季節ごとの確率から決定的に選ぶ（同じ日・同じ地方なら常に同じ結果）
+// マレア地方専用：季節も規則性もない異常気象タイプ（混沌の勢力に蝕まれた土地のため）
+const MAREA_WEATHER_TYPES = ['calm', 'scorching_wave', 'cold_wave', 'chaos_storm', 'corrosive_wind'];
+
+function getTodayWeather(regionKey){
+ if(regionKey === 'marea_region'){
+  // 通常の地方と違い季節に紐づかず、時間帯（朝/昼/夜）が変わるたびに天候も切り替わる＝1日の中でも規則なく変化し続ける
+  const idx = Math.floor(seededRandom('marea_weather_' + GAME_TIME.totalDays + '_' + getTownTimeOfDay()) * MAREA_WEATHER_TYPES.length);
+  return MAREA_WEATHER_TYPES[idx];
+ }
+ const table = REGION_WEATHER_TABLE[regionKey]?.[getSeasonKey()];
+ if(!table || !table.length) return null;
+ const seed = seededRandom(regionKey + '_weather_' + GAME_TIME.totalDays);
+ const totalWeight = table.reduce((s,t)=>s+t.weight, 0);
+ let roll = seed * totalWeight;
+ for(const t of table){
+  if(roll < t.weight) return t.type;
+  roll -= t.weight;
+ }
+ return table[0].type;
+}
+
+// 町のメイン画面に表示する天候フレーバー行を返す（未整備の地方は空文字＝何も表示しない）
+function popWeatherMsg(townId){
+ const regionKey = getRegionKey(townId);
+ const weather = regionKey ? getTodayWeather(regionKey) : null;
+ if(!weather) return '';
+ const timeKey = getTownTimeOfDay();
+ const pool = TOWN_WEATHER_FLAVOR[regionKey]?.[weather]?.[timeKey];
+ if(!pool || !pool.length) return '';
+ // 天候・時間帯・日付を種にして選ぶ（同じ日の同じ時間帯なら常に同じ文章）
+ const idx = Math.floor(seededRandom(regionKey + '_' + weather + '_' + timeKey + '_' + GAME_TIME.totalDays) * pool.length);
+ return `<span style="color:#a89880">${pool[idx]}</span><br>`;
+}
+
+// 天候タイプ→表示ラベル
+const WEATHER_LABELS = { sunny:'晴れ', cloudy:'曇り', rain:'雨', storm:'雷雨', snow:'雪', fog:'霧', scorching:'酷暑', sandstorm:'砂嵐', blizzard:'吹雪', calm:'不気味な凪', scorching_wave:'突発的熱波', cold_wave:'異常寒波', chaos_storm:'混沌の嵐', corrosive_wind:'腐食風' };
 
 // ── マレア地方の情景テキスト（四季がない異常地帯のため季節を問わずランダム選択）──
 const MAREA_SCENERY_TEXTS = [
@@ -43096,9 +43759,9 @@ function doFlee(){
   ]);
   else renderChoices([{label:' ダンジョンを出る', fn:()=>{ PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }}]);
  }
- // ダンジョン内逃走 → 入口へ戻る・松明1本消費
+ // ダンジョン内逃走 → 直前にいたノードに戻る・松明1本消費
  } else {
- const dungeonPrefixes = ['RUIN_','CRYPT_','CRYPT2_','CRYPT3_','SHR2_','SHM2_','SHM3_','AL_DNG_','AL_W_','ISKALD_','FP_'];
+ const dungeonPrefixes = ['RUIN_','CRYPT_','CRYPT2_','CRYPT3_','SHR2_','SHM2_','SHM3_','AL_DNG_','AL_W_','AL_ROOM','AL_PASSAGE','ISKALD_','FP_'];
  const isDungeon = dungeonPrefixes.some(p => currentNodeId.startsWith(p)) ||
   (savedState.win && savedState.win.startsWith('RUIN_'));
  if(isDungeon){
@@ -43115,25 +43778,10 @@ function doFlee(){
  PC._pendingMsg = `<div style="color:#f0ddd8;font-size:var(--font-sm);margin-bottom:6px"> 逃げる際に松明を1本消耗した。もう松明がない…</div>`;
  }
  }
- const fleeEscapeMap = [
-  { prefix:'CRYPT3_',  dest:'CRYPT3_ENTRANCE' },
-  { prefix:'CRYPT2_',  dest:'CRYPT2_ENTRANCE' },
-  { prefix:'CRYPT_',   dest:'CRYPT_ENTRANCE'  },
-  { prefix:'SHR2_',    dest:'SHR2_ENTRANCE'   },
-  { prefix:'SHM3_',    dest:'SHM3_STAIRS'     },
-  { prefix:'SHM2_',    dest:'SHM2_STAIRS'     },
-  { prefix:'FP_B3_',   dest:'FP_B3_ENTRANCE'  },
-  { prefix:'FP_B2_',   dest:'FP_B2_ENTRANCE'  },
-  { prefix:'FP_',      dest:'FP_ENTRANCE'     },
-  { prefix:'AL_W_',    dest:'AL_DNG_ENTRANCE' },
-  { prefix:'AL_DNG_',  dest:'AL_DNG_ENTRANCE' },
-  { prefix:'RUIN_',    dest:'RUIN_ENTRANCE'   },
- ];
- let fleeDestNode = 'RUIN_ENTRANCE';
- for(const {prefix, dest} of fleeEscapeMap){
-  if(currentNodeId.startsWith(prefix)){ fleeDestNode = dest; break; }
- }
- go(fleeDestNode);
+ // 固定ダンジョンの戦闘はエンカウント発生時点でgo(dest)を呼ばずに戦闘へ入るため、
+ // currentNodeIdは移動を試みる直前の（＝今いる）ノードのまま変化していない。
+ // よってそこへ戻せば「直前にいたノードに戻る」ことになる
+ go(currentNodeId);
  } else if(savedState.isNPC && savedState.win==='__noop__'){
  // NPC型戦闘（旅中）からの逃走成功 → 旅を再開
  if(travelState){
@@ -46054,8 +46702,9 @@ const NODES = {
  scene:'town_khazan',
  txt:()=>{
  const t=TOWNS.khazan;
- return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('khazan')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('khazan')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -46081,8 +46730,9 @@ const NODES = {
  scene:'town_port',
  txt:()=>{
  const t=TOWNS.port_argon;
- return `<span class="cyn" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span class="cyn" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('port_argon')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('port_argon')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -46107,8 +46757,9 @@ const NODES = {
  scene:'town_stone',
  txt:()=>{
  const t=TOWNS.stonehiem;
- return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('stonehiem')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('stonehiem')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -46127,8 +46778,9 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const t=TOWNS.verda;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('verda')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('verda')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -46172,8 +46824,9 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const t=TOWNS.rimholm;
- return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('rimholm')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('rimholm')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -46217,8 +46870,9 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const t=TOWNS.marakai;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('marakai')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('marakai')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -46265,8 +46919,9 @@ const NODES = {
  scene:'town_desert_city',
  txt:()=>{
  const t=TOWNS.al_rashid;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('al_rashid')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('al_rashid')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -46311,8 +46966,9 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const t=TOWNS.oasis_fort;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('oasis_fort')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('oasis_fort')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -46955,8 +47611,9 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const t=TOWNS.saroon;
- return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('saroon')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('saroon')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -47759,8 +48416,9 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const t=TOWNS.duna;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('duna')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('duna')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -48320,8 +48978,9 @@ const NODES = {
  scene:'town_mountain_city',
  txt:()=>{
   const t=TOWNS.yeldun;
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('yeldun')}<br><br>
+  <span style="color:#c0b098">${t.desc}</span><br>
+  ${popWeatherMsg('yeldun')}<br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -48345,8 +49004,9 @@ const NODES = {
  scene:'town_mountain_village',
  txt:()=>{
   const t=TOWNS.frostpeak;
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('frostpeak')}<br><br>
+  <span style="color:#c0b098">${t.desc}</span><br>
+  ${popWeatherMsg('frostpeak')}<br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -48370,8 +49030,9 @@ const NODES = {
  scene:'town_mountain_village',
  txt:()=>{
   const t=TOWNS.ashveil;
-  return `<span style="color:#e0d8cc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br><br>
+  return `<span style="color:#e0d8cc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('ashveil')}<br><br>
+  <span style="color:#c0b098">${t.desc}</span><br>
+  ${popWeatherMsg('ashveil')}<br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -48399,8 +49060,9 @@ const NODES = {
   const winterWarn = isWinter() ? `<br><span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)"> 冬期：エルマリアへのルートは雪で遮断されています</span>` : '';
   const frostLvl = getFrostbiteLevel();
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('valdheim')}<br><br>
+  <span style="color:#c0b098">${t.desc}</span><br>
+  ${popWeatherMsg('valdheim')}<br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${winterWarn}${frostWarn}`;
  },
  choices:[
@@ -48417,8 +49079,9 @@ const NODES = {
   const t=TOWNS.nifurvik;
   const frostLvl = getFrostbiteLevel();
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('nifurvik')}<br><br>
+  <span style="color:#c0b098">${t.desc}</span><br>
+  ${popWeatherMsg('nifurvik')}<br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
  },
  choices:[
@@ -48435,8 +49098,9 @@ const NODES = {
   const t=TOWNS.iskald;
   const frostLvl = getFrostbiteLevel();
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br><br>
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('iskald')}<br><br>
+  <span style="color:#c0b098">${t.desc}</span><br>
+  ${popWeatherMsg('iskald')}<br>
   ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
  },
  choices:[
@@ -48590,8 +49254,9 @@ const NODES = {
  scene:'town_elsia',
  txt:()=>{
  const t=TOWNS.elsia;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br><br>
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('elsia')}<br><br>
+ <span style="color:#c0b098">${t.desc}</span><br>
+ ${popWeatherMsg('elsia')}<br>
  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
@@ -48772,16 +49437,25 @@ const NODES = {
   const torchMsg = torches > 0
    ? `<span style="color:#e8e4d8"> 松明を ${torches}本 持っている。</span>`
    : `<span class="red"> 松明を持っていない！暗闇の中を進むことになる。</span>`;
+  const hiddenMsg = PC._shrHiddenPassageFound
+   ? `<br><br><span style="color:#b0a080">南東の茂みの奥に、以前見つけた洞穴の入口がある。</span>`
+   : '';
   return `<span class="gold" style="font-size:var(--font-base)">封じられた神殿</span><br><br>
    リムホルムから半日ほど密林を分け入った先、蔦に覆われた石造りの廃神殿が姿を現す。<br>
    風化した石段の先に重い石扉がそびえており、隙間から冷えた空気が流れ出している。<br>
    かつてエルフの神官が守ったとされるが、今では何かが棲みついているという。<br><br>
-   ${torchMsg}`;
+   ${torchMsg}${hiddenMsg}`;
  },
- choices:[
-  {label:' 重い石扉を押し開けて入る', fn:()=>initTorch(), go:'SHRINE_P1'},
-  {label:'← リムホルムへ戻る', go:'TOWN_RIMHOLM'},
- ],
+ choices:()=>{
+  const ch = [
+   {label:' 重い石扉を押し開けて入る', fn:()=>initTorch(), go:'SHRINE_P1'},
+  ];
+  if(PC._shrHiddenPassageFound){
+   ch.push({label:' 南東の洞穴から入る（近道）', fn:()=>initTorch(), go:'SHR1_HIDDEN_R3'});
+  }
+  ch.push({label:'← リムホルムへ戻る', go:'TOWN_RIMHOLM'});
+  return ch;
+ },
  },
 
  SHRINE_DARK_ESCAPE:{
@@ -51029,17 +51703,54 @@ const NODES = {
  }}],
  },
 
- // ── 通路2（南北15m）──
+ // ── 通路2（南北15m）── ゴブリンの守衛による通行料イベント ──
  SHR2_C2:{
  scene:'dungeon',
- txt:` <span style="color:#f0ece0">B2F 通路2</span><br><br>
-  南北15mの通路。南端、北端ともに東へ折れている。<br>
-  北端の西側の壁に扉がある。`,
- choices:[
-  {label:'⬇ 南へ進んで東に曲がる', go:'SHR2_ENTRANCE'},
-  {label:'⬆ 北へ進んで東に曲がる', go:'SHR2_C3'},
-  {label:'⬅ 西の扉へ進む', go:'SHR2_R12'},
- ],
+ txt:()=>{
+  const base = ` <span style="color:#f0ece0">B2F 通路2</span><br><br>
+   南北15mの通路。南端、北端ともに東へ折れている。<br>
+   北端の西側の壁に扉がある。`;
+  if(PC._shr2GuardsDefeated){
+   return `${base}<br><br><span style="color:#b0a080">先ほど倒したゴブリンの守衛の骸が、道の端に転がっている。</span>`;
+  }
+  return `${base}<br><br>
+   <span style="color:#f0ddd8">通路の左右に椅子を置いて、<b>ゴブリンの守衛が2体</b>陣取っている。</span><br>
+   <span style="color:#c8b8a0">「ここを通りたければ、一人当たり50GPの通行料を払ってもらおうか」</span>`;
+ },
+ choices:()=>{
+  const normalChoices = [
+   {label:'⬇ 南へ進んで東に曲がる', go:'SHR2_ENTRANCE'},
+   {label:'⬆ 北へ進んで東に曲がる', go:'SHR2_C3'},
+   {label:'⬅ 西の扉へ進む', go:'SHR2_R12'},
+  ];
+  if(PC._shr2GuardsDefeated) return normalChoices;
+
+  const partySize = 1 + (PC.party||[]).length;
+  const toll = partySize * 50;
+  return [
+   {label:` 通行料${toll}GPを払う（1人50GP×${partySize}人）`, fn:()=>{
+    const s = document.getElementById('story');
+    if((PC.gold||0) < toll){
+     if(s) s.innerHTML += `<br><span class="red">「金が足りないようだな。それなら通すわけにはいかない」</span>`;
+     return;
+    }
+    PC.gold -= toll; updateHUD();
+    if(s) s.innerHTML += `<br><span style="color:#e0d8c8">${toll}GPを支払うと、ゴブリンたちは椅子をどけて道を空けた。</span>`;
+    renderChoices(normalChoices);
+   }},
+   {label:' 戦う', fn:()=>{
+    startCombatNPC({
+     enemies: [generateGoblinGuard(5), generateGoblinGuard(5)],
+     win:'SHR2_C2', lose:'DEAD',
+     onWin: ()=>{
+      PC._shr2GuardsDefeated = true;
+      PC.gold = (PC.gold||0) + 400;
+      PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e8e4d8;font-size:var(--font-sm);margin-bottom:8px"> ゴブリンたちが腰掛けていた椅子の下に木箱が隠されているのを見つけた。中には合計400GPが入っていた！</div>`;
+     },
+    });
+   }},
+  ];
+ },
  },
 
  // ── 通路3（東西35m）──
@@ -51154,12 +51865,27 @@ const NODES = {
  SHR2_R7:{
  scene:'dungeon',
  txt:()=>{
+  if(!PC._shr2R7ZombiesDefeated){
+   return ` <span style="color:#f0ece0">B2F 部屋7</span><br><br>
+    <span style="color:#f0ddd8">扉を開けて部屋に足を踏み入れた瞬間、四方の暗がりから<b>ゾンビが5体</b>、一斉に襲いかかってきた！</span>`;
+  }
   const lever = PC._shr2LeverPulled;
+  const chestOpened = PC._shr2R7ChestOpened;
   return ` <span style="color:#f0ece0">B2F 部屋7</span><br><br>
    南北15m東西35mの部屋。北壁東端から10mのところに扉がある。通路側からは隠し扉になっているようだ。<br>
-   南壁に大きなレバーが取り付けられている。${lever?'レバーはすでに引かれている。':'何かの機構につながっているようだ。'}`;
+   南壁に大きなレバーが取り付けられている。${lever?'レバーはすでに引かれている。':'何かの機構につながっているようだ。'}<br>
+   西壁の真ん中あたりに、${chestOpened?'開けた後の空の宝箱がある。':'古びた宝箱が置かれている。'}`;
  },
  choices:()=>{
+  if(!PC._shr2R7ZombiesDefeated){
+   return [{label:' 戦う', fn:()=>{
+    startCombat({
+     enemies: Array.from({length:5},()=>({name:'ゾンビ', mr:50, armor:0})),
+     canFlee:true, win:'SHR2_R7', lose:'DEAD',
+     onWin:()=>{ PC._shr2R7ZombiesDefeated = true; },
+    });
+   }}];
+  }
   const ch=[{label:'⬆ 北へ進む', go:'SHR2_C4'}];
   if(PC._shr2LeverPulled){
    ch.push({label:' レバー', fn:()=>showSaveToast('もう引かれている。遠くでガコン、という音が既に響いた後だ。')});
@@ -51167,6 +51893,15 @@ const NODES = {
    ch.push({label:' 大きなレバーを引く', fn:()=>{
     PC._shr2LeverPulled = true;
     showSaveToast('レバーを引くと、遠くで重い格子が持ち上がる音が響いた！');
+   }});
+  }
+  if(!PC._shr2R7ChestOpened){
+   ch.push({label:' 西壁の宝箱を調べる', fn:()=>{
+    PC._shr2R7ChestOpened = true;
+    PC.gold = (PC.gold||0) + 600;
+    updateHUD();
+    showSaveToast('宝箱を開けると、600GPが入っていた！');
+    renderChoices(NODES.SHR2_R7.choices());
    }});
   }
   return ch;
@@ -51334,13 +52069,33 @@ const NODES = {
  // ── 通路8（東西50m）──
  SHR2_C8:{
  scene:'dungeon',
- txt:` <span style="color:#f0ece0">B2F 通路8</span><br><br>
-  東西に50m延びる通路。西端は行き止まりで、南壁に扉がある。<br>
-  東は暗く沈んでいて先が見通せない。`,
- choices:[
-  {label:'⬅ 西へ進む', go:'SHR2_R10'},
-  {label:'➡ 東へ進む', go:'SHR2_C9'},
- ],
+ txt:()=>{
+  const base = ` <span style="color:#f0ece0">B2F 通路8</span><br><br>
+   東西に50m延びる通路。西端は行き止まりで、南壁に扉がある。<br>
+   東は暗く沈んでいて先が見通せない。`;
+  if(!PC._shr2C8DwarfDefeated){
+   return `${base}<br><br><span style="color:#f0ddd8">東の暗闇の奥から、<b>半裸のドワーフ</b>が絶叫を上げながら走ってきた！正気を失っているのか、目が虚ろだ！</span>`;
+  }
+  return base;
+ },
+ choices:()=>{
+  const normalChoices = [
+   {label:'⬅ 西へ進む', go:'SHR2_R10'},
+   {label:'➡ 東へ進む', go:'SHR2_C9'},
+  ];
+  if(PC._shr2C8DwarfDefeated) return normalChoices;
+  return [{label:' 戦う', fn:()=>{
+   startCombatNPC({
+    enemies: [generateInsaneDwarf(8)],
+    win:'SHR2_C8', lose:'DEAD',
+    onWin: ()=>{
+     PC._shr2C8DwarfDefeated = true;
+     PC.gold = (PC.gold||0) + 100;
+     PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e8e4d8;font-size:var(--font-sm);margin-bottom:8px"> 息絶えたドワーフの腰から、100GPの入った袋を見つけた。</div>`;
+    },
+   });
+  }}];
+ },
  },
 
  // ── 通路9（東西35m）──
@@ -51458,7 +52213,8 @@ const NODES = {
  SHR2_R15:{
  scene:'dungeon',
  txt:` <span style="color:#f0ece0">B2F 部屋15</span><br><br>
-  25m四方の部屋。南壁中央に扉、西壁南端にも扉がある。`,
+  25m四方の部屋。南壁中央に扉、西壁南端にも扉がある。<br>
+  汚らしいボロボロのベッドが10台並び、雑多なガラクタが床のあちこちに散乱している。`,
  choices:[
   {label:'⬇ 南へ進む', go:'SHR2_R3'},
   {label:'⬅ 西へ進む', go:'SHR2_R6'},
@@ -51468,12 +52224,56 @@ const NODES = {
  // ── 部屋6（南北15m東西20m）──
  SHR2_R6:{
  scene:'dungeon',
- txt:` <span style="color:#f0ece0">B2F 部屋6</span><br><br>
-  南北15m東西20mの部屋。東壁南端に扉、西壁北端にも扉がある。`,
- choices:[
-  {label:'➡ 東へ進む', go:'SHR2_R15'},
-  {label:'⬅ 西へ進む', go:'SHR2_C10'},
- ],
+ txt:()=>{
+  const base = ` <span style="color:#f0ece0">B2F 部屋6</span><br><br>
+   南北15m東西20mの部屋。東壁南端に扉、西壁北端にも扉がある。<br>
+   壁沿いには大きなエールの樽が置かれ、その並びの棚には木のジョッキがずらりと並んでいる。`;
+  if(PC._shr2R6WarriorsDefeated){
+   return `${base}<br><br><span style="color:#b0a080">酒臭さの残る、静まり返った部屋だ。倒れた戦士たちが転がっている。</span>`;
+  }
+  if(PC._shr2R6WarriorsLeft){
+   return `${base}<br><br><span style="color:#b0a080">戦士たちの姿はどこにもない。すっかり静まり返った部屋だ。</span>`;
+  }
+  if(PC._shr2R6ArmWrestleWon){
+   // 今回はまだ戦士がいる最後の訪問。次にこのノードへ来たときから姿を消す
+   PC._shr2R6WarriorsLeft = true;
+   return `${base}<br><br><span style="color:#b0a080">戦士たちは机を囲んで酒を飲んでいる。西の扉は先ほどの約束通り、道を空けてくれるようだ。</span>`;
+  }
+  return `${base}<br><br>
+   <span style="color:#f0ddd8">部屋の中にはいくつもの机が置かれ、<b>戦士が6人</b>、たまり場のように酒を酌み交わしている。</span><br>
+   <span style="color:#c8b8a0">こちらに気づくと、ニヤつきながら絡んできた。「おい、西の扉を通りたきゃ、腕相撲で勝ってみせろよ」</span>`;
+ },
+ choices:()=>{
+  const ch=[{label:'➡ 東へ進む', go:'SHR2_R15'}];
+  if(PC._shr2R6WarriorsDefeated || PC._shr2R6ArmWrestleWon){
+   ch.push({label:'⬅ 西へ進む', go:'SHR2_C10'});
+   return ch;
+  }
+  ch.push({label:' 腕相撲で勝負する', fn:()=>{
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><span style="color:#c8b8a0">戦士の一人がテーブルに肘をつき、挑発するように笑った。</span>`;
+   setupSavingRoll({
+    attr:'st', level:5,
+    onSuccess:()=>{
+     PC._shr2R6ArmWrestleWon = true;
+     if(s) s.innerHTML += `<br><span style="color:#e8e4d8">戦士たちは驚いた顔をしながらも、約束通り西の扉へ道を空けてくれた。</span>`;
+     renderChoices(NODES.SHR2_R6.choices());
+    },
+    onFail:()=>{
+     if(s) s.innerHTML += `<br><span class="red">あっけなく腕を押し倒されてしまった。「残念だったな、西へは通せねぇよ」</span>`;
+     renderChoices(NODES.SHR2_R6.choices());
+    },
+   });
+  }});
+  ch.push({label:' 戦う', fn:()=>{
+   startCombatNPC({
+    enemies: Array.from({length:6},()=>generateNPC(5)),
+    win:'SHR2_R6', lose:'DEAD',
+    onWin:()=>{ PC._shr2R6WarriorsDefeated = true; },
+   });
+  }});
+  return ch;
+ },
  },
 
  // ── 通路10（東西30m）──
@@ -51491,9 +52291,48 @@ const NODES = {
  SHR2_R5:{
  scene:'dungeon',
  txt:` <span style="color:#f0ece0">B2F 部屋5</span><br><br>
-  南北15m東西20mの部屋。東壁北端にアーチがある。他に出口は見当たらない。`,
+  南北15m東西20mの部屋。東壁北端にアーチがある。<br>
+  部屋の中央には、天井まで伸びる<b>ハシゴ</b>がかけられている。`,
  choices:[
   {label:'➡ 東へ進む', go:'SHR2_C10'},
+  {label:'⬆ ハシゴを登る', go:'SHR1_HIDDEN_R1'},
+ ],
+ },
+
+ // ── B1F 隠し小部屋（SHR2_R5のハシゴの先。まだ他のエリアとは未接続） ──
+ SHR1_HIDDEN_R1:{
+ scene:'dungeon',
+ txt:` <span style="color:#f0ece0">B1F 隠し小部屋</span><br><br>
+  5m四方の小さな部屋。南の壁に扉がある。<br>
+  部屋の中央には、B2Fへ続く<b>ハシゴ</b>が下へ伸びている。`,
+ choices:[
+  {label:' 南の扉へ進む', go:'SHR1_HIDDEN_R2'},
+  {label:'⬇ ハシゴを降りて戻る', go:'SHR2_R5'},
+ ],
+ },
+
+ SHR1_HIDDEN_R2:{
+ scene:'dungeon',
+ txt:` <span style="color:#f0ece0">B1F 部屋</span><br><br>
+  南北20m東西15mの部屋。北壁中央には、B2へのはしごがある部屋への扉がある。<br>
+  南壁中央には、木製の両開きの扉がある。`,
+ choices:[
+  {label:'⬆ 北の扉へ戻る', go:'SHR1_HIDDEN_R1'},
+  {label:' 南の両開きの扉へ進む', go:'SHR1_HIDDEN_R3'},
+ ],
+ },
+
+ SHR1_HIDDEN_R3:{
+ scene:'dungeon',
+ txt:` <span style="color:#f0ece0">洞穴</span><br><br>
+  直径10mほどの洞穴が、南東へ向かって延びている。<br>
+  30mほど先に、屋外の光が差し込んでいるのが見える。`,
+ choices:[
+  {label:'➡ 光の方へ進む（外に出る）', fn:()=>{
+   PC._shrHiddenPassageFound = true;
+   go('TOWN_RIMHOLM');
+  }},
+  {label:'⬅ 部屋へ戻る', go:'SHR1_HIDDEN_R2'},
  ],
  },
 
@@ -51508,8 +52347,9 @@ const NODES = {
   scene:'town_port',
   txt:()=>{
    const t=TOWNS.neria;
-   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-<span style="color:#c0b098">${t.desc}</span><br><br>
+   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('neria')}<br><br>
+<span style="color:#c0b098">${t.desc}</span><br>
+${popWeatherMsg('neria')}<br>
 ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
@@ -51558,8 +52398,9 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   scene:'town_village',
   txt:()=>{
    const t=TOWNS.dorua;
-   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-<span style="color:#c0b098">${t.desc}</span><br><br>
+   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('dorua')}<br><br>
+<span style="color:#c0b098">${t.desc}</span><br>
+${popWeatherMsg('dorua')}<br>
 ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
@@ -51622,8 +52463,9 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   scene:'town_village',
   txt:()=>{
    const t=TOWNS.sarpe;
-   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-<span style="color:#c0b098">${t.desc}</span><br><br>
+   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('sarpe')}<br><br>
+<span style="color:#c0b098">${t.desc}</span><br>
+${popWeatherMsg('sarpe')}<br>
 ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
@@ -51659,8 +52501,9 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   scene:'town_village',
   txt:()=>{
    const t=TOWNS.nebra;
-   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg()}<br><br>
-<span style="color:#c0b098">${t.desc}</span><br><br>
+   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('nebra')}<br><br>
+<span style="color:#c0b098">${t.desc}</span><br>
+${popWeatherMsg('nebra')}<br>
 ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
@@ -52268,43 +53111,64 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
 
  AL_ROOM3:{
  scene:'dungeon',
- txt:()=>`<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>{
+  const base = `<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
   35m四方の広い石室。床の石畳に複雑な文様が刻まれており、中央に向かって収束している。<br>
-  北壁西端に扉、北壁東端に扉、南壁東端に扉、西壁中央に扉がある。`,
- choices:[
-  {label:'↖ 北西の扉', fn:()=>alMove('AL_PASSAGE1')},
-  {label:'↗ 北東の扉', fn:()=>alMove('AL_PASSAGE2')},
-  {label:'↓ 南の扉', fn:()=>alMove('AL_PASSAGE9')},
-  {label:'← 西の扉', fn:()=>alMove('AL_W_PASSAGE1')},
-  {label:' 床の文様を調べる（知力 能力値テスト）', fn:()=>{
-   const s = document.getElementById('story');
-   const afterCheck = ()=>{
-    if(Math.random() < 0.1){
-     const m = HUNT_MONSTER_TABLE.zahara_region[Math.floor(Math.random()*HUNT_MONSTER_TABLE.zahara_region.length)];
-     const mr = m.mr;
-     drawScene('combat');
-     startCombat({name:m.name, mr, armor:m.armor||Math.floor(mr/30), canFlee:true, win:'__noop__', lose:'DEAD',
-      onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); cbtState=null; go('AL_ROOM3'); }
-     });
-    } else {
-     renderChoices([{label:'▶ OK', fn:()=>go('AL_ROOM3')}]);
-    }
-   };
-   setupSavingRoll({
-    attr:'iq', level:1, label:'床の文様',
-    onSuccess(){
-     document.getElementById('dice-area').classList.add('hidden');
-     s.innerHTML += `<br><br><span style="color:#e8e0d0"> 文様をじっくりと観察してみたが、これが何を意味するのかは結局分からなかった。</span>`;
-     afterCheck();
-    },
-    onFail(){
-     document.getElementById('dice-area').classList.add('hidden');
-     s.innerHTML += `<br><br><span style="color:#e8e0d0"> 文様を読み解こうとしたが、手がかりは掴めなかった。</span>`;
-     afterCheck();
-    },
-   });
-  }},
- ],
+  北壁西端に扉、北壁東端に扉、南壁東端に扉、西壁中央に扉がある。`;
+  if(!PC._alRoom3OrcsDefeated){
+   return `${base}<br><br><span style="color:#f0ddd8">入口を見張っていた<b>オークの戦士5体</b>が、こちらの姿に気づくなり襲いかかってきた！</span>`;
+  }
+  return base;
+ },
+ choices:()=>{
+  if(!PC._alRoom3OrcsDefeated){
+   return [{label:' 戦う', fn:()=>{
+    startCombatNPC({
+     enemies: Array.from({length:5},()=>generateOrcWarrior(1)),
+     win:'AL_ROOM3', lose:'DEAD',
+     onWin:()=>{
+      PC._alRoom3OrcsDefeated = true;
+      PC.gold = (PC.gold||0) + 100;
+      PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e8e4d8;font-size:var(--font-sm);margin-bottom:8px"> オークたちの持ち物を探ると、合計100GPを見つけた。</div>`;
+     },
+    });
+   }}];
+  }
+  return [
+   {label:'↖ 北西の扉', fn:()=>alMove('AL_PASSAGE1')},
+   {label:'↗ 北東の扉', fn:()=>alMove('AL_PASSAGE2')},
+   {label:'↓ 南の扉', fn:()=>alMove('AL_PASSAGE9')},
+   {label:'← 西の扉', fn:()=>alMove('AL_W_PASSAGE1')},
+   {label:' 床の文様を調べる（知力 能力値テスト）', fn:()=>{
+    const s = document.getElementById('story');
+    const afterCheck = ()=>{
+     if(Math.random() < 0.1){
+      const m = HUNT_MONSTER_TABLE.zahara_region[Math.floor(Math.random()*HUNT_MONSTER_TABLE.zahara_region.length)];
+      const mr = m.mr;
+      drawScene('combat');
+      startCombat({name:m.name, mr, armor:m.armor||Math.floor(mr/30), canFlee:true, win:'__noop__', lose:'DEAD',
+       onWin:()=>{ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); cbtState=null; go('AL_ROOM3'); }
+      });
+     } else {
+      renderChoices([{label:'▶ OK', fn:()=>go('AL_ROOM3')}]);
+     }
+    };
+    setupSavingRoll({
+     attr:'iq', level:1, label:'床の文様',
+     onSuccess(){
+      document.getElementById('dice-area').classList.add('hidden');
+      s.innerHTML += `<br><br><span style="color:#e8e0d0"> 文様をじっくりと観察してみたが、これが何を意味するのかは結局分からなかった。</span>`;
+      afterCheck();
+     },
+     onFail(){
+      document.getElementById('dice-area').classList.add('hidden');
+      s.innerHTML += `<br><br><span style="color:#e8e0d0"> 文様を読み解こうとしたが、手がかりは掴めなかった。</span>`;
+      afterCheck();
+     },
+    });
+   }},
+  ];
+ },
  },
 
  AL_PASSAGE2:{
@@ -52323,10 +53187,30 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
 
  AL_ROOM16:{
  scene:'dungeon',
- txt:()=>`<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>{
+  if(!PC._alRoom16KoboldsDefeated){
+   return `<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
+   南北20m、東西15mの石室。南壁西端にアーチがある。<br>
+   <span style="color:#f0ddd8">部屋の中に<b>コボルドが6体</b>たむろしている！</span>`;
+  }
+  return `<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
   南北20m、東西15mの石室。南壁西端にアーチがある。西の壁の北端をよく見ると、他の石とわずかに色の違う箇所がある。<br>
-  ${PC._alDng_secret_found?'<span style="color:#e0d8c8"> 隠し扉は開いている。</span>':''}`,
+  ${PC._alDng_secret_found?'<span style="color:#e0d8c8"> 隠し扉は開いている。</span>':''}`;
+ },
  choices:()=>{
+  if(!PC._alRoom16KoboldsDefeated){
+   return [{label:' 戦う', fn:()=>{
+    startCombat({
+     enemies: Array.from({length:6},()=>({name:'コボルド', mr:15, armor:0})),
+     canFlee:true, win:'AL_ROOM16', lose:'DEAD',
+     onWin:()=>{
+      PC._alRoom16KoboldsDefeated = true;
+      PC.gold = (PC.gold||0) + 100;
+      PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e8e4d8;font-size:var(--font-sm);margin-bottom:8px"> コボルドたちが持っていた所持金、合計100GPを回収した。</div>`;
+     },
+    });
+   }}];
+  }
   const ch=[];
   ch.push({label:'↓ 南のアーチ', fn:()=>alMove('AL_PASSAGE2')});
   if(!PC._alDng_secret_found){
@@ -52393,11 +53277,31 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
 
  AL_ROOM2:{
  scene:'dungeon',
- txt:()=>`<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>{
+  const base = `<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
   南北30m、東西35mの石室。天井が高く、壁の上部に細長い採光窓の跡が並んでいる。<br>
-  西壁南端に鍵のかかった扉、南壁東端から10mの位置にアーチ、東壁北端にアーチがある。`,
+  西壁南端に鍵のかかった扉、南壁東端から10mの位置にアーチ、東壁北端にアーチがある。`;
+  if(!PC._alRoom2SpidersDefeated){
+   return `${base}<br><br><span style="color:#f0ddd8">部屋の角に、<b>大グモが5体</b>身を潜めている！</span>`;
+  }
+  return `${base}<br><br><span style="color:#b0a080">大グモの死骸が部屋の隅に転がっている。</span>`;
+ },
  choices:()=>{
   const ch=[];
+  if(!PC._alRoom2SpidersDefeated){
+   ch.push({label:' 戦う', fn:()=>{
+    startCombat({
+     enemies: Array.from({length:5},()=>({name:'大グモ', mr:20, armor:0})),
+     canFlee:true, win:'AL_ROOM2', lose:'DEAD',
+     onWin:()=>{
+      PC._alRoom2SpidersDefeated = true;
+      PC.gold = (PC.gold||0) + 100;
+      PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e8e4d8;font-size:var(--font-sm);margin-bottom:8px"> 部屋の隅に、過去の犠牲者と思しき骸骨があった。持っていた皮のポーチから100GPを見つけた。</div>`;
+     },
+    });
+   }});
+   return ch;
+  }
   if(PC._alDng_has_key) ch.push({label:'← 西の扉（鍵で開ける）', fn:()=>alMove('AL_PASSAGE2')});
   else ch.push({label:'← 西の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
   ch.push({label:'↓ 南のアーチ', fn:()=>alMove('AL_ROOM1')});
@@ -52421,10 +53325,25 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
 
  AL_ROOM4:{
  scene:'dungeon',
- txt:()=>`<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>{
+  const base = `<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
   35m四方の大きな石室。床の中央に大きな排水口の跡がある。<br>
-  北壁西端から10mの位置に扉、西壁南端から10mの位置に扉、東壁南端にアーチ、北壁東端に鍵のかかった扉がある。`,
+  北壁西端から10mの位置に扉、西壁南端から10mの位置に扉、東壁南端にアーチ、北壁東端に鍵のかかった扉がある。`;
+  if(!PC._alRoom4OrcsDefeated){
+   return `${base}<br><br><span style="color:#f0ddd8">ローブを着た<b>オークの魔法使い</b>が、3体の<b>オークの戦士</b>たちを不満そうに叱責している。こちらの姿に気づくなり、全員が一斉に襲いかかってきた！</span>`;
+  }
+  return base;
+ },
  choices:()=>{
+  if(!PC._alRoom4OrcsDefeated){
+   return [{label:' 戦う', fn:()=>{
+    startCombatNPC({
+     enemies: [generateOrcMage(5), ...Array.from({length:3},()=>generateOrcWarrior(1))],
+     win:'AL_ROOM4', lose:'DEAD',
+     onWin:()=>{ PC._alRoom4OrcsDefeated = true; },
+    });
+   }}];
+  }
   const ch=[];
   ch.push({label:'↖ 北西の扉', fn:()=>alMove('AL_PASSAGE3')});
   ch.push({label:'← 西の扉', fn:()=>alMove('AL_ROOM1')});
@@ -52555,14 +53474,35 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
 
  AL_ROOM12:{
  scene:'dungeon',
- txt:()=>`<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>{
+  const base = `<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
   東西30m、南北20mの石室。床に大型の台座の跡が四隅に残っている。<br>
-  南壁西端から5mに扉、北壁東端に扉、北壁西端にアーチがある。`,
- choices:[
-  {label:'↓ 南の扉', fn:()=>alMove('AL_PASSAGE8')},
-  {label:'↖ 北西のアーチ', fn:()=>alMove('AL_PASSAGE9')},
-  {label:'↗ 北東の扉', fn:()=>alMove('AL_ROOM5')},
- ],
+  南壁西端から5mに扉、北壁東端に扉、北壁西端にアーチがある。`;
+  if(!PC._alRoom12KoboldsDefeated){
+   return `${base}<br><br><span style="color:#f0ddd8">部屋の中に<b>コボルドが6体</b>たむろしている！</span>`;
+  }
+  return base;
+ },
+ choices:()=>{
+  if(!PC._alRoom12KoboldsDefeated){
+   return [{label:' 戦う', fn:()=>{
+    startCombat({
+     enemies: Array.from({length:6},()=>({name:'コボルド', mr:15, armor:0})),
+     canFlee:true, win:'AL_ROOM12', lose:'DEAD',
+     onWin:()=>{
+      PC._alRoom12KoboldsDefeated = true;
+      PC.gold = (PC.gold||0) + 110;
+      PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e8e4d8;font-size:var(--font-sm);margin-bottom:8px"> コボルドたちが持っていた所持金、合計110GPを回収した。</div>`;
+     },
+    });
+   }}];
+  }
+  return [
+   {label:'↓ 南の扉', fn:()=>alMove('AL_PASSAGE8')},
+   {label:'↖ 北西のアーチ', fn:()=>alMove('AL_PASSAGE9')},
+   {label:'↗ 北東の扉', fn:()=>alMove('AL_ROOM5')},
+  ];
+ },
  },
 
  AL_PASSAGE8:{
@@ -52632,14 +53572,31 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
 
  AL_ROOM9:{
  scene:'dungeon',
- txt:()=>`<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
+ txt:()=>{
+  const base = `<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
   30m四方の石室。床の中央に放射状の紋様が刻まれており、その中心から幾何学的な線が広がっている。<br>
-  北壁東端にアーチ、南壁西端にアーチ、南壁西端から10mに扉がある。`,
- choices:[
-  {label:'↑ 北のアーチ', fn:()=>alMove('AL_PASSAGE5')},
-  {label:'⬇ 南のアーチ', fn:()=>alMove('AL_ROOM10')},
-  {label:'⬇ 南の扉', fn:()=>alMove('AL_PASSAGE6')},
- ],
+  北壁東端にアーチ、南壁西端にアーチ、南壁西端から10mに扉がある。`;
+  if(!PC._alRoom9OrcsDefeated){
+   return `${base}<br><br><span style="color:#f0ddd8">ダンジョン内を巡回していた<b>オークの戦士5体</b>が、こちらの姿を見るなり襲いかかってきた！</span>`;
+  }
+  return base;
+ },
+ choices:()=>{
+  if(!PC._alRoom9OrcsDefeated){
+   return [{label:' 戦う', fn:()=>{
+    startCombatNPC({
+     enemies: Array.from({length:5},()=>generateOrcWarrior(1)),
+     win:'AL_ROOM9', lose:'DEAD',
+     onWin:()=>{ PC._alRoom9OrcsDefeated = true; },
+    });
+   }}];
+  }
+  return [
+   {label:'↑ 北のアーチ', fn:()=>alMove('AL_PASSAGE5')},
+   {label:'⬇ 南のアーチ', fn:()=>alMove('AL_ROOM10')},
+   {label:'⬇ 南の扉', fn:()=>alMove('AL_PASSAGE6')},
+  ];
+ },
  },
 
  AL_ROOM10:{
