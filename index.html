@@ -631,7 +631,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026091901</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026092025</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -3387,6 +3387,148 @@ function getChaosNestRumor(){
  }
 
  return null;
+}
+
+// 打ち捨てられた坑道（巣窟ダンジョン）の噂。テーマ（住み着いているモンスター）に応じて内容が変わる。
+// ポートアルゴンの酒場限定で使用する（呼び出し側でtownIdをチェックする）
+const LAIR_RUMORS = {
+ goblinNest: [
+  '「打ち捨てられた坑道にゴブリンの群れが住み着いたらしい。焚き火の煙が見えたって話だ」',
+  '「坑道の方から、ゴブリンの奇声が聞こえるようになったとか。近寄らない方がいいぞ」',
+ ],
+ orcNest: [
+  '「打ち捨てられた坑道にオークの一団が居座っているらしい。あそこはもう連中の縄張りだな」',
+  '「坑道の方から獣脂の焼ける臭いと怒声が漂ってくるって話だ。オークの仕業らしい」',
+ ],
+ hollowCult: [
+  '「打ち捨てられた坑道で、うわ言をつぶやく連中を見たという者がいる。混沌の信徒らしい」',
+  '「坑道に近づくと空気が重く澱んでいるとか。あそこには関わらない方がいい」',
+ ],
+ banditGang: [
+  '「打ち捨てられた坑道を山賊の一味が根城にしているらしい。荷を運ぶなら気をつけろ」',
+  '「坑道の方から粗野な笑い声が聞こえたという商人がいた。山賊が住み着いたようだ」',
+ ],
+ wildBeasts: [
+  '「打ち捨てられた坑道に獣の群れが入り込んでいるらしい。夜になると唸り声が響くとか」',
+  '「坑道の周りで大きな獣の足跡を見たという猟師がいた。近寄らない方がいい」',
+ ],
+ undeadDrifters: [
+  '「打ち捨てられた坑道から、骨が軋むような音が聞こえるという噂だ。アンデッドが出るらしい」',
+  '「坑道に近づいた行商人が、冷たい空気と腐臭を感じたと震えていた」',
+ ],
+};
+function getLairRumor(){
+ if(!PC._lairDungeon || !PC._lairDungeon.themeId) return null;
+ if(Math.random() > 0.40) return null; // 40%で噂が出る（混沌の根城と同様の確率）
+ const pool = LAIR_RUMORS[PC._lairDungeon.themeId];
+ if(!pool || !pool.length) return null;
+ return pool[Math.floor(Math.random()*pool.length)];
+}
+
+// 「名もなき遺構」（第2の固定ダンジョン）の噂。ヴェルダ村の酒場限定で使用する（呼び出し側でtownIdをチェックする）
+const LAIR2_RUMORS = {
+ goblinNest: [
+  '「名もなき遺構にゴブリンの群れが住み着いたらしい。焚き火の煙が見えたって話だ」',
+  '「遺構の方から、ゴブリンの奇声が聞こえるようになったとか。近寄らない方がいいぞ」',
+ ],
+ orcNest: [
+  '「名もなき遺構にオークの一団が居座っているらしい。あそこはもう連中の縄張りだな」',
+  '「遺構の方から獣脂の焼ける臭いと怒声が漂ってくるって話だ。オークの仕業らしい」',
+ ],
+ hollowCult: [
+  '「名もなき遺構で、うわ言をつぶやく連中を見たという者がいる。混沌の信徒らしい」',
+  '「遺構に近づくと空気が重く澱んでいるとか。あそこには関わらない方がいい」',
+ ],
+ banditGang: [
+  '「名もなき遺構を山賊の一味が根城にしているらしい。荷を運ぶなら気をつけろ」',
+  '「遺構の方から粗野な笑い声が聞こえたという商人がいた。山賊が住み着いたようだ」',
+ ],
+ wildBeasts: [
+  '「名もなき遺構に獣の群れが入り込んでいるらしい。夜になると唸り声が響くとか」',
+  '「遺構の周りで大きな獣の足跡を見たという猟師がいた。近寄らない方がいい」',
+ ],
+ undeadDrifters: [
+  '「名もなき遺構から、骨が軋むような音が聞こえるという噂だ。アンデッドが出るらしい」',
+  '「遺構に近づいた行商人が、冷たい空気と腐臭を感じたと震えていた」',
+ ],
+};
+function getLair2Rumor(){
+ if(!PC._lair2Dungeon || !PC._lair2Dungeon.themeId) return null;
+ if(Math.random() > 0.40) return null; // 40%で噂が出る（他の巣窟の噂と同様の確率）
+ const pool = LAIR2_RUMORS[PC._lair2Dungeon.themeId];
+ if(!pool || !pool.length) return null;
+ return pool[Math.floor(Math.random()*pool.length)];
+}
+
+// 「忘れられた地下道」（第3の固定ダンジョン）の噂。アッシュヴェイルの酒場限定で使用する（呼び出し側でtownIdをチェックする）
+const LAIR3_RUMORS = {
+ goblinNest: [
+  '「忘れられた地下道にゴブリンの群れが住み着いたらしい。焚き火の煙が見えたって話だ」',
+  '「地下道の方から、ゴブリンの奇声が聞こえるようになったとか。近寄らない方がいいぞ」',
+ ],
+ orcNest: [
+  '「忘れられた地下道にオークの一団が居座っているらしい。あそこはもう連中の縄張りだな」',
+  '「地下道の方から獣脂の焼ける臭いと怒声が漂ってくるって話だ。オークの仕業らしい」',
+ ],
+ hollowCult: [
+  '「忘れられた地下道で、うわ言をつぶやく連中を見たという者がいる。混沌の信徒らしい」',
+  '「地下道に近づくと空気が重く澱んでいるとか。あそこには関わらない方がいい」',
+ ],
+ banditGang: [
+  '「忘れられた地下道を山賊の一味が根城にしているらしい。荷を運ぶなら気をつけろ」',
+  '「地下道の方から粗野な笑い声が聞こえたという商人がいた。山賊が住み着いたようだ」',
+ ],
+ wildBeasts: [
+  '「忘れられた地下道に獣の群れが入り込んでいるらしい。夜になると唸り声が響くとか」',
+  '「地下道の周りで大きな獣の足跡を見たという猟師がいた。近寄らない方がいい」',
+ ],
+ undeadDrifters: [
+  '「忘れられた地下道から、骨が軋むような音が聞こえるという噂だ。アンデッドが出るらしい」',
+  '「地下道に近づいた行商人が、冷たい空気と腐臭を感じたと震えていた」',
+ ],
+};
+function getLair3Rumor(){
+ if(!PC._lair3Dungeon || !PC._lair3Dungeon.themeId) return null;
+ if(Math.random() > 0.40) return null; // 40%で噂が出る（他の巣窟の噂と同様の確率）
+ const pool = LAIR3_RUMORS[PC._lair3Dungeon.themeId];
+ if(!pool || !pool.length) return null;
+ return pool[Math.floor(Math.random()*pool.length)];
+}
+
+// 第4の固定ダンジョン「忘却の螺旋堂」（サルーンから2日）の噂。サルーンの酒場限定で使用する（呼び出し側でtownIdをチェックする）
+// ※LAIR4_NAMEは本ブロックより後方（tt5-dungeon側）で定義されるため、TDZエラーを避けるためここでは名称を直接埋め込む
+const LAIR4_RUMORS = {
+ goblinNest: [
+  '「忘却の螺旋堂にゴブリンの群れが住み着いたらしい。焚き火の煙が見えたって話だ」',
+  '「あのあたりから、ゴブリンの奇声が聞こえるようになったとか。近寄らない方がいいぞ」',
+ ],
+ orcNest: [
+  '「忘却の螺旋堂にオークの一団が居座っているらしい。あそこはもう連中の縄張りだな」',
+  '「あのあたりから獣脂の焼ける臭いと怒声が漂ってくるって話だ。オークの仕業らしい」',
+ ],
+ hollowCult: [
+  '「忘却の螺旋堂で、うわ言をつぶやく連中を見たという者がいる。混沌の信徒らしい」',
+  '「あのあたりに近づくと空気が重く澱んでいるとか。関わらない方がいい」',
+ ],
+ banditGang: [
+  '「忘却の螺旋堂を山賊の一味が根城にしているらしい。荷を運ぶなら気をつけろ」',
+  '「あのあたりから粗野な笑い声が聞こえたという商人がいた。山賊が住み着いたようだ」',
+ ],
+ wildBeasts: [
+  '「忘却の螺旋堂に獣の群れが入り込んでいるらしい。夜になると唸り声が響くとか」',
+  '「あのあたりで大きな獣の足跡を見たという猟師がいた。近寄らない方がいい」',
+ ],
+ undeadDrifters: [
+  '「忘却の螺旋堂から、骨が軋むような音が聞こえるという噂だ。アンデッドが出るらしい」',
+  '「近づいた行商人が、冷たい空気と腐臭を感じたと震えていた」',
+ ],
+};
+function getLair4Rumor(){
+ if(!PC._lair4Dungeon || !PC._lair4Dungeon.themeId) return null;
+ if(Math.random() > 0.40) return null; // 40%で噂が出る（他の巣窟の噂と同様の確率）
+ const pool = LAIR4_RUMORS[PC._lair4Dungeon.themeId];
+ if(!pool || !pool.length) return null;
+ return pool[Math.floor(Math.random()*pool.length)];
 }
 
 // 根城への突入（goOtherActionsから呼ぶ）
@@ -7334,6 +7476,21 @@ function goOtherActions(townId){
  if(townId === 'valdheim'){
   choices.push({label:' 北の大迷宮へ', fn:()=>enterValdheimGrandDungeon()});
  }
+ if(townId === 'port_argon'){
+  choices.push({label:' 打ち捨てられた坑道へ向かう（3日）', fn:()=>startLairJourney()});
+ }
+ if(townId === 'verda'){
+  choices.push({label:` ${LAIR2_NAME}へ向かう（4日）`, fn:()=>startLair2Journey()});
+ }
+ if(townId === 'ashveil'){
+  choices.push({label:` ${LAIR3_NAME}へ向かう（6日）`, fn:()=>startLair3Journey()});
+ }
+ if(townId === 'saroon'){
+  choices.push({label:` ${LAIR4_NAME}へ向かう（2日）`, fn:()=>startLair4Journey()});
+ }
+ if(townId === 'marakai'){
+  choices.push({label:` ${LAIR5_NAME}へ向かう（船で5日）`, fn:()=>startLair5Journey()});
+ }
  // 定住したかつての仲間を訪ねる（settledTownがこの町のNPC全員分、ボタンを分けて表示）
  (PC._formerCompanions||[]).filter(n=>n.settledTown===townId).forEach(npc=>{
   choices.push({label:` ${npc.name}の家を訪ねる`, fn:()=>visitSettledCompanion(townId, npc._npcId)});
@@ -8424,6 +8581,1834 @@ function generateEliteMonster(species, level){
 // 種族＋階級から表示名（例：「エルダー・トロールの精鋭部隊」）を組み立てる
 function eliteMonsterDisplayName(species, rank){
  return `${ELITE_MONSTER_INFO[species].baseName}の${rank}部隊`;
+}
+
+// ══════════════════════════════════════════
+// 巣窟ダンジョン（テーマ付き半年周期モンスター住み着きシステム）
+// ══════════════════════════════════════════
+// 種族名の日本語表示（各所に散在する同じマップを踏襲）
+const LAIR_RACE_JA = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'};
+
+// ── ゴブリンの巣窟用 ──
+function generateLairGoblin(rank){ // rank: 'guard'|'veteran'|'leader'
+ const level = rank==='leader'?3:rank==='veteran'?2:1;
+ const npc = generateGoblinGuard(level);
+ npc.name = rank==='leader' ? 'ゴブリンのリーダー' : rank==='veteran' ? 'ベテランゴブリン' : 'ゴブリンガード';
+ // リーダーは一定確率で魔法使いを兼ねており、その場合Lv1の魔法を使う
+ if(rank==='leader' && Math.random()<0.3){
+  npc.type = 'wizard';
+  npc.spells = SPELLS_L1.map(s=>({...s}));
+ }
+ return npc;
+}
+
+// ── オークの巣窟用 ──
+function generateLairOrc(rank){ // rank: 'guard'|'veteran'|'captain'
+ const level = rank==='captain'?3:rank==='veteran'?2:1;
+ const npc = generateOrcWarrior(level);
+ npc.name = rank==='captain' ? 'オークキャプテン' : rank==='veteran' ? 'ベテランオーク' : 'オークガード';
+ // キャプテンは一定確率で魔法使いを兼ねており、その場合Lv1の魔法を使う
+ if(rank==='captain' && Math.random()<0.3){
+  npc.type = 'wizard';
+  npc.spells = SPELLS_L1.map(s=>({...s}));
+ }
+ return npc;
+}
+
+// エリア4〜6用：指定レベルまでの攻撃魔法を全て使えるようにする（_npcSpellsForLevelと異なり、
+// 「レベル÷2」ではなくキャラクターレベルそのものを呪文レベル上限として明示指定できる版）
+function _spellsUpToLevel(maxLv){
+ let spells = SPELLS_L1.map(s=>({...s}));
+ for(let lv=2; lv<=Math.min(maxLv,7); lv++){
+  const table = SPELL_LEVEL_TABLES[lv];
+  if(table) spells = spells.concat(table.map(s=>({...s})));
+ }
+ return spells;
+}
+
+// ── ゴブリンの巣窟用（エリア4〜6の増援） ──
+// ゴブリンシャーマン：LV4のNPC型、LV4までの攻撃魔法を使う魔法使い
+function generateLairGoblinShaman(){
+ const npc = generateGoblinGuard(4);
+ npc.type = 'wizard';
+ npc.name = 'ゴブリンシャーマン';
+ npc.spells = _spellsUpToLevel(4);
+ return npc;
+}
+// ゴブリンエリート：LV4のNPC型
+function generateLairGoblinElite(){
+ const npc = generateGoblinGuard(4);
+ npc.name = 'ゴブリンエリート';
+ return npc;
+}
+// ゴブリンロード：LV5のNPC型
+function generateLairGoblinLord(){
+ const npc = generateGoblinGuard(5);
+ npc.name = 'ゴブリンロード';
+ return npc;
+}
+// ゴブリンウィザード：LV5のNPC型、LV5までの攻撃魔法を使う魔法使い
+function generateLairGoblinWizard(){
+ const npc = generateGoblinGuard(5);
+ npc.type = 'wizard';
+ npc.name = 'ゴブリンウィザード';
+ npc.spells = _spellsUpToLevel(5);
+ return npc;
+}
+// ゴブリンハイウィザード：LV6のNPC型、LV6までの攻撃魔法を使う魔法使い
+function generateLairGoblinHighWizard(){
+ const npc = generateGoblinGuard(6);
+ npc.type = 'wizard';
+ npc.name = 'ゴブリンハイウィザード';
+ npc.spells = _spellsUpToLevel(6);
+ return npc;
+}
+// ゴブリンハイロード：LV6のNPC型
+function generateLairGoblinHighLord(){
+ const npc = generateGoblinGuard(6);
+ npc.name = 'ゴブリンハイロード';
+ return npc;
+}
+
+// ── オークの巣窟用（エリア4〜6の増援） ──
+// オークの突撃兵：LV4のNPC型、プレートアーマー＋タワーシールドを装備した戦士
+function generateLairOrcAssaulter(){
+ const npc = generateOrcWarrior(4);
+ npc.name = 'オークの突撃兵';
+ npc.equippedArmors = [
+  {name:'プレートアーマー', hits:14, stReq:11, isShield:false, weight:1000},
+  {name:'タワーシールド', hits:6, stReq:6, isShield:true, weight:550},
+ ];
+ return npc;
+}
+// オークの狂戦士：LV5のNPC型、グレートソードで武装した戦士
+function generateLairOrcBerserker(){
+ const npc = generateOrcWarrior(5);
+ npc.name = 'オークの狂戦士';
+ npc.equippedWeapons = [{name:'グレートソード', dice:6, adds:0, twoHand:true, weight:170, stReq:21, dexReq:18}];
+ return npc;
+}
+// オークシャーマン：LV5のNPC型、LV5までの攻撃魔法を使う魔法使い
+function generateLairOrcShaman(){
+ const npc = generateOrcWarrior(5);
+ npc.type = 'wizard';
+ npc.name = 'オークシャーマン';
+ npc.spells = _spellsUpToLevel(5);
+ return npc;
+}
+// オークロード：LV7のNPC型、プレートアーマー・グレートソードで武装した戦士
+function generateLairOrcLord(){
+ const npc = generateOrcWarrior(7);
+ npc.name = 'オークロード';
+ npc.equippedWeapons = [{name:'グレートソード', dice:6, adds:0, twoHand:true, weight:170, stReq:21, dexReq:18}];
+ npc.equippedArmors = [{name:'プレートアーマー', hits:14, stReq:11, isShield:false, weight:1000}];
+ return npc;
+}
+
+// ── 混沌の信徒の巣窟用 ──
+// エリア1：虚ろな目でうわ言をつぶやく人間型NPC（種族ランダム）
+function generateHollowDrone(){
+ const npc = generateNPC(1);
+ npc.name = `虚ろな目でうわ言をつぶやく${LAIR_RACE_JA[npc.race]||npc.race}`;
+ return npc;
+}
+// エリア2：悪臭を放つぼろきれをまとった虚ろな目の人間型NPC（種族ランダム）
+function generateHollowWretch(){
+ const npc = generateNPC(2);
+ npc.name = `悪臭を放つぼろきれをまとった虚ろな目の${LAIR_RACE_JA[npc.race]||npc.race}`;
+ return npc;
+}
+// エリア2/3共通：奇妙な意匠の胴鎧をまとった虚ろな目の戦士（LV5〜10）
+function generateHollowWarrior(){
+ const level = 5 + Math.floor(Math.random()*6);
+ const npc = generateNPC(level);
+ npc.type = 'warrior';
+ npc.name = '奇妙な意匠の胴鎧をまとった虚ろな目の戦士';
+ return npc;
+}
+// エリア3ボス：無数の触手を持つ円筒形の粘ついた魔物（LV10の魔法使い扱い、NPC型）
+// ── NPC型戦闘は個々のst/dex/con/武器で解決されるため、単純MR型（{mr:300}）のままでは
+//    護衛の虚ろな戦士（NPC型）と同時に戦わせられない。そのため指定されたステータスで
+//    NPC型として直接定義する。
+function generateHollowHorror(){
+ return {
+  name: '無数の触手を持つ円筒形の粘ついた魔物',
+  race: null, type: 'wizard', level: 10,
+  st: 92, iq: 20, lk: 10, con: 300, dex: 82, chr: 0, spd: 10,
+  maxCon: 300, gold: 0, sp: 0, cp: 0,
+  equippedWeapons: [{name:'無数の触手', dice:8, adds:10, twoHand:false, weight:0, stReq:0, dexReq:0}],
+  equippedArmors: [],
+  invWeapons: [], invArmors: [],
+  // レベル10までの魔法を全て使える（この作品での最大は呪文レベル7）。
+  // 戦闘中は_enemyCastTtyfNPC()がNPC_ATTACK_SPELL_FNS_VS_PCの中からランダムに攻撃魔法を選んで放つ
+  spells: [...SPELLS_L1, ...SPELLS_L2, ...SPELLS_L3, ...SPELLS_L4, ...SPELLS_L5, ...SPELLS_L6, ...SPELLS_L7].map(s=>({...s})),
+  isHuman: false,
+ };
+}
+
+// ── 山賊団の巣窟用 ──
+function generateLairBandit(rank){ // rank: 'grunt'|'stalwart'|'veteran'|'leader'
+ const level = rank==='leader'?5:rank==='veteran'?3:rank==='stalwart'?2:1;
+ const npc = generateNPC(level);
+ npc.type = 'warrior';
+ npc.name = rank==='leader' ? '山賊リーダー' : rank==='veteran' ? '貫禄のある山賊' : rank==='stalwart' ? '堂々とした山賊' : '山賊';
+ return npc;
+}
+
+// ── 野生動物用 ──
+// エリア3：発狂した隠者（LV3のNPC型）
+function generateLairMadHermit(){
+ const npc = generateNPC(3);
+ npc.type = 'warrior';
+ npc.name = '発狂した隠者';
+ return npc;
+}
+
+// ── アンデッドの巣窟用 ──
+// エリア3ボス：死霊術師（LV3のNPC型、魔法使いでレベル1の魔法を使える）
+function generateLairNecromancer(){
+ const npc = generateNPC(3);
+ npc.type = 'wizard';
+ npc.name = '死霊術師';
+ npc.spells = SPELLS_L1.map(s=>({...s}));
+ return npc;
+}
+// エリア3のグール（死霊術師と同時に出現するため、NPC型戦闘で扱えるようNPC型として定義する）
+// ── NPC型戦闘は個々のst/dex/con/武器で解決されるため、単純MR型のままでは
+//    死霊術師（NPC型）と同時に戦わせられない。そのため専用のNPC型グールを用意する。
+function generateLairGhoulNPC(){
+ const npc = generateNPC(4);
+ npc.type = 'warrior';
+ npc.name = 'グール';
+ return npc;
+}
+
+// 野生動物テーマ用の共通出現テーブル（エリア1〜3で同一のテーブルを使用する）
+const LAIR_WILD_BEAST_TABLE = [
+ { spawn: ()=> Array.from({length: 2+Math.floor(Math.random()*3)}, ()=>({name:'大ネズミ', mr:12, armor:0})) },
+ { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>({name:'巨大ムカデ', mr:10, armor:0})) },
+ { spawn: ()=> [{name:'狼', mr:25, armor:0}] },
+ { spawn: ()=> [{name:'大蛇', mr:40, armor:0}] },
+ { spawn: ()=> [{name:'熊', mr:45, armor:0}] },
+ { spawn: ()=> [generateLairMadHermit()] },
+];
+
+// テーマごとのエリア別モンスターテーブル。各エリアは「出現候補」の配列で、
+// 部屋に足を踏み入れた際にこの中から1つを一律ランダムで選んで生成する。
+const LAIR_THEMES = {
+ goblinNest: {
+  name: 'ゴブリンの巣窟',
+  entryFlavor: '獣臭と、燻る焚き火の煙の臭いがこもっている。何かが住み着いているようだ。',
+  area1: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>({name:'ゴブリン', mr:15, armor:0, desc:'貧相な槍で武装している'})) },
+  ],
+  area2: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*5)}, ()=>generateLairGoblin('guard')) },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairGoblin('veteran')) },
+  ],
+  area3: [
+   { spawn: ()=> [generateLairGoblin('leader'), ...Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairGoblin('veteran'))] },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairGoblin('veteran')) },
+  ],
+  area4: [
+   { spawn: ()=> [generateLairGoblinShaman(), ...Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairGoblin('veteran'))] },
+   { spawn: ()=> [generateLairGoblinElite(), ...Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairGoblin('veteran'))] },
+   { spawn: ()=> [generateLairGoblin('leader'), ...Array.from({length: 2+Math.floor(Math.random()*3)}, ()=>generateLairGoblin('veteran'))] },
+  ],
+  area5: [
+   { spawn: ()=> [generateLairGoblinLord(), ...Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairGoblin('leader'))] },
+   { spawn: ()=> [generateLairGoblinWizard(), ...Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairGoblin('leader'))] },
+   { spawn: ()=> [generateLairGoblinShaman(), ...Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairGoblin('veteran'))] },
+  ],
+  area6: [
+   { spawn: ()=> [generateLairGoblinHighWizard(), ...Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairGoblinShaman())] },
+   { spawn: ()=> [generateLairGoblinHighLord(), ...Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairGoblinWizard())] },
+  ],
+ },
+ orcNest: {
+  name: 'オークの巣窟',
+  entryFlavor: '獣脂の焼ける臭いと、荒々しい怒声がどこからか響いてくる。',
+  area1: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>({name:'オーク', mr:40, armor:0, desc:'棍棒で武装している'})) },
+   { spawn: ()=> Array.from({length: 2+Math.floor(Math.random()*3)}, ()=>({name:'大ネズミ', mr:12, armor:0})) },
+  ],
+  area2: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*4)}, ()=>generateLairOrc('guard')) },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairOrc('veteran')) },
+  ],
+  area3: [
+   { spawn: ()=> [generateLairOrc('captain'), ...Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairOrc('veteran'))] },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairOrc('veteran')) },
+  ],
+  area4: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairOrcAssaulter()) },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*4)}, ()=>generateLairOrcBerserker()) },
+   { spawn: ()=> [generateLairOrc('captain'), ...Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairOrc('veteran'))] },
+  ],
+  area5: [
+   { spawn: ()=> [generateLairOrcShaman(), ...Array.from({length: 1+Math.floor(Math.random()*4)}, ()=>generateLairOrcBerserker())] },
+   { spawn: ()=> Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairOrcAssaulter()) },
+  ],
+  area6: [
+   { spawn: ()=> [generateLairOrcLord(), ...Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairOrcShaman())] },
+   { spawn: ()=> [generateLairOrcShaman(), ...Array.from({length: 3+Math.floor(Math.random()*3)}, ()=>generateLairOrcBerserker())] },
+  ],
+ },
+ hollowCult: {
+  name: '混沌の信徒の巣窟',
+  entryFlavor: '空気が重く澱み、どこからともなくうわ言のような呟きが聞こえてくる。',
+  area1: [
+   { spawn: ()=> Array.from({length: 2+Math.floor(Math.random()*11)}, ()=>generateHollowDrone()) },
+  ],
+  area2: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*4)}, ()=>generateHollowWarrior()) },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*6)}, ()=>generateHollowWretch()) },
+  ],
+  area3: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*4)}, ()=>generateHollowWarrior()) },
+   { spawn: ()=> [generateHollowHorror(), ...Array.from({length:3}, ()=>generateHollowWarrior())] },
+  ],
+ },
+ banditGang: {
+  name: '山賊団',
+  entryFlavor: '獣脂と安酒の臭いが漂い、粗野な笑い声や物音がどこからか聞こえてくる。',
+  area1: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairBandit('grunt')) },
+  ],
+  area2: [
+   { spawn: ()=> Array.from({length: 2+Math.floor(Math.random()*3)}, ()=>generateLairBandit('stalwart')) },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairBandit('veteran')) },
+  ],
+  area3: [
+   { spawn: ()=> [generateLairBandit('leader'), ...Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>generateLairBandit('veteran'))] },
+  ],
+ },
+ wildBeasts: {
+  name: '野生動物',
+  entryFlavor: '獣の気配が濃く漂い、時折低い唸り声や物音が響いてくる。',
+  area1: LAIR_WILD_BEAST_TABLE,
+  area2: LAIR_WILD_BEAST_TABLE,
+  area3: LAIR_WILD_BEAST_TABLE,
+ },
+ undeadDrifters: {
+  name: 'アンデッド',
+  entryFlavor: '骨が軋むような音と、腐臭にも似た冷たい空気が立ちこめている。',
+  area1: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>({name:'スケルトン', mr:30, armor:0})) },
+   { spawn: ()=> Array.from({length: 2+Math.floor(Math.random()*3)}, ()=>({name:'ゾンビ', mr:20, armor:0})) },
+  ],
+  area2: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>({name:'グール', mr:40, armor:0})) },
+  ],
+  area3: [
+   { spawn: ()=> [generateLairNecromancer(), ...Array.from({length:3}, ()=>generateLairGhoulNPC())] },
+  ],
+ },
+};
+
+// 部屋ノードID → エリア番号（1〜3）。モンスターはこの部屋ノードのみに配置する
+const LAIR_ROOM_AREAS = {
+ LAIR_ROOM1: 1, LAIR_ROOM2: 1,
+ LAIR_ROOM4: 2, LAIR_ROOM6: 2,
+ LAIR_ROOM5: 3, LAIR_ROOM3: 3,
+};
+
+// PC._lairDungeon の初期化・補完（新規キャラ／旧セーブ互換）
+function initLairDungeon(){
+ if(!PC._lairDungeon){
+  PC._lairDungeon = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{} };
+ }
+ const lair = PC._lairDungeon;
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(LAIR_ROOM_AREAS).forEach(id=>{
+  if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null };
+ });
+}
+
+// ダンジョン入場時に呼ぶ：無人かつ再湧き予定日を過ぎていればテーマを抽選して住み着かせる
+function checkLairRespawn(){
+ initLairDungeon();
+ const lair = PC._lairDungeon;
+ if(!lair.themeId && GAME_TIME.totalDays >= lair.nextRespawnDay){
+  const ids = Object.keys(LAIR_THEMES);
+  const candidates = lair.lastThemeId ? ids.filter(t=>t!==lair.lastThemeId) : ids;
+  const pick = candidates[Math.floor(Math.random()*candidates.length)];
+  lair.themeId = pick;
+  lair.spawnDay = GAME_TIME.totalDays;
+  lair.clearedDay = null;
+  Object.keys(LAIR_ROOM_AREAS).forEach(id=>{ lair.nodeState[id] = { defeated:false, monsters:null }; });
+ }
+}
+
+// ポートアルゴンから坑道までの旅程日数
+const LAIR_TRAVEL_DAYS = 3;
+
+// ダンジョン入口（外部からの入場ポイント）
+function enterLairDungeon(){
+ checkLairRespawn();
+ initTorch();
+ go('LAIR_ENTRANCE');
+}
+
+// 共通：旅の進捗UIを初期化して表示する
+function _lairShowTravelUI(fromLabel, toLabel){
+ drawScene('travel');
+ showTravelImage('walk', 'port_argon', 'port_argon');
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${LAIR_TRAVEL_DAYS}日</span>`;
+ }
+ renderChoices([]);
+}
+
+// ポートアルゴン → 坑道（往路）。道中エンカウントは通常の街道移動と同じ仕組みを流用する
+function startLairJourney(){
+ checkCompanionDeliveryAbandon();
+ hideDungeonImage();
+ _lairShowTravelUI('ポートアルゴン', '打ち捨てられた坑道');
+ advanceDaysAnimated(LAIR_TRAVEL_DAYS, ()=>{
+  checkLairRespawn();
+  go('LAIR_FRONT');
+ });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">ポートアルゴン</span> → <span style="color:#f0ece0">打ち捨てられた坑道</span> へ出発。所要: ${LAIR_TRAVEL_DAYS}日</span>`);
+}
+
+// 坑道 → ポートアルゴン（復路）
+function startLairReturnJourney(){
+ hideDungeonImage();
+ _lairShowTravelUI('打ち捨てられた坑道', 'ポートアルゴン');
+ advanceDaysAnimated(LAIR_TRAVEL_DAYS, ()=>{
+  go('TOWN_PORT_ARGON');
+ });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">打ち捨てられた坑道</span> → <span style="color:#f0ece0">ポートアルゴン</span> へ出発。所要: ${LAIR_TRAVEL_DAYS}日</span>`);
+}
+
+// ══════════════════════════════════════════
+// 第2の固定ダンジョン「名もなき遺構」（ヴェルダ村から4日）
+// ══════════════════════════════════════════
+const LAIR2_NAME = '名もなき遺構';
+
+const LAIR2_TRAVEL_DAYS = 4;
+
+function _lair2ShowTravelUI(fromLabel, toLabel){
+ drawScene('travel');
+ showTravelImage('walk', 'verda', 'verda');
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${LAIR2_TRAVEL_DAYS}日</span>`;
+ }
+ renderChoices([]);
+}
+
+// ヴェルダ村 → 遺構（往路）
+function startLair2Journey(){
+ checkCompanionDeliveryAbandon();
+ hideDungeonImage();
+ _lair2ShowTravelUI('ヴェルダ村', LAIR2_NAME);
+ advanceDaysAnimated(LAIR2_TRAVEL_DAYS, ()=>{
+  checkLair2Respawn();
+  go('LAIR2_FRONT');
+ });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">ヴェルダ村</span> → <span style="color:#f0ece0">${LAIR2_NAME}</span> へ出発。所要: ${LAIR2_TRAVEL_DAYS}日</span>`);
+}
+
+// 遺構 → ヴェルダ村（復路）
+function startLair2ReturnJourney(){
+ hideDungeonImage();
+ _lair2ShowTravelUI(LAIR2_NAME, 'ヴェルダ村');
+ advanceDaysAnimated(LAIR2_TRAVEL_DAYS, ()=>{
+  go('TOWN_VERDA');
+ });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">${LAIR2_NAME}</span> → <span style="color:#f0ece0">ヴェルダ村</span> へ出発。所要: ${LAIR2_TRAVEL_DAYS}日</span>`);
+}
+
+// 壁の調査（運または知力のLv1能力値テストをランダムに選んで実施）
+// cfg: {returnNode, hasSecret, onFound}
+// - hasSecretがtrueの場合、成功時にonFound()を呼ぶ（隠し扉の発見など）
+// - hasSecretがfalse、または能力値テストに失敗した場合は「特に何もない」処理＋16%でエリア2のモンスターが現れる
+function lair2SearchWall(cfg){
+ const attr = Math.random() < 0.5 ? 'lk' : 'iq';
+ setupSavingRoll({
+  attr, level: 1,
+  onSuccess(){
+   if(cfg.hasSecret){ cfg.onFound(); return; }
+   lair2WallNoResult(cfg.returnNode);
+  },
+  onFail(){
+   lair2WallNoResult(cfg.returnNode);
+  },
+ });
+}
+function lair2WallNoResult(returnNode){
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><span style="color:#c8b8a0">壁を調べてみたが、特に何も見つからなかった。</span>`;
+ const wander = rollLair2Wandering(2);
+ if(wander && wander.length){
+  if(s) s.innerHTML += `<br><span style="color:#f0ddd8">物音に気づかれた！モンスターが現れた！</span>`;
+  renderChoices([{label:' 迎え撃つ', fn:()=>startLair2WanderCombat(wander, returnNode)}]);
+  return;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+
+// レバーを操作する（A/B/C）。3本すべて動かすと部屋1Jの落とし格子が開く
+function lair2PullLever(id, returnNode){
+ const flagKey = '_lair2Lever' + id;
+ const s = document.getElementById('story');
+ if(PC[flagKey]){
+  if(s) s.innerHTML += `<br><span style="color:#c8b8a0">レバー${id}はすでに動かしてある。</span>`;
+ } else {
+  PC[flagKey] = true;
+  if(s) s.innerHTML += `<br><span style="color:#f0ece0">レバー${id}を動かした。ギ、ギギ……と重い音が遠くから響いた。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+function lair2PortcullisOpen(){
+ return !!(PC._lair2LeverA && PC._lair2LeverB && PC._lair2LeverC);
+}
+
+// ノードID → エリア番号（1〜3）。モンスターが配置されるのはこのノードのみ
+const LAIR2_ROOM_AREAS = {
+ LAIR2_ROOM_1A:1, LAIR2_ROOM_1B:1, LAIR2_HALL_1D:1, LAIR2_HALL_1E:1, LAIR2_HALL_1F:1,
+ LAIR2_PASSAGE_1AC:2, LAIR2_ROOM_1G:2, LAIR2_PASSAGE_1I:2, LAIR2_PASSAGE_1X:2,
+ LAIR2_ROOM_1L:3, LAIR2_ROOM_1M:3, LAIR2_ROOM_1U:3, LAIR2_HALL_1AB:3, LAIR2_HALL_1AC:3,
+};
+
+// PC._lair2Dungeon の初期化・補完（新規キャラ／旧セーブ互換）
+function initLair2Dungeon(){
+ if(!PC._lair2Dungeon){
+  PC._lair2Dungeon = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{} };
+ }
+ const lair = PC._lair2Dungeon;
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(LAIR2_ROOM_AREAS).forEach(id=>{
+  if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null };
+ });
+}
+
+// ダンジョン入場時に呼ぶ：無人かつ再湧き予定日を過ぎていればテーマを抽選して住み着かせる（既存6テーマを共有）
+function checkLair2Respawn(){
+ initLair2Dungeon();
+ const lair = PC._lair2Dungeon;
+ if(!lair.themeId && GAME_TIME.totalDays >= lair.nextRespawnDay){
+  const ids = Object.keys(LAIR_THEMES);
+  const candidates = lair.lastThemeId ? ids.filter(t=>t!==lair.lastThemeId) : ids;
+  const pick = candidates[Math.floor(Math.random()*candidates.length)];
+  lair.themeId = pick;
+  lair.spawnDay = GAME_TIME.totalDays;
+  lair.clearedDay = null;
+  Object.keys(LAIR2_ROOM_AREAS).forEach(id=>{ lair.nodeState[id] = { defeated:false, monsters:null }; });
+ }
+}
+
+// 部屋ノードの状態表示用テキストを返す（未生成なら初回訪問時にエンカウントをキャッシュ生成する）
+function lair2RoomStatusText(nodeId){
+ const lair = PC._lair2Dungeon;
+ if(!lair.themeId) return '';
+ const ns = lair.nodeState[nodeId];
+ if(ns.defeated) return `<br><br><span style="color:#b0a080">争いの痕跡が残るのみで、今は静まり返っている。</span>`;
+ if(!ns.monsters){
+  const theme = LAIR_THEMES[lair.themeId];
+  const area = LAIR2_ROOM_AREAS[nodeId];
+  const table = theme['area'+area];
+  const entry = table[Math.floor(Math.random()*table.length)];
+  ns.monsters = entry.spawn();
+ }
+ const counts = {};
+ ns.monsters.forEach(m=>{ counts[m.name] = (counts[m.name]||0)+1; });
+ const desc = Object.entries(counts).map(([n,c])=> c>1 ? `${n}×${c}` : n).join('、');
+ return `<br><br><span style="color:#f0ddd8">${desc}が姿を現した！</span>`;
+}
+
+// 部屋の戦闘を開始する（NPC型／MR型を自動判別してディスパッチ）
+function startLair2Encounter(nodeId){
+ const lair = PC._lair2Dungeon;
+ const ns = lair.nodeState[nodeId];
+ const monsters = ns.monsters;
+ if(!monsters || !monsters.length) return;
+ const isNPCType = monsters[0].st !== undefined;
+ const common = {
+  win: nodeId, lose:'DEAD', canFlee:true,
+  onWin: ()=>{ defeatLair2Room(nodeId); },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// 部屋を討伐済みにし、全部屋討伐済みなら一掃成立（半年後に再湧き）
+function defeatLair2Room(nodeId){
+ const lair = PC._lair2Dungeon;
+ lair.nodeState[nodeId].defeated = true;
+ const allDefeated = Object.keys(LAIR2_ROOM_AREAS).every(id=>lair.nodeState[id].defeated);
+ if(allDefeated){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = GAME_TIME.totalDays + 180;
+  lair.themeId = null;
+ }
+}
+
+// ワンダリングモンスター判定（16%）。テーマ不在（無人期間）なら常にnull。areaは呼び出し側が指定する
+function rollLair2Wandering(area){
+ const lair = PC._lair2Dungeon;
+ if(!lair || !lair.themeId) return null;
+ if(Math.random() >= 0.16) return null;
+ const theme = LAIR_THEMES[lair.themeId];
+ const table = theme['area'+area];
+ const entry = table[Math.floor(Math.random()*table.length)];
+ return entry.spawn();
+}
+
+// ワンダリングモンスターとの戦闘を開始し、勝利後は指定ノードへ戻る
+function startLair2WanderCombat(monsters, returnNode){
+ const isNPCType = monsters.length && monsters[0].st !== undefined;
+ const common = {
+  win:'__noop__', lose:'DEAD', canFlee:true,
+  onWin: ()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   go(returnNode);
+  },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// ══════════════════════════════════════════
+// 第3の固定ダンジョン「忘れられた地下道」（アッシュヴェイルから6日）
+// ══════════════════════════════════════════
+// TODO: ダンジョン名が決まり次第、下の1行を差し替える
+const LAIR3_NAME = '忘れられた地下道';
+
+const LAIR3_TRAVEL_DAYS = 6;
+
+function _lair3ShowTravelUI(fromLabel, toLabel){
+ drawScene('travel');
+ showTravelImage('walk', 'ashveil', 'ashveil');
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${LAIR3_TRAVEL_DAYS}日</span>`;
+ }
+ renderChoices([]);
+}
+
+// アッシュヴェイル → ダンジョン（往路）
+function startLair3Journey(){
+ checkCompanionDeliveryAbandon();
+ hideDungeonImage();
+ _lair3ShowTravelUI('アッシュヴェイル', LAIR3_NAME);
+ advanceDaysAnimated(LAIR3_TRAVEL_DAYS, ()=>{
+  checkLair3Respawn();
+  go('LAIR3_FRONT');
+ });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">アッシュヴェイル</span> → <span style="color:#f0ece0">${LAIR3_NAME}</span> へ出発。所要: ${LAIR3_TRAVEL_DAYS}日</span>`);
+}
+
+// ダンジョン → アッシュヴェイル（復路）
+function startLair3ReturnJourney(){
+ hideDungeonImage();
+ _lair3ShowTravelUI(LAIR3_NAME, 'アッシュヴェイル');
+ advanceDaysAnimated(LAIR3_TRAVEL_DAYS, ()=>{
+  go('TOWN_ASHVEIL');
+ });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">${LAIR3_NAME}</span> → <span style="color:#f0ece0">アッシュヴェイル</span> へ出発。所要: ${LAIR3_TRAVEL_DAYS}日</span>`);
+}
+
+// ノードID → エリア番号（1〜3）。モンスターが配置されるのはこのノードのみ
+// B1のみ実装済み（B2・B3は構造データ共有後に追加する）
+const LAIR3_ROOM_AREAS = {
+ LAIR3_ROOM_1:2, LAIR3_ROOM_2:1, LAIR3_ROOM_3:1, LAIR3_ROOM_4:1, LAIR3_ROOM_5:1,
+ // B2
+ LAIR3_B2_ROOM_1:2, LAIR3_B2_ROOM_2:1, LAIR3_B2_ROOM_3:2, LAIR3_B2_ROOM_4:2, LAIR3_B2_ROOM_5:1, LAIR3_B2_ROOM_7:1,
+ // B3（部屋1は宝物庫のため戦闘なし）
+ LAIR3_B3_ROOM_2:2, LAIR3_B3_ROOM_3:3, LAIR3_B3_ROOM_4:3, LAIR3_B3_ROOM_5:2, LAIR3_B3_ROOM_6:2,
+};
+
+// PC._lair3Dungeon の初期化・補完（新規キャラ／旧セーブ互換）
+function initLair3Dungeon(){
+ if(!PC._lair3Dungeon){
+  PC._lair3Dungeon = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{} };
+ }
+ const lair = PC._lair3Dungeon;
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(LAIR3_ROOM_AREAS).forEach(id=>{
+  if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null };
+ });
+}
+
+// ダンジョン入場時に呼ぶ：無人かつ再湧き予定日を過ぎていればテーマを抽選して住み着かせる（既存6テーマを共有）
+function checkLair3Respawn(){
+ initLair3Dungeon();
+ const lair = PC._lair3Dungeon;
+ if(!lair.themeId && GAME_TIME.totalDays >= lair.nextRespawnDay){
+  const ids = Object.keys(LAIR_THEMES);
+  const candidates = lair.lastThemeId ? ids.filter(t=>t!==lair.lastThemeId) : ids;
+  const pick = candidates[Math.floor(Math.random()*candidates.length)];
+  lair.themeId = pick;
+  lair.spawnDay = GAME_TIME.totalDays;
+  lair.clearedDay = null;
+  Object.keys(LAIR3_ROOM_AREAS).forEach(id=>{ lair.nodeState[id] = { defeated:false, monsters:null }; });
+ }
+}
+
+// 部屋ノードの状態表示用テキストを返す（未生成なら初回訪問時にエンカウントをキャッシュ生成する）
+function lair3RoomStatusText(nodeId){
+ const lair = PC._lair3Dungeon;
+ if(!lair.themeId) return '';
+ const ns = lair.nodeState[nodeId];
+ if(ns.defeated) return `<br><br><span style="color:#b0a080">争いの痕跡が残るのみで、今は静まり返っている。</span>`;
+ if(!ns.monsters){
+  const theme = LAIR_THEMES[lair.themeId];
+  const area = LAIR3_ROOM_AREAS[nodeId];
+  const table = theme['area'+area];
+  const entry = table[Math.floor(Math.random()*table.length)];
+  ns.monsters = entry.spawn();
+ }
+ const counts = {};
+ ns.monsters.forEach(m=>{ counts[m.name] = (counts[m.name]||0)+1; });
+ const desc = Object.entries(counts).map(([n,c])=> c>1 ? `${n}×${c}` : n).join('、');
+ return `<br><br><span style="color:#f0ddd8">${desc}が姿を現した！</span>`;
+}
+
+// 部屋の戦闘を開始する（NPC型／MR型を自動判別してディスパッチ）
+function startLair3Encounter(nodeId){
+ const lair = PC._lair3Dungeon;
+ const ns = lair.nodeState[nodeId];
+ const monsters = ns.monsters;
+ if(!monsters || !monsters.length) return;
+ const isNPCType = monsters[0].st !== undefined;
+ const common = {
+  win: nodeId, lose:'DEAD', canFlee:true,
+  onWin: ()=>{ defeatLair3Room(nodeId); },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// 部屋を討伐済みにし、全部屋討伐済みなら一掃成立（半年後に再湧き）
+function defeatLair3Room(nodeId){
+ const lair = PC._lair3Dungeon;
+ lair.nodeState[nodeId].defeated = true;
+ const allDefeated = Object.keys(LAIR3_ROOM_AREAS).every(id=>lair.nodeState[id].defeated);
+ if(allDefeated){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = GAME_TIME.totalDays + 180;
+  lair.themeId = null;
+ }
+}
+
+// ワンダリングモンスター判定（16%）。テーマ不在（無人期間）なら常にnull。areaは呼び出し側が指定する
+function rollLair3Wandering(area){
+ const lair = PC._lair3Dungeon;
+ if(!lair || !lair.themeId) return null;
+ if(Math.random() >= 0.16) return null;
+ const theme = LAIR_THEMES[lair.themeId];
+ const table = theme['area'+area];
+ const entry = table[Math.floor(Math.random()*table.length)];
+ return entry.spawn();
+}
+
+// ワンダリングモンスターとの戦闘を開始し、勝利後は指定ノードへ戻る
+function startLair3WanderCombat(monsters, returnNode){
+ const isNPCType = monsters.length && monsters[0].st !== undefined;
+ const common = {
+  win:'__noop__', lose:'DEAD', canFlee:true,
+  onWin: ()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   go(returnNode);
+  },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// B1：部屋2のレバー。動かすと部屋3⇔部屋4間の落とし格子が開く
+function lair3PullLever(returnNode){
+ const s = document.getElementById('story');
+ if(PC._lair3LeverPulled){
+  if(s) s.innerHTML += `<br><span style="color:#c8b8a0">レバーはすでに動かしてある。</span>`;
+ } else {
+  PC._lair3LeverPulled = true;
+  if(s) s.innerHTML += `<br><span style="color:#f0ece0">レバーを動かした。ギ、ギギ……と重い音が遠くから響いた。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+function lair3PortcullisOpen(){
+ return !!PC._lair3LeverPulled;
+}
+
+// B1：部屋3のタペストリーを調べる（特に何もないが、16%でエリア1のモンスターが現れる）
+function lair3ExamineTapestry(returnNode){
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><span style="color:#c8b8a0">タペストリーをめくってみたが、特に何もなかった。</span>`;
+ const wander = rollLair3Wandering(1);
+ if(wander && wander.length){
+  if(s) s.innerHTML += `<br><span style="color:#f0ddd8">物音に気づかれた！モンスターが現れた！</span>`;
+  renderChoices([{label:' 迎え撃つ', fn:()=>startLair3WanderCombat(wander, returnNode)}]);
+  return;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+
+// B1：部屋4／部屋1のボタン。押すとテレポートする（部屋4→部屋1、部屋1→部屋3）
+function lair3PressButton(destNode){
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><span style="color:#f0ece0">ボタンを押すと、体が一瞬淡く光り、視界が切り替わった。</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>go(destNode)}]);
+}
+
+// 施錠されたドアの処理（B2/B3共通）。器用さでcfg.level能力値テストに成功するか、cfg.level以上のUnlockの魔法が必要。
+// 失敗時は16%で指定エリアのワンダリングモンスターと戦闘になる
+// cfg: { level, dest, from, area, key }
+// keyは開錠フラグの識別子（省略時はdestを使う）。同じ部屋に複数の異なる施錠ドアが接続する場合は
+// destだけだとフラグが衝突するため、ドアごとに一意なkeyを指定する
+function lair3TryDoor(cfg){
+ cfg.doorKey = cfg.key || cfg.dest;
+ if(PC['_lair3DoorOpen_'+cfg.doorKey]){ go(cfg.dest); return; }
+ const casters = [PC, ...(PC.party||[])].filter(n=> n.con>0 && (n.spells||[]).some(s=>s.fn==='knockKnock'));
+ if(casters.length){
+  renderChoices([
+   {label:' 器用さで解錠を試みる', fn:()=>lair3UnlockBySR(cfg)},
+   ...casters.map(c=>({label:` ${c===PC?PC.name:c.name}がUnlockの魔法を唱える`, fn:()=>lair3OpenUnlockLevelSelect(c, cfg)})),
+  ]);
+ } else {
+  lair3UnlockBySR(cfg);
+ }
+}
+
+function lair3UnlockBySR(cfg){
+ setupSavingRoll({
+  attr:'dex', level:cfg.level,
+  onSuccess(){
+   PC['_lair3DoorOpen_'+cfg.doorKey] = true;
+   const s = document.getElementById('story');
+   s.innerHTML += `<br><span style="color:#f0ece0">鍵が開いた。</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go(cfg.dest)}]);
+  },
+  onFail(){
+   lair3DoorFailOutcome(cfg, `<br><span style="color:#e0d0d0">鍵は開かなかった。</span>`);
+  },
+ });
+}
+
+function lair3OpenUnlockLevelSelect(caster, cfg){
+ const modal = document.getElementById('spell-modal');
+ const ctxEl = document.getElementById('spell-modal-ctx');
+ const listEl = document.getElementById('spell-modal-list');
+ ctxEl.textContent = '扉を開けるための強さでUnlockを唱える' + (caster!==PC?`（${caster.name}）`:'');
+ listEl.innerHTML = '';
+ const maxLv = caster.type === 'rogue' ? 1 : (caster.level||1);
+ for(let lv=1; lv<=maxLv; lv++){
+  const cost = 2*lv;
+  const canAfford = caster.st > cost;
+  const btn = document.createElement('button');
+  btn.className = 'sm-spell-btn';
+  btn.disabled = !canAfford;
+  btn.innerHTML = `
+   <span class="sm-name">Lv${lv}</span>
+   <span class="sm-cost">ST -${cost}　（現在ST ${caster.st}）</span>`;
+  btn.addEventListener('click', () => {
+   closeSpellModal();
+   lair3CastUnlockAtLevel(caster, lv, cost, cfg);
+  });
+  listEl.appendChild(btn);
+ }
+ modal.classList.add('open');
+}
+
+function lair3CastUnlockAtLevel(caster, lv, cost, cfg){
+ caster.st = Math.max(0, caster.st - cost);
+ gainAPAll(cost);
+ updateHUD();
+ const casterLabel = caster!==PC ? `${caster.name}の詠唱。` : '';
+ if(lv >= cfg.level){
+  PC['_lair3DoorOpen_'+cfg.doorKey] = true;
+  const story = document.getElementById('story');
+  story.innerHTML += `<br><span style="color:#f0ece0">Unlockが効いた。鍵が開いた！${casterLabel}</span>`;
+  renderChoices([{label:'▶ OK', fn:()=>go(cfg.dest)}]);
+ } else {
+  lair3DoorFailOutcome(cfg, `<br><span style="color:#e0d0d0">呪文の力が及ばず、鍵は開かなかった。${casterLabel}</span>`);
+ }
+}
+
+// 解錠失敗時の共通処理：16%で指定エリアのワンダリングモンスターと戦闘になる
+function lair3DoorFailOutcome(cfg, msgHtml){
+ const s = document.getElementById('story');
+ const wander = rollLair3Wandering(cfg.area);
+ if(wander && wander.length){
+  s.innerHTML += msgHtml + `<br><span style="color:#e0d0d0">物音を聞きつけたのか、何かが近づいてくる気配がする……</span>`;
+  renderChoices([{label:' ワンダリングモンスターと戦う', fn:()=>startLair3WanderCombat(wander, cfg.from)}]);
+ } else {
+  s.innerHTML += msgHtml;
+  renderChoices([{label:'▶ OK', fn:()=>go(cfg.from)}]);
+ }
+}
+
+// B3：通路2のレバー。動かすと部屋3⇔部屋1間の落とし格子が開く
+function lair3B3PullLever(returnNode){
+ const s = document.getElementById('story');
+ if(PC._lair3B3LeverPulled){
+  if(s) s.innerHTML += `<br><span style="color:#c8b8a0">レバーはすでに動かしてある。</span>`;
+ } else {
+  PC._lair3B3LeverPulled = true;
+  if(s) s.innerHTML += `<br><span style="color:#f0ece0">レバーを動かした。ギ、ギギ……と重い音が遠くから響いた。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+function lair3B3PortcullisOpen(){
+ return !!PC._lair3B3LeverPulled;
+}
+
+// B3：通路1東端の壁調査。知力または運（ランダム）のLv3能力値テストに成功すると部屋5への隠し扉を発見する
+// 失敗時は16%でエリア2のワンダリングモンスターと戦闘になる
+function lair3B3SearchWall(returnNode){
+ const attr = Math.random() < 0.5 ? 'iq' : 'lk';
+ setupSavingRoll({
+  attr, level:3,
+  onSuccess(){
+   PC._lair3B3HiddenDoorFound = true;
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><span style="color:#f0ece0">壁を調べると、東壁に部屋への隠し扉を見つけた！</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+  },
+  onFail(){
+   lair3B3WallNoResult(returnNode);
+  },
+ });
+}
+function lair3B3WallNoResult(returnNode){
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><span style="color:#c8b8a0">壁を調べてみたが、特に何も見つからなかった。</span>`;
+ const wander = rollLair3Wandering(2);
+ if(wander && wander.length){
+  if(s) s.innerHTML += `<br><span style="color:#f0ddd8">物音に気づかれた！モンスターが現れた！</span>`;
+  renderChoices([{label:' 迎え撃つ', fn:()=>startLair3WanderCombat(wander, returnNode)}]);
+  return;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+
+// ══════════════════════════════════════════
+// 第4の固定ダンジョン「忘却の螺旋堂」（サルーンから2日）
+// ══════════════════════════════════════════
+const LAIR4_NAME = '忘却の螺旋堂';
+const LAIR4_TRAVEL_DAYS = 2;
+
+function _lair4ShowTravelUI(fromLabel, toLabel){
+ drawScene('travel');
+ showTravelImage('walk', 'saroon', 'saroon');
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${LAIR4_TRAVEL_DAYS}日</span>`;
+ }
+ renderChoices([]);
+}
+function startLair4Journey(){
+ checkCompanionDeliveryAbandon();
+ hideDungeonImage();
+ _lair4ShowTravelUI('サルーン', LAIR4_NAME);
+ advanceDaysAnimated(LAIR4_TRAVEL_DAYS, ()=>{
+  checkLair4Respawn();
+  go('LAIR4_FRONT');
+ });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">サルーン</span> → <span style="color:#f0ece0">${LAIR4_NAME}</span> へ出発。所要: ${LAIR4_TRAVEL_DAYS}日</span>`);
+}
+function startLair4ReturnJourney(){
+ hideDungeonImage();
+ _lair4ShowTravelUI(LAIR4_NAME, 'サルーン');
+ advanceDaysAnimated(LAIR4_TRAVEL_DAYS, ()=>{ go('TOWN_SAROON'); });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">${LAIR4_NAME}</span> → <span style="color:#f0ece0">サルーン</span> へ出発。所要: ${LAIR4_TRAVEL_DAYS}日</span>`);
+}
+
+// 部屋ノードID → エリア番号（1〜3）。部屋8は戦闘なし（特に何もない小部屋）
+const LAIR4_ROOM_AREAS = {
+ LAIR4_ROOM_7:3, LAIR4_ROOM_6:3,
+ LAIR4_ROOM_1:2, LAIR4_ROOM_4:2, LAIR4_ROOM_3:2,
+ LAIR4_ROOM_2:1, LAIR4_ROOM_5:1,
+};
+
+function initLair4Dungeon(){
+ if(!PC._lair4Dungeon){
+  PC._lair4Dungeon = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{} };
+ }
+ const lair = PC._lair4Dungeon;
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(LAIR4_ROOM_AREAS).forEach(id=>{
+  if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null };
+ });
+}
+
+// ダンジョン入場時に呼ぶ：無人かつ再湧き予定日を過ぎていればテーマを抽選して住み着かせる（既存6テーマを共有）
+function checkLair4Respawn(){
+ initLair4Dungeon();
+ const lair = PC._lair4Dungeon;
+ if(!lair.themeId && GAME_TIME.totalDays >= lair.nextRespawnDay){
+  const ids = Object.keys(LAIR_THEMES);
+  const candidates = lair.lastThemeId ? ids.filter(t=>t!==lair.lastThemeId) : ids;
+  const pick = candidates[Math.floor(Math.random()*candidates.length)];
+  lair.themeId = pick;
+  lair.spawnDay = GAME_TIME.totalDays;
+  lair.clearedDay = null;
+  Object.keys(LAIR4_ROOM_AREAS).forEach(id=>{ lair.nodeState[id] = { defeated:false, monsters:null }; });
+ }
+}
+
+// 部屋ノードの状態表示用テキストを返す（未生成なら初回訪問時にエンカウントをキャッシュ生成する）
+function lair4RoomStatusText(nodeId){
+ const lair = PC._lair4Dungeon;
+ if(!lair.themeId) return '';
+ const ns = lair.nodeState[nodeId];
+ if(ns.defeated) return `<br><br><span style="color:#b0a080">争いの痕跡が残るのみで、今は静まり返っている。</span>`;
+ if(!ns.monsters){
+  const theme = LAIR_THEMES[lair.themeId];
+  const area = LAIR4_ROOM_AREAS[nodeId];
+  const table = theme['area'+area];
+  const entry = table[Math.floor(Math.random()*table.length)];
+  ns.monsters = entry.spawn();
+ }
+ const counts = {};
+ ns.monsters.forEach(m=>{ counts[m.name] = (counts[m.name]||0)+1; });
+ const desc = Object.entries(counts).map(([n,c])=> c>1 ? `${n}×${c}` : n).join('、');
+ return `<br><br><span style="color:#f0ddd8">${desc}が姿を現した！</span>`;
+}
+
+// 部屋の戦闘を開始する（NPC型／MR型を自動判別してディスパッチ）
+function startLair4Encounter(nodeId){
+ const lair = PC._lair4Dungeon;
+ const ns = lair.nodeState[nodeId];
+ const monsters = ns.monsters;
+ if(!monsters || !monsters.length) return;
+ const isNPCType = monsters[0].st !== undefined;
+ const common = {
+  win: nodeId, lose:'DEAD', canFlee:true,
+  onWin: ()=>{ defeatLair4Room(nodeId); },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// 部屋を討伐済みにし、全部屋討伐済みなら一掃成立（半年後に再湧き）
+function defeatLair4Room(nodeId){
+ const lair = PC._lair4Dungeon;
+ lair.nodeState[nodeId].defeated = true;
+ const allDefeated = Object.keys(LAIR4_ROOM_AREAS).every(id=>lair.nodeState[id].defeated);
+ if(allDefeated){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = GAME_TIME.totalDays + 180;
+  lair.themeId = null;
+ }
+}
+
+// ワンダリングモンスター判定（16%）。テーマ不在（無人期間）なら常にnull。areaは呼び出し側が指定する
+function rollLair4Wandering(area){
+ const lair = PC._lair4Dungeon;
+ if(!lair || !lair.themeId) return null;
+ if(Math.random() >= 0.16) return null;
+ const theme = LAIR_THEMES[lair.themeId];
+ const table = theme['area'+area];
+ const entry = table[Math.floor(Math.random()*table.length)];
+ return entry.spawn();
+}
+
+// ワンダリングモンスターとの戦闘を開始し、勝利後は指定ノードへ戻る
+function startLair4WanderCombat(monsters, returnNode){
+ const isNPCType = monsters.length && monsters[0].st !== undefined;
+ const common = {
+  win:'__noop__', lose:'DEAD', canFlee:true,
+  onWin: ()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   go(returnNode);
+  },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// 施錠されたドアの処理。器用さでcfg.level能力値テストに成功するか、cfg.level以上のUnlockの魔法が必要。
+// 失敗時は16%で指定エリアのワンダリングモンスターと戦闘になる
+// cfg: { level, dest, from, area }
+function lair4TryDoor(cfg){
+ if(PC['_lair4DoorOpen_'+cfg.dest]){ go(cfg.dest); return; }
+ const casters = [PC, ...(PC.party||[])].filter(n=> n.con>0 && (n.spells||[]).some(s=>s.fn==='knockKnock'));
+ if(casters.length){
+  renderChoices([
+   {label:' 器用さで解錠を試みる', fn:()=>lair4UnlockBySR(cfg)},
+   ...casters.map(c=>({label:` ${c===PC?PC.name:c.name}がUnlockの魔法を唱える`, fn:()=>lair4OpenUnlockLevelSelect(c, cfg)})),
+  ]);
+ } else {
+  lair4UnlockBySR(cfg);
+ }
+}
+
+function lair4UnlockBySR(cfg){
+ setupSavingRoll({
+  attr:'dex', level:cfg.level,
+  onSuccess(){
+   PC['_lair4DoorOpen_'+cfg.dest] = true;
+   const s = document.getElementById('story');
+   s.innerHTML += `<br><span style="color:#f0ece0">鍵が開いた。</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go(cfg.dest)}]);
+  },
+  onFail(){
+   lair4DoorFailOutcome(cfg, `<br><span style="color:#e0d0d0">鍵は開かなかった。</span>`);
+  },
+ });
+}
+
+function lair4OpenUnlockLevelSelect(caster, cfg){
+ const modal = document.getElementById('spell-modal');
+ const ctxEl = document.getElementById('spell-modal-ctx');
+ const listEl = document.getElementById('spell-modal-list');
+ ctxEl.textContent = '扉を開けるための強さでUnlockを唱える' + (caster!==PC?`（${caster.name}）`:'');
+ listEl.innerHTML = '';
+ const maxLv = caster.type === 'rogue' ? 1 : (caster.level||1);
+ for(let lv=1; lv<=maxLv; lv++){
+  const cost = 2*lv;
+  const canAfford = caster.st > cost;
+  const btn = document.createElement('button');
+  btn.className = 'sm-spell-btn';
+  btn.disabled = !canAfford;
+  btn.innerHTML = `
+   <span class="sm-name">Lv${lv}</span>
+   <span class="sm-cost">ST -${cost}　（現在ST ${caster.st}）</span>`;
+  btn.addEventListener('click', () => {
+   closeSpellModal();
+   lair4CastUnlockAtLevel(caster, lv, cost, cfg);
+  });
+  listEl.appendChild(btn);
+ }
+ modal.classList.add('open');
+}
+
+function lair4CastUnlockAtLevel(caster, lv, cost, cfg){
+ caster.st = Math.max(0, caster.st - cost);
+ gainAPAll(cost);
+ updateHUD();
+ const casterLabel = caster!==PC ? `${caster.name}の詠唱。` : '';
+ if(lv >= cfg.level){
+  PC['_lair4DoorOpen_'+cfg.dest] = true;
+  const story = document.getElementById('story');
+  story.innerHTML += `<br><span style="color:#f0ece0">Unlockが効いた。鍵が開いた！${casterLabel}</span>`;
+  renderChoices([{label:'▶ OK', fn:()=>go(cfg.dest)}]);
+ } else {
+  lair4DoorFailOutcome(cfg, `<br><span style="color:#e0d0d0">呪文の力が及ばず、鍵は開かなかった。${casterLabel}</span>`);
+ }
+}
+
+// 解錠失敗時の共通処理：16%で指定エリアのワンダリングモンスターと戦闘になる
+function lair4DoorFailOutcome(cfg, msgHtml){
+ const s = document.getElementById('story');
+ const wander = rollLair4Wandering(cfg.area);
+ if(wander && wander.length){
+  s.innerHTML += msgHtml + `<br><span style="color:#e0d0d0">物音を聞きつけたのか、何かが近づいてくる気配がする……</span>`;
+  renderChoices([{label:' ワンダリングモンスターと戦う', fn:()=>startLair4WanderCombat(wander, cfg.from)}]);
+ } else {
+  s.innerHTML += msgHtml;
+  renderChoices([{label:'▶ OK', fn:()=>go(cfg.from)}]);
+ }
+}
+
+// 部屋1：東壁アルコーブの魔法使いらしきレプラコーンの彫像を調べる。運Lv1能力値テスト（成功しても失敗しても何も見つからない）
+// 調べた場合は16%でエリア2のワンダリングモンスターと戦闘になる
+function lair4ExamineAlcove(returnNode){
+ setupSavingRoll({
+  attr:'lk', level:1,
+  onSuccess(){ lair4AlcoveNoResult(returnNode); },
+  onFail(){ lair4AlcoveNoResult(returnNode); },
+ });
+}
+function lair4AlcoveNoResult(returnNode){
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><span style="color:#c8b8a0">彫像を調べてみたが、特に何も見つからなかった。</span>`;
+ const wander = rollLair4Wandering(2);
+ if(wander && wander.length){
+  if(s) s.innerHTML += `<br><span style="color:#f0ddd8">物音に気づかれた！モンスターが現れた！</span>`;
+  renderChoices([{label:' 迎え撃つ', fn:()=>startLair4WanderCombat(wander, returnNode)}]);
+  return;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+
+// ══════════════════════════════════════════
+// 第5の固定ダンジョン「（仮称）マラカイ沖の孤島の巣窟」（マラカイから船で5日）
+// ══════════════════════════════════════════
+const LAIR5_NAME = '（仮称）マラカイ沖の孤島の巣窟';
+const LAIR5_TRAVEL_DAYS = 5;
+
+function _lair5ShowTravelUI(fromLabel, toLabel){
+ drawScene('travel');
+ showTravelImage('ship', 'marakai', 'marakai');
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 船　<span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${LAIR5_TRAVEL_DAYS}日</span>`;
+ }
+ renderChoices([]);
+}
+
+// マラカイ → 孤島（往路）
+function startLair5Journey(){
+ checkCompanionDeliveryAbandon();
+ hideDungeonImage();
+ _lair5ShowTravelUI('マラカイ', LAIR5_NAME);
+ advanceDaysAnimated(LAIR5_TRAVEL_DAYS, ()=>{
+  checkLair5Respawn();
+  go('LAIR5_FRONT');
+ });
+ if(travelState){ travelState.method = 'ship'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 船で <span style="color:#f0ece0">マラカイ</span> → <span style="color:#f0ece0">${LAIR5_NAME}</span> へ出発。所要: ${LAIR5_TRAVEL_DAYS}日</span>`);
+}
+
+// 孤島 → マラカイ（復路）
+function startLair5ReturnJourney(){
+ hideDungeonImage();
+ _lair5ShowTravelUI(LAIR5_NAME, 'マラカイ');
+ advanceDaysAnimated(LAIR5_TRAVEL_DAYS, ()=>{ go('TOWN_MARAKAI'); });
+ if(travelState){ travelState.method = 'ship'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890"> 船で <span style="color:#f0ece0">${LAIR5_NAME}</span> → <span style="color:#f0ece0">マラカイ</span> へ出発。所要: ${LAIR5_TRAVEL_DAYS}日</span>`);
+}
+
+// 部屋ノードID → エリア番号（1〜2）
+const LAIR5_ROOM_AREAS = {
+ LAIR5_ROOM_7:2, LAIR5_ROOM_4:2,
+ LAIR5_ROOM_1:1, LAIR5_ROOM_2:1, LAIR5_ROOM_3:1, LAIR5_ROOM_5:1,
+ LAIR5_ROOM_6:1, LAIR5_ROOM_8:1, LAIR5_ROOM_9:1, LAIR5_ROOM_10:1,
+ // 地下2階
+ LAIR5_B2_ROOM_1:2, LAIR5_B2_ROOM_2:2, LAIR5_B2_ROOM_3:3, LAIR5_B2_ROOM_4:2, LAIR5_B2_ROOM_5:2,
+ LAIR5_B2_ROOM_6:2, LAIR5_B2_ROOM_7:2, LAIR5_B2_ROOM_8:2, LAIR5_B2_ROOM_9:2, LAIR5_B2_ROOM_10:2,
+ // 地下3階
+ LAIR5_B3_ROOM_5:3, LAIR5_B3_ROOM_4:3, LAIR5_B3_ROOM_6:3, LAIR5_B3_ROOM_7:3,
+ LAIR5_B3_ROOM_8:3, LAIR5_B3_ROOM_9:3, LAIR5_B3_ROOM_10:3,
+ LAIR5_B3_ROOM_3:4, LAIR5_B3_ROOM_2:4, LAIR5_B3_ROOM_1:4,
+ // 地下4階
+ LAIR5_B4_ROOM_1:5, LAIR5_B4_ROOM_5:5, LAIR5_B4_ROOM_3:5,
+ LAIR5_B4_ROOM_7:4, LAIR5_B4_ROOM_4:4, LAIR5_B4_ROOM_2:4,
+};
+
+function initLair5Dungeon(){
+ if(!PC._lair5Dungeon){
+  PC._lair5Dungeon = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{} };
+ }
+ const lair = PC._lair5Dungeon;
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(LAIR5_ROOM_AREAS).forEach(id=>{
+  if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null };
+ });
+}
+
+// ダンジョン入場時に呼ぶ：無人かつ再湧き予定日を過ぎていればテーマを抽選して住み着かせる（既存6テーマを共有）
+function checkLair5Respawn(){
+ initLair5Dungeon();
+ const lair = PC._lair5Dungeon;
+ if(!lair.themeId && GAME_TIME.totalDays >= lair.nextRespawnDay){
+  const ids = Object.keys(LAIR_THEMES);
+  const candidates = lair.lastThemeId ? ids.filter(t=>t!==lair.lastThemeId) : ids;
+  const pick = candidates[Math.floor(Math.random()*candidates.length)];
+  lair.themeId = pick;
+  lair.spawnDay = GAME_TIME.totalDays;
+  lair.clearedDay = null;
+  Object.keys(LAIR5_ROOM_AREAS).forEach(id=>{ lair.nodeState[id] = { defeated:false, monsters:null }; });
+ }
+}
+
+// 指定エリアの表がまだ用意されていないテーマの場合、用意されている最も近い下位エリアの表にフォールバックする
+// （エリア4以降は現状ゴブリン・オークの巣窟のみ用意されているため、他テーマでの参照エラーを防ぐ）
+function _lair5AreaTable(theme, area){
+ for(let a=area; a>=1; a--){
+  if(theme['area'+a]) return theme['area'+a];
+ }
+ return theme.area1;
+}
+
+// 部屋ノードの状態表示用テキストを返す（未生成なら初回訪問時にエンカウントをキャッシュ生成する）
+function lair5RoomStatusText(nodeId){
+ const lair = PC._lair5Dungeon;
+ if(!lair.themeId) return '';
+ const ns = lair.nodeState[nodeId];
+ if(ns.defeated) return `<br><br><span style="color:#b0a080">争いの痕跡が残るのみで、今は静まり返っている。</span>`;
+ if(!ns.monsters){
+  const theme = LAIR_THEMES[lair.themeId];
+  const area = LAIR5_ROOM_AREAS[nodeId];
+  const table = _lair5AreaTable(theme, area);
+  const entry = table[Math.floor(Math.random()*table.length)];
+  ns.monsters = entry.spawn();
+ }
+ const counts = {};
+ ns.monsters.forEach(m=>{ counts[m.name] = (counts[m.name]||0)+1; });
+ const desc = Object.entries(counts).map(([n,c])=> c>1 ? `${n}×${c}` : n).join('、');
+ return `<br><br><span style="color:#f0ddd8">${desc}が姿を現した！</span>`;
+}
+
+// 部屋の戦闘を開始する（NPC型／MR型を自動判別してディスパッチ）
+function startLair5Encounter(nodeId){
+ const lair = PC._lair5Dungeon;
+ const ns = lair.nodeState[nodeId];
+ const monsters = ns.monsters;
+ if(!monsters || !monsters.length) return;
+ const isNPCType = monsters[0].st !== undefined;
+ const common = {
+  win: nodeId, lose:'DEAD', canFlee:true,
+  onWin: ()=>{ defeatLair5Room(nodeId); },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// 部屋を討伐済みにし、全部屋討伐済みなら一掃成立（半年後に再湧き）
+function defeatLair5Room(nodeId){
+ const lair = PC._lair5Dungeon;
+ lair.nodeState[nodeId].defeated = true;
+ const allDefeated = Object.keys(LAIR5_ROOM_AREAS).every(id=>lair.nodeState[id].defeated);
+ if(allDefeated){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = GAME_TIME.totalDays + 180;
+  lair.themeId = null;
+ }
+}
+
+// エリアの脅威テーブルから強制的にモンスターを1組抽選する（テーマ不在なら常にnull）
+function lair5SpawnAreaMonster(area){
+ const lair = PC._lair5Dungeon;
+ if(!lair || !lair.themeId) return null;
+ const theme = LAIR_THEMES[lair.themeId];
+ const table = _lair5AreaTable(theme, area);
+ const entry = table[Math.floor(Math.random()*table.length)];
+ return entry.spawn();
+}
+
+// ワンダリングモンスター判定（16%）。テーマ不在（無人期間）なら常にnull
+function rollLair5Wandering(area){
+ const lair = PC._lair5Dungeon;
+ if(!lair || !lair.themeId) return null;
+ if(Math.random() >= 0.16) return null;
+ return lair5SpawnAreaMonster(area);
+}
+
+// ワンダリングモンスターとの戦闘を開始し、勝利後は指定ノードへ戻る
+function startLair5WanderCombat(monsters, returnNode){
+ const isNPCType = monsters.length && monsters[0].st !== undefined;
+ const common = {
+  win:'__noop__', lose:'DEAD', canFlee:true,
+  onWin: ()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   go(returnNode);
+  },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// 施錠されたドアの処理。器用さでcfg.level能力値テストに成功するか、cfg.level以上のUnlockの魔法が必要。
+// 失敗時は16%で指定エリアのワンダリングモンスターと戦闘になる
+// cfg: { level, dest, from, area, key? }（keyは両側から個別に施錠されている扉（部屋1⇔3、部屋2⇔5）の共有フラグに使う）
+function lair5TryDoor(cfg){
+ const doorKey = cfg.key || cfg.dest;
+ if(PC['_lair5DoorOpen_'+doorKey]){ go(cfg.dest); return; }
+ const casters = [PC, ...(PC.party||[])].filter(n=> n.con>0 && (n.spells||[]).some(s=>s.fn==='knockKnock'));
+ if(casters.length){
+  renderChoices([
+   {label:' 器用さで解錠を試みる', fn:()=>lair5UnlockBySR(cfg)},
+   ...casters.map(c=>({label:` ${c===PC?PC.name:c.name}がUnlockの魔法を唱える`, fn:()=>lair5OpenUnlockLevelSelect(c, cfg)})),
+  ]);
+ } else {
+  lair5UnlockBySR(cfg);
+ }
+}
+
+function lair5UnlockBySR(cfg){
+ const doorKey = cfg.key || cfg.dest;
+ setupSavingRoll({
+  attr:'dex', level:cfg.level,
+  onSuccess(){
+   PC['_lair5DoorOpen_'+doorKey] = true;
+   const s = document.getElementById('story');
+   s.innerHTML += `<br><span style="color:#f0ece0">鍵が開いた。</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go(cfg.dest)}]);
+  },
+  onFail(){
+   lair5DoorFailOutcome(cfg, `<br><span style="color:#e0d0d0">鍵は開かなかった。</span>`);
+  },
+ });
+}
+
+function lair5OpenUnlockLevelSelect(caster, cfg){
+ const modal = document.getElementById('spell-modal');
+ const ctxEl = document.getElementById('spell-modal-ctx');
+ const listEl = document.getElementById('spell-modal-list');
+ ctxEl.textContent = '扉を開けるための強さでUnlockを唱える' + (caster!==PC?`（${caster.name}）`:'');
+ listEl.innerHTML = '';
+ const maxLv = caster.type === 'rogue' ? 1 : (caster.level||1);
+ for(let lv=1; lv<=maxLv; lv++){
+  const cost = 2*lv;
+  const canAfford = caster.st > cost;
+  const btn = document.createElement('button');
+  btn.className = 'sm-spell-btn';
+  btn.disabled = !canAfford;
+  btn.innerHTML = `
+   <span class="sm-name">Lv${lv}</span>
+   <span class="sm-cost">ST -${cost}　（現在ST ${caster.st}）</span>`;
+  btn.addEventListener('click', () => {
+   closeSpellModal();
+   lair5CastUnlockAtLevel(caster, lv, cost, cfg);
+  });
+  listEl.appendChild(btn);
+ }
+ modal.classList.add('open');
+}
+
+function lair5CastUnlockAtLevel(caster, lv, cost, cfg){
+ caster.st = Math.max(0, caster.st - cost);
+ gainAPAll(cost);
+ updateHUD();
+ const casterLabel = caster!==PC ? `${caster.name}の詠唱。` : '';
+ const doorKey = cfg.key || cfg.dest;
+ if(lv >= cfg.level){
+  PC['_lair5DoorOpen_'+doorKey] = true;
+  const story = document.getElementById('story');
+  story.innerHTML += `<br><span style="color:#f0ece0">Unlockが効いた。鍵が開いた！${casterLabel}</span>`;
+  renderChoices([{label:'▶ OK', fn:()=>go(cfg.dest)}]);
+ } else {
+  lair5DoorFailOutcome(cfg, `<br><span style="color:#e0d0d0">呪文の力が及ばず、鍵は開かなかった。${casterLabel}</span>`);
+ }
+}
+
+// 解錠失敗時の共通処理：16%で指定エリアのワンダリングモンスターと戦闘になる
+function lair5DoorFailOutcome(cfg, msgHtml){
+ const s = document.getElementById('story');
+ const wander = rollLair5Wandering(cfg.area);
+ if(wander && wander.length){
+  s.innerHTML += msgHtml + `<br><span style="color:#e0d0d0">物音を聞きつけたのか、何かが近づいてくる気配がする……</span>`;
+  renderChoices([{label:' ワンダリングモンスターと戦う', fn:()=>startLair5WanderCombat(wander, cfg.from)}]);
+ } else {
+  s.innerHTML += msgHtml;
+  renderChoices([{label:'▶ OK', fn:()=>go(cfg.from)}]);
+ }
+}
+
+// 調べ物系ギミック共通：運でLv1能力値テストを行い、失敗すると該当エリアのモンスターが必ず出現する
+// cfg: { area, returnNode, successMsg, failMsg }
+function lair5ExamineDanger(cfg){
+ setupSavingRoll({
+  attr:'lk', level:1,
+  onSuccess(){
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><span style="color:#c8b8a0">${cfg.successMsg}</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go(cfg.returnNode)}]);
+  },
+  onFail(){
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><span style="color:#e0d0d0">${cfg.failMsg}</span>`;
+   const monsters = lair5SpawnAreaMonster(cfg.area);
+   if(monsters && monsters.length){
+    if(s) s.innerHTML += `<br><span style="color:#f0ddd8">物音に気づかれた！モンスターが現れた！</span>`;
+    renderChoices([{label:' 迎え撃つ', fn:()=>startLair5WanderCombat(monsters, cfg.returnNode)}]);
+   } else {
+    renderChoices([{label:'▶ OK', fn:()=>go(cfg.returnNode)}]);
+   }
+  },
+ });
+}
+
+// 部屋1：緑色の粘液を調べる。器用さでLv1能力値テストに失敗すると酸で1-6ダメージ（成功しても何も分からない）
+function lair5ExamineOoze(returnNode){
+ setupSavingRoll({
+  attr:'dex', level:1,
+  onSuccess(){
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><span style="color:#c8b8a0">皮膚に触れないよう慎重に調べてみたが、正体は分からなかった。</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+  },
+  onFail(){
+   const dmg = d6();
+   PC.con = Math.max(0, PC.con - dmg);
+   updateHUD();
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><span style="color:#e0d0d0">酸性の粘液が皮膚に直接触れてしまった！　体力-${dmg}</span>`;
+   if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
+   renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+  },
+ });
+}
+
+// 部屋8：祭壇を調べる。器用さでLv1能力値テストに成功すると隠し金庫（標準の宝物生成表）を発見する。
+// 成功・失敗にかかわらず16%でエリア1のワンダリングモンスターが出現する
+function lair5ExamineAltar(returnNode){
+ setupSavingRoll({
+  attr:'dex', level:1,
+  onSuccess(){
+   const s = document.getElementById('story');
+   let result = '';
+   let attempts = 0;
+   do { result = generateTreasure(60); attempts++; }
+   while(attempts < 5 && (result.includes('CP（') || result.includes('SP（')));
+   if(s) s.innerHTML += `<br><span style="color:#f0ece0">祭壇の側面に注意深く隠された小さな金庫を見つけた！　${result}</span>`;
+   updateHUD();
+   lair5AltarAfterCheck(returnNode);
+  },
+  onFail(){
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><span style="color:#c8b8a0">祭壇を調べてみたが、何も見つからなかった。</span>`;
+   lair5AltarAfterCheck(returnNode);
+  },
+ });
+}
+function lair5AltarAfterCheck(returnNode){
+ const s = document.getElementById('story');
+ const wander = rollLair5Wandering(1);
+ if(wander && wander.length){
+  if(s) s.innerHTML += `<br><span style="color:#f0ddd8">物音に気づかれた！モンスターが現れた！</span>`;
+  renderChoices([{label:' 迎え撃つ', fn:()=>startLair5WanderCombat(wander, returnNode)}]);
+  return;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+
+// ── 地下2階：レバー／落とし格子 ──
+// 部屋10のレバー。動かすと部屋7⟷部屋5間の落とし格子が開く
+function lair5B2PullLeverA(returnNode){
+ const s = document.getElementById('story');
+ if(PC._lair5B2LeverAPulled){
+  if(s) s.innerHTML += `<br><span style="color:#c8b8a0">レバーはすでに動かしてある。</span>`;
+ } else {
+  PC._lair5B2LeverAPulled = true;
+  if(s) s.innerHTML += `<br><span style="color:#f0ece0">レバーを動かした。ギ、ギギ……と重い音が遠くから響いた。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+function lair5B2PortcullisAOpen(){ return !!PC._lair5B2LeverAPulled; }
+
+// 部屋8のレバー。動かすと部屋9⟷部屋10間の落とし格子が開く
+function lair5B2PullLeverB(returnNode){
+ const s = document.getElementById('story');
+ if(PC._lair5B2LeverBPulled){
+  if(s) s.innerHTML += `<br><span style="color:#c8b8a0">レバーはすでに動かしてある。</span>`;
+ } else {
+  PC._lair5B2LeverBPulled = true;
+  if(s) s.innerHTML += `<br><span style="color:#f0ece0">レバーを動かした。ギ、ギギ……と重い音が遠くから響いた。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+function lair5B2PortcullisBOpen(){ return !!PC._lair5B2LeverBPulled; }
+
+// ── 地下3階：レバー／落とし格子 ──
+// 部屋2のレバー。動かすと部屋5⟷部屋10間の落とし格子が開く
+function lair5B3PullLeverA(returnNode){
+ const s = document.getElementById('story');
+ if(PC._lair5B3LeverAPulled){
+  if(s) s.innerHTML += `<br><span style="color:#c8b8a0">レバーはすでに動かしてある。</span>`;
+ } else {
+  PC._lair5B3LeverAPulled = true;
+  if(s) s.innerHTML += `<br><span style="color:#f0ece0">レバーを動かした。ギ、ギギ……と重い音が遠くから響いた。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+function lair5B3PortcullisAOpen(){ return !!PC._lair5B3LeverAPulled; }
+
+// 部屋6のレバー。動かすと部屋4⟷部屋5間の落とし格子が開く
+function lair5B3PullLeverB(returnNode){
+ const s = document.getElementById('story');
+ if(PC._lair5B3LeverBPulled){
+  if(s) s.innerHTML += `<br><span style="color:#c8b8a0">レバーはすでに動かしてある。</span>`;
+ } else {
+  PC._lair5B3LeverBPulled = true;
+  if(s) s.innerHTML += `<br><span style="color:#f0ece0">レバーを動かした。ギ、ギギ……と重い音が遠くから響いた。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+function lair5B3PortcullisBOpen(){ return !!PC._lair5B3LeverBPulled; }
+
+// 部屋3の螺旋階段。上っても下ってもこの部屋に戻ってくる。使う度に16%でエリア4のモンスターが現れる
+function lair5B3UseSpiralStairs(){
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><span style="color:#c8b8a0">螺旋階段を進んでみたが、気づけば元の場所に戻っていた。</span>`;
+ const wander = rollLair5Wandering(4);
+ if(wander && wander.length){
+  if(s) s.innerHTML += `<br><span style="color:#f0ddd8">物音に気づかれた！モンスターが現れた！</span>`;
+  renderChoices([{label:' 迎え撃つ', fn:()=>startLair5WanderCombat(wander, 'LAIR5_B3_ROOM_3')}]);
+  return;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go('LAIR5_B3_ROOM_3')}]);
+}
+
+// 地下3階の通路4南側にある地上への階段。初めて使うと以後ダンジョン入場時にこの階段も選べるようになる
+function lair5B3ExitToSurface(){
+ const first = !PC._lair5B3ShortcutFound;
+ PC._lair5B3ShortcutFound = true;
+ const s = document.getElementById('story');
+ if(s) s.innerHTML = `<span style="color:#f0ece0">${LAIR5_NAME} — 森の中の階段</span><br><br>`
+  + (first
+    ? `石段を上ると、鬱蒼とした木々に囲まれた森の中に出た。あたりを見回すと、島の反対側から回り込んできたらしいとわかる。<br><span style="color:#c8b8a0">この階段の場所を覚えた。次にこのダンジョンへ入るときは、ここから直接入ることもできるようになる。</span>`
+    : `石段を上ると、見覚えのある森の中に出た。`);
+ renderChoices([{label:'▶ OK', fn:()=>go('LAIR5_FRONT')}]);
+}
+
+// ── 地下4階：レバー／落とし格子 ──
+// 部屋2のレバー。動かすと通路1⟷部屋4間の落とし格子が開く
+function lair5B4PullLeverA(returnNode){
+ const s = document.getElementById('story');
+ if(PC._lair5B4LeverAPulled){
+  if(s) s.innerHTML += `<br><span style="color:#c8b8a0">レバーはすでに動かしてある。</span>`;
+ } else {
+  PC._lair5B4LeverAPulled = true;
+  if(s) s.innerHTML += `<br><span style="color:#f0ece0">レバーを動かした。ギ、ギギ……と重い音が遠くから響いた。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+function lair5B4PortcullisAOpen(){ return !!PC._lair5B4LeverAPulled; }
+
+// 部屋7のレバー。動かすと通路2⟷部屋6間の落とし格子が開く
+function lair5B4PullLeverB(returnNode){
+ const s = document.getElementById('story');
+ if(PC._lair5B4LeverBPulled){
+  if(s) s.innerHTML += `<br><span style="color:#c8b8a0">レバーはすでに動かしてある。</span>`;
+ } else {
+  PC._lair5B4LeverBPulled = true;
+  if(s) s.innerHTML += `<br><span style="color:#f0ece0">レバーを動かした。ギ、ギギ……と重い音が遠くから響いた。</span>`;
+ }
+ renderChoices([{label:'▶ OK', fn:()=>go(returnNode)}]);
+}
+function lair5B4PortcullisBOpen(){ return !!PC._lair5B4LeverBPulled; }
+
+// 部屋1⟷部屋4の隠し扉。部屋1側は普通の扉として通行できるが、部屋4側からはこの扉を
+// 一度も使っていない限り存在にまったく気づけない（部屋1から通ることで初めて発見される）
+function lair5B4UseHiddenDoor(dest, returnNode){
+ PC._lair5B4Door1to4Found = true;
+ go(dest);
+}
+
+// 部屋ノードの状態表示用テキストを返す（未生成なら初回訪問時にエンカウントをキャッシュ生成する）
+function lairRoomStatusText(nodeId){
+ const lair = PC._lairDungeon;
+ if(!lair.themeId) return '';
+ const ns = lair.nodeState[nodeId];
+ if(ns.defeated) return `<br><br><span style="color:#b0a080">争いの痕跡が残るのみで、今は静まり返っている。</span>`;
+ if(!ns.monsters){
+  const theme = LAIR_THEMES[lair.themeId];
+  const area = LAIR_ROOM_AREAS[nodeId];
+  const table = theme['area'+area];
+  const entry = table[Math.floor(Math.random()*table.length)];
+  ns.monsters = entry.spawn();
+ }
+ const counts = {};
+ ns.monsters.forEach(m=>{ counts[m.name] = (counts[m.name]||0)+1; });
+ const desc = Object.entries(counts).map(([n,c])=> c>1 ? `${n}×${c}` : n).join('、');
+ return `<br><br><span style="color:#f0ddd8">${desc}が姿を現した！</span>`;
+}
+
+// 部屋の戦闘を開始する（NPC型／MR型を自動判別してディスパッチ）
+function startLairEncounter(nodeId){
+ const lair = PC._lairDungeon;
+ const ns = lair.nodeState[nodeId];
+ const monsters = ns.monsters;
+ if(!monsters || !monsters.length) return;
+ const isNPCType = monsters[0].st !== undefined;
+ const common = {
+  win: nodeId, lose:'DEAD', canFlee:true,
+  onWin: ()=>{ defeatLairRoom(nodeId); },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// 部屋を討伐済みにし、全部屋討伐済みなら一掃成立（半年後に再湧き）
+function defeatLairRoom(nodeId){
+ const lair = PC._lairDungeon;
+ lair.nodeState[nodeId].defeated = true;
+ const allDefeated = Object.keys(LAIR_ROOM_AREAS).every(id=>lair.nodeState[id].defeated);
+ if(allDefeated){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = GAME_TIME.totalDays + 180;
+  lair.themeId = null;
+ }
+}
+
+// ワンダリングモンスター判定（16%）。テーマ不在（無人期間）なら常にnull
+function rollLairWandering(){
+ const lair = PC._lairDungeon;
+ if(!lair || !lair.themeId) return null;
+ if(Math.random() >= 0.16) return null;
+ const theme = LAIR_THEMES[lair.themeId];
+ const entry = theme.area1[Math.floor(Math.random()*theme.area1.length)];
+ return entry.spawn();
+}
+
+// ワンダリングモンスターとの戦闘を開始し、勝利後は指定ノードへ戻る
+function startLairWanderCombat(monsters, returnNode){
+ const isNPCType = monsters.length && monsters[0].st !== undefined;
+ const common = {
+  win:'__noop__', lose:'DEAD', canFlee:true,
+  onWin: ()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   go(returnNode);
+  },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// 施錠されたドアの処理：器用さでの能力値テスト、またはUnlockの魔法（LV一致で確実に成功）
+// 失敗時は16%でワンダリングモンスター（エリア1）と戦闘になる
+function lairTryDoor(cfg){
+ // cfg: { level, dest, from, label }
+ if(PC['_lairDoorOpen_'+cfg.dest]){ go(cfg.dest); return; }
+ // Unlockを知っているキャラ（PC・パーティNPCどちらも対象）
+ const casters = [PC, ...(PC.party||[])].filter(n=> n.con>0 && (n.spells||[]).some(s=>s.fn==='knockKnock'));
+ if(casters.length){
+  renderChoices([
+   {label:' 器用さで解錠を試みる', fn:()=>lairUnlockBySR(cfg)},
+   ...casters.map(c=>({label:` ${c===PC?PC.name:c.name}がUnlockの魔法を唱える`, fn:()=>lairOpenUnlockLevelSelect(c, cfg)})),
+  ]);
+ } else {
+  lairUnlockBySR(cfg);
+ }
+}
+
+function lairUnlockBySR(cfg){
+ setupSavingRoll({
+  attr:'dex', level:cfg.level,
+  onSuccess(){
+   PC['_lairDoorOpen_'+cfg.dest] = true;
+   const s = document.getElementById('story');
+   s.innerHTML += `<br><span style="color:#f0ece0">鍵が開いた。</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go(cfg.dest)}]);
+  },
+  onFail(){
+   lairDoorFailOutcome(cfg, `<br><span style="color:#e0d0d0">鍵は開かなかった。</span>`);
+  },
+ });
+}
+
+// Unlockの詠唱レベル選択（1〜詠唱キャラクターのレベル）。既存の罠解除用UIと同じ操作感で、
+// 施錠された扉専用に用意したもの（PC・パーティNPCどちらも詠唱者に選べる）
+function lairOpenUnlockLevelSelect(caster, cfg){
+ const modal = document.getElementById('spell-modal');
+ const ctxEl = document.getElementById('spell-modal-ctx');
+ const listEl = document.getElementById('spell-modal-list');
+ ctxEl.textContent = '扉を開けるための強さでUnlockを唱える' + (caster!==PC?`（${caster.name}）`:'');
+ listEl.innerHTML = '';
+ const maxLv = caster.type === 'rogue' ? 1 : (caster.level||1);
+ for(let lv=1; lv<=maxLv; lv++){
+  const cost = 2*lv;
+  const canAfford = caster.st > cost;
+  const btn = document.createElement('button');
+  btn.className = 'sm-spell-btn';
+  btn.disabled = !canAfford;
+  btn.innerHTML = `
+   <span class="sm-name">Lv${lv}</span>
+   <span class="sm-cost">ST -${cost}　（現在ST ${caster.st}）</span>`;
+  btn.addEventListener('click', () => {
+   closeSpellModal();
+   lairCastUnlockAtLevel(caster, lv, cost, cfg);
+  });
+  listEl.appendChild(btn);
+ }
+ modal.classList.add('open');
+}
+
+function lairCastUnlockAtLevel(caster, lv, cost, cfg){
+ caster.st = Math.max(0, caster.st - cost);
+ gainAPAll(cost);
+ updateHUD();
+ const casterLabel = caster!==PC ? `${caster.name}の詠唱。` : '';
+ if(lv >= cfg.level){
+  PC['_lairDoorOpen_'+cfg.dest] = true;
+  const story = document.getElementById('story');
+  story.innerHTML += `<br><span style="color:#f0ece0">Unlockが効いた。鍵が開いた！${casterLabel}</span>`;
+  renderChoices([{label:'▶ OK', fn:()=>go(cfg.dest)}]);
+ } else {
+  lairDoorFailOutcome(cfg, `<br><span style="color:#e0d0d0">呪文の力が及ばず、鍵は開かなかった。${casterLabel}</span>`);
+ }
+}
+
+// 解錠失敗時の共通処理：16%でワンダリングモンスター（エリア1）と戦闘になる
+function lairDoorFailOutcome(cfg, msgHtml){
+ const s = document.getElementById('story');
+ const wander = rollLairWandering();
+ if(wander){
+  s.innerHTML += msgHtml + `<br><span style="color:#e0d0d0">物音を聞きつけたのか、何かが近づいてくる気配がする……</span>`;
+  renderChoices([{label:' ワンダリングモンスターと戦う', fn:()=>startLairWanderCombat(wander, cfg.from)}]);
+ } else {
+  s.innerHTML += msgHtml;
+  renderChoices([{label:'▶ OK', fn:()=>go(cfg.from)}]);
+ }
+}
+
+// 落とし穴：知力か運のどちらかをランダムに選んでLV2能力値テスト。失敗で1-6ダメージ（防具無効）
+function lairPitTrap(destNode){
+ const attr = Math.random()<0.5 ? 'iq' : 'lk';
+ setupSavingRoll({
+  attr, level:2,
+  onSuccess(){ go(destNode); },
+  onFail(){
+   const dmg = d6();
+   PC.con = Math.max(0, PC.con - dmg);
+   updateHUD();
+   const s = document.getElementById('story');
+   s.innerHTML += `<br><span style="color:#e0d0d0">落とし穴に落ちた！　体力-${dmg}</span>`;
+   if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
+   renderChoices([{label:'▶ OK', fn:()=>go(destNode)}]);
+  },
+ });
 }
 
 // 保存プールの読み書き（ws.knownNPCsとは別管理。エンディング後専用の仕組みと混ざらないようにするため）
@@ -10460,8 +12445,18 @@ function talkToPatron(townId){
  checkChaosNestTick();
  checkHarvestTick();
  checkHarvestTick();
+ // 巣窟ダンジョン（打ち捨てられた坑道／名もなき遺構／忘れられた地下道／忘却の螺旋堂）の再湧きチェック
+ // ダンジョンに実際に入っていなくても経過日数だけでテーマが決まるようにする（噂として先に聞ける必要があるため）
+ checkLairRespawn();
+ checkLair2Respawn();
+ checkLair3Respawn();
+ checkLair4Respawn();
  const harvestRumor = getHarvestRumor();
  const chaosRumor = getChaosNestRumor();
+ const lairRumor = (townId === 'port_argon') ? getLairRumor() : null;
+ const lair2Rumor = (townId === 'verda') ? getLair2Rumor() : null;
+ const lair3Rumor = (townId === 'ashveil') ? getLair3Rumor() : null;
+ const lair4Rumor = (townId === 'saroon') ? getLair4Rumor() : null;
  if(harvestRumor && Math.random() < 0.30){
   const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
    <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が食料事情について話している。</div>`;
@@ -10474,6 +12469,34 @@ function talkToPatron(townId){
    <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
   const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
   _showPatronPanel(header + msgBox(chaosRumor), ()=>{ updateHUD(); });
+  return;
+ }
+ if(lairRumor && Math.random() < 0.20){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
+  _showPatronPanel(header + msgBox(lairRumor), ()=>{ updateHUD(); });
+  return;
+ }
+ if(lair2Rumor && Math.random() < 0.20){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
+  _showPatronPanel(header + msgBox(lair2Rumor), ()=>{ updateHUD(); });
+  return;
+ }
+ if(lair3Rumor && Math.random() < 0.20){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
+  _showPatronPanel(header + msgBox(lair3Rumor), ()=>{ updateHUD(); });
+  return;
+ }
+ if(lair4Rumor && Math.random() < 0.20){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
+  _showPatronPanel(header + msgBox(lair4Rumor), ()=>{ updateHUD(); });
   return;
  }
 
@@ -11911,7 +13934,6 @@ function showLevelUpPanel(lv, pc){
   btn.textContent = opt.label;
   btn.onclick = ()=>{
    opt.fn();
-   if(isPC && PC.spdBase != null) PC.spdBase = PC.spd;
    updateHUD();
    panel.classList.add('hidden');
    const story = document.getElementById('story');
@@ -12331,6 +14353,44 @@ const DUNGEON_NODES = new Set([
  'ISKALD_ROOM1','ISKALD_ROOM2','ISKALD_ROOM3','ISKALD_ROOM4','ISKALD_ROOM5',
  'ISKALD_ROOM6','ISKALD_ROOM7','ISKALD_ROOM8','ISKALD_ROOM9','ISKALD_ROOM10','ISKALD_ROOM11',
  'ISKALD_B2F','ISKALD_DARK_ESCAPE',
+ // 打ち捨てられた坑道（巣窟ダンジョン）
+ 'LAIR_ENTRANCE','LAIR_ROOM1','LAIR_ROOM2','LAIR_ROOM3','LAIR_ROOM4','LAIR_ROOM5','LAIR_ROOM6',
+ 'LAIR_PASSAGE2','LAIR_PASSAGE3','LAIR_PASSAGE4','LAIR_PASSAGE5','LAIR_PASSAGE6',
+ 'LAIR_PASSAGE7','LAIR_PASSAGE8','LAIR_PASSAGE9','LAIR_PASSAGE10',
+ // 第2の固定ダンジョン「名もなき遺構」（ヴェルダ村から4日）
+ 'LAIR2_ROOM_1A','LAIR2_ROOM_1B','LAIR2_PASSAGE_1C','LAIR2_HALL_1D','LAIR2_HALL_1E','LAIR2_HALL_1F',
+ 'LAIR2_PASSAGE_1AC','LAIR2_ROOM_1G','LAIR2_PASSAGE_1H','LAIR2_PASSAGE_1I','LAIR2_PASSAGE_1Z',
+ 'LAIR2_ROOM_1AA','LAIR2_PASSAGE_1Y','LAIR2_PASSAGE_1X','LAIR2_ROOM_1J','LAIR2_PASSAGE_1K',
+ 'LAIR2_ROOM_1L','LAIR2_ROOM_1M','LAIR2_PASSAGE_1N','LAIR2_PASSAGE_1O','LAIR2_PASSAGE_1P',
+ 'LAIR2_PASSAGE_1Q','LAIR2_JUNCTION_1R','LAIR2_PASSAGE_1W','LAIR2_PASSAGE_1S','LAIR2_PASSAGE_1T',
+ 'LAIR2_ROOM_1U','LAIR2_PASSAGE_1V','LAIR2_HALLENTRY','LAIR2_HALL_1AB','LAIR2_HALL_1AC',
+ // 第3の固定ダンジョン「忘れられた地下道」（アッシュヴェイルから6日）B1
+ 'LAIR3_LANDING','LAIR3_ROOM_1','LAIR3_ROOM_2','LAIR3_ROOM_3','LAIR3_ROOM_4','LAIR3_ROOM_5',
+ // 同ダンジョン B2
+ 'LAIR3_B2_ROOM_1','LAIR3_B2_ROOM_2','LAIR3_B2_ROOM_3','LAIR3_B2_ROOM_4','LAIR3_B2_ROOM_5',
+ 'LAIR3_B2_ROOM_6','LAIR3_B2_ROOM_7','LAIR3_B2_PASSAGE_1','LAIR3_B2_PASSAGE_2','LAIR3_B2_PASSAGE_3',
+ // 同ダンジョン B3
+ 'LAIR3_B3_ROOM_1','LAIR3_B3_ROOM_2','LAIR3_B3_ROOM_3','LAIR3_B3_ROOM_4','LAIR3_B3_ROOM_5',
+ 'LAIR3_B3_ROOM_6','LAIR3_B3_PASSAGE_1','LAIR3_B3_PASSAGE_2',
+ // 第4の固定ダンジョン「忘却の螺旋堂」（サルーンから2日）
+ 'LAIR4_PASSAGE_1','LAIR4_ROOM_1','LAIR4_ROOM_2','LAIR4_ROOM_3','LAIR4_ROOM_4',
+ 'LAIR4_ROOM_5','LAIR4_ROOM_6','LAIR4_ROOM_7','LAIR4_ROOM_8',
+ // 第5の固定ダンジョン（マラカイから船で5日／名称未定）B1
+ 'LAIR5_PASSAGE_1','LAIR5_PASSAGE_2','LAIR5_PASSAGE_3','LAIR5_PASSAGE_4','LAIR5_PASSAGE_5',
+ 'LAIR5_ROOM_1','LAIR5_ROOM_2','LAIR5_ROOM_3','LAIR5_ROOM_4','LAIR5_ROOM_5',
+ 'LAIR5_ROOM_6','LAIR5_ROOM_7','LAIR5_ROOM_8','LAIR5_ROOM_9','LAIR5_ROOM_10',
+ // 同ダンジョン B2
+ 'LAIR5_B2_PASSAGE_1','LAIR5_B2_PASSAGE_2','LAIR5_B2_PASSAGE_3','LAIR5_B2_PASSAGE_4','LAIR5_B2_PASSAGE_5',
+ 'LAIR5_B2_ROOM_1','LAIR5_B2_ROOM_2','LAIR5_B2_ROOM_3','LAIR5_B2_ROOM_4','LAIR5_B2_ROOM_5',
+ 'LAIR5_B2_ROOM_6','LAIR5_B2_ROOM_7','LAIR5_B2_ROOM_8','LAIR5_B2_ROOM_9','LAIR5_B2_ROOM_10',
+ // 同ダンジョン B3
+ 'LAIR5_B3_PASSAGE_1','LAIR5_B3_PASSAGE_2','LAIR5_B3_PASSAGE_3','LAIR5_B3_PASSAGE_4',
+ 'LAIR5_B3_ROOM_1','LAIR5_B3_ROOM_2','LAIR5_B3_ROOM_3','LAIR5_B3_ROOM_4','LAIR5_B3_ROOM_5',
+ 'LAIR5_B3_ROOM_6','LAIR5_B3_ROOM_7','LAIR5_B3_ROOM_8','LAIR5_B3_ROOM_9','LAIR5_B3_ROOM_10',
+ // 同ダンジョン B4
+ 'LAIR5_B4_PASSAGE_1','LAIR5_B4_PASSAGE_2','LAIR5_B4_PASSAGE_3','LAIR5_B4_PASSAGE_4','LAIR5_B5_STUB',
+ 'LAIR5_B4_ROOM_1','LAIR5_B4_ROOM_2','LAIR5_B4_ROOM_3','LAIR5_B4_ROOM_4','LAIR5_B4_ROOM_5',
+ 'LAIR5_B4_ROOM_6','LAIR5_B4_ROOM_7',
 ]);
 // 入口・出口など松明消費・暗闇判定を除外するノード
 const DUNGEON_SAFE_NODES = new Set([
@@ -12346,6 +14406,17 @@ const DUNGEON_SAFE_NODES = new Set([
  'FP_ENTRANCE',
  'FP_B2_ENTRANCE',
  'FP_B3_ENTRANCE',
+ 'LAIR_ENTRANCE',
+ 'LAIR2_ROOM_1A',
+ 'LAIR3_LANDING',
+ 'LAIR3_B2_ROOM_6',
+ 'LAIR3_B3_PASSAGE_1',
+ 'LAIR4_PASSAGE_1',
+ 'LAIR5_PASSAGE_1',
+ 'LAIR5_B2_PASSAGE_1',
+ 'LAIR5_B3_PASSAGE_1',
+ 'LAIR5_B3_PASSAGE_4',
+ 'LAIR5_B4_PASSAGE_1',
 ]);
 
 function saveGame(){
@@ -13819,6 +15890,7 @@ function checkAging(skipCompanionCheck){
    PC.chr = Math.max(1, PC.chr - 1);
    PC.dex = Math.max(1, PC.dex - 1);
    PC.spd = Math.max(1, PC.spd - 1);
+   if(PC.spdBase != null) PC.spdBase = Math.max(1, PC.spdBase - 1);
    PC.con = Math.max(1, PC.con - 1);
    PC.maxCon = Math.max(1, PC.maxCon - 1);
    updateHUD();
@@ -23199,6 +25271,7 @@ function ydGoNode(nodeId, floor){
  if(node.type!=='entrance'){
   // Enchant Weapon/Fortify Armorの残りターンは、松明消費の有無（ダンジョン種別・昼夜）に関わらずノード移動1回につき1回だけ減らす
   _decrementWizardBuffTurns();
+  _decrementChainedTurns();
   if(!dung.isHideoutDungeon && !(dung.isVillageBackAlley && dung.design.isNaturalLight)){
    const _ydConsume = checkWeightPenalty().over ? 2 : 1;
    for(let _tc=0; _tc<_ydConsume; _tc++){
@@ -30459,6 +32532,7 @@ function _huntGoNode(nodeIdOrIdx, opts){
  if(node.type !== 'entrance'){
   // Enchant Weapon/Fortify Armorの残りターンは、松明消費の有無に関わらずノード移動1回につき1回だけ減らす
   _decrementWizardBuffTurns();
+  _decrementChainedTurns();
   if(!opts.skipTorch){
    const _hdConsume = checkWeightPenalty().over ? 2 : 1;
    for(let _tc=0; _tc<_hdConsume; _tc++){
@@ -37102,8 +39176,9 @@ function _getForgeLevel(w){ const base = w._baseAdds != null ? w._baseAdds : w.a
 function renderForgeTab(el, townId){
  const forge = FORGE_TOWNS[townId];
  if(!forge){ el.innerHTML = '<div style="font-size:var(--font-sm);color:#c8b8a0;padding:12px 0;text-align:center">この店では鍛錬サービスを行っていない。</div>'; return; }
+ const sa = _shopActor || PC;
  const tableNames = new Set(forge.table.map(t=>t.name));
- const targets = (PC.invWeapons||[]).filter(w=>{ if(w._isMagic) return false; const lookupName = w._baseName||w.name; return tableNames.has(lookupName); });
+ const targets = (sa.invWeapons||[]).filter(w=>{ if(w._isMagic) return false; const lookupName = w._baseName||w.name; return tableNames.has(lookupName); });
  if(targets.length === 0){
   el.innerHTML = `<div style="font-size:var(--font-sm);color:#c8b8a0;padding:12px 0;text-align:center">${forge.label}が言う。<br>「この店で扱う武器を持ってきな。鍛え直してやろう」</div>`;
   return;
@@ -37113,11 +39188,11 @@ function renderForgeTab(el, townId){
  header.innerHTML = ` ${forge.label}<br><span style="color:#c8b8a0">修正値を+1するごとに費用が倍増。最大+6まで。</span>`;
  el.appendChild(header);
  targets.forEach(w=>{
-  const idx = PC.invWeapons.indexOf(w);
+  const idx = sa.invWeapons.indexOf(w);
   const level = _getForgeLevel(w);
   const maxed = level >= 6;
   const cost = maxed ? null : FORGE_COSTS[level];
-  const canAfford = cost != null && totalCP() >= cost * 100;
+  const canAfford = cost != null && totalCP(sa) >= cost * 100;
   const baseAdds = w._baseAdds != null ? w._baseAdds : w.adds;
   const div = document.createElement('div'); div.className='shop-item';
   div.innerHTML = `<h4> ${w.name}</h4>
@@ -37129,16 +39204,17 @@ function renderForgeTab(el, townId){
 }
 
 function igsForgeWeapon(idx){
- const w = (PC.invWeapons||[])[idx];
+ const sa = _shopActor || PC;
+ const w = (sa.invWeapons||[])[idx];
  if(!w || w._isMagic) return;
  if(w._baseAdds == null) w._baseAdds = w.adds;
  const level = _getForgeLevel(w);
  if(level >= 6){ showSaveToast('これ以上強化できない'); return; }
  const cost = FORGE_COSTS[level];
- if(totalCP() < cost * 100){ showSaveToast('所持金が足りない'); return; }
- payPrice(cost);
+ if(totalCP(sa) < cost * 100){ showSaveToast('所持金が足りない'); return; }
+ payPrice(cost, sa);
  w.adds += 1;
- PC.equippedWeapons = (PC.equippedWeapons||[]).map(e=>{ if((e._baseName||e.name)===(w._baseName||w.name)) return {...e, adds:w.adds, _baseAdds:w._baseAdds}; return e; });
+ sa.equippedWeapons = (sa.equippedWeapons||[]).map(e=>{ if((e._baseName||e.name)===(w._baseName||w.name)) return {...e, adds:w.adds, _baseAdds:w._baseAdds}; return e; });
  updateHUD();
  renderIgsList(_igsTownId);
  showSaveToast(` 鍛錬完了！${w.name} → ${w.dice}D+${w.adds}（+${_getForgeLevel(w)}/+6）`);
@@ -39270,8 +41346,8 @@ const TRAP_TABLE = [
  desc:'床から鎖が飛び出し、足首に絡みついた！',
  attr:'dex', level:2,
  onFail: (pc)=>{
- pc._chained = (pc._chained||0) + 2;
- return `鎖に絡めとられた！ 次の2ターン、DEXが半減する（逃走・回避ペナルティ）`;
+ applyChainedEffect(pc, 2);
+ return `鎖に絡めとられた！ 次の2ターン、器用さが半減する`;
  },
  onPass: ()=>'素早く跳び退き、鎖をかわした！',
  },
@@ -39684,8 +41760,8 @@ const DUNGEON_EVENTS = [
      attr:'lk', level:1,
      onFail:()=>{
       const story = document.getElementById('story');
-      PC.st = Math.max(1, PC.st - 3); PC.maxSt = Math.max(1, (PC.maxSt||PC.st) - 3);
-      story.innerHTML += `<div style="color:#c8b8a0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幻覚・神経の緊張。</b>ダンジョンを出るまでST -3（残り${PC.st}）</div>`;
+      applyDungeonStPenalty(PC, 3);
+      story.innerHTML += `<div style="color:#c8b8a0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幻覚・神経の緊張。</b>ダンジョンを出るまで強さ-3（残り${PC.st}）</div>`;
       updateHUD();
       _restoreNodeChoices();
      },
@@ -39820,7 +41896,7 @@ const DUNGEON_EVENTS = [
      attr:'con', level:2,
      onFail:()=>{
       const story = document.getElementById('story');
-      PC.con = Math.max(1, PC.con - 5); updateHUD();
+      applyDungeonConPenalty(PC, 5); updateHUD();
       story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>毒性のガス！</b>腐敗した空気が溜まっていた。ダンジョンを出るまで体力-5（残り${PC.con}）</div>`;
       _restoreNodeChoices();
      },
@@ -40759,6 +42835,7 @@ function go(nodeId){
 
  // Enchant Weapon/Fortify Armorの残りターンは、ダンジョン内外・松明の有無に関わらずノード移動1回につき1回だけ減らす
  _decrementWizardBuffTurns();
+ _decrementChainedTurns();
 
  // Blind Spot カウントダウン
  if(DUNGEON_NODES.has(nodeId) && !DUNGEON_SAFE_NODES.has(nodeId)){
@@ -40784,7 +42861,8 @@ function go(nodeId){
 
  // モンスターエンカウント（暗闇中は判定しない）
  // 専用エンカウント関数を持つダンジョンはスキップ
- const _skipGenericEnc = nodeId.startsWith('RUIN_P') || nodeId.startsWith('RUIN_ROOM') || nodeId.startsWith('RUIN_TJUNC');
+ const _skipGenericEnc = nodeId.startsWith('RUIN_P') || nodeId.startsWith('RUIN_ROOM') || nodeId.startsWith('RUIN_TJUNC')
+  || nodeId.startsWith('LAIR_') || nodeId.startsWith('LAIR2_') || nodeId.startsWith('LAIR3_') || nodeId.startsWith('LAIR4_') || nodeId.startsWith('LAIR5_');
  if(PC._torchTurns > 0 && !_skipGenericEnc){
  const dungeonFloor = nodeId.startsWith('CRYPT3_') ? 3 : nodeId.startsWith('CRYPT2_') ? 2 : nodeId.startsWith('SHR2_') ? 2 : 1;
  const enc = rollEncounter(dungeonFloor);
@@ -40868,6 +42946,10 @@ function go(nodeId){
  PC._pendingEncounter = null;
  PC._pendingTrap = null;
  PC._pendingEvent = null;
+ // ダンジョン内で受けた一時的CON減少（毒性ガス等）をここで全回復する
+ _restoreDungeonConPenalty();
+ // ダンジョン内で受けた一時的ST減少（幻覚・神経の緊張等）をここで全回復する
+ _restoreDungeonStPenalty();
  }
 
  // モンスターエンカウント発動
@@ -41796,6 +43878,71 @@ function _decrementWizardBuffTurns(){
    PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-bottom:8px"> Fortify Armorの効果が切れた。</div>`;
   }
  }
+}
+
+// 拘束の罠（鎖）の効果を対象（PCまたは仲間）に適用する。器用さを半減させ、
+// 半減前の値をactor._chainedDexBaseに退避しておく（多重発動時に二重で半減しないため）
+function applyChainedEffect(actor, turns){
+ if(!actor) return;
+ if(!actor._chainedDexBase){
+  actor._chainedDexBase = actor.dex;
+  actor.dex = Math.max(1, Math.floor(actor.dex/2));
+ }
+ actor._chained = (actor._chained||0) + turns;
+}
+
+// ダンジョン内でのみ有効な一時的CON減少（毒性ガスなど）を適用する。
+// ダンジョンを出た時点で全回復する（_restoreDungeonConPenaltyで処理）
+function applyDungeonConPenalty(actor, amount){
+ if(!actor) return;
+ actor.con = Math.max(1, actor.con - amount);
+ actor._dungeonConDebt = (actor._dungeonConDebt||0) + amount;
+}
+
+// ダンジョンを出た時点で、ダンジョン内で受けた一時的CON減少（毒性ガス等）をすべて回復する
+function _restoreDungeonConPenalty(){
+ [PC, ...(PC.party||[])].forEach(a=>{
+  if((a._dungeonConDebt||0) > 0){
+   a.con = Math.min(a.maxCon, a.con + a._dungeonConDebt);
+   a._dungeonConDebt = 0;
+  }
+ });
+}
+
+// ダンジョン内でのみ有効な一時的ST減少（幻覚・神経の緊張など）を適用する。
+// maxSTも同時に減らすが、ダンジョンを出た時点で両方とも全回復する（_restoreDungeonStPenaltyで処理）
+function applyDungeonStPenalty(actor, amount){
+ if(!actor) return;
+ actor.st = Math.max(1, actor.st - amount);
+ actor.maxSt = Math.max(1, (actor.maxSt||actor.st) - amount);
+ actor._dungeonStDebt = (actor._dungeonStDebt||0) + amount;
+}
+
+// ダンジョンを出た時点で、ダンジョン内で受けた一時的ST減少（幻覚・神経の緊張等）をすべて回復する
+function _restoreDungeonStPenalty(){
+ [PC, ...(PC.party||[])].forEach(a=>{
+  if((a._dungeonStDebt||0) > 0){
+   const debt = a._dungeonStDebt;
+   a.maxSt = (a.maxSt||a.st) + debt;
+   a.st = Math.min(a.maxSt, a.st + debt);
+   a._dungeonStDebt = 0;
+  }
+ });
+}
+
+// 拘束の残りターン（ノード移動数）を減らし、0になったら器用さを元に戻す
+// （_decrementWizardBuffTurnsと同じタイミングで呼ぶ）
+function _decrementChainedTurns(){
+ [PC, ...(PC.party||[])].forEach(a=>{
+  if((a._chained||0) > 0){
+   a._chained--;
+   if(a._chained === 0 && a._chainedDexBase){
+    a.dex = a._chainedDexBase;
+    a._chainedDexBase = null;
+    PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-bottom:8px">${a===PC?'':a.name+'の'}拘束が解け、器用さが元に戻った。</div>`;
+   }
+  }
+ });
 }
 
 // Shapeshiftで変えたPC自身の能力値・名前を元に戻す
@@ -43330,6 +45477,9 @@ function startCombatNPC(en){
   chaosMode: en.chaosMode || false,  // カオスSR必須フラグ
   skipLuckSave: en.skipLuckSave || false, // trueなら体力0時に九死に一生を挟まず直接lose先へ（例：衛兵に敗北→投獄）
  arenaMode: en.arenaMode || false, // trueならPC体力0でも生存パーティがいれば戦闘継続（PCは行動不可）
+  // trueなら勝利時にNPC型の合計戦力（st+lk+dex）を基準に標準の宝物生成表で宝を自動生成する
+  // （MR型は既存のstartCombat勝利処理で自動生成されるため、NPC型のみ個別にオプトインする）
+  autoTreasure: en.autoTreasure || false,
   turn:   0,
   vorpalActive:      false,
   whammyActive:      false,
@@ -43666,6 +45816,12 @@ function resolveRoundNPC(pRoll, npcActions){
   const share = gainAPCombatNPC(cs.enemies); updateHUD();
   const memberCount = 1+(PC.party||[]).filter(n=>n.con>0).length;
   let victoryMsg = `<span style="color:#ccccaa"> 全敵を倒した！ 経験値+${share}</span>`;
+  if(cs.autoTreasure){
+   // NPC型は通常の戦闘勝利処理でtotalMRが定義されないため、AP計算と同じ合計戦力（st+lk+dex）を基準に生成する
+   const treasureDesc = generateTreasure(cs.totalMR);
+   if(treasureDesc) victoryMsg += `<br><span style="color:#ccccaa">${treasureDesc}</span>`;
+   updateHUD();
+  }
   cl.innerHTML += victoryMsg+'<br>';
   _hidePCActionChoices();
   document.getElementById('npc-action-panel').style.display = 'none';
@@ -45861,7 +48017,23 @@ function showDebugPanel(){
    list.appendChild(b);
   });
  }
+ // トラップリスト生成（全ダンジョン共通のTRAP_TABLE）
+ const trapList = document.getElementById('dbg-trap-list');
+ if(trapList && !trapList.children.length){
+  (typeof TRAP_TABLE !== 'undefined' ? TRAP_TABLE : []).forEach(trap=>{
+   const b = document.createElement('button');
+   b.className = 'dbg-btn';
+   b.textContent = (trap.icon||'') + ' ' + trap.name;
+   b.onclick = ()=>{ document.getElementById('debug-panel').style.display='none'; dbgFireTrap(trap); };
+   trapList.appendChild(b);
+  });
+ }
  document.getElementById('debug-panel').style.display='block';
+}
+
+// デバッグ用：指定したトラップを強制発動する（確率判定をスキップし、SR以降の実処理は本番と同一の関数を通す）
+function dbgFireTrap(trap){
+ startTrap(trap);
 }
 
 function dbgFireEvent(ev){
@@ -46004,6 +48176,7 @@ function _consumeDungeonTorch(){
  }
  // Enchant Weapon/Fortify Armorの残りターンは、松明の有無に関わらずノード移動1回につき1回だけ減らす
  _decrementWizardBuffTurns();
+ _decrementChainedTurns();
 }
 
 const RUIN_MONSTER_TABLE = [
@@ -48280,7 +50453,7 @@ const NODES = {
      setTimeout(()=>go('TOMB_TRAP_1215'),600);
     },
     onFail(){
-     const target=actor===PC?PC:actor; target._chained=(target._chained||0)+2;
+     const target=actor===PC?PC:actor; applyChainedEffect(target, 2);
      const an=actor===PC?PC.name:actor.name;
      document.getElementById('story').innerHTML+=`<div style="color:#f0ddd8;margin-top:8px">${an}：鎖が足首に絡みついた！ 拘束状態（2ターンDEX半減）</div>`;
      updateHUD(); setTimeout(()=>go('TOMB_TRAP_1215'),600);
@@ -55443,6 +57616,2044 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
  ],
  },
 
+// ══════════════════════════════════════════
+// 打ち捨てられた坑道（テーマ付き巣窟ダンジョン／半年周期で住人が入れ替わる）
+// ══════════════════════════════════════════
+ LAIR_FRONT:{
+ scene:'dungeon',
+ txt:()=>{
+  const lair = PC._lairDungeon;
+  const flavor = (lair && lair.themeId)
+   ? LAIR_THEMES[lair.themeId].entryFlavor
+   : '坑道の入口はひっそりと静まり返っており、これといった気配は感じられない。';
+  return `<span style="color:#f0ece0">打ち捨てられた坑道 ── 入口前</span><br><br>
+  街道の途切れた先、山肌にぽっかりと口を開けた坑道の入口が見える。${flavor}`;
+ },
+ choices:()=>[
+  {label:'→ 坑道の中へ入る', fn:()=>enterLairDungeon()},
+  {label:'↑ ポートアルゴンへ戻る（3日）', fn:()=>startLairReturnJourney()},
+ ],
+ },
+
+ LAIR_ENTRANCE:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  地上から南に延びる、10mほどの下り階段。降りきると、南北25mの通路の北端に出る。<br>
+  南端は行き止まりになっており、南壁に扉がある。${PC._lairDoorOpen_LAIR_ROOM2?'<span style="color:#e8e4d8">扉は開いている。</span>':'扉には鍵がかかっている。'}`,
+ choices:()=>{
+  const ch = [];
+  if(PC._lairDoorOpen_LAIR_ROOM2) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR_ROOM2')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lairTryDoor({level:1, dest:'LAIR_ROOM2', from:'LAIR_ENTRANCE'})});
+  ch.push({label:'↑ 入口前へ戻る', fn:()=>go('LAIR_FRONT')});
+  return ch;
+ },
+ },
+
+ LAIR_ROOM2:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>{
+  const base = `<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  25m四方の部屋。北壁西端に通路への扉、南壁西端には${PC._lairRoom2SecretFound?'隠し扉があるのが分かる':'それらしきものは特に見当たらない'}。`;
+  return base + lairRoomStatusText('LAIR_ROOM2');
+ },
+ choices:()=>{
+  const ns = PC._lairDungeon.nodeState.LAIR_ROOM2;
+  if(PC._lairDungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLairEncounter('LAIR_ROOM2')}];
+  const ch = [{label:'↑ 北の扉へ（入口）', fn:()=>go('LAIR_ENTRANCE')}];
+  if(PC._lairRoom2SecretFound){
+   ch.push({label:'↓ 南の隠し扉へ', fn:()=>go('LAIR_PASSAGE2')});
+  } else {
+   ch.push({label:' 部屋の中を調べる（運Lv1能力値テスト）', fn:()=>{
+    setupSavingRoll({
+     attr:'lk', level:1,
+     onSuccess(){
+      PC._lairRoom2SecretFound = true;
+      const s=document.getElementById('story');
+      s.innerHTML += `<br><span style="color:#f0ece0">南壁の石組みに、わずかな隙間を見つけた。押すと、隠し扉が現れた！</span>`;
+      renderChoices([{label:'▶ OK', fn:()=>go('LAIR_ROOM2')}]);
+     },
+     onFail(){
+      const s=document.getElementById('story');
+      s.innerHTML += `<br><span style="color:#c8b8a0">特に何も見つからなかった。</span>`;
+      renderChoices([{label:'▶ OK', fn:()=>go('LAIR_ROOM2')}]);
+     },
+    });
+   }});
+  }
+  return ch;
+ },
+ },
+
+ LAIR_PASSAGE2:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  南北25mの通路。北端は部屋への扉、南端は東に折れて別の通路へつながっている。`,
+ choices:[
+  {label:'↑ 北の扉へ', fn:()=>go('LAIR_ROOM2')},
+  {label:'↘ 南→東へ', fn:()=>go('LAIR_PASSAGE3')},
+ ],
+ },
+
+ LAIR_PASSAGE3:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  東西25mの通路。西端は北に折れ、東端も北に折れて、それぞれ別の通路へつながっている。`,
+ choices:[
+  {label:'↖ 西→北へ', fn:()=>go('LAIR_PASSAGE2')},
+  {label:'↗ 東→北へ', fn:()=>go('LAIR_PASSAGE4')},
+ ],
+ },
+
+ LAIR_PASSAGE4:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  南北25mの通路。南端は西に折れ、北端は東に折れて、それぞれ別の通路へつながっている。`,
+ choices:[
+  {label:'↙ 南→西へ', fn:()=>go('LAIR_PASSAGE3')},
+  {label:'↗ 北→東へ', fn:()=>go('LAIR_PASSAGE5')},
+ ],
+ },
+
+ LAIR_PASSAGE5:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  東西35mの通路。西端は南に折れて別の通路へつながっている。東端の先は暗くなっていて見通せない。<br>
+  西端から25mほどの南壁に扉がある。${PC._lairDoorOpen_LAIR_ROOM1?'<span style="color:#e8e4d8">扉は開いている。</span>':'扉には鍵がかかっている。'}`,
+ choices:()=>{
+  const ch = [
+   {label:'↙ 西→南へ', fn:()=>go('LAIR_PASSAGE4')},
+   {label:'→ 東の暗がりへ', fn:()=>go('LAIR_PASSAGE6')},
+  ];
+  if(PC._lairDoorOpen_LAIR_ROOM1) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR_ROOM1')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lairTryDoor({level:1, dest:'LAIR_ROOM1', from:'LAIR_PASSAGE5'})});
+  return ch;
+ },
+ },
+
+ LAIR_ROOM1:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  15m四方の部屋。北壁東端に扉がある。` + lairRoomStatusText('LAIR_ROOM1'),
+ choices:()=>{
+  const ns = PC._lairDungeon.nodeState.LAIR_ROOM1;
+  if(PC._lairDungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLairEncounter('LAIR_ROOM1')}];
+  return [{label:'↑ 北の扉へ', fn:()=>go('LAIR_PASSAGE5')}];
+ },
+ },
+
+ LAIR_PASSAGE6:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  東西40mの通路。西端の先は暗くなっていて見通せない。東端は北に折れて別の通路へつながっている。<br>
+  東端から25mほどの南壁に扉がある。`,
+ choices:[
+  {label:'← 西の暗がりへ', fn:()=>go('LAIR_PASSAGE5')},
+  {label:'↗ 東→北へ', fn:()=>go('LAIR_PASSAGE7')},
+  {label:'↓ 南の扉へ', fn:()=>go('LAIR_ROOM6')},
+ ],
+ },
+
+ LAIR_ROOM6:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  15m四方の部屋。北壁東端に扉がある。` + lairRoomStatusText('LAIR_ROOM6'),
+ choices:()=>{
+  const ns = PC._lairDungeon.nodeState.LAIR_ROOM6;
+  if(PC._lairDungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLairEncounter('LAIR_ROOM6')}];
+  return [{label:'↑ 北の扉へ', fn:()=>go('LAIR_PASSAGE6')}];
+ },
+ },
+
+ LAIR_PASSAGE7:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  南北15mの通路。南端は西へ折れて別の通路へつながっている。北端は行き止まりで、北壁に扉がある。`,
+ choices:[
+  {label:'↙ 南→西へ', fn:()=>go('LAIR_PASSAGE6')},
+  {label:'↑ 北の扉へ', fn:()=>go('LAIR_ROOM4')},
+ ],
+ },
+
+ LAIR_ROOM4:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  15m四方の部屋。南壁東端に扉、西壁南端に扉、北壁西端にアーチがある。北のアーチの床には注意が必要そうだ。` + lairRoomStatusText('LAIR_ROOM4'),
+ choices:()=>{
+  const ns = PC._lairDungeon.nodeState.LAIR_ROOM4;
+  if(PC._lairDungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLairEncounter('LAIR_ROOM4')}];
+  return [
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR_PASSAGE7')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR_PASSAGE8')},
+   {label:'↖ 北のアーチへ', fn:()=>lairPitTrap('LAIR_PASSAGE9')},
+  ];
+ },
+ },
+
+ LAIR_PASSAGE8:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  南北25mの通路。南端は行き止まりで、東壁に扉がある。北端は東に折れて別の通路へつながっている。`,
+ choices:[
+  {label:'↓ 南の扉へ', fn:()=>go('LAIR_ROOM4')},
+  {label:'↗ 北→東へ', fn:()=>go('LAIR_PASSAGE9')},
+ ],
+ },
+
+ LAIR_PASSAGE9:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  東西25mの通路。西端は南に折れて別の通路へつながっている。東端は行き止まりで、北壁に扉がある。<br>
+  通路の中程、南壁にアーチがある。足元に注意が必要そうだ。`,
+ choices:[
+  {label:'↙ 西→南へ', fn:()=>go('LAIR_PASSAGE8')},
+  {label:'↓ 南のアーチへ', fn:()=>lairPitTrap('LAIR_ROOM4')},
+  {label:'→ 東の扉へ', fn:()=>go('LAIR_ROOM5')},
+ ],
+ },
+
+ LAIR_ROOM5:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>{
+  const base = `<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  25m四方の部屋。南壁東端に扉、西壁南端に扉がある。${PC._lairDoorOpen_LAIR_PASSAGE10?'<span style="color:#e8e4d8">西の扉は開いている。</span>':'西の扉には鍵がかかっている。'}`;
+  return base + lairRoomStatusText('LAIR_ROOM5');
+ },
+ choices:()=>{
+  const ns = PC._lairDungeon.nodeState.LAIR_ROOM5;
+  if(PC._lairDungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLairEncounter('LAIR_ROOM5')}];
+  const ch = [{label:'↓ 南の扉へ', fn:()=>go('LAIR_PASSAGE9')}];
+  if(PC._lairDoorOpen_LAIR_PASSAGE10) ch.push({label:'← 西の扉へ', fn:()=>go('LAIR_PASSAGE10')});
+  else ch.push({label:'← 西の扉（施錠されている）を調べる', fn:()=>lairTryDoor({level:3, dest:'LAIR_PASSAGE10', from:'LAIR_ROOM5'})});
+  return ch;
+ },
+ },
+
+ LAIR_PASSAGE10:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  東西35mの通路。東端は行き止まりで、東壁に扉がある。西端も行き止まりで、北壁にアーチがある。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>go('LAIR_ROOM5')},
+  {label:'↑ 北のアーチへ', fn:()=>go('LAIR_ROOM3')},
+ ],
+ },
+
+ LAIR_ROOM3:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">打ち捨てられた坑道</span><br><br>
+  南北15m、東西35mの部屋。南壁のアーチから続いている。` + lairRoomStatusText('LAIR_ROOM3'),
+ choices:()=>{
+  const ns = PC._lairDungeon.nodeState.LAIR_ROOM3;
+  if(PC._lairDungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLairEncounter('LAIR_ROOM3')}];
+  return [{label:'↓ 南のアーチへ', fn:()=>go('LAIR_PASSAGE10')}];
+ },
+ },
+
+// ══════════════════════════════════════════
+// 第2の固定ダンジョン「名もなき遺構」（ヴェルダ村から4日）
+// ══════════════════════════════════════════
+ LAIR2_FRONT:{
+ scene:'dungeon',
+ txt:()=>{
+  const lair = PC._lair2Dungeon;
+  const flavor = (lair && lair.themeId)
+   ? LAIR_THEMES[lair.themeId].entryFlavor
+   : 'あたりは静まり返っており、これといった気配は感じられない。';
+  return `<span style="color:#f0ece0">${LAIR2_NAME} ── 入口前</span><br><br>
+  ヴェルダ村から続く道の果て、崩れかけた遺構の入口が口を開けている。${flavor}${PC._lair2AltEntranceFound?'<br>少し離れた場所に朽ちた廃屋も見える。地下へ続く階段があるようだ。':''}`;
+ },
+ choices:()=>{
+  const ch = [
+   {label:'→ 遺構の入口から中へ入る', fn:()=>{ initTorch(); go('LAIR2_ROOM_1A'); }},
+  ];
+  if(PC._lair2AltEntranceFound){
+   ch.push({label:'→ 廃屋の階段から中へ入る', fn:()=>{ initTorch(); go('LAIR2_PASSAGE_1N'); }});
+  }
+  ch.push({label:'↑ ヴェルダ村へ戻る（4日）', fn:()=>startLair2ReturnJourney()});
+  return ch;
+ },
+ },
+
+ LAIR2_ROOM_1A:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北15m、東西25mの部屋。南壁の東端に開口部があり、地上へと続く階段が見える。西壁中央には扉がある。` + lair2RoomStatusText('LAIR2_ROOM_1A'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_ROOM_1A;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_ROOM_1A')}];
+  return [
+   {label:'← 西の扉へ', fn:()=>go('LAIR2_ROOM_1B')},
+   {label:'↓ 地上へ戻る', fn:()=>go('LAIR2_FRONT')},
+  ];
+ },
+ },
+
+ LAIR2_ROOM_1B:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  25m四方の部屋。東壁南端に部屋への扉、東壁北端に通路への扉がある。` + lair2RoomStatusText('LAIR2_ROOM_1B'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_ROOM_1B;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_ROOM_1B')}];
+  return [
+   {label:'↘ 東南の扉へ', fn:()=>go('LAIR2_ROOM_1A')},
+   {label:'↗ 東北の扉へ', fn:()=>go('LAIR2_PASSAGE_1C')},
+  ];
+ },
+ },
+
+ LAIR2_PASSAGE_1C:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北20mの通路。南端の西壁に扉があり、北端は大柱廊へと続いている。`,
+ choices:[
+  {label:'↓ 南の扉へ', fn:()=>go('LAIR2_ROOM_1B')},
+  {label:'↑ 北の大柱廊へ', fn:()=>go('LAIR2_HALL_1D')},
+ ],
+ },
+
+ LAIR2_HALL_1D:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西50m、幅20m、高さ20mの大柱廊。10m間隔で左右に太い柱が並んでいる。<br>
+  南壁の西端から20mのところに、通路へ続く開口部がある。東西どちらも暗く、先の様子は確認できない。` + lair2RoomStatusText('LAIR2_HALL_1D'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_HALL_1D;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_HALL_1D')}];
+  return [
+   {label:'↓ 南の開口部へ', fn:()=>go('LAIR2_PASSAGE_1C')},
+   {label:'← 西へ', fn:()=>go('LAIR2_HALL_1E')},
+   {label:'→ 東へ', fn:()=>go('LAIR2_HALL_1F')},
+  ];
+ },
+ },
+
+ LAIR2_HALL_1E:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西に延びる幅20m、高さ20mの大柱廊。10m間隔で左右に柱が並んでいる。<br>
+  20mほど西へ歩くと天井が崩落しており、それ以上先へは進めない。` + lair2RoomStatusText('LAIR2_HALL_1E'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_HALL_1E;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_HALL_1E')}];
+  return [{label:'→ 東へ戻る', fn:()=>go('LAIR2_HALL_1D')}];
+ },
+ },
+
+ LAIR2_HALL_1F:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西40m、幅20m、高さ20mの大柱廊。10m間隔で左右に柱が並んでいる。<br>
+  南側の西端に扉がある。通路の東端はそれ以上進めないが、東端の南壁に開口部があり別の通路へ続いている。西側は暗く、先の様子は確認できない。` + lair2RoomStatusText('LAIR2_HALL_1F'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_HALL_1F;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_HALL_1F')}];
+  return [
+   {label:'← 西へ（大柱廊へ）', fn:()=>go('LAIR2_HALL_1D')},
+   {label:'↙ 南西の扉へ', fn:()=>go('LAIR2_ROOM_1G')},
+   {label:'↘ 東端南壁の開口部へ', fn:()=>go('LAIR2_PASSAGE_1AC')},
+  ];
+ },
+ },
+
+ LAIR2_PASSAGE_1AC:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北10mの通路。北端は大柱廊へ続いている。南端は行き止まりで、壁にレバーが取り付けられている。` + lair2RoomStatusText('LAIR2_PASSAGE_1AC'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_PASSAGE_1AC;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_PASSAGE_1AC')}];
+  return [
+   {label:'↑ 北の大柱廊へ', fn:()=>go('LAIR2_HALL_1F')},
+   {label:PC._lair2LeverA?' レバーA（すでに動かしてある）':' レバーAを動かす', fn:()=>lair2PullLever('A','LAIR2_PASSAGE_1AC')},
+  ];
+ },
+ },
+
+ LAIR2_ROOM_1G:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北25m、東西15mの部屋。北壁中央に大柱廊へ続く扉がある。${PC._lair2SecretG_S?'南壁中央に隠し扉があるのが分かる。':''}${PC._lair2SecretG_E?'東壁中央にも隠し扉があるのが分かる。':''}` + lair2RoomStatusText('LAIR2_ROOM_1G'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_ROOM_1G;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_ROOM_1G')}];
+  const ch = [{label:'↑ 北の扉へ（大柱廊）', fn:()=>go('LAIR2_HALL_1F')}];
+  if(PC._lair2SecretG_S) ch.push({label:'↓ 南の隠し扉へ', fn:()=>go('LAIR2_PASSAGE_1H')});
+  else ch.push({label:' 南壁を調べる（運or知力Lv1能力値テスト）', fn:()=>lair2SearchWall({
+   returnNode:'LAIR2_ROOM_1G', hasSecret:true,
+   onFound(){
+    PC._lair2SecretG_S = true;
+    const s=document.getElementById('story');
+    s.innerHTML += `<br><span style="color:#f0ece0">南壁の石組みにわずかな隙間を見つけた。押すと、隠し扉が現れた！</span>`;
+    renderChoices([{label:'▶ OK', fn:()=>go('LAIR2_ROOM_1G')}]);
+   },
+  })});
+  if(PC._lair2SecretG_E) ch.push({label:'→ 東の隠し扉へ', fn:()=>go('LAIR2_PASSAGE_1Z')});
+  else ch.push({label:' 東壁を調べる（運or知力Lv1能力値テスト）', fn:()=>lair2SearchWall({
+   returnNode:'LAIR2_ROOM_1G', hasSecret:true,
+   onFound(){
+    PC._lair2SecretG_E = true;
+    const s=document.getElementById('story');
+    s.innerHTML += `<br><span style="color:#f0ece0">東壁の石組みにわずかな隙間を見つけた。押すと、隠し扉が現れた！</span>`;
+    renderChoices([{label:'▶ OK', fn:()=>go('LAIR2_ROOM_1G')}]);
+   },
+  })});
+  ch.push({label:' 西壁を調べる（運or知力Lv1能力値テスト）', fn:()=>lair2SearchWall({returnNode:'LAIR2_ROOM_1G', hasSecret:false})});
+  return ch;
+ },
+ },
+
+ LAIR2_PASSAGE_1H:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北5mほどの短い通路。北端は部屋への扉。南端は崖になっており、底には幅10mほどの川が西から東へ流れている。水面までは20mほどある。<br>
+  川を渡れるよう、幅5m、長さ10mの石橋が架かっている。`,
+ choices:[
+  {label:'↑ 北の扉へ', fn:()=>go('LAIR2_ROOM_1G')},
+  {label:'↓ 石橋を渡る', fn:()=>go('LAIR2_PASSAGE_1I')},
+ ],
+ },
+
+ LAIR2_PASSAGE_1I:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北15mの通路。北端は崖になっており、石橋が架かっている。南端は行き止まりで、西壁に扉がある。` + lair2RoomStatusText('LAIR2_PASSAGE_1I'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_PASSAGE_1I;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_PASSAGE_1I')}];
+  return [
+   {label:'↑ 石橋を渡る（北へ）', fn:()=>go('LAIR2_PASSAGE_1H')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR2_ROOM_1J')},
+  ];
+ },
+ },
+
+ LAIR2_PASSAGE_1Z:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西10mの通路。西端は行き止まりで、西壁に扉がある。東端は南へ折れ曲がっており、東端の東壁には別の扉もある。`,
+ choices:[
+  {label:'← 西の扉へ', fn:()=>go('LAIR2_ROOM_1G')},
+  {label:'↘ 南へ折れる', fn:()=>go('LAIR2_PASSAGE_1Y')},
+  {label:'→ 東の扉へ', fn:()=>go('LAIR2_ROOM_1AA')},
+ ],
+ },
+
+ LAIR2_ROOM_1AA:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北15m、東西10mの部屋。西壁北端に扉がある。`,
+ choices:[
+  {label:'← 西の扉へ', fn:()=>go('LAIR2_PASSAGE_1Z')},
+ ],
+ },
+
+ LAIR2_PASSAGE_1Y:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北20mの通路。北端は先ほどの通路へ続いている。南端は崖になっており、底には幅20mほどの川が西から東へ流れている。水面までは20mほどある。<br>
+  川を渡れるよう、幅5m、長さ20mの石橋が架かっている。`,
+ choices:[
+  {label:'↑ 北へ', fn:()=>go('LAIR2_PASSAGE_1Z')},
+  {label:'↓ 石橋を渡る', fn:()=>go('LAIR2_PASSAGE_1X')},
+ ],
+ },
+
+ LAIR2_PASSAGE_1X:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北30mの通路。北端は崖になっており、石橋が架かっている。南端は行き止まりで、南壁に扉がある。` + lair2RoomStatusText('LAIR2_PASSAGE_1X'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_PASSAGE_1X;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_PASSAGE_1X')}];
+  return [
+   {label:'↑ 石橋を渡る（北へ）', fn:()=>go('LAIR2_PASSAGE_1Y')},
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR2_PASSAGE_1W')},
+  ];
+ },
+ },
+
+ LAIR2_ROOM_1J:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北15m、東西25mの部屋。東壁中央に扉がある。西壁中央には広間へ続く落とし格子があり、${lair2PortcullisOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}${PC._lair2SecretJ_S?'南壁中央に隠し扉があるのが分かる。':''}`,
+ choices:()=>{
+  const ch = [{label:'→ 東の扉へ', fn:()=>go('LAIR2_PASSAGE_1I')}];
+  if(lair2PortcullisOpen()) ch.push({label:'← 西の落とし格子へ（広間入口）', fn:()=>go('LAIR2_HALLENTRY')});
+  if(PC._lair2SecretJ_S) ch.push({label:'↓ 南の隠し扉へ', fn:()=>go('LAIR2_PASSAGE_1K')});
+  else ch.push({label:' 南壁を調べる（運or知力Lv1能力値テスト）', fn:()=>lair2SearchWall({
+   returnNode:'LAIR2_ROOM_1J', hasSecret:true,
+   onFound(){
+    PC._lair2SecretJ_S = true;
+    const s=document.getElementById('story');
+    s.innerHTML += `<br><span style="color:#f0ece0">南壁の石組みにわずかな隙間を見つけた。押すと、隠し扉が現れた！</span>`;
+    renderChoices([{label:'▶ OK', fn:()=>go('LAIR2_ROOM_1J')}]);
+   },
+  })});
+  ch.push({label:' 北壁を調べる（運or知力Lv1能力値テスト）', fn:()=>lair2SearchWall({returnNode:'LAIR2_ROOM_1J', hasSecret:false})});
+  return ch;
+ },
+ },
+
+ LAIR2_PASSAGE_1K:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北10mの通路。北端は行き止まりで、北壁に扉がある。南端も行き止まりで、南壁に扉、東壁にも扉がある。`,
+ choices:[
+  {label:'↑ 北の扉へ', fn:()=>go('LAIR2_ROOM_1J')},
+  {label:'↓ 南の扉へ', fn:()=>go('LAIR2_ROOM_1M')},
+  {label:'→ 東の扉へ', fn:()=>go('LAIR2_ROOM_1L')},
+ ],
+ },
+
+ LAIR2_ROOM_1L:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北10m、東西20mの部屋。西壁南端に扉がある。` + lair2RoomStatusText('LAIR2_ROOM_1L'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_ROOM_1L;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_ROOM_1L')}];
+  return [{label:'← 西の扉へ', fn:()=>go('LAIR2_PASSAGE_1K')}];
+ },
+ },
+
+ LAIR2_ROOM_1M:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  15m四方の部屋。東西南北それぞれの壁の中央に扉がある。` + lair2RoomStatusText('LAIR2_ROOM_1M'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_ROOM_1M;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_ROOM_1M')}];
+  return [
+   {label:'↑ 北の扉へ', fn:()=>go('LAIR2_PASSAGE_1K')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR2_PASSAGE_1N')},
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR2_PASSAGE_1O')},
+   {label:'→ 東の扉へ', fn:()=>go('LAIR2_PASSAGE_1Q')},
+  ];
+ },
+ },
+
+ LAIR2_PASSAGE_1N:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北10mの通路。南端の東壁に扉がある。北端には地上へと続く上り階段が見える。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>go('LAIR2_ROOM_1M')},
+  {label:'↑ 階段を上る', fn:()=>{
+   PC._lair2AltEntranceFound = true;
+   hideDungeonImage();
+   go('LAIR2_FRONT');
+  }},
+ ],
+ },
+
+ LAIR2_PASSAGE_1O:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北20mの通路。北端は部屋への扉。南端は西へ折れ曲がっている。`,
+ choices:[
+  {label:'↑ 北の扉へ', fn:()=>go('LAIR2_ROOM_1M')},
+  {label:'↙ 西へ折れる', fn:()=>go('LAIR2_PASSAGE_1P')},
+ ],
+ },
+
+ LAIR2_PASSAGE_1P:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西25mの通路。東端は北へ折れ曲がっている。西端は行き止まりで、壁にレバーが取り付けられている。`,
+ choices:()=>[
+  {label:'→ 東へ戻る', fn:()=>go('LAIR2_PASSAGE_1O')},
+  {label:PC._lair2LeverB?' レバーB（すでに動かしてある）':' レバーBを動かす', fn:()=>lair2PullLever('B','LAIR2_PASSAGE_1P')},
+ ],
+ },
+
+ LAIR2_PASSAGE_1Q:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西10mの通路。西端の西壁に扉がある。東はT字路へ続いている。`,
+ choices:[
+  {label:'← 西の扉へ', fn:()=>go('LAIR2_ROOM_1M')},
+  {label:'→ 東へ（T字路）', fn:()=>go('LAIR2_JUNCTION_1R')},
+ ],
+ },
+
+ LAIR2_JUNCTION_1R:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西に走る通路のT字路。南へ向かう通路が接続されている。`,
+ choices:[
+  {label:'← 西へ', fn:()=>go('LAIR2_PASSAGE_1Q')},
+  {label:'→ 東へ', fn:()=>go('LAIR2_PASSAGE_1W')},
+  {label:'↓ 南へ', fn:()=>go('LAIR2_PASSAGE_1S')},
+ ],
+ },
+
+ LAIR2_PASSAGE_1W:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西15mの通路。西はT字路へ続いている。東は行き止まりで、北壁に扉がある。`,
+ choices:[
+  {label:'← 西へ（T字路）', fn:()=>go('LAIR2_JUNCTION_1R')},
+  {label:'↑ 北の扉へ', fn:()=>go('LAIR2_PASSAGE_1X')},
+ ],
+ },
+
+ LAIR2_PASSAGE_1S:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北15mの通路。北はT字路へ続いている。南は西へ折れ曲がっている。`,
+ choices:[
+  {label:'↑ 北へ（T字路）', fn:()=>go('LAIR2_JUNCTION_1R')},
+  {label:'↙ 西へ折れる', fn:()=>go('LAIR2_PASSAGE_1T')},
+ ],
+ },
+
+ LAIR2_PASSAGE_1T:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西20mの通路。東端は北へ折れ曲がっている。西端は行き止まりで、南壁に扉がある。`,
+ choices:[
+  {label:'→ 東へ戻る', fn:()=>go('LAIR2_PASSAGE_1S')},
+  {label:'↓ 南の扉へ', fn:()=>go('LAIR2_ROOM_1U')},
+ ],
+ },
+
+ LAIR2_ROOM_1U:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  10m四方の部屋。北壁西端に扉、東壁南端に扉がある。` + lair2RoomStatusText('LAIR2_ROOM_1U'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_ROOM_1U;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_ROOM_1U')}];
+  return [
+   {label:'↑ 北の扉へ', fn:()=>go('LAIR2_PASSAGE_1T')},
+   {label:'→ 東の扉へ', fn:()=>go('LAIR2_PASSAGE_1V')},
+  ];
+ },
+ },
+
+ LAIR2_PASSAGE_1V:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  東西30mの通路。西端西壁に扉がある。東端の東壁にはレバーが取り付けられている。`,
+ choices:()=>[
+  {label:'← 西の扉へ', fn:()=>go('LAIR2_ROOM_1U')},
+  {label:PC._lair2LeverC?' レバーC（すでに動かしてある）':' レバーCを動かす', fn:()=>lair2PullLever('C','LAIR2_PASSAGE_1V')},
+ ],
+ },
+
+ LAIR2_HALLENTRY:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  5m四方の小さな空間。東壁には部屋へのアーチがある。西側には大広間への開口部が開いている。`,
+ choices:[
+  {label:'→ 東のアーチへ', fn:()=>go('LAIR2_ROOM_1J')},
+  {label:'← 西の開口部へ', fn:()=>go('LAIR2_HALL_1AB')},
+ ],
+ },
+
+ LAIR2_HALL_1AB:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北30m、東西20mの大広間。東壁北端に開口部があり、広間入口へ続いている。南側は別の広間につながっているようだが、薄暗くてよく見えない。` + lair2RoomStatusText('LAIR2_HALL_1AB'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_HALL_1AB;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_HALL_1AB')}];
+  return [
+   {label:'→ 東の開口部へ', fn:()=>go('LAIR2_HALLENTRY')},
+   {label:'↓ 南へ', fn:()=>go('LAIR2_HALL_1AC')},
+  ];
+ },
+ },
+
+ LAIR2_HALL_1AC:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR2_NAME}</span><br><br>
+  南北30m、東西20mの大広間。北側は先ほどの広間へ続いているが、暗くてよく見えない。南壁の西端から5mのところに下り階段があるが、その先は天井が崩れており進めない。` + lair2RoomStatusText('LAIR2_HALL_1AC'),
+ choices:()=>{
+  const ns = PC._lair2Dungeon.nodeState.LAIR2_HALL_1AC;
+  if(PC._lair2Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair2Encounter('LAIR2_HALL_1AC')}];
+  return [{label:'↑ 北へ戻る', fn:()=>go('LAIR2_HALL_1AB')}];
+ },
+ },
+
+// ══════════════════════════════════════════
+// 第3の固定ダンジョン「忘れられた地下道」（アッシュヴェイルから6日）
+// 内部ノードは構造データ共有後に追加する（TODO）
+// ══════════════════════════════════════════
+ LAIR3_FRONT:{
+ scene:'dungeon',
+ txt:()=>{
+  const lair = PC._lair3Dungeon;
+  const flavor = (lair && lair.themeId)
+   ? LAIR_THEMES[lair.themeId].entryFlavor
+   : 'あたりは静まり返っており、これといった気配は感じられない。';
+  return `<span style="color:#f0ece0">${LAIR3_NAME} ── 入口前</span><br><br>
+  アッシュヴェイルから続く道の果て、ダンジョンの入口が見える。${flavor}`;
+ },
+ choices:()=>[
+  {label:'→ 中へ入る', fn:()=>{ initTorch(); go('LAIR3_LANDING'); }},
+  {label:'↑ アッシュヴェイルへ戻る（6日）', fn:()=>startLair3ReturnJourney()},
+ ],
+ },
+
+ LAIR3_LANDING:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  地上から南に延びる10mほどの下り階段。降りきると5m四方の踊り場に出る。さらに北へ地下2階へと続く階段が延びている。西には部屋へのアーチがある。`,
+ choices:[
+  {label:'← 西のアーチへ', fn:()=>go('LAIR3_ROOM_5')},
+  {label:'↓ 北の階段（地下2階）へ', fn:()=>go('LAIR3_B2_ROOM_6')},
+  {label:'↑ 地上へ戻る', fn:()=>go('LAIR3_FRONT')},
+ ],
+ },
+
+ LAIR3_ROOM_5:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  25m四方の部屋。東壁中央に踊り場へのアーチ、北壁中央に扉がある。` + lair3RoomStatusText('LAIR3_ROOM_5'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_ROOM_5;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_ROOM_5')}];
+  return [
+   {label:'→ 東のアーチへ', fn:()=>go('LAIR3_LANDING')},
+   {label:'↑ 北の扉へ', fn:()=>go('LAIR3_ROOM_3')},
+  ];
+ },
+ },
+
+ LAIR3_ROOM_3:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  35m四方の部屋。南壁の西端に部屋への扉、西壁の北端から15mのところに部屋へのアーチがある。東壁北端には落とし格子があり、${lair3PortcullisOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}北壁には色褪せて破れたタペストリーがかかっている。` + lair3RoomStatusText('LAIR3_ROOM_3'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_ROOM_3;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_ROOM_3')}];
+  const ch = [
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR3_ROOM_5')},
+   {label:'← 西のアーチへ', fn:()=>go('LAIR3_ROOM_2')},
+  ];
+  if(lair3PortcullisOpen()) ch.push({label:'→ 東の落とし格子へ', fn:()=>go('LAIR3_ROOM_4')});
+  ch.push({label:' タペストリーを調べる', fn:()=>lair3ExamineTapestry('LAIR3_ROOM_3')});
+  return ch;
+ },
+ },
+
+ LAIR3_ROOM_2:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  25m四方の部屋。東壁中央に部屋へのアーチ、西壁中央にレバーがある。` + lair3RoomStatusText('LAIR3_ROOM_2'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_ROOM_2;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_ROOM_2')}];
+  return [
+   {label:'→ 東のアーチへ', fn:()=>go('LAIR3_ROOM_3')},
+   {label:PC._lair3LeverPulled?' レバー（すでに動かしてある）':' レバーを動かす', fn:()=>lair3PullLever('LAIR3_ROOM_2')},
+  ];
+ },
+ },
+
+ LAIR3_ROOM_4:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  南北25m、東西15mの部屋。西壁北端に落とし格子があり、${lair3PortcullisOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}南壁中央にボタンがある。` + lair3RoomStatusText('LAIR3_ROOM_4'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_ROOM_4;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_ROOM_4')}];
+  const ch = [];
+  if(lair3PortcullisOpen()) ch.push({label:'← 西の落とし格子へ', fn:()=>go('LAIR3_ROOM_3')});
+  ch.push({label:' ボタンを押す', fn:()=>lair3PressButton('LAIR3_ROOM_1')});
+  return ch;
+ },
+ },
+
+ LAIR3_ROOM_1:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  25m四方の部屋。西壁中央にボタンがある。` + lair3RoomStatusText('LAIR3_ROOM_1'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_ROOM_1;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_ROOM_1')}];
+  return [{label:' ボタンを押す', fn:()=>lair3PressButton('LAIR3_ROOM_3')}];
+ },
+ },
+
+ // ── 地下2階（B2） ──
+
+ LAIR3_B2_ROOM_6:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  15m四方の部屋。南壁中央に地下1階への上り階段、西壁北端に扉、北壁東端にアーチがある。東壁北端には扉があり、${PC._lair3DoorOpen_LAIR3_B2_ROOM_7?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}`,
+ choices:()=>{
+  const ch = [
+   {label:'↑ 南の階段（地下1階）へ', fn:()=>go('LAIR3_LANDING')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR3_B2_ROOM_5')},
+   {label:'↑ 北のアーチへ', fn:()=>go('LAIR3_B2_ROOM_2')},
+  ];
+  if(PC._lair3DoorOpen_LAIR3_B2_ROOM_7) ch.push({label:'→ 東の扉へ', fn:()=>go('LAIR3_B2_ROOM_7')});
+  else ch.push({label:'→ 東の扉（施錠されている）を調べる', fn:()=>lair3TryDoor({level:2, dest:'LAIR3_B2_ROOM_7', from:'LAIR3_B2_ROOM_6', area:2})});
+  return ch;
+ },
+ },
+
+ LAIR3_B2_ROOM_5:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  南北35m東西15mの部屋。東壁北端に扉、西壁北端に扉、西壁北端から15mのところにもう一つ扉がある。` + lair3RoomStatusText('LAIR3_B2_ROOM_5'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B2_ROOM_5;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B2_ROOM_5')}];
+  return [
+   {label:'→ 東の扉へ', fn:()=>go('LAIR3_B2_ROOM_6')},
+   {label:'← 西の扉（北）へ', fn:()=>go('LAIR3_B2_ROOM_4')},
+   {label:'← 西の扉（南）へ', fn:()=>go('LAIR3_B2_PASSAGE_1')},
+  ];
+ },
+ },
+
+ LAIR3_B2_ROOM_4:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  南北15m東西25mの部屋。南壁中央に扉、東壁南端に扉がある。` + lair3RoomStatusText('LAIR3_B2_ROOM_4'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B2_ROOM_4;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B2_ROOM_4')}];
+  return [
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR3_B2_PASSAGE_1')},
+   {label:'→ 東の扉へ', fn:()=>go('LAIR3_B2_ROOM_5')},
+  ];
+ },
+ },
+
+ LAIR3_B2_PASSAGE_1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  東西15mの通路。東端は行き止まりで、東壁に扉がある。西端の北壁にも扉があり、通路自体はさらに奥、地下3階へと下る階段へ続いている。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>go('LAIR3_B2_ROOM_5')},
+  {label:'↑ 北の扉へ', fn:()=>go('LAIR3_B2_ROOM_4')},
+  {label:'↓ 西の階段（地下3階）へ', fn:()=>go('LAIR3_B3_PASSAGE_1')},
+ ],
+ },
+
+ LAIR3_B2_ROOM_2:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  南北25m東西35mの部屋。ずっと昔貯蔵庫に使われていたかもしれない部屋。ほとんどすべてのものが略奪されるか、破壊されている。南壁東端に部屋へのアーチ、北壁東端に扉があり、${PC._lair3DoorOpen_LAIR3_B2_PASSAGE_3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair3RoomStatusText('LAIR3_B2_ROOM_2'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B2_ROOM_2;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B2_ROOM_2')}];
+  const ch = [{label:'↓ 南のアーチへ', fn:()=>go('LAIR3_B2_ROOM_6')}];
+  if(PC._lair3DoorOpen_LAIR3_B2_PASSAGE_3) ch.push({label:'↑ 北の扉へ', fn:()=>go('LAIR3_B2_PASSAGE_3')});
+  else ch.push({label:'↑ 北の扉（施錠されている）を調べる', fn:()=>lair3TryDoor({level:2, dest:'LAIR3_B2_PASSAGE_3', from:'LAIR3_B2_ROOM_2', area:2})});
+  return ch;
+ },
+ },
+
+ LAIR3_B2_PASSAGE_3:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  東西15mの通路。西端は部屋への扉で行き止まりになっている。東端南壁にも扉がある。`,
+ choices:[
+  {label:'← 西の扉へ', fn:()=>go('LAIR3_B2_ROOM_1')},
+  {label:'→ 東の扉へ', fn:()=>go('LAIR3_B2_ROOM_2')},
+ ],
+ },
+
+ LAIR3_B2_ROOM_1:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  15m四方の部屋。東壁南端に扉がある。` + lair3RoomStatusText('LAIR3_B2_ROOM_1'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B2_ROOM_1;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B2_ROOM_1')}];
+  return [{label:'→ 東の扉へ', fn:()=>go('LAIR3_B2_PASSAGE_3')}];
+ },
+ },
+
+ LAIR3_B2_ROOM_7:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  15m四方の部屋。西壁北端に扉、東壁南端に扉がある。` + lair3RoomStatusText('LAIR3_B2_ROOM_7'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B2_ROOM_7;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B2_ROOM_7')}];
+  return [
+   {label:'← 西の扉へ', fn:()=>go('LAIR3_B2_ROOM_6')},
+   {label:'→ 東の扉へ', fn:()=>go('LAIR3_B2_PASSAGE_2')},
+  ];
+ },
+ },
+
+ LAIR3_B2_PASSAGE_2:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  南北35mの通路。南端西壁に扉があり、北端西壁にも扉があるが、${PC._lair3DoorOpen_LAIR3_B2_ROOM_3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}`,
+ choices:()=>{
+  const ch = [{label:'↓ 南の扉へ', fn:()=>go('LAIR3_B2_ROOM_7')}];
+  if(PC._lair3DoorOpen_LAIR3_B2_ROOM_3) ch.push({label:'↑ 北の扉へ', fn:()=>go('LAIR3_B2_ROOM_3')});
+  else ch.push({label:'↑ 北の扉（施錠されている）を調べる', fn:()=>lair3TryDoor({level:2, dest:'LAIR3_B2_ROOM_3', from:'LAIR3_B2_PASSAGE_2', area:2})});
+  return ch;
+ },
+ },
+
+ LAIR3_B2_ROOM_3:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  15m四方の部屋。東壁北端に扉がある。` + lair3RoomStatusText('LAIR3_B2_ROOM_3'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B2_ROOM_3;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B2_ROOM_3')}];
+  return [{label:'→ 東の扉へ', fn:()=>go('LAIR3_B2_PASSAGE_2')}];
+ },
+ },
+
+ // ── 地下3階（B3） ──
+
+ LAIR3_B3_PASSAGE_1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  東西15mの通路。西端は地下2階へと続く上り階段（途中に踊り場があり、向きを変えながら続いている）。東端は行き止まりだが、${PC._lair3B3HiddenDoorFound?'東壁に隠し扉が見つかっている。':'何か仕掛けがありそうな気配がする。'}`,
+ choices:()=>{
+  const ch = [{label:'↑ 西の階段（地下2階）へ', fn:()=>go('LAIR3_B2_PASSAGE_1')}];
+  if(PC._lair3B3HiddenDoorFound) ch.push({label:'→ 東の隠し扉へ', fn:()=>go('LAIR3_B3_ROOM_5')});
+  else ch.push({label:' 東壁を調べる', fn:()=>lair3B3SearchWall('LAIR3_B3_PASSAGE_1')});
+  return ch;
+ },
+ },
+
+ LAIR3_B3_ROOM_5:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  南北25m東西15mの部屋。西壁中央に通路への扉、西壁北端に部屋へのアーチがある。東壁南端には扉があり、${PC._lair3DoorOpen_LAIR3_B3_DOOR_56?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair3RoomStatusText('LAIR3_B3_ROOM_5'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B3_ROOM_5;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B3_ROOM_5')}];
+  const ch = [];
+  if(PC._lair3B3HiddenDoorFound) ch.push({label:'← 西の扉へ', fn:()=>go('LAIR3_B3_PASSAGE_1')});
+  ch.push({label:'← 西のアーチへ', fn:()=>go('LAIR3_B3_ROOM_2')});
+  if(PC._lair3DoorOpen_LAIR3_B3_DOOR_56) ch.push({label:'→ 東の扉へ', fn:()=>go('LAIR3_B3_ROOM_6')});
+  else ch.push({label:'→ 東の扉（施錠されている）を調べる', fn:()=>lair3TryDoor({level:3, dest:'LAIR3_B3_ROOM_6', from:'LAIR3_B3_ROOM_5', area:2, key:'LAIR3_B3_DOOR_56'})});
+  return ch;
+ },
+ },
+
+ LAIR3_B3_ROOM_2:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  25m四方の部屋。床には迷路のような刻み目が広がり、天井はひび割れだらけだ。東壁南端に扉、東壁中央にも扉がある。` + lair3RoomStatusText('LAIR3_B3_ROOM_2'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B3_ROOM_2;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B3_ROOM_2')}];
+  return [
+   {label:'→ 東の扉（南）へ', fn:()=>go('LAIR3_B3_ROOM_5')},
+   {label:'→ 東の扉（中央）へ', fn:()=>go('LAIR3_B3_ROOM_3')},
+  ];
+ },
+ },
+
+ LAIR3_B3_ROOM_3:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  南北15m東西25mの部屋。西壁南端に扉、東壁南端に扉がある。北壁中央には落とし格子があり、${lair3B3PortcullisOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}` + lair3RoomStatusText('LAIR3_B3_ROOM_3'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B3_ROOM_3;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B3_ROOM_3')}];
+  const ch = [
+   {label:'← 西の扉へ', fn:()=>go('LAIR3_B3_ROOM_2')},
+   {label:'→ 東の扉へ', fn:()=>go('LAIR3_B3_ROOM_4')},
+  ];
+  if(lair3B3PortcullisOpen()) ch.push({label:'↑ 北の落とし格子へ', fn:()=>go('LAIR3_B3_ROOM_1')});
+  return ch;
+ },
+ },
+
+ LAIR3_B3_ROOM_1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  南北15m東西35mの部屋。南壁には落とし格子があり、${lair3B3PortcullisOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}北壁中央には石でできた頑丈な箱が置かれている。`,
+ choices:()=>{
+  const ch = [];
+  const boxCount = 5;
+  for(let i=1;i<=boxCount;i++){
+   const key = `_lair3B3Box${i}`;
+   if(!PC[key]){
+    ch.push({label:` 石の箱${i}を調べる`, fn:()=>{
+     PC[key] = true;
+     let result = '';
+     let attempts = 0;
+     do { result = generateTreasure(60); attempts++; }
+     while(attempts < 5 && (result.includes('CP（') || result.includes('SP（')));
+     const s = document.getElementById('story');
+     s.innerHTML += `<br><br><span style="color:#f0ece0"> 箱${i}：${result}</span>`;
+     updateHUD();
+     renderChoices(NODES.LAIR3_B3_ROOM_1.choices());
+    }});
+   } else {
+    ch.push({label:` 石の箱${i}（調べ終えた）`, fn:()=>{}});
+   }
+  }
+  if(lair3B3PortcullisOpen()) ch.push({label:'↓ 南の落とし格子へ', fn:()=>go('LAIR3_B3_ROOM_3')});
+  return ch;
+ },
+ },
+
+ LAIR3_B3_ROOM_4:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  南北35m東西25mの部屋。西壁北端から15mの位置に扉がある。南壁西端には扉があり、${PC._lair3DoorOpen_LAIR3_B3_DOOR_46?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair3RoomStatusText('LAIR3_B3_ROOM_4'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B3_ROOM_4;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B3_ROOM_4')}];
+  const ch = [{label:'← 西の扉へ', fn:()=>go('LAIR3_B3_ROOM_3')}];
+  if(PC._lair3DoorOpen_LAIR3_B3_DOOR_46) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR3_B3_ROOM_6')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lair3TryDoor({level:3, dest:'LAIR3_B3_ROOM_6', from:'LAIR3_B3_ROOM_4', area:2, key:'LAIR3_B3_DOOR_46'})});
+  return ch;
+ },
+ },
+
+ LAIR3_B3_ROOM_6:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  15m四方の部屋。北壁東端に扉があり、${PC._lair3DoorOpen_LAIR3_B3_DOOR_46?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}西壁北端にも扉があり、${PC._lair3DoorOpen_LAIR3_B3_DOOR_56?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}西壁南端にも扉があり、${PC._lair3DoorOpen_LAIR3_B3_DOOR_P2_6?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair3RoomStatusText('LAIR3_B3_ROOM_6'),
+ choices:()=>{
+  const ns = PC._lair3Dungeon.nodeState.LAIR3_B3_ROOM_6;
+  if(PC._lair3Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair3Encounter('LAIR3_B3_ROOM_6')}];
+  const ch = [];
+  if(PC._lair3DoorOpen_LAIR3_B3_DOOR_46) ch.push({label:'↑ 北の扉へ', fn:()=>go('LAIR3_B3_ROOM_4')});
+  else ch.push({label:'↑ 北の扉（施錠されている）を調べる', fn:()=>lair3TryDoor({level:3, dest:'LAIR3_B3_ROOM_4', from:'LAIR3_B3_ROOM_6', area:2, key:'LAIR3_B3_DOOR_46'})});
+  if(PC._lair3DoorOpen_LAIR3_B3_DOOR_56) ch.push({label:'← 西の扉（北）へ', fn:()=>go('LAIR3_B3_ROOM_5')});
+  else ch.push({label:'← 西の扉（北・施錠されている）を調べる', fn:()=>lair3TryDoor({level:3, dest:'LAIR3_B3_ROOM_5', from:'LAIR3_B3_ROOM_6', area:2, key:'LAIR3_B3_DOOR_56'})});
+  if(PC._lair3DoorOpen_LAIR3_B3_DOOR_P2_6) ch.push({label:'← 西の扉（南）へ', fn:()=>go('LAIR3_B3_PASSAGE_2')});
+  else ch.push({label:'← 西の扉（南・施錠されている）を調べる', fn:()=>lair3TryDoor({level:3, dest:'LAIR3_B3_PASSAGE_2', from:'LAIR3_B3_ROOM_6', area:2, key:'LAIR3_B3_DOOR_P2_6'})});
+  return ch;
+ },
+ },
+
+ LAIR3_B3_PASSAGE_2:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR3_NAME}</span><br><br>
+  東西15mの通路。東端に扉があり、${PC._lair3DoorOpen_LAIR3_B3_DOOR_P2_6?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}西端の南壁にレバーがある。`,
+ choices:()=>{
+  const ch = [];
+  if(PC._lair3DoorOpen_LAIR3_B3_DOOR_P2_6) ch.push({label:'→ 東の扉へ', fn:()=>go('LAIR3_B3_ROOM_6')});
+  else ch.push({label:'→ 東の扉（施錠されている）を調べる', fn:()=>lair3TryDoor({level:3, dest:'LAIR3_B3_ROOM_6', from:'LAIR3_B3_PASSAGE_2', area:2, key:'LAIR3_B3_DOOR_P2_6'})});
+  ch.push({label:PC._lair3B3LeverPulled?' レバー（すでに動かしてある）':' レバーを動かす', fn:()=>lair3B3PullLever('LAIR3_B3_PASSAGE_2')});
+  return ch;
+ },
+ },
+
+ // ══════════════════════════════════════════
+ // 第4の固定ダンジョン「忘却の螺旋堂」（サルーンから2日）
+ // ══════════════════════════════════════════
+
+ LAIR4_FRONT:{
+ scene:'dungeon',
+ txt:()=>{
+  const lair = PC._lair4Dungeon;
+  const flavor = (lair && lair.themeId)
+   ? LAIR_THEMES[lair.themeId].entryFlavor
+   : 'あたりは静まり返っており、これといった気配は感じられない。';
+  return `<span style="color:#f0ece0">${LAIR4_NAME} ── 入口前</span><br><br>
+  サルーンから続く道の果て、ダンジョンの入口が見える。${flavor}`;
+ },
+ choices:()=>[
+  {label:'→ 中へ入る', fn:()=>{ initTorch(); go('LAIR4_PASSAGE_1'); }},
+  {label:'↑ サルーンへ戻る（2日）', fn:()=>startLair4ReturnJourney()},
+ ],
+ },
+
+ LAIR4_PASSAGE_1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR4_NAME}</span><br><br>
+  東西15mの通路。西端の南壁には開口部があり、地上へと続く上り階段がある。西端の西壁には扉がある。東端の北側には部屋へのアーチがある。`,
+ choices:[
+  {label:'↑ 地上へ戻る', fn:()=>go('LAIR4_FRONT')},
+  {label:'← 西の扉へ', fn:()=>go('LAIR4_ROOM_8')},
+  {label:'→ 東のアーチへ', fn:()=>go('LAIR4_ROOM_5')},
+ ],
+ },
+
+ LAIR4_ROOM_8:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR4_NAME}</span><br><br>
+  15m四方の部屋。東壁北端に扉がある。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>go('LAIR4_PASSAGE_1')},
+ ],
+ },
+
+ LAIR4_ROOM_5:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR4_NAME}</span><br><br>
+  南北35m東西25mの部屋。南壁中央に通路へのアーチ、北壁中央に扉、北壁東端にも扉がある。` + lair4RoomStatusText('LAIR4_ROOM_5'),
+ choices:()=>{
+  const ns = PC._lair4Dungeon.nodeState.LAIR4_ROOM_5;
+  if(PC._lair4Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair4Encounter('LAIR4_ROOM_5')}];
+  return [
+   {label:'↓ 南のアーチへ', fn:()=>go('LAIR4_PASSAGE_1')},
+   {label:'↑ 北の扉（中央）へ', fn:()=>go('LAIR4_ROOM_2')},
+   {label:'↑ 北の扉（東）へ', fn:()=>go('LAIR4_ROOM_3')},
+  ];
+ },
+ },
+
+ LAIR4_ROOM_2:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR4_NAME}</span><br><br>
+  南北25m東西15mの部屋。北壁には終わりのない螺旋が刻み込まれている。南壁東端に扉がある。` + lair4RoomStatusText('LAIR4_ROOM_2'),
+ choices:()=>{
+  const ns = PC._lair4Dungeon.nodeState.LAIR4_ROOM_2;
+  if(PC._lair4Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair4Encounter('LAIR4_ROOM_2')}];
+  return [{label:'↓ 南の扉へ', fn:()=>go('LAIR4_ROOM_5')}];
+ },
+ },
+
+ LAIR4_ROOM_3:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR4_NAME}</span><br><br>
+  15m四方の部屋。南側の壁に「アルウェンの騎士団がここで5体のトロールを討伐した」と落書きされており、部屋のあちこちにロウの塊が散らばっている。南壁西端に扉、東壁南端にアーチがある。` + lair4RoomStatusText('LAIR4_ROOM_3'),
+ choices:()=>{
+  const ns = PC._lair4Dungeon.nodeState.LAIR4_ROOM_3;
+  if(PC._lair4Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair4Encounter('LAIR4_ROOM_3')}];
+  return [
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR4_ROOM_5')},
+   {label:'→ 東のアーチへ', fn:()=>go('LAIR4_ROOM_4')},
+  ];
+ },
+ },
+
+ LAIR4_ROOM_4:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR4_NAME}</span><br><br>
+  南北15m東西25mの部屋。西壁南端にアーチ、北壁中央に扉がある。南壁中央には扉があり、${PC._lair4DoorOpen_LAIR4_ROOM_6?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair4RoomStatusText('LAIR4_ROOM_4'),
+ choices:()=>{
+  const ns = PC._lair4Dungeon.nodeState.LAIR4_ROOM_4;
+  if(PC._lair4Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair4Encounter('LAIR4_ROOM_4')}];
+  const ch = [
+   {label:'← 西のアーチへ', fn:()=>go('LAIR4_ROOM_3')},
+   {label:'↑ 北の扉へ', fn:()=>go('LAIR4_ROOM_1')},
+  ];
+  if(PC._lair4DoorOpen_LAIR4_ROOM_6) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR4_ROOM_6')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lair4TryDoor({level:1, dest:'LAIR4_ROOM_6', from:'LAIR4_ROOM_4', area:2})});
+  return ch;
+ },
+ },
+
+ LAIR4_ROOM_1:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR4_NAME}</span><br><br>
+  15m四方の部屋。南壁中央に扉がある。東壁には${PC._lair4AlcoveExamined?'調べ終えた':'魔法使いらしきレプラコーンの彫像が置かれた'}アルコーブがある。` + lair4RoomStatusText('LAIR4_ROOM_1'),
+ choices:()=>{
+  const ns = PC._lair4Dungeon.nodeState.LAIR4_ROOM_1;
+  if(PC._lair4Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair4Encounter('LAIR4_ROOM_1')}];
+  const ch = [{label:'↓ 南の扉へ', fn:()=>go('LAIR4_ROOM_4')}];
+  if(!PC._lair4AlcoveExamined){
+   ch.push({label:' アルコーブの彫像を調べる', fn:()=>{ PC._lair4AlcoveExamined = true; lair4ExamineAlcove('LAIR4_ROOM_1'); }});
+  }
+  return ch;
+ },
+ },
+
+ LAIR4_ROOM_6:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR4_NAME}</span><br><br>
+  25m四方の部屋。北壁東端に扉がある。南壁東端には扉があり、${PC._lair4DoorOpen_LAIR4_ROOM_7?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair4RoomStatusText('LAIR4_ROOM_6'),
+ choices:()=>{
+  const ns = PC._lair4Dungeon.nodeState.LAIR4_ROOM_6;
+  if(PC._lair4Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair4Encounter('LAIR4_ROOM_6')}];
+  const ch = [{label:'↑ 北の扉へ', fn:()=>go('LAIR4_ROOM_4')}];
+  if(PC._lair4DoorOpen_LAIR4_ROOM_7) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR4_ROOM_7')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lair4TryDoor({level:1, dest:'LAIR4_ROOM_7', from:'LAIR4_ROOM_6', area:2})});
+  return ch;
+ },
+ },
+
+ LAIR4_ROOM_7:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR4_NAME}</span><br><br>
+  25m四方の部屋。天井は幾何学模様の壁画で覆われている。北壁西端に扉がある。` + lair4RoomStatusText('LAIR4_ROOM_7'),
+ choices:()=>{
+  const ns = PC._lair4Dungeon.nodeState.LAIR4_ROOM_7;
+  if(PC._lair4Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair4Encounter('LAIR4_ROOM_7')}];
+  return [{label:'↑ 北の扉へ', fn:()=>go('LAIR4_ROOM_6')}];
+ },
+ },
+
+ LAIR5_FRONT:{
+ scene:'dungeon',
+ txt:()=>{
+  const lair = PC._lair5Dungeon;
+  const flavor = (lair && lair.themeId)
+   ? LAIR_THEMES[lair.themeId].entryFlavor
+   : 'あたりは静まり返っており、これといった気配は感じられない。';
+  return `<span style="color:#f0ece0">${LAIR5_NAME} ── 入口前</span><br><br>
+  桟橋から続く獣道を抜けると、鬱蒼とした木々の合間に古びたダンジョンの入口が見えてくる。${flavor}`;
+ },
+ choices:()=>{
+  const ch = [{label:'→ 中へ入る', fn:()=>{ initTorch(); go('LAIR5_PASSAGE_1'); }}];
+  if(PC._lair5B3ShortcutFound) ch.push({label:'→ 森の中の階段から入る（地下3階）', fn:()=>{ initTorch(); go('LAIR5_B3_PASSAGE_4'); }});
+  ch.push({label:'↑ マラカイへ戻る（船で5日）', fn:()=>startLair5ReturnJourney()});
+  return ch;
+ },
+ },
+
+ LAIR5_PASSAGE_1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25mの通路。北端は地上へ続く北向きの階段につながっている。南端は西に折れて通路へ続く。東壁中央に部屋への扉がある。`,
+ choices:[
+  {label:'↑ 地上へ戻る', fn:()=>go('LAIR5_FRONT')},
+  {label:'↓ 南の通路へ', fn:()=>go('LAIR5_PASSAGE_2')},
+  {label:'→ 東の扉へ', fn:()=>go('LAIR5_ROOM_1')},
+ ],
+ },
+
+ LAIR5_PASSAGE_2:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  東西15mの通路。東端は北へ折れて通路へ続く。西端も北へ折れて別の通路へ続く。`,
+ choices:[
+  {label:'→ 東の通路へ', fn:()=>go('LAIR5_PASSAGE_1')},
+  {label:'← 西の通路へ', fn:()=>go('LAIR5_PASSAGE_3')},
+ ],
+ },
+
+ LAIR5_PASSAGE_3:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25mの通路。南端は東に折れて通路へ続く。北端は地下2階への下り階段が北へと続いている。`,
+ choices:[
+  {label:'↓ 南の通路へ', fn:()=>go('LAIR5_PASSAGE_2')},
+  {label:'↑ 北の下り階段へ', fn:()=>go('LAIR5_B2_PASSAGE_1')},
+ ],
+ },
+
+ LAIR5_ROOM_1:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35m東西15mの部屋。西壁の南端から15mのところに通路への扉がある。東壁の北端に扉がある。東壁南端には扉があり、${PC._lair5DoorOpen_LAIR5_DOOR_1_3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}南壁と西壁からは正体不明の深緑色の粘液が浸出している。` + lair5RoomStatusText('LAIR5_ROOM_1'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_1;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_1')}];
+  const ch = [
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_PASSAGE_1')},
+   {label:'→ 東の扉（北）へ', fn:()=>go('LAIR5_PASSAGE_4')},
+  ];
+  if(PC._lair5DoorOpen_LAIR5_DOOR_1_3) ch.push({label:'→ 東の扉（南）へ', fn:()=>go('LAIR5_ROOM_3')});
+  else ch.push({label:'→ 東の扉（南・施錠されている）を調べる', fn:()=>lair5TryDoor({level:1, dest:'LAIR5_ROOM_3', from:'LAIR5_ROOM_1', area:1, key:'LAIR5_DOOR_1_3'})});
+  if(!PC._lair5OozeExamined) ch.push({label:' 壁の粘液を調べる', fn:()=>{ PC._lair5OozeExamined = true; lair5ExamineOoze('LAIR5_ROOM_1'); }});
+  return ch;
+ },
+ },
+
+ LAIR5_PASSAGE_4:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  東西15mの通路。西端は部屋への扉で行き止まりになっている。東端の扉には、${PC._lair5DoorOpen_LAIR5_ROOM_2?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}`,
+ choices:()=>{
+  const ch = [{label:'← 西の扉へ', fn:()=>go('LAIR5_ROOM_1')}];
+  if(PC._lair5DoorOpen_LAIR5_ROOM_2) ch.push({label:'→ 東の扉へ', fn:()=>go('LAIR5_ROOM_2')});
+  else ch.push({label:'→ 東の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:1, dest:'LAIR5_ROOM_2', from:'LAIR5_PASSAGE_4', area:1})});
+  return ch;
+ },
+ },
+
+ LAIR5_ROOM_2:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  35m四方の部屋。西壁北端には扉があり、${PC._lair5DoorOpen_LAIR5_ROOM_2?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}南壁東端から15mのところに扉があり、${PC._lair5DoorOpen_LAIR5_DOOR_2_5?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}部屋の北西の角に彫刻が施された戦士の石像が台座の上に立っている。` + lair5RoomStatusText('LAIR5_ROOM_2'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_2;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_2')}];
+  const ch = [];
+  if(PC._lair5DoorOpen_LAIR5_ROOM_2) ch.push({label:'← 西の扉へ', fn:()=>go('LAIR5_PASSAGE_4')});
+  else ch.push({label:'← 西の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:1, dest:'LAIR5_PASSAGE_4', from:'LAIR5_ROOM_2', area:1, key:'LAIR5_ROOM_2'})});
+  if(PC._lair5DoorOpen_LAIR5_DOOR_2_5) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR5_ROOM_5')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:1, dest:'LAIR5_ROOM_5', from:'LAIR5_ROOM_2', area:1, key:'LAIR5_DOOR_2_5'})});
+  if(!PC._lair5StatueExamined) ch.push({label:' 戦士の石像を調べる', fn:()=>{ PC._lair5StatueExamined = true; lair5ExamineDanger({area:1, returnNode:'LAIR5_ROOM_2', successMsg:'石像を調べてみたが、特に何も発見できなかった。', failMsg:'石像に触れた途端、ガタン、と重い音が響いた！'}); }});
+  return ch;
+ },
+ },
+
+ LAIR5_ROOM_3:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25m、東西15mの部屋。西壁南端から15mのところに扉があり、${PC._lair5DoorOpen_LAIR5_DOOR_1_3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}東壁南端に扉がある。北側の壁には不気味な人間の顔がいくつも彫られている。` + lair5RoomStatusText('LAIR5_ROOM_3'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_3;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_3')}];
+  const ch = [];
+  if(PC._lair5DoorOpen_LAIR5_DOOR_1_3) ch.push({label:'← 西の扉へ', fn:()=>go('LAIR5_ROOM_1')});
+  else ch.push({label:'← 西の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:1, dest:'LAIR5_ROOM_1', from:'LAIR5_ROOM_3', area:1, key:'LAIR5_DOOR_1_3'})});
+  ch.push({label:'→ 東の扉へ', fn:()=>go('LAIR5_ROOM_5')});
+  if(!PC._lair5FacesExamined) ch.push({label:' 壁の顔の彫刻を調べる', fn:()=>{ PC._lair5FacesExamined = true; lair5ExamineDanger({area:1, returnNode:'LAIR5_ROOM_3', successMsg:'いくつもの顔がじっとこちらを見返してくるようだったが、特に何も発見できなかった。', failMsg:'彫られた顔の一つと目が合った気がした瞬間、悪寒が走った！'}); }});
+  return ch;
+ },
+ },
+
+ LAIR5_ROOM_4:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35m東西25mの部屋。南壁中央に鉄製の錆びた扉がある。床は白と黒が交互に並んだ正方形のタイルで覆われており、部屋の中央には黒焦げになった棍棒が横たわっている。` + lair5RoomStatusText('LAIR5_ROOM_4'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_4;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_4')}];
+  const ch = [{label:'↓ 南の鉄製の錆びた扉へ', fn:()=>go('LAIR5_ROOM_9')}];
+  if(!PC._lair5ClubExamined) ch.push({label:' 黒焦げの棍棒を調べる', fn:()=>{ PC._lair5ClubExamined = true; lair5ExamineDanger({area:2, returnNode:'LAIR5_ROOM_4', successMsg:'棍棒を調べてみたが、何も特殊なものではないようだ。', failMsg:'棍棒を手に取った瞬間、大きな物音を立ててしまった！'}); }});
+  return ch;
+ },
+ },
+
+ LAIR5_ROOM_5:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15m東西35mの部屋。西壁北端に扉がある。西壁南端には鉄で補強された扉がある。南壁西端から15mのところに扉があり、${PC._lair5DoorOpen_LAIR5_ROOM_8?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}北壁東端から15mのところに扉があり、${PC._lair5DoorOpen_LAIR5_DOOR_2_5?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair5RoomStatusText('LAIR5_ROOM_5'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_5;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_5')}];
+  const ch = [
+   {label:'→ 西の扉へ', fn:()=>go('LAIR5_ROOM_3')},
+   {label:'→ 西の鉄扉へ', fn:()=>go('LAIR5_PASSAGE_5')},
+  ];
+  if(PC._lair5DoorOpen_LAIR5_ROOM_8) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR5_ROOM_8')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:1, dest:'LAIR5_ROOM_8', from:'LAIR5_ROOM_5', area:1})});
+  if(PC._lair5DoorOpen_LAIR5_DOOR_2_5) ch.push({label:'↑ 北の扉へ', fn:()=>go('LAIR5_ROOM_2')});
+  else ch.push({label:'↑ 北の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:1, dest:'LAIR5_ROOM_2', from:'LAIR5_ROOM_5', area:1, key:'LAIR5_DOOR_2_5'})});
+  return ch;
+ },
+ },
+
+ LAIR5_PASSAGE_5:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  東西5mの短い通路。東端は鉄で補強された扉で部屋に通じている。西端は部屋へのアーチになっている。`,
+ choices:[
+  {label:'→ 東の鉄扉へ', fn:()=>go('LAIR5_ROOM_5')},
+  {label:'← 西のアーチへ', fn:()=>go('LAIR5_ROOM_6')},
+ ],
+ },
+
+ LAIR5_ROOM_6:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25m東西15mの部屋。東壁北端に通路へのアーチがある。南壁西端には扉があり、${PC._lair5DoorOpen_LAIR5_ROOM_9?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair5RoomStatusText('LAIR5_ROOM_6'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_6;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_6')}];
+  const ch = [{label:'→ 東のアーチへ', fn:()=>go('LAIR5_PASSAGE_5')}];
+  if(PC._lair5DoorOpen_LAIR5_ROOM_9) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR5_ROOM_9')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:1, dest:'LAIR5_ROOM_9', from:'LAIR5_ROOM_6', area:1})});
+  return ch;
+ },
+ },
+
+ LAIR5_ROOM_7:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35m東西15mの部屋。東壁北端から15mのところに鉄製の扉がある。東壁南端にも扉がある。大昔には武器庫だったのかもしれない。壁には何世紀もの間についた刃物の傷が無数に刻まれ、部屋の中央には壊れた石のテーブルが置かれている。` + lair5RoomStatusText('LAIR5_ROOM_7'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_7;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_7')}];
+  const ch = [
+   {label:'→ 東の鉄製の扉（北）へ', fn:()=>go('LAIR5_ROOM_8')},
+   {label:'→ 東の扉（南）へ', fn:()=>go('LAIR5_ROOM_10')},
+  ];
+  if(!PC._lair5TableExamined) ch.push({label:' 壊れた石のテーブルを調べる', fn:()=>{ PC._lair5TableExamined = true; lair5ExamineDanger({area:2, returnNode:'LAIR5_ROOM_7', successMsg:'テーブルの残骸を調べてみたが、特に何もなかった。', failMsg:'テーブルの残骸をどかした拍子に、大きな物音を立ててしまった！'}); }});
+  return ch;
+ },
+ },
+
+ LAIR5_ROOM_8:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  15m四方の部屋。北壁西端に扉がある。西壁南端には鉄製の扉があり、${PC._lair5DoorOpen_LAIR5_ROOM_7?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}南壁東端に部屋へのアーチがある。石でできた祭壇が部屋の東側に鎮座している。` + lair5RoomStatusText('LAIR5_ROOM_8'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_8;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_8')}];
+  const ch = [
+   {label:'↑ 北の扉へ', fn:()=>go('LAIR5_ROOM_5')},
+   {label:'↓ 南のアーチへ', fn:()=>go('LAIR5_ROOM_10')},
+  ];
+  if(PC._lair5DoorOpen_LAIR5_ROOM_7) ch.push({label:'← 西の鉄製の扉へ', fn:()=>go('LAIR5_ROOM_7')});
+  else ch.push({label:'← 西の鉄製の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:1, dest:'LAIR5_ROOM_7', from:'LAIR5_ROOM_8', area:1})});
+  if(!PC._lair5AltarExamined) ch.push({label:' 石の祭壇を調べる', fn:()=>{ PC._lair5AltarExamined = true; lair5ExamineAltar('LAIR5_ROOM_8'); }});
+  return ch;
+ },
+ },
+
+ LAIR5_ROOM_9:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15m東西25mの部屋。北壁東端に扉がある。北壁西端には鉄製の錆びた扉がある。` + lair5RoomStatusText('LAIR5_ROOM_9'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_9;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_9')}];
+  return [
+   {label:'↑ 北の扉（東）へ', fn:()=>go('LAIR5_ROOM_6')},
+   {label:'↑ 北の鉄製の錆びた扉（西）へ', fn:()=>go('LAIR5_ROOM_4')},
+  ];
+ },
+ },
+
+ LAIR5_ROOM_10:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  15m四方の部屋。北壁西端に部屋へのアーチがある。西壁南端に扉がある。床は神秘的な模様のタイルモザイクで覆われており、天井はひび割れだらけである。` + lair5RoomStatusText('LAIR5_ROOM_10'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_ROOM_10;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_ROOM_10')}];
+  return [
+   {label:'↑ 北のアーチへ', fn:()=>go('LAIR5_ROOM_8')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_ROOM_7')},
+  ];
+ },
+ },
+
+ LAIR5_B2_PASSAGE_1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME} — 地下2階</span><br><br>
+  南北35mの通路。北端は地下1階への上り階段が北へ続いている。途中で踊り場があり南へ向きを変えている。北端東壁に部屋へのアーチがある。南は暗くなっており、先が見えない。`,
+ choices:[
+  {label:'↑ 北の上り階段（地下1階）へ', fn:()=>go('LAIR5_PASSAGE_3')},
+  {label:'→ 東のアーチへ', fn:()=>go('LAIR5_B2_ROOM_1')},
+  {label:'↓ 南の暗がりへ', fn:()=>go('LAIR5_B2_PASSAGE_2')},
+ ],
+ },
+
+ LAIR5_B2_ROOM_1:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  15m四方の部屋。西壁南端に通路へのアーチがある。` + lair5RoomStatusText('LAIR5_B2_ROOM_1'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_1;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_1')}];
+  return [{label:'← 西のアーチへ', fn:()=>go('LAIR5_B2_PASSAGE_1')}];
+ },
+ },
+
+ LAIR5_B2_PASSAGE_2:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北40mの通路。北は通路へつながっているが暗くて先が見えない。南端東壁に扉がある。南端南側には地下3階への下り階段が南へと続いている。`,
+ choices:[
+  {label:'↑ 北の暗がりへ', fn:()=>go('LAIR5_B2_PASSAGE_1')},
+  {label:'→ 東の扉へ', fn:()=>go('LAIR5_B2_ROOM_7')},
+  {label:'↓ 南の下り階段へ', fn:()=>go('LAIR5_B3_PASSAGE_1')},
+ ],
+ },
+
+
+ LAIR5_B2_ROOM_7:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35m東西25mの部屋。西壁の南端から15mのところに通路への扉がある。北壁中央には落とし格子があり、${lair5B2PortcullisAOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}東壁の北端から15mのところに扉があり、${PC._lair5DoorOpen_LAIR5_B2_ROOM_8?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}東壁の南端から15mのところに扉があり、${PC._lair5DoorOpen_LAIR5_B2_DOOR_7_P3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair5RoomStatusText('LAIR5_B2_ROOM_7'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_7;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_7')}];
+  const ch = [{label:'← 西の扉へ', fn:()=>go('LAIR5_B2_PASSAGE_2')}];
+  if(lair5B2PortcullisAOpen()) ch.push({label:'↑ 北の落とし格子へ', fn:()=>go('LAIR5_B2_ROOM_5')});
+  if(PC._lair5DoorOpen_LAIR5_B2_ROOM_8) ch.push({label:'→ 東の扉（北）へ', fn:()=>go('LAIR5_B2_ROOM_8')});
+  else ch.push({label:'→ 東の扉（北・施錠されている）を調べる', fn:()=>lair5TryDoor({level:2, dest:'LAIR5_B2_ROOM_8', from:'LAIR5_B2_ROOM_7', area:2})});
+  if(PC._lair5DoorOpen_LAIR5_B2_DOOR_7_P3) ch.push({label:'→ 東の扉（南）へ', fn:()=>go('LAIR5_B2_PASSAGE_3')});
+  else ch.push({label:'→ 東の扉（南・施錠されている）を調べる', fn:()=>lair5TryDoor({level:2, dest:'LAIR5_B2_PASSAGE_3', from:'LAIR5_B2_ROOM_7', area:2, key:'LAIR5_B2_DOOR_7_P3'})});
+  return ch;
+ },
+ },
+
+ LAIR5_B2_ROOM_5:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15m東西35mの部屋。北壁西端から15mのところに扉がある。南壁西端から15mのところには落とし格子があり、${lair5B2PortcullisAOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}` + lair5RoomStatusText('LAIR5_B2_ROOM_5'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_5;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_5')}];
+  const ch = [{label:'↑ 北の扉へ', fn:()=>go('LAIR5_B2_PASSAGE_5')}];
+  if(lair5B2PortcullisAOpen()) ch.push({label:'↓ 南の落とし格子へ', fn:()=>go('LAIR5_B2_ROOM_7')});
+  return ch;
+ },
+ },
+
+ LAIR5_B2_PASSAGE_5:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15mの通路。北端は行き止まりになっている。東壁に部屋への扉がある。南端は部屋への扉で行き止まりになっている。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>go('LAIR5_B2_ROOM_2')},
+  {label:'↓ 南の扉へ', fn:()=>go('LAIR5_B2_ROOM_5')},
+ ],
+ },
+
+ LAIR5_B2_ROOM_2:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35m東西15mの部屋。東壁南端には扉があり、${PC._lair5DoorOpen_LAIR5_B2_DOOR_2_4?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}西壁南端から15mのところに通路への扉がある。` + lair5RoomStatusText('LAIR5_B2_ROOM_2'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_2;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_2')}];
+  const ch = [{label:'← 西の扉へ', fn:()=>go('LAIR5_B2_PASSAGE_5')}];
+  if(PC._lair5DoorOpen_LAIR5_B2_DOOR_2_4) ch.push({label:'→ 東の扉へ', fn:()=>go('LAIR5_B2_ROOM_4')});
+  else ch.push({label:'→ 東の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:2, dest:'LAIR5_B2_ROOM_4', from:'LAIR5_B2_ROOM_2', area:2, key:'LAIR5_B2_DOOR_2_4'})});
+  return ch;
+ },
+ },
+
+ LAIR5_B2_ROOM_4:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35m東西15の部屋。床は浅いお椀のようで、薄暗い隅には厚い泥の層が広がっている。北壁東端に扉がある。西壁北端から15mのところに扉があり、${PC._lair5DoorOpen_LAIR5_B2_DOOR_2_4?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair5RoomStatusText('LAIR5_B2_ROOM_4'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_4;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_4')}];
+  const ch = [{label:'↑ 北の扉へ', fn:()=>go('LAIR5_B2_PASSAGE_4')}];
+  if(PC._lair5DoorOpen_LAIR5_B2_DOOR_2_4) ch.push({label:'← 西の扉へ', fn:()=>go('LAIR5_B2_ROOM_2')});
+  else ch.push({label:'← 西の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:2, dest:'LAIR5_B2_ROOM_2', from:'LAIR5_B2_ROOM_4', area:2, key:'LAIR5_B2_DOOR_2_4'})});
+  return ch;
+ },
+ },
+
+ LAIR5_B2_PASSAGE_4:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15mの通路。北端は行き止まりになっている。東壁に部屋への扉がある。南端は部屋への扉で行き止まりになっている。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>go('LAIR5_B2_ROOM_3')},
+  {label:'↓ 南の扉へ', fn:()=>go('LAIR5_B2_ROOM_4')},
+ ],
+ },
+
+ LAIR5_B2_ROOM_3:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35m東西25mの部屋。南壁西端に扉がある。東壁北端に通路への扉がある。` + lair5RoomStatusText('LAIR5_B2_ROOM_3'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_3;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_3')}];
+  return [
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR5_B2_ROOM_6')},
+   {label:'→ 東の扉へ', fn:()=>go('LAIR5_B2_PASSAGE_4')},
+  ];
+ },
+ },
+
+ LAIR5_B2_ROOM_6:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  25m四方の部屋。色あせて破れたタペストリーが東の壁に掛かっており、部屋の北西の隅には塩っぽい匂いのする水たまりができている。南壁東端には扉があり、${PC._lair5DoorOpen_LAIR5_B2_DOOR_6_9?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair5RoomStatusText('LAIR5_B2_ROOM_6'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_6;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_6')}];
+  const ch = [{label:'↑ 北の扉へ', fn:()=>go('LAIR5_B2_ROOM_3')}];
+  if(PC._lair5DoorOpen_LAIR5_B2_DOOR_6_9) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR5_B2_ROOM_9')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:2, dest:'LAIR5_B2_ROOM_9', from:'LAIR5_B2_ROOM_6', area:2, key:'LAIR5_B2_DOOR_6_9'})});
+  if(!PC._lair5B2TapestryExamined) ch.push({label:' タペストリーを調べる', fn:()=>{ PC._lair5B2TapestryExamined = true; lair5ExamineDanger({area:2, returnNode:'LAIR5_B2_ROOM_6', successMsg:'タペストリーをめくってみたが、特に何もなかった。', failMsg:'タペストリーの陰から急に物音がした！'}); }});
+  return ch;
+ },
+ },
+
+ LAIR5_B2_ROOM_9:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25m東西15mの部屋。西壁中央には扉があり、${PC._lair5DoorOpen_LAIR5_B2_DOOR_9_P3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}東壁南端には落とし格子があり、${lair5B2PortcullisBOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}北壁東端には扉があり、${PC._lair5DoorOpen_LAIR5_B2_DOOR_6_9?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair5RoomStatusText('LAIR5_B2_ROOM_9'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_9;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_9')}];
+  const ch = [];
+  if(PC._lair5DoorOpen_LAIR5_B2_DOOR_9_P3) ch.push({label:'← 西の扉へ', fn:()=>go('LAIR5_B2_PASSAGE_3')});
+  else ch.push({label:'← 西の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:2, dest:'LAIR5_B2_PASSAGE_3', from:'LAIR5_B2_ROOM_9', area:2, key:'LAIR5_B2_DOOR_9_P3'})});
+  if(lair5B2PortcullisBOpen()) ch.push({label:'→ 東の落とし格子へ', fn:()=>go('LAIR5_B2_ROOM_10')});
+  if(PC._lair5DoorOpen_LAIR5_B2_DOOR_6_9) ch.push({label:'↑ 北の扉へ', fn:()=>go('LAIR5_B2_ROOM_6')});
+  else ch.push({label:'↑ 北の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:2, dest:'LAIR5_B2_ROOM_6', from:'LAIR5_B2_ROOM_9', area:2, key:'LAIR5_B2_DOOR_6_9'})});
+  return ch;
+ },
+ },
+
+ LAIR5_B2_ROOM_10:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25m東西15mの部屋。床にはタイルでできた迷宮が広がり、天井は水滴を垂らす鍾乳石で覆われている。西壁南端には落とし格子があり、${lair5B2PortcullisBOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}北壁に大きなレバーがある。` + lair5RoomStatusText('LAIR5_B2_ROOM_10'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_10;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_10')}];
+  const ch = [];
+  if(lair5B2PortcullisBOpen()) ch.push({label:'← 西の落とし格子へ', fn:()=>go('LAIR5_B2_ROOM_9')});
+  ch.push({label:' 大きなレバーを動かす', fn:()=>lair5B2PullLeverA('LAIR5_B2_ROOM_10')});
+  return ch;
+ },
+ },
+
+ LAIR5_B2_ROOM_8:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  15m四方の部屋。西壁南端に扉がある。東壁に大きなレバーがある。` + lair5RoomStatusText('LAIR5_B2_ROOM_8'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B2_ROOM_8;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B2_ROOM_8')}];
+  return [
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_B2_ROOM_7')},
+   {label:' 大きなレバーを動かす', fn:()=>lair5B2PullLeverB('LAIR5_B2_ROOM_8')},
+  ];
+ },
+ },
+
+ LAIR5_B2_PASSAGE_3:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  東西15mの通路。西端は扉で行き止まりになっており、${PC._lair5DoorOpen_LAIR5_B2_DOOR_7_P3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}東端も扉で行き止まりになっており、${PC._lair5DoorOpen_LAIR5_B2_DOOR_9_P3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}`,
+ choices:()=>{
+  const ch = [];
+  if(PC._lair5DoorOpen_LAIR5_B2_DOOR_7_P3) ch.push({label:'← 西の扉へ', fn:()=>go('LAIR5_B2_ROOM_7')});
+  else ch.push({label:'← 西の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:2, dest:'LAIR5_B2_ROOM_7', from:'LAIR5_B2_PASSAGE_3', area:2, key:'LAIR5_B2_DOOR_7_P3'})});
+  if(PC._lair5DoorOpen_LAIR5_B2_DOOR_9_P3) ch.push({label:'→ 東の扉へ', fn:()=>go('LAIR5_B2_ROOM_9')});
+  else ch.push({label:'→ 東の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:2, dest:'LAIR5_B2_ROOM_9', from:'LAIR5_B2_PASSAGE_3', area:2, key:'LAIR5_B2_DOOR_9_P3'})});
+  return ch;
+ },
+ },
+
+ LAIR5_B3_PASSAGE_1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME} — 地下3階</span><br><br>
+  東西35mの通路。西端北側には地下2階への上り階段が北へ延びている。西端から5mの北壁には扉があり、${PC._lair5DoorOpen_LAIR5_B3_DOOR_1_8?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}東は暗くなっており、先が見えない。`,
+ choices:()=>{
+  const ch = [{label:'↑ 西の上り階段（地下2階）へ', fn:()=>go('LAIR5_B2_PASSAGE_2')}];
+  if(PC._lair5DoorOpen_LAIR5_B3_DOOR_1_8) ch.push({label:'→ 北の扉へ', fn:()=>go('LAIR5_B3_ROOM_8')});
+  else ch.push({label:'→ 北の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:3, dest:'LAIR5_B3_ROOM_8', from:'LAIR5_B3_PASSAGE_1', area:3, key:'LAIR5_B3_DOOR_1_8'})});
+  ch.push({label:'→ 東の暗がりへ', fn:()=>go('LAIR5_B3_PASSAGE_2')});
+  return ch;
+ },
+ },
+
+ LAIR5_B3_PASSAGE_2:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  東西35mの通路。西は通路へ続くが暗くなっていて先が見えない。東端は部屋へのアーチになっている。`,
+ choices:[
+  {label:'← 西の暗がりへ', fn:()=>go('LAIR5_B3_PASSAGE_1')},
+  {label:'→ 東のアーチへ', fn:()=>go('LAIR5_B3_ROOM_10')},
+ ],
+ },
+
+ LAIR5_B3_ROOM_10:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  25m四方の部屋。西壁南端に通路へのアーチがある。西壁北端に扉がある。北壁東端には落とし格子があり、${lair5B3PortcullisAOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}` + lair5RoomStatusText('LAIR5_B3_ROOM_10'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_10;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_10')}];
+  const ch = [
+   {label:'← 西のアーチへ', fn:()=>go('LAIR5_B3_PASSAGE_2')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_B3_ROOM_9')},
+  ];
+  if(lair5B3PortcullisAOpen()) ch.push({label:'↑ 北の落とし格子へ', fn:()=>go('LAIR5_B3_ROOM_5')});
+  return ch;
+ },
+ },
+
+ LAIR5_B3_ROOM_9:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15m東西35mの部屋。東壁北端に扉がある。北壁中央に扉がある。西壁北端に扉がある。` + lair5RoomStatusText('LAIR5_B3_ROOM_9'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_9;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_9')}];
+  return [
+   {label:'→ 東の扉へ', fn:()=>go('LAIR5_B3_ROOM_10')},
+   {label:'↑ 北の扉へ', fn:()=>go('LAIR5_B3_ROOM_7')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_B3_ROOM_8')},
+  ];
+ },
+ },
+
+ LAIR5_B3_ROOM_8:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15m東西25mの部屋。東壁北端に扉がある。南壁西端には扉があり、${PC._lair5DoorOpen_LAIR5_B3_DOOR_1_8?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}` + lair5RoomStatusText('LAIR5_B3_ROOM_8'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_8;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_8')}];
+  const ch = [{label:'→ 東の扉へ', fn:()=>go('LAIR5_B3_ROOM_9')}];
+  if(PC._lair5DoorOpen_LAIR5_B3_DOOR_1_8) ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR5_B3_PASSAGE_1')});
+  else ch.push({label:'↓ 南の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:3, dest:'LAIR5_B3_PASSAGE_1', from:'LAIR5_B3_ROOM_8', area:3, key:'LAIR5_B3_DOOR_1_8'})});
+  return ch;
+ },
+ },
+
+ LAIR5_B3_ROOM_7:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25m東西25mの部屋。西側の壁には傷みの激しい古代の伝説的な戦いらしきシーンを描いたタペストリーが掛けられている。南壁東端に扉がある。東壁中央に部屋へのアーチがある。北壁東端に扉がある。西壁南端に扉がある。` + lair5RoomStatusText('LAIR5_B3_ROOM_7'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_7;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_7')}];
+  return [
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR5_B3_ROOM_9')},
+   {label:'→ 東のアーチへ', fn:()=>go('LAIR5_B3_ROOM_4')},
+   {label:'↑ 北の扉へ', fn:()=>go('LAIR5_B3_ROOM_1')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_B3_PASSAGE_3')},
+  ];
+ },
+ },
+
+ LAIR5_B3_PASSAGE_3:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  東西15mの通路。東端は部屋への扉で行き止まりになっている。西端は行き止まりになっており、北側に部屋へのアーチがある。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>go('LAIR5_B3_ROOM_7')},
+  {label:'↖ 北のアーチへ', fn:()=>go('LAIR5_B3_ROOM_6')},
+ ],
+ },
+
+ LAIR5_B3_ROOM_6:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15m東西25mの部屋。南壁中央に通路へのアーチがある。北壁中央に大きなレバーがある。` + lair5RoomStatusText('LAIR5_B3_ROOM_6'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_6;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_6')}];
+  return [
+   {label:'↓ 南のアーチへ', fn:()=>go('LAIR5_B3_PASSAGE_3')},
+   {label:' 大きなレバーを動かす', fn:()=>lair5B3PullLeverB('LAIR5_B3_ROOM_6')},
+  ];
+ },
+ },
+
+ LAIR5_B3_ROOM_1:{
+ scene:'dungeon',
+ area:4,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  35m四方の部屋。北西の角に潮の匂いのする水たまりがある。南壁東端に扉がある。東壁北端から15mのところに扉がある。西壁南端から15mのところに扉がある。` + lair5RoomStatusText('LAIR5_B3_ROOM_1'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_1;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_1')}];
+  return [
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR5_B3_ROOM_7')},
+   {label:'→ 東の扉へ', fn:()=>go('LAIR5_B3_ROOM_2')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_B3_PASSAGE_4')},
+  ];
+ },
+ },
+
+ LAIR5_B3_PASSAGE_4:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15mの通路。南端東壁に扉がある。南端南側には地上の鬱蒼とした森の中に続く上り階段がある。北端は地下4階へ続く下り階段が北向きに続いている（途中踊り場があり南へ向きを変えている）。`,
+ choices:[
+  {label:'→ 東の扉へ', fn:()=>go('LAIR5_B3_ROOM_1')},
+  {label:'↓ 南の上り階段（地上）へ', fn:()=>lair5B3ExitToSurface()},
+  {label:'↑ 北の下り階段へ', fn:()=>go('LAIR5_B4_PASSAGE_1')},
+ ],
+ },
+
+ LAIR5_B3_ROOM_2:{
+ scene:'dungeon',
+ area:4,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  25m四方の部屋。西壁中央に扉がある。東壁南端に部屋へのアーチがある。北壁中央に大きなレバーがある。` + lair5RoomStatusText('LAIR5_B3_ROOM_2'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_2;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_2')}];
+  return [
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_B3_ROOM_1')},
+   {label:'→ 東のアーチへ', fn:()=>go('LAIR5_B3_ROOM_3')},
+   {label:' 大きなレバーを動かす', fn:()=>lair5B3PullLeverA('LAIR5_B3_ROOM_2')},
+  ];
+ },
+ },
+
+ LAIR5_B3_ROOM_3:{
+ scene:'dungeon',
+ area:4,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25m東西15mの部屋。西壁南端に部屋へのアーチがある。北東には上下に延びる螺旋階段がある。この螺旋階段は上へ登っても下へ降りてもこの部屋に戻ってくる魔法がかかっているようだ。` + lair5RoomStatusText('LAIR5_B3_ROOM_3'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_3;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_3')}];
+  return [
+   {label:'← 西のアーチへ', fn:()=>go('LAIR5_B3_ROOM_2')},
+   {label:'↗ 螺旋階段を上る', fn:()=>lair5B3UseSpiralStairs()},
+   {label:'↘ 螺旋階段を下る', fn:()=>lair5B3UseSpiralStairs()},
+  ];
+ },
+ },
+
+ LAIR5_B3_ROOM_4:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  25m四方の部屋。西壁南端に部屋へのアーチがある。東壁北端には落とし格子があり、${lair5B3PortcullisBOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}` + lair5RoomStatusText('LAIR5_B3_ROOM_4'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_4;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_4')}];
+  const ch = [{label:'← 西のアーチへ', fn:()=>go('LAIR5_B3_ROOM_7')}];
+  if(lair5B3PortcullisBOpen()) ch.push({label:'→ 東の落とし格子へ', fn:()=>go('LAIR5_B3_ROOM_5')});
+  return ch;
+ },
+ },
+
+ LAIR5_B3_ROOM_5:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35m東西15mの部屋。西壁北端には落とし格子があり、${lair5B3PortcullisBOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}南壁東端にも落とし格子があり、${lair5B3PortcullisAOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}` + lair5RoomStatusText('LAIR5_B3_ROOM_5'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B3_ROOM_5;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B3_ROOM_5')}];
+  const ch = [];
+  if(lair5B3PortcullisBOpen()) ch.push({label:'← 西の落とし格子へ', fn:()=>go('LAIR5_B3_ROOM_4')});
+  if(lair5B3PortcullisAOpen()) ch.push({label:'↓ 南の落とし格子へ', fn:()=>go('LAIR5_B3_ROOM_10')});
+  return ch;
+ },
+ },
+
+ LAIR5_B4_PASSAGE_1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME} — 地下4階</span><br><br>
+  南北25mの通路。北端北側には地下3階への上り階段が続いている（途中踊り場で南向きに方向を変えている）。北端東側には扉がある。南端東側には落とし格子があり、${lair5B4PortcullisAOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}`,
+ choices:()=>{
+  const ch = [
+   {label:'↑ 北の上り階段（地下3階）へ', fn:()=>go('LAIR5_B3_PASSAGE_4')},
+   {label:'→ 東の扉へ', fn:()=>go('LAIR5_B4_ROOM_2')},
+  ];
+  if(lair5B4PortcullisAOpen()) ch.push({label:'↓ 南の落とし格子へ', fn:()=>go('LAIR5_B4_ROOM_4')});
+  return ch;
+ },
+ },
+
+ LAIR5_B4_ROOM_2:{
+ scene:'dungeon',
+ area:4,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  15m四方の部屋。東壁中央に大きなレバーがある。` + lair5RoomStatusText('LAIR5_B4_ROOM_2'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B4_ROOM_2;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B4_ROOM_2')}];
+  return [
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_B4_PASSAGE_1')},
+   {label:' 大きなレバーを動かす', fn:()=>lair5B4PullLeverA('LAIR5_B4_ROOM_2')},
+  ];
+ },
+ },
+
+ LAIR5_B4_ROOM_4:{
+ scene:'dungeon',
+ area:4,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  35m四方の部屋。西壁北端から15mのところには落とし格子があり、${lair5B4PortcullisAOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}南壁西端から15mのところに扉がある。東壁南端に扉がある。東壁北端から15mのところに扉がある。` + (PC._lair5B4Door1to4Found?'北壁東端から15mのところに、隠し扉が見つかっている。':'') + lair5RoomStatusText('LAIR5_B4_ROOM_4'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B4_ROOM_4;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B4_ROOM_4')}];
+  const ch = [];
+  if(lair5B4PortcullisAOpen()) ch.push({label:'← 西の落とし格子へ', fn:()=>go('LAIR5_B4_PASSAGE_1')});
+  ch.push({label:'↓ 南の扉へ', fn:()=>go('LAIR5_B4_ROOM_7')});
+  ch.push({label:'→ 東の扉（南）へ', fn:()=>go('LAIR5_B4_PASSAGE_2')});
+  ch.push({label:'→ 東の扉（北）へ', fn:()=>go('LAIR5_B4_ROOM_5')});
+  if(PC._lair5B4Door1to4Found) ch.push({label:'↑ 北の隠し扉へ', fn:()=>go('LAIR5_B4_ROOM_1')});
+  return ch;
+ },
+ },
+
+ LAIR5_B4_ROOM_7:{
+ scene:'dungeon',
+ area:4,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15m東西25mの部屋。床には6角形のタイルが整然と敷き詰められている。北壁西端に扉がある。東壁南端に鉄で補強された扉がある。南壁に大きなレバーがある。西壁はなく、部屋自体が大きな地下空間に開放されている。西端は高さ30m前後の崖になっており、崖の下からは激しい水の流れの音が聞こえてくる。` + lair5RoomStatusText('LAIR5_B4_ROOM_7'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B4_ROOM_7;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B4_ROOM_7')}];
+  return [
+   {label:'↑ 北の扉へ', fn:()=>go('LAIR5_B4_ROOM_4')},
+   {label:'→ 東の扉へ', fn:()=>go('LAIR5_B4_PASSAGE_2')},
+   {label:' 大きなレバーを動かす', fn:()=>lair5B4PullLeverB('LAIR5_B4_ROOM_7')},
+  ];
+ },
+ },
+
+ LAIR5_B4_PASSAGE_2:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25mの通路。南端西壁に鉄で補強された扉がある。北端西壁に扉がある。北端東壁には落とし格子があり、${lair5B4PortcullisBOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}`,
+ choices:()=>{
+  const ch = [
+   {label:'↓ 南の扉へ', fn:()=>go('LAIR5_B4_ROOM_7')},
+   {label:'↑ 北の扉へ', fn:()=>go('LAIR5_B4_ROOM_4')},
+  ];
+  if(lair5B4PortcullisBOpen()) ch.push({label:'→ 東の落とし格子へ', fn:()=>go('LAIR5_B4_ROOM_6')});
+  return ch;
+ },
+ },
+
+ LAIR5_B4_ROOM_6:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  15m四方の部屋。西壁北端には落とし格子があり、${lair5B4PortcullisBOpen()?'<span style="color:#e8e4d8">開いている。</span>':'固く閉じている。'}東壁北端に扉がある。`,
+ choices:()=>{
+  const ch = [];
+  if(lair5B4PortcullisBOpen()) ch.push({label:'← 西の落とし格子へ', fn:()=>go('LAIR5_B4_PASSAGE_2')});
+  ch.push({label:'→ 東の扉へ', fn:()=>go('LAIR5_B4_PASSAGE_3')});
+  return ch;
+ },
+ },
+
+ LAIR5_B4_PASSAGE_3:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  東西15mの通路。西端は部屋への扉で行き止まりになっている。東端は北へ折れ、通路へ続いている。`,
+ choices:[
+  {label:'← 西の扉へ', fn:()=>go('LAIR5_B4_ROOM_6')},
+  {label:'↑ 北の通路へ', fn:()=>go('LAIR5_B4_PASSAGE_4')},
+ ],
+ },
+
+ LAIR5_B4_PASSAGE_4:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35mの通路。南端は東へ折れ、通路へ続いている。北端に扉がある。`,
+ choices:[
+  {label:'↓ 南の通路へ', fn:()=>go('LAIR5_B4_PASSAGE_3')},
+  {label:'↑ 北の扉へ', fn:()=>go('LAIR5_B4_ROOM_3')},
+ ],
+ },
+
+ LAIR5_B4_ROOM_3:{
+ scene:'dungeon',
+ area:5,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北15m東西35mの部屋。南壁東端に扉がある。南壁東端から15mのところに扉がある。西壁北端には扉があり、${PC._lair5DoorOpen_LAIR5_B4_DOOR_1_3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}部屋の東壁はなく、大きな地下空間に開放されている。東端は高さ30m前後の崖になっており、崖の下からは激しい水の流れの音が聞こえてくる。` + lair5RoomStatusText('LAIR5_B4_ROOM_3'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B4_ROOM_3;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B4_ROOM_3')}];
+  const ch = [
+   {label:'↓ 南の扉（東）へ', fn:()=>go('LAIR5_B4_PASSAGE_4')},
+   {label:'↓ 南の扉（西）へ', fn:()=>go('LAIR5_B4_ROOM_5')},
+  ];
+  if(PC._lair5DoorOpen_LAIR5_B4_DOOR_1_3) ch.push({label:'← 西の扉へ', fn:()=>go('LAIR5_B4_ROOM_1')});
+  else ch.push({label:'← 西の扉（施錠されている）を調べる', fn:()=>lair5TryDoor({level:4, dest:'LAIR5_B4_ROOM_1', from:'LAIR5_B4_ROOM_3', area:5, key:'LAIR5_B4_DOOR_1_3'})});
+  return ch;
+ },
+ },
+
+ LAIR5_B4_ROOM_5:{
+ scene:'dungeon',
+ area:5,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北25m東西35mの部屋。部屋の北東の角には破壊された石造りの水盤が置かれており、そこから鉄の鎖や手枷が引きちぎられた跡が残っている。北壁東端に扉がある。北壁西端に扉がある。西壁中央に扉がある。` + lair5RoomStatusText('LAIR5_B4_ROOM_5'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B4_ROOM_5;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B4_ROOM_5')}];
+  return [
+   {label:'↑ 北の扉（東）へ', fn:()=>go('LAIR5_B4_ROOM_3')},
+   {label:'↑ 北の扉（西）へ', fn:()=>go('LAIR5_B4_ROOM_1')},
+   {label:'← 西の扉へ', fn:()=>go('LAIR5_B4_ROOM_4')},
+  ];
+ },
+ },
+
+ LAIR5_B4_ROOM_1:{
+ scene:'dungeon',
+ area:5,
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME}</span><br><br>
+  南北35m東西25mの部屋。南壁東端に扉がある。東壁南端から15mのところには施錠された扉があり、${PC._lair5DoorOpen_LAIR5_B4_DOOR_1_3?'<span style="color:#e8e4d8">開いている。</span>':'鍵がかかっている。'}東壁北端から15mのところに、地下5階へと続く下り階段がある。南壁西端に扉がある。` + lair5RoomStatusText('LAIR5_B4_ROOM_1'),
+ choices:()=>{
+  const ns = PC._lair5Dungeon.nodeState.LAIR5_B4_ROOM_1;
+  if(PC._lair5Dungeon.themeId && !ns.defeated) return [{label:' 戦う', fn:()=>startLair5Encounter('LAIR5_B4_ROOM_1')}];
+  const ch = [{label:'↓ 南の扉（東）へ', fn:()=>go('LAIR5_B4_ROOM_5')}];
+  if(PC._lair5DoorOpen_LAIR5_B4_DOOR_1_3) ch.push({label:'→ 東の扉（南）へ', fn:()=>go('LAIR5_B4_ROOM_3')});
+  else ch.push({label:'→ 東の扉（南、施錠されている）を調べる', fn:()=>lair5TryDoor({level:4, dest:'LAIR5_B4_ROOM_3', from:'LAIR5_B4_ROOM_1', area:5, key:'LAIR5_B4_DOOR_1_3'})});
+  ch.push({label:'→ 東の下り階段（北）へ', fn:()=>go('LAIR5_B5_STUB')});
+  ch.push({label:'↓ 南の扉（西）へ', fn:()=>lair5B4UseHiddenDoor('LAIR5_B4_ROOM_4', 'LAIR5_B4_ROOM_1')});
+  return ch;
+ },
+ },
+
+ LAIR5_B5_STUB:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${LAIR5_NAME} — 地下5階への下り階段</span><br><br>
+  部屋の隅から、地下5階へと続く階段が闇の中へ下っている。<br>
+  <span style="color:#c0b098">……この先はまだ調査されていない。</span>`,
+ choices:[
+  {label:'⬅ 引き返す', fn:()=>go('LAIR5_B4_ROOM_1')},
+ ],
+ },
+
 }; // NODES
 
 </script>
@@ -55523,6 +59734,16 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVaineEncounter();})" class="dbg-btn" style="border-color:#443300;color:#d8c088">空虚な鎧ヴェインとの遭遇を強制発生</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceLocalWanted('stonehiem','oldtown');})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">ローカル手配犯強制遭遇（旧市街）</button>
    <button onclick="dbg(()=>{PC._localWantedBoards=null;showSaveToast('手配書をリセット（次回訪問時に再生成）')})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">手配書リセット</button>
+  </div>
+
+  <!-- 巣窟ダンジョン（テーマ付き半年周期システム） -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 巣窟ダンジョン（NEW） ──</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#0a000f;border:1px solid #443366;border-radius:4px;padding:8px;margin-bottom:14px">
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';drawScene('dungeon');enterLairDungeon();})" class="dbg-btn">巣窟ダンジョンに強制入場</button>
+   <button onclick="dbg(()=>{initLairDungeon();const l=PC._lairDungeon;const s=l.themeId?LAIR_THEMES[l.themeId].name:'（無人）';const cleared=Object.keys(LAIR_ROOM_AREAS).filter(id=>l.nodeState[id]?.defeated).length;showSaveToast('テーマ:'+s+' / 討伐済み部屋:'+cleared+'/6 / 次回湧き予定日:'+l.nextRespawnDay+'（現在:'+GAME_TIME.totalDays+'日目）')})" class="dbg-btn" style="border-color:#446688;color:#88aacc">巣窟の状態を確認</button>
+   <button onclick="dbg(()=>{initLairDungeon();const ids=Object.keys(LAIR_THEMES);const pick=prompt('テーマID('+ids.join('/')+')','goblinNest');if(!ids.includes(pick)){showSaveToast('不正なテーマID');return;}const l=PC._lairDungeon;l.themeId=pick;l.spawnDay=GAME_TIME.totalDays;l.clearedDay=null;Object.keys(LAIR_ROOM_AREAS).forEach(id=>{l.nodeState[id]={defeated:false,monsters:null};});showSaveToast('テーマを強制設定：'+LAIR_THEMES[pick].name)})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">テーマを強制指定</button>
+   <button onclick="dbg(()=>{initLairDungeon();const l=PC._lairDungeon;Object.keys(LAIR_ROOM_AREAS).forEach(id=>{l.nodeState[id].defeated=true;});l.lastThemeId=l.themeId;l.clearedDay=GAME_TIME.totalDays;l.nextRespawnDay=GAME_TIME.totalDays+180;l.themeId=null;showSaveToast('全部屋を討伐済みにして一掃成立（次回湧き:'+l.nextRespawnDay+'日目）')})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">全部屋を討伐済みにして一掃</button>
+   <button onclick="dbg(()=>{initLairDungeon();PC._lairDungeon.nextRespawnDay=GAME_TIME.totalDays;showSaveToast('再湧き予定日を今日に設定（次回入場でテーマ抽選）')})" class="dbg-btn" style="border-color:#446688;color:#88aacc">再湧き予定日を今日に</button>
   </div>
 
   <!-- 四季・旅イベント強制発動（今回追加） -->
@@ -55807,6 +60028,10 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
   <!-- ダンジョンイベント -->
   <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin-bottom:6px;letter-spacing:1px">── ダンジョンイベント強制発動 ──</div>
   <div id="dbg-event-list" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:14px"></div>
+
+  <!-- ダンジョントラップ -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin-bottom:6px;letter-spacing:1px">── ダンジョントラップ強制発動（全ダンジョン共通） ──</div>
+  <div id="dbg-trap-list" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:14px"></div>
 
  </div>
 </div>
