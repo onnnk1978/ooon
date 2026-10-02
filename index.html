@@ -631,7 +631,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026092201</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026100201</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -3162,6 +3162,7 @@ function initChaosNest(){
   npcDefeaterName: null,   // 倒したNPCの名前
   npcRumorShown: 0,        // 噂を聞いた回数
   cleared: false,          // PCが攻略済みか（このサイクル）
+  clearedByPCName: null,   // 実際に攻略したPCの名前（2026年10月2日追加：世代交代後も先代の功績として正しく帰属させるため）
  };
  // 初回：ゲーム開始から3〜7年後に最初の根城が発生
  if(!PC._chaosNest.nextSpawnDay){
@@ -3249,7 +3250,8 @@ function getHarvestRumor(){
   if(Math.random() > 0.06) return null;
   const fy = PC._famineYear;
   const chaosCleared = PC._chaosNest?.cleared;
-  const heroName = PC.name;
+  // 2026年10月2日：実際に根城を攻略したPCの名前を使う（現在のPCとは限らない＝先代の功績を正しく帰属させる）
+  const heroName = PC._chaosNest?.clearedByPCName || PC._famineHeroName || '名も知らぬ冒険者';
   const postFamineRumors = [
    `「${fy}年の大飢饉は大変だったらしい。あの冬を越せなかった者も多かったという」`,
    `「${fy}年の大飢饉……あれは自然の不作ではなかったと思っている。何者かが仕組んだとしか」`,
@@ -3327,9 +3329,14 @@ function foodPrice(baseCost){
  const mult = PC._foodPriceMult || 1.0;
  const neriaMultiplier = PC.town === 'neria' ? 1.5 : 1.0;
  const effectiveMult = mult * neriaMultiplier;
- if(effectiveMult >= 2.0) return baseCost * 3; // 大不作は3倍
- if(effectiveMult >= 1.0) return Math.max(1, Math.ceil(baseCost * effectiveMult));
- return baseCost;
+ let price;
+ if(effectiveMult >= 2.0) price = baseCost * 3; // 大不作は3倍
+ else if(effectiveMult >= 1.0) price = Math.max(1, Math.ceil(baseCost * effectiveMult));
+ else price = baseCost;
+ // 大地震の震源町では、発生後1年間は食料価格がさらに2倍になる
+ const eqMult = (typeof worldEarthquakeFoodPriceMultiplier === 'function') ? worldEarthquakeFoodPriceMultiplier() : 1.0;
+ if(eqMult > 1.0) price = Math.max(1, Math.ceil(price * eqMult));
+ return price;
 }
 
 function checkChaosNestTick(){
@@ -3366,6 +3373,7 @@ function spawnChaosNest(){
  nest.npcDefeaterName = null;
  nest.npcRumorShown   = 0;
  nest.cleared         = false;
+ nest.clearedByPCName = null;
  // 次回発生日：今回の発生から10〜16年後
  nest.nextSpawnDay    = GAME_TIME.totalDays + (10 + Math.floor(Math.random()*7)) * 360;
 }
@@ -3374,12 +3382,15 @@ function clearChaosNest(){
  const nest = PC._chaosNest;
  changeAlignment(15, 10); // 根城攻略：善+15/秩序+10
  if(!nest) return;
- nest.nestTownId    = null;
- nest.wizardName    = null;
- nest.wizardTitle   = null;
- nest.spawnDay      = null;
- nest.cleared       = true;
- nest.defeatedByNPC = false;
+ nest.nestTownId      = null;
+ nest.wizardName      = null;
+ nest.wizardTitle     = null;
+ nest.spawnDay        = null;
+ nest.cleared         = true;
+ nest.defeatedByNPC   = false;
+ // 2026年10月2日：実際に攻略したPCの名前を記録（世代交代しても先代の功績が後代の功績にすり替わらないようにするため）
+ nest.clearedByPCName = PC.name;
+ PC._famineHeroName   = PC.name; // 大飢饉の黒幕を討った「英雄」としての名前も同時に記録（引退画面の実績判定・酒場の噂で参照）
 }
 
 // 酒場の噂テキストを取得（一定確率で表示、噂ごとに内容が変わる）
@@ -4767,6 +4778,8 @@ const QUEST_LABEL_TASK_PHRASE = {
 function recordRegionQuest(townId, qtype){
  const regionKey = getRegionKey(townId);
  if(!regionKey || !QUEST_TYPE_WEIGHT[qtype]) return;
+ // 地方状態システムへの反映（§6の点数表。地方内配達・護衛・討伐・賞金首のみ対象）
+ applyRegionConditionQuestDelta(townId, qtype);
  if(!PC._regionQuestStats) PC._regionQuestStats = {};
  if(!PC._regionQuestStats[regionKey]) PC._regionQuestStats[regionKey] = {};
  const stats = PC._regionQuestStats[regionKey];
@@ -7568,6 +7581,9 @@ function goOtherActions(townId){
  }
  if(townId === 'port_argon'){
   choices.push({label:' 打ち捨てられた坑道へ向かう（3日）', fn:()=>startLairJourney()});
+  if(isPortArgonIslandUp()){
+   choices.push({label:' 沖合に隆起した島へ向かう（船で3日）', fn:()=>startPortArgonIslandJourney()});
+  }
  }
  if(townId === 'verda'){
   choices.push({label:` ${LAIR2_NAME}へ向かう（4日）`, fn:()=>startLair2Journey()});
@@ -7580,6 +7596,9 @@ function goOtherActions(townId){
  }
  if(townId === 'marakai'){
   choices.push({label:` ${LAIR5_NAME}へ向かう（船で5日）`, fn:()=>startLair5Journey()});
+ }
+ if(townId === 'nifurvik'){
+  choices.push({label:` ${NIFLAIR_NAME}へ向かう（徒歩5日）`, fn:()=>startNiflairJourney()});
  }
  // 定住したかつての仲間を訪ねる（settledTownがこの町のNPC全員分、ボタンを分けて表示）
  (PC._formerCompanions||[]).filter(n=>n.settledTown===townId).forEach(npc=>{
@@ -9043,6 +9062,24 @@ const LAIR_THEMES = {
    { spawn: ()=> [generateLairNecromancer(), ...Array.from({length:3}, ()=>generateLairGhoulNPC())] },
   ],
  },
+ buriedTemple: {
+  name: '地中に埋もれた神殿',
+  entryFlavor: '石造りの通路には埃と黴の臭いが立ちこめ、崩れかけた壁画や彫像の破片があちこちに転がっている。かつての神殿の気配が、まだかすかに息づいているようだ。',
+  area1: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>({name:'小型の石像兵', mr:20, armor:2})) },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>({name:'迷い込んだ野盗', mr:22, armor:1})) },
+   { spawn: ()=> Array.from({length: 2+Math.floor(Math.random()*3)}, ()=>({name:'徘徊する大ネズミ', mr:12, armor:0})) },
+  ],
+  area2: [
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>({name:'神殿の守護石像', mr:45, armor:3})) },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*4)}, ()=>({name:'狂信者の亡霊', mr:35, armor:0})) },
+   { spawn: ()=> Array.from({length: 1+Math.floor(Math.random()*2)}, ()=>({name:'呪われた衛兵', mr:50, armor:2})) },
+  ],
+  area3: [
+   { spawn: ()=> [{name:'神殿の大祭司', mr:80, armor:2}, ...Array.from({length: 1+Math.floor(Math.random()*3)}, ()=>({name:'狂信者の亡霊', mr:35, armor:0}))] },
+   { spawn: ()=> [{name:'古の守護石像', mr:120, armor:5}] },
+  ],
+ },
 };
 
 // 部屋ノードID → エリア番号（1〜3）。モンスターはこの部屋ノードのみに配置する
@@ -9853,6 +9890,201 @@ function startLair5ReturnJourney(){
  travelLog(`<span style="color:#b8a890"> 船で <span style="color:#f0ece0">${LAIR5_NAME}</span> → <span style="color:#f0ece0">マラカイ</span> へ出発。所要: ${LAIR5_TRAVEL_DAYS}日</span>`);
 }
 
+// ══════════════════════════════════════════
+// 第6の固定ダンジョン「地中神殿の廃墟」（ニフルヴィクから徒歩5日）
+// ══════════════════════════════════════════
+const NIFLAIR_NAME = '地中神殿の廃墟';
+const NIFLAIR_TRAVEL_DAYS = 5;
+
+function _niflairShowTravelUI(fromLabel, toLabel){
+ drawScene('travel');
+ showTravelImage('walk', 'nifurvik', 'nifurvik');
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 徒歩　<span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${NIFLAIR_TRAVEL_DAYS}日</span>`;
+ }
+ renderChoices([]);
+}
+
+// ニフルヴィク → 地中神殿の廃墟（往路）
+function startNiflairJourney(){
+ checkCompanionDeliveryAbandon();
+ hideDungeonImage();
+ _niflairShowTravelUI('ニフルヴィク', NIFLAIR_NAME);
+ advanceDaysAnimated(NIFLAIR_TRAVEL_DAYS, ()=>{
+  checkNiflairRespawn();
+  go('NIFLAIR_FRONT');
+ });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; travelState.arriveLabel = ' 巣窟に入る'; travelState.destLabel = NIFLAIR_NAME; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">ニフルヴィク</span> → <span style="color:#f0ece0">${NIFLAIR_NAME}</span> へ出発。所要: ${NIFLAIR_TRAVEL_DAYS}日</span>`);
+}
+
+// 地中神殿の廃墟 → ニフルヴィク（復路）
+function startNiflairReturnJourney(){
+ hideDungeonImage();
+ _niflairShowTravelUI(NIFLAIR_NAME, 'ニフルヴィク');
+ advanceDaysAnimated(NIFLAIR_TRAVEL_DAYS, ()=>{
+  go('TOWN_NIFURVIK');
+  _lairPayRescueRewardGeneric('niflair');
+ });
+ if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; travelState.destLabel = 'ニフルヴィク'; }
+ travelLog(`<span style="color:#b8a890"> 徒歩で <span style="color:#f0ece0">${NIFLAIR_NAME}</span> → <span style="color:#f0ece0">ニフルヴィク</span> へ出発。所要: ${NIFLAIR_TRAVEL_DAYS}日</span>`);
+}
+
+// 部屋ノードID → エリア番号（1〜3）。持続討伐制（他5ダンジョンと同じ、テーマは全巣窟共通のLAIR_THEMESから抽選）
+const NIFLAIR_ROOM_AREAS = {
+ NIFLAIR_ROOM3:1, NIFLAIR_ROOM4:1, NIFLAIR_ROOM5:1,
+ NIFLAIR_ROOM7:2, NIFLAIR_ROOM10:2,
+ NIFLAIR_ROOM8:3, NIFLAIR_ROOM9:3,
+};
+
+// PC._niflairDungeon の初期化・補完
+function initNiflairDungeon(){
+ if(!PC._niflairDungeon){
+  PC._niflairDungeon = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{}, scenarioSorcererName:null, scenarioNames:null };
+ }
+ const lair = PC._niflairDungeon;
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(NIFLAIR_ROOM_AREAS).forEach(id=>{
+  if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null };
+ });
+}
+
+// ダンジョン入場時に呼ぶ：無人かつ再湧き予定日を過ぎていればテーマを抽選して住み着かせる（他5ダンジョンと共通ロジック）
+function checkNiflairRespawn(){
+ _lairCheckRespawnGeneric('niflair', initNiflairDungeon);
+}
+
+function enterNiflairDungeon(){
+ checkNiflairRespawn();
+ initTorch();
+ go('NIFLAIR_ENTRANCE');
+}
+
+// 部屋を討伐済みにし、全部屋討伐済みなら一掃成立（半年後に再湧き）
+function defeatNiflairRoom(nodeId){
+ const lair = PC._niflairDungeon;
+ lair.nodeState[nodeId].defeated = true;
+ const allDefeated = Object.keys(NIFLAIR_ROOM_AREAS).every(id=>lair.nodeState[id].defeated);
+ if(allDefeated){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = GAME_TIME.totalDays + 180;
+  lair.themeId = null;
+ }
+}
+
+// ワンダリングモンスター判定（16%）。テーマ不在（無人期間）なら常にnull
+function rollNiflairWandering(area){
+ const lair = PC._niflairDungeon;
+ if(!lair || !lair.themeId) return null;
+ if(Math.random() >= 0.16) return null;
+ const theme = _lairScenarioAwareTheme(lair.themeId);
+ const table = (_lairAreaTableGeneric(theme, area||1)||[]).filter(e=>typeof e.spawn === 'function');
+ if(!table.length) return null;
+ const entry = table[Math.floor(Math.random()*table.length)];
+ return entry.spawn();
+}
+
+// ワンダリングモンスターとの戦闘を開始し、勝利後は指定ノードへ戻る
+function startNiflairWanderCombat(monsters, returnNode){
+ const isNPCType = monsters.length && monsters[0].st !== undefined;
+ const common = {
+  win:'__noop__', lose:'DEAD', canFlee:true,
+  onWin: ()=>{
+   document.getElementById('cbt-area').classList.add('hidden');
+   document.getElementById('scroll-area').classList.remove('in-combat');
+   document.getElementById('text-win').style.display = '';
+   cbtState = null;
+   go(returnNode);
+  },
+ };
+ if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
+ else startCombat({ enemies: monsters, ...common });
+}
+
+// ノードID → 通路移動時のワンダリング判定に使うエリア番号（1 or 2）。未登録のノードは判定なし
+const NIFLAIR_ENC_AREA = {
+ NIFLAIR_PASSAGE2:1, NIFLAIR_PASSAGE3:1,
+ NIFLAIR_HALL1:2, NIFLAIR_HALL2:2, NIFLAIR_HALL3:2, NIFLAIR_HALL4:2,
+ NIFLAIR_TJUNC1:2, NIFLAIR_HALL5:2, NIFLAIR_HALL6:2, NIFLAIR_HALL7:2,
+ NIFLAIR_HALL8:2, NIFLAIR_HALL9:2, NIFLAIR_PASSAGE4:2, NIFLAIR_PASSAGE5:2,
+};
+
+// 16%の確率でエリアNのワンダリングモンスターと遭遇しつつ移動する（他5ダンジョンのワンダリング判定と同じ仕組み）
+function niflairMove(dest){
+ const area = NIFLAIR_ENC_AREA[dest];
+ if(area){
+  const wander = rollNiflairWandering(area);
+  if(wander && wander.length){
+   const counts = {};
+   wander.forEach(m=>{ counts[m.name] = (counts[m.name]||0)+1; });
+   const desc = Object.entries(counts).map(([n,c])=> c>1 ? `${n}×${c}` : n).join('、');
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><br><span style="color:#f0ddd8"> ${desc}が現れた！</span>`;
+   renderChoices([]);
+   drawScene('combat');
+   startNiflairWanderCombat(wander, dest);
+   return;
+  }
+ }
+ go(dest);
+}
+
+// 部屋1・東の扉の罠：知力Lv1能力値テスト→（成功時は開けるか選択）→運Lv3能力値テストで落とし穴回避
+function niflairRoom1EastDoor(){
+ if(PC._niflairR1TrapDone){
+  const s = document.getElementById('story');
+  if(s) s.innerHTML += `<br><br><span style="color:#e0d8c8">東の扉の先は、落とし穴になっていた小さな空間だ。今はもう何もない。</span>`;
+  renderChoices([{label:'▶ OK', fn:()=>go('NIFLAIR_ROOM1')}]);
+  return;
+ }
+ setupSavingRoll({
+  attr:'iq', level:1,
+  onSuccess(){
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><br><span style="color:#e0d8c8">床の継ぎ目に不自然な溝があるのに気づいた。この扉を開けるのは危険かもしれない。</span>`;
+   renderChoices([
+    {label:'→ それでも扉を開ける', fn:()=>_niflairR1PitTrap()},
+    {label:'← 扉には触れずにおく', fn:()=>go('NIFLAIR_ROOM1')},
+   ]);
+  },
+  onFail(){
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><br><span style="color:#e0d8c8">特に気づくこともなく、そのまま扉を開けてしまった。</span>`;
+   _niflairR1PitTrap();
+  },
+ });
+}
+function _niflairR1PitTrap(){
+ setupSavingRoll({
+  attr:'lk', level:3,
+  onSuccess(){
+   PC._niflairR1TrapDone = true;
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><br><span style="color:#e0d8c8">とたんに床が開いたが、とっさに身体を跳ね除けて落とし穴に落ちずに済んだ。扉の先はただの落とし穴だったようだ。</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go('NIFLAIR_ROOM1')}]);
+  },
+  onFail(){
+   PC._niflairR1TrapDone = true;
+   const dmg = d6();
+   PC.con = Math.max(0, PC.con - dmg);
+   updateHUD();
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><br><span style="color:#e0d0d0">床が開き、そのまま落とし穴に真っ逆さまに落ちてしまった！　体力-${dmg}</span>`;
+   if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
+   renderChoices([{label:'▶ OK', fn:()=>go('NIFLAIR_ROOM1')}]);
+  },
+ });
+}
+
 // 部屋ノードID → エリア番号（1〜2）
 const LAIR5_ROOM_AREAS = {
  LAIR5_ROOM_7:2, LAIR5_ROOM_4:2,
@@ -10085,6 +10317,7 @@ const LAIR_DUNGEON_REG = {
  lair3: { stateProp:'_lair3Dungeon', roomAreas:LAIR3_ROOM_AREAS, defeatFn:(id)=>defeatLair3Room(id), rescuedNamesProp:'_lair3RescuedNames', wanderFn:(area)=>rollLair3Wandering(area), wanderCombatFn:(m,r)=>startLair3WanderCombat(m,r) },
  lair4: { stateProp:'_lair4Dungeon', roomAreas:LAIR4_ROOM_AREAS, defeatFn:(id)=>defeatLair4Room(id), rescuedNamesProp:'_lair4RescuedNames', wanderFn:(area)=>rollLair4Wandering(area), wanderCombatFn:(m,r)=>startLair4WanderCombat(m,r) },
  lair5: { stateProp:'_lair5Dungeon', roomAreas:LAIR5_ROOM_AREAS, defeatFn:(id)=>defeatLair5Room(id), rescuedNamesProp:'_lair5RescuedNames', wanderFn:(area)=>rollLair5Wandering(area), wanderCombatFn:(m,r)=>startLair5WanderCombat(m,r) },
+ niflair: { stateProp:'_niflairDungeon', roomAreas:NIFLAIR_ROOM_AREAS, defeatFn:(id)=>defeatNiflairRoom(id), rescuedNamesProp:'_niflairRescuedNames', wanderFn:(area)=>rollNiflairWandering(area), wanderCombatFn:(m,r)=>startNiflairWanderCombat(m,r) },
 };
 
 // 汎用：宝物庫・施錠された木箱・革袋・捕虜（rescue）の各kindを、指定した巣窟ダンジョン（key）向けに処理する
@@ -11347,8 +11580,10 @@ function getTavernNPCs(townId){
  if(PC._tavernNPCCache[cacheKey]) return PC._tavernNPCCache[cacheKey];
  const seed = townId + today;
  const rng = (()=>{ let s=seed.split('').reduce((a,c)=>a+c.charCodeAt(0),0); return ()=>(s=s*16807%2147483647)/2147483647; })();
+ // 地方状態システム：住民流出度に応じて酒場の冒険者数を減らす（通常3人→悪化2人→危機的1人）
+ const npcCount = regionConditionTavernNPCCount(getRegionKey(townId));
  const result = [];
- for(let i=0;i<3;i++){
+ for(let i=0;i<npcCount;i++){
   const lv = rng()<0.7?1:2;
   const npc = generateNPC(lv);
   npc._tavernSlot = `${townId}_${today}_${i}`;
@@ -13237,13 +13472,18 @@ function talkToPatron(townId){
  checkChaosNestTick();
  checkHarvestTick();
  checkHarvestTick();
- // 巣窟ダンジョン（打ち捨てられた坑道／名もなき遺構／忘れられた地下道／忘却の螺旋堂／孤島の深淵）の再湧きチェック
+ // 巣窟ダンジョン（打ち捨てられた坑道／名もなき遺構／忘れられた地下道／忘却の螺旋堂／孤島の深淵／地中神殿の廃墟）の再湧きチェック
  // ダンジョンに実際に入っていなくても経過日数だけでテーマが決まるようにする（噂として先に聞ける必要があるため）
  checkLairRespawn();
  checkLair2Respawn();
  checkLair3Respawn();
  checkLair4Respawn();
  checkLair5Respawn();
+ checkNiflairRespawn();
+ // 世界的大地震の判定（発生予定日を過ぎていれば発生させる。噂として先に聞ける必要があるため）
+ checkWorldEarthquake();
+ // 地方状態システムの月次ティック（混沌の根城・巣窟ダンジョン・大地震・PCの手配度を踏まえた上で計算するため、上記より後に呼ぶ）
+ checkRegionConditionTick();
  const harvestRumor = getHarvestRumor();
  const chaosRumor = getChaosNestRumor();
  const lairRumor = (townId === 'port_argon') ? getLairRumor() : null;
@@ -13298,6 +13538,76 @@ function talkToPatron(townId){
    <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が声を潜めて話している。</div>`;
   const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
   _showPatronPanel(header + msgBox(lair5Rumor), ()=>{ updateHUD(); });
+  return;
+ }
+
+ // 大地震の噂：震源となった町限定・発生後1年間だけ聞ける「復旧作業」の噂
+ const earthquakeRecoveryRumor = getWorldEarthquakeRecoveryRumor(townId);
+ if(earthquakeRecoveryRumor && Math.random() < _worldEarthquakeRumorChance()){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が世間話をしている。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+  _showPatronPanel(header + msgBox(earthquakeRecoveryRumor), ()=>{ updateHUD(); });
+  return;
+ }
+
+ // 大地震の噂：被災地方内のどの町でも聞ける、震源の町が一番揺れたという噂（発生後1年間のみ）
+ const earthquakeRegionDamageRumor = getWorldEarthquakeRegionDamageRumor(townId);
+ if(earthquakeRegionDamageRumor && Math.random() < _worldEarthquakeRumorChance()){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が世間話をしている。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+  _showPatronPanel(header + msgBox(earthquakeRegionDamageRumor), ()=>{ updateHUD(); });
+  return;
+ }
+
+ // 大地震の噂：ポートアルゴン沖に隆起した島についての噂（どの町でも聞ける。島が浮上している間のみ）
+ const portArgonIslandRumor = getPortArgonIslandRumor();
+ if(portArgonIslandRumor && Math.random() < _portArgonIslandRumorChance()){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が世間話をしている。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+  _showPatronPanel(header + msgBox(portArgonIslandRumor), ()=>{ updateHUD(); });
+  return;
+ }
+
+ // 大地震の噂：どの町でも聞ける一般的な噂
+ const earthquakeRumor = getWorldEarthquakeRumor();
+ if(earthquakeRumor && Math.random() < _worldEarthquakeRumorChance()){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が世間話をしている。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+  _showPatronPanel(header + msgBox(earthquakeRumor), ()=>{ updateHUD(); });
+  return;
+ }
+
+ // 地方状態システム：他地方の噂（どの町でも聞ける。距離差なし、粗い情報のみ）
+ const regionCondWorldRumor = getRegionConditionWorldRumor(townId);
+ if(regionCondWorldRumor && Math.random() < 0.15){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が世間話をしている。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+  _showPatronPanel(header + msgBox(regionCondWorldRumor), ()=>{ updateHUD(); });
+  return;
+ }
+
+ // 地方状態システム：NPC英雄介入の噂（どの町でも聞ける。最大3回まで）
+ const regionCondHeroRumor = getRegionConditionHeroRumor(townId);
+ if(regionCondHeroRumor && Math.random() < 0.15){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が世間話をしている。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+  _showPatronPanel(header + msgBox(regionCondHeroRumor), ()=>{ updateHUD(); });
+  return;
+ }
+
+ // 地方状態システム：危機的状況からのPC主導の回復の噂（どの町でも聞ける。最大3回まで）
+ const regionCondCrisisRumor = getRegionConditionCrisisRecoveryRumor(townId);
+ if(regionCondCrisisRumor && Math.random() < 0.15){
+  const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が世間話をしている。</div>`;
+  const msgBox = (text) => `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`;
+  _showPatronPanel(header + msgBox(regionCondCrisisRumor), ()=>{ updateHUD(); });
   return;
  }
 
@@ -15006,6 +15316,12 @@ function archiveCurrentPC(reason){
  if(PC._harvestResult) ws.harvestResult = PC._harvestResult;
  if(PC._foodPriceMult) ws.foodPriceMult = PC._foodPriceMult;
  if(PC._harvestPriceApplied) ws.harvestPriceApplied = PC._harvestPriceApplied; // 'retire' | 'dead'
+ // 地方状態システム（物流途絶度・治安悪化度・住民流出度）を保存
+ if(PC._regionCondition) ws.regionCondition = JSON.parse(JSON.stringify(PC._regionCondition));
+ if(PC._regionConditionAmbient) ws.regionConditionAmbient = JSON.parse(JSON.stringify(PC._regionConditionAmbient));
+ // 危機的状況からのPC主導の回復の記録（世界に残る記録なので世代交代しても引き継ぐ）
+ if(PC._regionWasCrisis) ws.regionWasCrisis = JSON.parse(JSON.stringify(PC._regionWasCrisis));
+ if(PC._regionCrisisRecord) ws.regionCrisisRecord = JSON.parse(JSON.stringify(PC._regionCrisisRecord));
 
  // 拠点をワールドステートに保存（既存データとマージ）
  if(PC.properties && Object.keys(PC.properties).length > 0){
@@ -15211,6 +15527,13 @@ const DUNGEON_NODES = new Set([
  'LAIR5_B4_PASSAGE_1','LAIR5_B4_PASSAGE_2','LAIR5_B4_PASSAGE_3','LAIR5_B4_PASSAGE_4','LAIR5_B5_STUB',
  'LAIR5_B4_ROOM_1','LAIR5_B4_ROOM_2','LAIR5_B4_ROOM_3','LAIR5_B4_ROOM_4','LAIR5_B4_ROOM_5',
  'LAIR5_B4_ROOM_6','LAIR5_B4_ROOM_7',
+ // 第6の固定ダンジョン「地中神殿の廃墟」（ニフルヴィクから徒歩5日）
+ 'NIFLAIR_ENTRANCE','NIFLAIR_ROOM1','NIFLAIR_ROOM2','NIFLAIR_ROOM3','NIFLAIR_ROOM4',
+ 'NIFLAIR_PASSAGE1','NIFLAIR_ROOM5','NIFLAIR_ROOM6','NIFLAIR_ROOM7',
+ 'NIFLAIR_PASSAGE2','NIFLAIR_PASSAGE3',
+ 'NIFLAIR_HALL1','NIFLAIR_HALL2','NIFLAIR_HALL3','NIFLAIR_HALL4','NIFLAIR_TJUNC1',
+ 'NIFLAIR_HALL5','NIFLAIR_HALL6','NIFLAIR_HALL7','NIFLAIR_HALL8','NIFLAIR_ROOM8',
+ 'NIFLAIR_HALL9','NIFLAIR_ROOM9','NIFLAIR_PASSAGE4','NIFLAIR_ROOM10','NIFLAIR_PASSAGE5',
 ]);
 // 入口・出口など松明消費・暗闇判定を除外するノード
 const DUNGEON_SAFE_NODES = new Set([
@@ -15237,6 +15560,7 @@ const DUNGEON_SAFE_NODES = new Set([
  'LAIR5_B3_PASSAGE_1',
  'LAIR5_B3_PASSAGE_4',
  'LAIR5_B4_PASSAGE_1',
+ 'NIFLAIR_ENTRANCE',
 ]);
 
 function saveGame(){
@@ -17357,6 +17681,306 @@ function getRegionDistance(keyA, keyB){
  }
  }
  return 99; // 到達不能
+}
+
+// ══════════════════════════════════════════
+// 地方状態システム（物流途絶度／治安悪化度／住民流出度）
+// 対象は marea_region を除く5地方。各0〜100、0が最良・100が最悪。
+// ══════════════════════════════════════════
+const REGION_CONDITION_SCOPE = Object.keys(REGIONS).filter(k => k !== 'marea_region');
+
+// 未初期化なら0で埋める（food系の PC._foodPriceMult と同じ遅延初期化パターン）
+function ensureRegionCondition(){
+ if(!PC._regionCondition) PC._regionCondition = {};
+ REGION_CONDITION_SCOPE.forEach(regionKey=>{
+  if(!PC._regionCondition[regionKey]){
+   PC._regionCondition[regionKey] = { logi:0, unrest:0, exodus:0 };
+  }
+ });
+}
+
+// ── 地方ごとのアンビエント圧力 ──
+// PCの行動や既存システム（根城・巣窟・大地震・手配度）が何も無くても、地方は小さな諍いや不運な事故などで
+// わずかに悪化しうる、という「何もないところから始まるきっかけ」。周期性を持たせず、値が矩形に飛ばないよう
+// 前月の値に引っ張られながら小さな乱数でゆっくり動く（平均回帰つきのランダムウォーク）。0〜3の小さな範囲に収め、
+// 強さそのものにも毎月ランダムな大小がつくようにする。
+function ensureRegionConditionAmbient(){
+ if(!PC._regionConditionAmbient) PC._regionConditionAmbient = {};
+ REGION_CONDITION_SCOPE.forEach(regionKey=>{
+  if(PC._regionConditionAmbient[regionKey] == null){
+   PC._regionConditionAmbient[regionKey] = Math.random() * 1.5; // 地方ごとに初期値もばらける
+  }
+ });
+}
+function stepRegionConditionAmbient(prev){
+ // 一様乱数を3つ足して平均することで、極端な値が出にくい緩やかな分布にする（-1〜+1付近に集中）
+ const noise = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+ // 緩やかに引き戻される基準値（2026年10月2日：危機的到達率を上げるため1.2→1.4に調整／
+ // 同日：NPC英雄介入導入に合わせ、「放置すれば平均的に不穏レベル、NPC介入があっても稀に危機的レベルに届く」水準まで1.4→2.6に再調整）
+ const target = 2.6;
+ // 2026年10月2日：振れ幅をさらに大きくして危機的到達率を上げるため、ノイズ係数0.6→1.0、上限3→5に調整
+ const next = prev + (target - prev) * 0.15 + noise * 1.0;
+ return Math.max(0, Math.min(5, next));
+}
+
+// 指定地方・指定項目のスコアを返す（スコープ外の地方やmarea_regionは常に0）
+function getRegionConditionScore(regionKey, metric){
+ if(!regionKey || !REGION_CONDITION_SCOPE.includes(regionKey)) return 0;
+ ensureRegionCondition();
+ return PC._regionCondition[regionKey][metric] || 0;
+}
+
+// スコアの段階（0:安定 1:不穏 2:悪化 3:危機的）。しきい値は0-29/30-50/51-80/81-100
+// （2026年10月2日：「不穏」の範囲を21-50→30-50に調整し、安定を0-20→0-29に拡大）
+function regionConditionStageIndex(score){
+ if(score <= 29) return 0;
+ if(score <= 50) return 1;
+ if(score <= 80) return 2;
+ return 3;
+}
+const REGION_CONDITION_STAGE_LABEL = ['安定','不穏','悪化','危機的'];
+
+// 月次の相互作用式（係数の根拠・安定性検証はプロジェクトドキュメント参照）
+function stepRegionCondition(c){
+ const clamp = v => Math.max(0, Math.min(100, v));
+ const logi = c.logi||0, unrest = c.unrest||0, exodus = c.exodus||0;
+ return {
+  logi:   clamp(logi  *(1-0.18) + unrest*0.12 + exodus*0.04),
+  unrest: clamp(unrest*(1-0.18) + logi  *0.07 + exodus*0.04),
+  exodus: clamp(exodus*(1-0.16) + logi  *0.10 + unrest*0.07),
+ };
+}
+
+// 月次の外的要因（PCの依頼達成以外）：混沌の根城・巣窟ダンジョンの先住者・PCの手配度が
+// 該当地方に継続的な圧力を与える。現在の「生」の状態を参照する簡易実装（過去に遡った履歴は見ない）。
+const REGION_CONDITION_LAIR_TOWNS = [
+ { key: '_lairDungeon',     townId: 'port_argon' },
+ { key: '_lair2Dungeon',    townId: 'verda' },
+ { key: '_lair3Dungeon',    townId: 'ashveil' },
+ { key: '_lair4Dungeon',    townId: 'saroon' },
+ { key: '_lair5Dungeon',    townId: 'marakai' },
+ { key: '_niflairDungeon',  townId: 'nifurvik' },
+];
+function getRegionConditionExternalDelta(regionKey){
+ const d = { logi:0, unrest:0, exodus:0 };
+ // 混沌の根城：活動中（未討伐・NPCにも未討伐）は治安・住民流出に継続的な圧力
+ const nest = PC._chaosNest;
+ if(nest && nest.nestTownId && !nest.defeatedByNPC && !nest.cleared && getRegionKey(nest.nestTownId) === regionKey){
+  d.unrest += 3.5; // 2026年10月2日：危機的到達率を上げるため3→3.5に調整
+  d.exodus += 1.2; // 同時に1→1.2に調整
+ }
+ // 巣窟ダンジョン：何かが巣食っている間（themeIdが設定されている間）、治安にわずかな圧力
+ REGION_CONDITION_LAIR_TOWNS.forEach(({key, townId})=>{
+  const dungeon = PC[key];
+  if(dungeon && dungeon.themeId && getRegionKey(townId) === regionKey){
+   d.unrest += 1.15; // 2026年10月2日：危機的到達率を上げるため1→1.15に調整
+  }
+ });
+ // PCの手配度：この地方のいずれかの町で手配度が高い（中）ほど、治安に圧力（PC自身が脅威になっている）
+ const towns = REGIONS[regionKey] || [];
+ let worstTier = 'low';
+ towns.forEach(townId=>{
+  const tier = wantedTier(townId);
+  if(tier === 'high') worstTier = 'high';
+  else if(tier === 'mid' && worstTier !== 'high') worstTier = 'mid';
+ });
+ if(worstTier === 'high') d.unrest += 2.3; // 2026年10月2日：危機的到達率を上げるため2→2.3に調整
+ else if(worstTier === 'mid') d.unrest += 1.15; // 同時に1→1.15に調整
+ return d;
+}
+
+// ══════════════════════════════════════════
+// NPCによる英雄的介入（2026年10月2日追加）
+// ある地方の状態が「悪化」(51+)以上のまま一定期間続くと、PCとは無関係にNPCが
+// 事態の収拾に乗り出し、3項目をまとめて押し下げることがある。しばらく悪い状態が
+// 続くほど・深刻なほど発生確率が上がる。発生後はクールダウンを挟み連発はしない。
+// ══════════════════════════════════════════
+const REGION_CONDITION_HERO = {
+ minStreakMonths:  18,   // 悪化(51+)以上がこの月数続くと介入の対象になる
+ baseProb:         0.03, // 対象になった月の基本発生確率
+ probStepPerExtra: 0.03, // 対象期間が延びるごとの確率加算
+ extraStepMonths:  6,    // 確率加算の刻み幅（ヶ月）
+ probCap:          0.12, // 悪化(stage2)時点での発生確率の上限
+ stage3Bonus:      0.05, // 危機的(81+)の場合に追加されるボーナス確率
+ effectMult:       0.5,  // 発生時、logi/unrest/exodusをこの倍率まで縮小（半減）
+ cooldownMonths:   24,   // 発生後、同じ地方が再び対象になりうるまでの月数
+};
+function ensureRegionConditionHero(){
+ if(!PC._regionConditionHero) PC._regionConditionHero = {};
+ REGION_CONDITION_SCOPE.forEach(regionKey=>{
+  if(!PC._regionConditionHero[regionKey]){
+   PC._regionConditionHero[regionKey] = { streak:0, cooldown:0, lastEvent:null, rumorShown:0 };
+  }
+ });
+}
+// 地方の最悪段階（0:安定〜3:危機的）を返す
+function getRegionConditionWorstStage(regionKey){
+ ensureRegionCondition();
+ const c = PC._regionCondition[regionKey];
+ return regionConditionStageIndex(Math.max(c.logi, c.unrest, c.exodus));
+}
+// 月次ティック1回分のNPC英雄介入判定。checkRegionConditionTick()からstepRegionConditionの直後に呼ぶ。
+function stepRegionConditionHero(regionKey){
+ ensureRegionConditionHero();
+ const hero = PC._regionConditionHero[regionKey];
+ const stage = getRegionConditionWorstStage(regionKey);
+ if(stage >= 2){ hero.streak++; } else { hero.streak = 0; }
+ if(hero.cooldown > 0) hero.cooldown--;
+ if(hero.cooldown <= 0 && stage >= 2 && hero.streak >= REGION_CONDITION_HERO.minStreakMonths){
+  const extra = Math.floor((hero.streak - REGION_CONDITION_HERO.minStreakMonths) / REGION_CONDITION_HERO.extraStepMonths);
+  let prob = Math.min(REGION_CONDITION_HERO.probCap, REGION_CONDITION_HERO.baseProb + extra * REGION_CONDITION_HERO.probStepPerExtra);
+  if(stage >= 3) prob += REGION_CONDITION_HERO.stage3Bonus;
+  if(Math.random() < prob){
+   const c = PC._regionCondition[regionKey];
+   c.logi   *= REGION_CONDITION_HERO.effectMult;
+   c.unrest *= REGION_CONDITION_HERO.effectMult;
+   c.exodus *= REGION_CONDITION_HERO.effectMult;
+   hero.streak = 0;
+   hero.cooldown = REGION_CONDITION_HERO.cooldownMonths;
+   hero.lastEvent = { npcName: NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)], stageAtEvent: stage };
+   hero.rumorShown = 0;
+  }
+ }
+}
+// 酒場の噂テキスト（NPC英雄介入）。他地方の噂なので、どの町でも聞ける。最大3回まで。
+const REGION_CONDITION_HERO_RUMOR_POOL = [
+ (name, npc)=>`「${name}の治安がここ最近、急に持ち直したらしい。${npc}とかいう冒険者が一肌脱いだという話だ」`,
+ (name, npc)=>`「${npc}という人物が${name}の騒ぎを収めたらしい。おかげで向こうはだいぶ落ち着いたとか」`,
+ (name, npc)=>`「${name}で荒れていた一件、${npc}の働きで片付いたと聞いた。大したものだ」`,
+];
+function getRegionConditionHeroRumor(townId){
+ ensureRegionConditionHero();
+ const candidates = REGION_CONDITION_SCOPE.filter(regionKey=>{
+  const hero = PC._regionConditionHero[regionKey];
+  return hero && hero.lastEvent && hero.rumorShown < 3;
+ });
+ if(!candidates.length) return null;
+ const regionKey = candidates[Math.floor(Math.random()*candidates.length)];
+ const hero = PC._regionConditionHero[regionKey];
+ const regionName = (HERO_REGIONS[regionKey]||{}).name || regionKey;
+ const npcName = hero.lastEvent.npcName;
+ hero.rumorShown++;
+ if(hero.rumorShown >= 3) hero.lastEvent = null;
+ const line = REGION_CONDITION_HERO_RUMOR_POOL[Math.floor(Math.random()*REGION_CONDITION_HERO_RUMOR_POOL.length)];
+ return line(regionName, npcName);
+}
+
+// ══════════════════════════════════════════
+// 危機的状況からのPC主導の回復を世界の記録に残す（2026年10月2日追加）
+// ある地方が一度でも「危機的」(81+)に達した後、PCの依頼達成（§6の点数表。
+// NPC英雄介入やアンビエント圧力の自然減衰による回復は対象外）によって
+// 最悪段階が「安定」(29-)まで戻った瞬間を記録する。ws.regionLegendsと同様、
+// 地方ごとに最新の1件のみを保持する単発記録＋酒場の噂として実装。
+// ══════════════════════════════════════════
+function ensureRegionConditionCrisisRecord(){
+ if(!PC._regionWasCrisis) PC._regionWasCrisis = {};
+ if(!PC._regionCrisisRecord) PC._regionCrisisRecord = {};
+ REGION_CONDITION_SCOPE.forEach(regionKey=>{
+  if(PC._regionWasCrisis[regionKey] == null) PC._regionWasCrisis[regionKey] = false;
+ });
+}
+// 月次ティックから呼ぶ：その地方が「危機的」に達したことを記録しておく（回復判定の前提条件）
+function markRegionConditionCrisisIfNeeded(regionKey){
+ ensureRegionConditionCrisisRecord();
+ if(getRegionConditionWorstStage(regionKey) >= 3) PC._regionWasCrisis[regionKey] = true;
+}
+const REGION_CONDITION_CRISIS_RECOVERY_RUMOR_POOL = [
+ (name, pcName)=>`「${name}はつい最近まで危機的な有様だったらしいが、${pcName}という冒険者の働きですっかり落ち着いたそうだ」`,
+ (name, pcName)=>`「${pcName}が${name}を立て直したという話を聞いた。あそこまで荒れていた地方がよくぞ、と評判だ」`,
+ (name, pcName)=>`「${name}の惨状を救ったのは${pcName}だという。もう危機的だった頃の面影はないらしい」`,
+];
+function getRegionConditionCrisisRecoveryRumor(townId){
+ ensureRegionConditionCrisisRecord();
+ const candidates = REGION_CONDITION_SCOPE.filter(regionKey=>{
+  const rec = PC._regionCrisisRecord[regionKey];
+  return rec && rec.rumorShown < 3;
+ });
+ if(!candidates.length) return null;
+ const regionKey = candidates[Math.floor(Math.random()*candidates.length)];
+ const rec = PC._regionCrisisRecord[regionKey];
+ const regionName = (HERO_REGIONS[regionKey]||{}).name || regionKey;
+ rec.rumorShown++;
+ const line = REGION_CONDITION_CRISIS_RECOVERY_RUMOR_POOL[Math.floor(Math.random()*REGION_CONDITION_CRISIS_RECOVERY_RUMOR_POOL.length)];
+ return line(regionName, rec.pcName);
+}
+
+// 月次ティック（遅延評価）：checkHarvestTick() と同じパターンで、呼ばれるたびに経過月数ぶん追いつかせる
+function checkRegionConditionTick(){
+ ensureRegionCondition();
+ ensureRegionConditionAmbient();
+ ensureRegionConditionHero();
+ ensureRegionConditionCrisisRecord();
+ const cur = getCurrentDate();
+ const nowKey = cur.year * 12 + cur.month;
+ if(PC._regionConditionLastKey == null){ PC._regionConditionLastKey = nowKey; return; }
+ const elapsed = nowKey - PC._regionConditionLastKey;
+ if(elapsed <= 0) return;
+ const clamp = v => Math.max(0, Math.min(100, v));
+ for(let i=0; i<elapsed; i++){
+  REGION_CONDITION_SCOPE.forEach(regionKey=>{
+   // アンビエント圧力をまず緩やかに動かし、治安悪化度への小さな圧力として加える
+   const ambient = stepRegionConditionAmbient(PC._regionConditionAmbient[regionKey]);
+   PC._regionConditionAmbient[regionKey] = ambient;
+   const ext = getRegionConditionExternalDelta(regionKey);
+   const c = PC._regionCondition[regionKey];
+   c.logi   = clamp(c.logi   + ext.logi);
+   c.unrest = clamp(c.unrest + ext.unrest + ambient);
+   c.exodus = clamp(c.exodus + ext.exodus);
+   PC._regionCondition[regionKey] = stepRegionCondition(c);
+   // 「危機的」に達したことを記録しておく（PC主導の回復イベントの前提条件）
+   markRegionConditionCrisisIfNeeded(regionKey);
+   // NPCの英雄的介入判定（悪化が長引いた地方をPCとは無関係に収拾することがある）
+   stepRegionConditionHero(regionKey);
+  });
+ }
+ PC._regionConditionLastKey = nowKey;
+}
+
+// 依頼達成時の増減量（§6の点数表）。地方内配達=物流-2、護衛=物流-6、討伐=治安-3〜-4、賞金首=治安-5〜-8
+function applyRegionConditionQuestDelta(townId, qtype){
+ const regionKey = getRegionKey(townId);
+ if(!regionKey || !REGION_CONDITION_SCOPE.includes(regionKey)) return;
+ ensureRegionCondition();
+ ensureRegionConditionCrisisRecord();
+ const c = PC._regionCondition[regionKey];
+ const clamp = v => Math.max(0, Math.min(100, v));
+ // §6の点数表の半分（2026年10月改訂）
+ if(qtype === 'delivery_local'){
+  c.logi = clamp(c.logi - 1); // 元-2の半分
+ } else if(qtype === 'escort'){
+  c.logi = clamp(c.logi - 3); // 元-6の半分
+ } else if(qtype === 'hunt'){
+  c.unrest = clamp(c.unrest - (3 + Math.floor(Math.random()*2))/2); // 元-3〜-4の半分（-1.5〜-2）
+ } else if(qtype === 'bounty'){
+  c.unrest = clamp(c.unrest - (5 + Math.floor(Math.random()*4))/2); // 元-5〜-8の半分（-2.5〜-4）
+ }
+ // 危機的状況からのPC主導の回復を記録する（2026年10月2日追加）。
+ // この地方が一度でも「危機的」に達していて、今回の依頼達成によって
+ // ちょうど「安定」まで戻った場合のみ発動（NPC英雄介入や自然減衰は対象外）。
+ if(PC._regionWasCrisis[regionKey] && regionConditionStageIndex(Math.max(c.logi, c.unrest, c.exodus)) === 0){
+  const regionName = (HERO_REGIONS[regionKey]||{}).name || regionKey;
+  PC._regionCrisisRecord[regionKey] = { pcName: PC.name, year: getCurrentDate().year, rumorShown: 0 };
+  PC._regionWasCrisis[regionKey] = false;
+  showSaveToast(`★ ${regionName}の危機を救った！この功績は世界に記録される`);
+ }
+}
+
+// 依頼報酬の段階的倍率（最大1.3倍）。安定1.0/不穏1.1/悪化1.2/危機的1.3
+function regionConditionRewardMult(regionKey, metric){
+ const score = getRegionConditionScore(regionKey, metric);
+ return [1.0, 1.1, 1.2, 1.3][regionConditionStageIndex(score)];
+}
+
+// 道中エンカウント率の段階的倍率（最大2.0倍）。治安悪化度を参照
+function regionConditionEncounterMult(regionKey){
+ const score = getRegionConditionScore(regionKey, 'unrest');
+ return [1.0, 1.3, 1.6, 2.0][regionConditionStageIndex(score)];
+}
+
+// 酒場の冒険者数（住民流出度を参照）。安定〜不穏=3人／悪化=2人／危機的=1人
+function regionConditionTavernNPCCount(regionKey){
+ const score = getRegionConditionScore(regionKey, 'exodus');
+ return [3, 3, 2, 1][regionConditionStageIndex(score)];
 }
 
 // ── 地方特産品 ──
@@ -22198,10 +22822,10 @@ const TOWN_BOARD_NOTICES = [
  { text:'「拾得物：革の水筒。中央広場のベンチ付近で発見。心当たりの方は自警団詰所まで」', resolveType:'lostitem' },
  { text:'「今年の収穫祭は例年より遅い開催になる見込みです。詳細は追ってお知らせします」' },
  { text:'「夜間、大声で歌う行為が近隣より苦情多数。心当たりのある者は自重されたし」' },
- { text:'「井戸端の噂：最近、街の外れで奇妙な光を見たという者が複数いる。真偽は不明」', resolveType:'rumor' },
- { text:'「井戸端の噂：どこぞの商家が、裏で密輸品を扱っているらしいという話がまことしやかに囁かれている」', resolveType:'rumor' },
- { text:'「井戸端の噂：夜な夜な墓地から奇妙な唸り声が聞こえるという者がいる。気味が悪いと専らの評判だ」', resolveType:'rumor' },
- { text:'「井戸端の噂：町のどこかに、先代の英雄が遺したお宝が眠っているという言い伝えがあるらしい」', resolveType:'rumor' },
+ { text:'「井戸端の噂：最近、街の外れで奇妙な光を見たという者が複数いる。真偽は不明」', resolveType:'rumor', rumorId:'strange_light' },
+ { text:'「井戸端の噂：どこぞの商家が、裏で密輸品を扱っているらしいという話がまことしやかに囁かれている」', resolveType:'rumor', rumorId:'smuggling' },
+ { text:'「井戸端の噂：夜な夜な墓地から奇妙な唸り声が聞こえるという者がいる。気味が悪いと専らの評判だ」', resolveType:'rumor', rumorId:'graveyard_moan' },
+ { text:'「井戸端の噂：町のどこかに、先代の英雄が遺したお宝が眠っているという言い伝えがあるらしい」', resolveType:'rumor', rumorId:'hero_treasure' },
  { text:'「若い衆、求む。力仕事、日払い可。詳細は西の倉庫番まで」' },
  { text:'「壁の落書きを見つけ次第、消去にご協力ください。町の美観維持のため」──清掃組合' },
  { text:'「旅の吟遊詩人、明晩、酒場にて弾き語りを予定。木戸銭は投げ銭のみ」' },
@@ -22213,10 +22837,18 @@ const TOWN_BOARD_NOTICES = [
 
 // 「知り合いに言付け」の貼り紙は、伝える相手の名前を貼り紙自体にも街での遭遇にも一貫させたいため、
 // 掲示板生成時に名前を1つ選んで貼り紙テキストへ埋め込んでおく（元の配列は書き換えず、複製した上で処理する）
+// 「商家の密輸」も同様に、聞き込みで判明する商人名と商家ノードでの商人名を一貫させるため、
+// 貼り紙生成時に名前を1つ確定させ、以後はこのnotice.merchantNameを参照する（遭遇のたびに新しい名前を振らない）
 function _finalizeBoardNotice(notice){
- if(notice.resolveType !== 'message') return notice;
- const npcName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
- return { ...notice, npcName, text:`「知り合いの${npcName}に言付けを頼みたいのですが、なかなか会えなくて……見かけたら伝えてもらえませんか」` };
+ if(notice.resolveType === 'message'){
+  const npcName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+  return { ...notice, npcName, text:`「知り合いの${npcName}に言付けを頼みたいのですが、なかなか会えなくて……見かけたら伝えてもらえませんか」` };
+ }
+ if(notice.resolveType === 'rumor' && notice.rumorId === 'smuggling'){
+  const merchantName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+  return { ...notice, merchantName };
+ }
+ return notice;
 }
 
 // 拠点ごとの独自貼り紙（各町の特色を反映。汎用の貼り紙プールに追加で混ぜて使う）
@@ -22326,10 +22958,14 @@ function getLocalWantedBoard(townId){
   board.activeMiniTypes = board.notices.length && typeof board.notices[0]==='object'
    ? [...new Set(board.notices.filter(n=>n.resolveType).map(n=>n.resolveType))] : [];
  }
- // 既存セーブデータ互換：名前を埋め込む前のバージョンで生成された「言付け」の貼り紙が残っていたら、
+ // 既存セーブデータ互換：名前を埋め込む前のバージョンで生成された「言付け」「商家の密輸」の貼り紙が残っていたら、
  // このタイミングで名前を補って直す（7日の更新を待たず、その場で修正する）
  if(Array.isArray(board.notices)){
-  board.notices = board.notices.map(n=>(n && typeof n==='object' && n.resolveType==='message' && !n.npcName) ? _finalizeBoardNotice(n) : n);
+  board.notices = board.notices.map(n=>{
+   if(n && typeof n==='object' && n.resolveType==='message' && !n.npcName) return _finalizeBoardNotice(n);
+   if(n && typeof n==='object' && n.resolveType==='rumor' && n.rumorId==='smuggling' && !n.merchantName) return _finalizeBoardNotice(n);
+   return n;
+  });
  }
  return board;
 }
@@ -25966,6 +26602,13 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
     const notice = (miniBoard?.notices||[]).find(n=>n.resolveType==='message' && n.npcName);
     if(notice) node.npcName = notice.npcName;
    }
+   // 「噂の真偽」は、今週掲示されている複数の噂候補（rumorId）の中からこの遭遇が対応する1件を選び、
+   // ノードに記録しておく（掲示板に同時に複数の噂が貼られていても、どれに対応する遭遇かを一意に決めるため）
+   if(roll.miniSubtype === 'rumor' && dung.villageId){
+    const miniBoard = getLocalWantedBoard(dung.villageId);
+    const rumorNotices = (miniBoard?.notices||[]).filter(n=>n.resolveType==='rumor' && n.rumorId);
+    if(rumorNotices.length) node.rumorId = rumorNotices[Math.floor(Math.random()*rumorNotices.length)].rumorId;
+   }
    break;
   }
   case 'village_incident':{
@@ -26093,12 +26736,13 @@ function ydGoNode(nodeId, floor){
  }
 
  // 松明消費（先に消費してからチェック）重量オーバーなら2倍消費
- // ヴェルダ裏路地では明るい時間帯（朝・昼・午後）は松明を消費しない／賞金首アジトは屋内のため松明不要
+ // 照明あり（松明・火鉢・シャンデリア等）で生成されたダンジョンでは松明を消費しない／賞金首アジトは屋内のため松明不要
+ // ヴェルダ裏路地の明るい時間帯もisNaturalLightがtrueになるためこの条件に含まれる
  if(node.type!=='entrance'){
   // Enchant Weapon/Fortify Armorの残りターンは、松明消費の有無（ダンジョン種別・昼夜）に関わらずノード移動1回につき1回だけ減らす
   _decrementWizardBuffTurns();
   _decrementChainedTurns();
-  if(!dung.isHideoutDungeon && !(dung.isVillageBackAlley && dung.design.isNaturalLight)){
+  if(!dung.isHideoutDungeon && !dung.design?.isNaturalLight){
    const _ydConsume = checkWeightPenalty().over ? 2 : 1;
    for(let _tc=0; _tc<_ydConsume; _tc++){
     if(PC._torchTurns>0){
@@ -26942,10 +27586,14 @@ function ydNodeTxt(node, floor){
     if(notice) node.npcName = notice.npcName;
    }
    // 「噂の真偽を確かめてほしい」は、掲示板に貼られている実際の噂の内容を併記する
+   // （node.rumorIdで、今週複数の噂が同時に貼られていても対応する1件を正しく特定する。
+   //   rumorIdを持たない旧ノード（機能追加前に生成されたもの）は、従来通り先頭の噂で代用する）
    let rumorText = '';
    if(mdef && node.miniSubtype==='rumor' && dung?.villageId){
     const miniBoard = getLocalWantedBoard(dung.villageId);
-    const notice = (miniBoard?.notices||[]).find(n=>n.resolveType==='rumor');
+    const notice = node.rumorId
+     ? (miniBoard?.notices||[]).find(n=>n.resolveType==='rumor' && n.rumorId===node.rumorId)
+     : (miniBoard?.notices||[]).find(n=>n.resolveType==='rumor');
     if(notice) rumorText = `<br><br><span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">（掲示板の貼り紙にあった、あの噂だ──${notice.text}）</span>`;
    }
    const mtText = mdef ? mdef.findFlavor.replace(/\{name\}/g, node.npcName || 'その人物') : '特に何もない、静かな場所だ。';
@@ -27776,32 +28424,39 @@ function ydActionChoices(node, floor){
    const _nid=node.id, _fl=floor;
    // 報酬は5〜10SPのランダム（依頼を受けていたわけではないので、遭遇のたびその場で決める）
    const reward = 5 + Math.floor(Math.random()*6);
-   mdef.choices.forEach(choice=>{
-    ch.push({label:choice.label, fn:()=>{
-     setupSavingRoll({attr:choice.attr, level:choice.level,
-      onSuccess:()=>{
-       PC[node.miniResolveKey] = true;
-       gainSP(reward);
-       changeTrust(dung.villageId, 0.1);
-       // この種類は達成済みとして、今週の掲示板から外し、この探索中も再び出さないようにする
-       const miniBoard = getLocalWantedBoard(dung.villageId);
-       if(miniBoard){
-        miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
-        if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
-       }
-       updateHUD();
-       const s = document.getElementById('story');
-       if(s) s.innerHTML = `<span style="color:#e0d0d0">${(TOWNS[dung.villageId]||{}).name || dung.villageId}</span><br><br><span style="color:#e8e0d0">${choice.successMsg}（謝礼${reward}SP／信頼度+0.1）</span>`;
-       renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
-      },
-      onFail:()=>{
-       const s = document.getElementById('story');
-       if(s) s.innerHTML += `<br><br><span style="color:#c8b8a0">${choice.failMsg}</span>`;
-       renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
-      },
-     });
-    }});
-   });
+   // 一部の「噂の真偽」は、汎用の3択の代わりに専用の展開（TOWN_RUMOR_DEDICATED_EVENTS）を使う
+   const dedicatedBuilder = node.miniSubtype==='rumor' && node.rumorId && TOWN_RUMOR_DEDICATED_EVENTS[node.rumorId];
+   if(dedicatedBuilder){
+    ch.push(...dedicatedBuilder(node, floor, dung, reward));
+   } else {
+    mdef.choices.forEach(choice=>{
+     ch.push({label:choice.label, fn:()=>{
+      setupSavingRoll({attr:choice.attr, level:choice.level,
+       onSuccess:()=>{
+        PC[node.miniResolveKey] = true;
+        gainSP(reward);
+        changeTrust(dung.villageId, 0.1);
+        // この種類は達成済みとして、今週の掲示板から外し、この探索中も再び出さないようにする
+        const miniBoard = getLocalWantedBoard(dung.villageId);
+        if(miniBoard){
+         miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+         if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+        }
+        updateHUD();
+        const s = document.getElementById('story');
+        if(s) s.innerHTML = `<span style="color:#e0d0d0">${(TOWNS[dung.villageId]||{}).name || dung.villageId}</span><br><br><span style="color:#e8e0d0">${choice.successMsg}（謝礼${reward}SP／信頼度+0.1）</span>`;
+        renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
+       },
+       onFail:()=>{
+        PC[node.miniResolveKey] = true;
+        const s = document.getElementById('story');
+        if(s) s.innerHTML += `<br><br><span style="color:#c8b8a0">${choice.failMsg}</span>`;
+        renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
+       },
+      });
+     }});
+    });
+   }
    ch.push({label:' 関わらずに立ち去る', fn:()=>{
     PC[node.miniResolveKey] = true;
     document.getElementById('story').innerHTML+=`<br><br><span style="color:#d0c8b8"> 手を貸さず、その場を立ち去った。</span>`;
@@ -32548,6 +33203,547 @@ const TOWN_MINI_QUEST_TYPES = [
  },
 ];
 
+// ══════════════════════════════════════════
+// 「噂の真偽」の一部は、汎用の成功処理の代わりに専用イベントへ接続する（rumorId → ハンドラ関数）
+// ここに無いrumorId（strange_light／smuggling／hero_treasure）は、従来通りTOWN_MINI_QUEST_TYPESの
+// 汎用フローで解決される。
+// ハンドラは (node, floor, dung, reward) を受け取り、{label, fn}の配列を返すこと（ch.push(...)で展開される）。
+// ══════════════════════════════════════════
+
+// 「墓地の唸り声」：探索を終える（達成扱い・謝礼SPと信頼度あり）
+function _finishGraveyardMoanRumor(node, floor, dung, reward, resultText){
+ PC[node.miniResolveKey] = true;
+ gainSP(reward);
+ changeTrust(dung.villageId, 0.1);
+ const miniBoard = getLocalWantedBoard(dung.villageId);
+ if(miniBoard){
+  miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+  if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+ }
+ updateHUD();
+ const s = document.getElementById('story');
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">${(TOWNS[dung.villageId]||{}).name || dung.villageId}</span><br><br><span style="color:#e8e0d0">${resultText}（謝礼${reward}SP／信頼度+0.1）</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+}
+
+// 「墓地の唸り声」：何も得られずに探索を終える（達成扱いのみ・報酬なし）
+function _failGraveyardMoanRumor(node, floor, failMsg){
+ PC[node.miniResolveKey] = true;
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><br><span style="color:#c8b8a0">${failMsg}</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+}
+
+// 「墓地の唸り声」：深夜の墓地で、封印の解かれた塚を発見する
+function _graveyardMoanScene(node, floor, dung, reward){
+ const s = document.getElementById('story');
+ const townName = (TOWNS[dung.villageId]||{}).name || dung.villageId;
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">${townName}　墓地（深夜）</span><br><br><span style="color:#e8e0d0">月明かりだけを頼りに、静まり返った墓地を見回る。すると、墓地の外れにある古い塚の入口の封印が解かれているのに気づいた。中からは、奇妙な赤い光が漏れている。</span>`;
+ renderChoices([
+  {label:' 中を調べる', fn:()=>_graveyardMoanEnterTomb(node, floor, dung, reward)},
+  {label:' 放っておく', fn:()=>_finishGraveyardMoanRumor(node, floor, dung, reward, '得体の知れない気配に、これ以上は関わらない方がいいと判断した。夜が明ける頃、中央広場へと戻った。')},
+ ]);
+}
+
+// 「墓地の唸り声」の塚に出現するゾンビ（NPC能力値型）
+// 能力値は「通常の人間を1」とした係数で算出する：ST×2 IQ×0 LK×0 CON×3 DEX×1/2 CHR×0（SPDは等倍）
+function _generateZombieNpc(){
+ const base = {
+  st:  rollNPCStat(8), iq: rollNPCStat(8), lk:  rollNPCStat(8),
+  con: rollNPCStat(8), dex:rollNPCStat(8), chr: rollNPCStat(8), spd: rollNPCStat(8),
+ };
+ const mods = { st:2, iq:0, lk:0, con:3, dex:0.5, chr:0, spd:1 };
+ const st  = Math.round(base.st  * mods.st);
+ const iq  = Math.round(base.iq  * mods.iq);
+ const lk  = Math.round(base.lk  * mods.lk);
+ const con = Math.round(base.con * mods.con);
+ const dex = Math.round(base.dex * mods.dex);
+ const chr = Math.round(base.chr * mods.chr);
+ const spd = Math.round(base.spd * mods.spd);
+ return {
+  name:'ゾンビ', race:'zombie', type:'undead',
+  st, iq, lk, con, maxCon:con, curCon:con, dex, chr, spd,
+  equippedWeapons:[{name:'腐った爪', dice:3, adds:2, twoHand:false}],
+  equippedArmors:[],
+ };
+}
+
+// 「墓地の唸り声」：塚の中に踏み込む（描写ノード。ここではまだ戦闘は始まらない）
+function _graveyardMoanEnterTomb(node, floor, dung, reward){
+ const s = document.getElementById('story');
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">塚の中</span><br><br><span style="color:#e8e0d0">封印を越えて中に踏み込むと、そこは直径10mほどの石室だった。禍々しい魔法使いが、操られたゾンビをはべらせてこちらを見据えている。逃げ場はない――戦うしかなさそうだ。</span>`;
+ renderChoices([
+  {label:'▶ 進む', fn:()=>_graveyardMoanTombCombat(node, floor, dung, reward)},
+ ]);
+}
+
+// 「墓地の唸り声」：塚の描写ノードの後、LV3魔法使い（NPC能力値型）とゾンビ（NPC能力値型）との戦闘になる
+function _graveyardMoanTombCombat(node, floor, dung, reward){
+ renderChoices([]);
+ scrollToTop();
+ const mage = generateNPC(3);
+ mage.type = 'wizard';
+ mage.name = '怪しげな魔法使い';
+ let spells = SPELLS_L1.map(sp=>({...sp}));
+ for(let lv=2; lv<=3; lv++){ const table=SPELL_LEVEL_TABLES[lv]; if(table) spells = spells.concat(table.map(sp=>({...sp}))); }
+ mage.spells = spells;
+ mage.equippedWeapons = [];
+ mage.invWeapons = [];
+ mage.curCon = mage.con;
+ const zombie = _generateZombieNpc();
+ startCombatNPC({
+  enemies:[mage, zombie],
+  canFlee:false,
+  win:'__noop__', lose:'DEAD',
+  autoTreasure:true,
+  onWin:()=>{
+   PC[node.miniResolveKey] = true;
+   changeTrust(dung.villageId, 5);
+   const miniBoard = getLocalWantedBoard(dung.villageId);
+   if(miniBoard){
+    miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+    if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+   }
+   updateHUD();
+   const s2 = document.getElementById('story');
+   if(s2) s2.innerHTML = `<span style="color:#f0ece0">塚の主を討伐した</span><br><br><span style="color:#e8e4d8">魔法使いとゾンビを倒し、石室を調べ終えた。（信頼度+5）</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+  },
+ });
+}
+
+// 「墓地の唸り声」：3択（CHR／IQ／LK）の入口
+function _graveyardMoanInvestigateChoices(node, floor, dung, reward){
+ return [
+  {label:' 世間話のふりで聞き出す', fn:()=>{
+   setupSavingRoll({attr:'chr', level:1,
+    onSuccess:()=>{
+     const s = document.getElementById('story');
+     if(s) s.innerHTML += `<br><br><span style="color:#e8e0d0">世間話のふりをして、墓地のどのあたりで唸り声を聞いたのか、詳細をうまく聞き出せた。</span>`;
+     renderChoices([
+      {label:' 夜まで待って墓地を調べる', fn:()=>{
+       const cur = getGameHour();
+       const target = 20;
+       const delta = ((target - cur) % 24 + 24) % 24 || 24;
+       if(advanceVillageTime(delta*60)) return;
+       _graveyardMoanScene(node, floor, dung, reward);
+      }},
+      {label:' 放っておく', fn:()=>_finishGraveyardMoanRumor(node, floor, dung, reward, '気にはなったが、深追いはせずそのままにしておくことにした。')},
+     ]);
+    },
+    onFail:()=>_failGraveyardMoanRumor(node, floor, '口が堅く、何も聞き出せなかった。'),
+   });
+  }},
+  {label:' 矛盾点を突いて見抜く', fn:()=>{
+   setupSavingRoll({attr:'iq', level:1,
+    onSuccess:()=>_finishGraveyardMoanRumor(node, floor, dung, reward, '話の矛盾点を突くと、噂は嘘の情報であることが分かった。'),
+    onFail:()=>_failGraveyardMoanRumor(node, floor, '話術で丸め込まれてしまった。'),
+   });
+  }},
+  {label:' 現場に直接乗り込む', fn:()=>{
+   setupSavingRoll({attr:'lk', level:1,
+    onSuccess:()=>_graveyardMoanScene(node, floor, dung, reward),
+    onFail:()=>{
+     if(advanceVillageTime(24*60)) return;
+     _failGraveyardMoanRumor(node, floor, '一晩中墓地を見張ることにしたが、何も起こらなかった。');
+    },
+   });
+  }},
+ ];
+}
+
+// 「商家の密輸」：探索を終える（達成扱い・謝礼SPと信頼度あり）
+function _finishSmugglingRumor(node, floor, dung, reward, resultText){
+ PC[node.miniResolveKey] = true;
+ gainSP(reward);
+ changeTrust(dung.villageId, 0.1);
+ const miniBoard = getLocalWantedBoard(dung.villageId);
+ if(miniBoard){
+  miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+  if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+ }
+ updateHUD();
+ const s = document.getElementById('story');
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">${(TOWNS[dung.villageId]||{}).name || dung.villageId}</span><br><br><span style="color:#e8e0d0">${resultText}（謝礼${reward}SP／信頼度+0.1）</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+}
+
+// 「商家の密輸」：何も得られずに探索を終える（達成扱いのみ・報酬なし）
+function _failSmugglingRumor(node, floor, failMsg){
+ PC[node.miniResolveKey] = true;
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><br><span style="color:#c8b8a0">${failMsg}</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+}
+
+// 「商家の密輸」：商家での決着を終える（信頼度のみ加算。GP・買い物は各処理側で既に反映済み）
+function _finishSmugglingResolved(node, floor, dung, resultText){
+ PC[node.miniResolveKey] = true;
+ const miniBoard = getLocalWantedBoard(dung.villageId);
+ if(miniBoard){
+  miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+  if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+ }
+ updateHUD();
+ const s = document.getElementById('story');
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">${(TOWNS[dung.villageId]||{}).name || dung.villageId}</span><br><br><span style="color:#e8e0d0">${resultText}</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+}
+
+// 「商家の密輸」：商家ノード（商人を脅す／密輸品を買う）
+function _smugglingMerchantNode(node, floor, dung, reward, merchantName){
+ const s = document.getElementById('story');
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">商家</span><br><br><span style="color:#e8e0d0">商人${merchantName}が密かに密輸品を扱っていることが分かった。訪ねてみると、そこは壁一面に異国の調度品が並ぶ、裕福な商家だった。${merchantName}は愛想笑いを浮かべながらも、どこか値踏みするような目でこちらを見ている。</span>`;
+ renderChoices([
+  {label:' 商人を脅す', fn:()=>_smugglingThreatenMerchant(node, floor, dung, merchantName)},
+  {label:' 商人から密輸品を買う', fn:()=>_smugglingBuyGoods(node, floor, dung, merchantName)},
+ ]);
+}
+
+// 「商家の密輸」：商人を脅す（CHR Lv2）。失敗すると用心棒（LV3 NPC戦士×3）との戦闘になる
+function _smugglingThreatenMerchant(node, floor, dung, merchantName){
+ setupSavingRoll({attr:'chr', level:2,
+  onSuccess:()=>{
+   gainGP(100);
+   updateHUD();
+   _finishSmugglingResolved(node, floor, dung, `${merchantName}を脅し、口止め料として100GPを受け取った。`);
+  },
+  onFail:()=>{
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><br><span style="color:#c8b8a0">${merchantName}は顔色一つ変えず、代わりに用心棒たちを呼び寄せた。</span>`;
+   renderChoices([]);
+   scrollToTop();
+   const bodyguards = Array.from({length:3}, ()=>{
+    const g = generateNPC(3);
+    g.type = 'warrior';
+    g.name = '用心棒';
+    g.equippedWeapons = [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120,stReq:15,dexReq:10}];
+    g.invWeapons = [];
+    g.spells = [];
+    g.curCon = g.con;
+    return g;
+   });
+   startCombatNPC({
+    enemies:bodyguards,
+    canFlee:false,
+    win:'__noop__', lose:'DEAD',
+    onWin:()=>{
+     gainGP(100);
+     updateHUD();
+     _finishSmugglingResolved(node, floor, dung, `用心棒たちを退けると、${merchantName}は観念して口止め料として100GPを差し出した。`);
+    },
+   });
+  },
+ });
+}
+
+// 「商家の密輸」：商人から密輸品を買う（他地方の特産品を産地価格で購入できる）
+function _smugglingBuyGoods(node, floor, dung, merchantName){
+ const ownRegion = getRegionKey(dung.villageId);
+ const regionKeys = Object.keys(REGION_SPECIALTIES).filter(k=>k!==ownRegion);
+ const pickRegion = regionKeys[Math.floor(Math.random()*regionKeys.length)] || Object.keys(REGION_SPECIALTIES)[0];
+ const pool = (REGION_SPECIALTIES[pickRegion]||[]).slice();
+ const count = Math.min(pool.length, 1+Math.floor(Math.random()*3));
+ const items = pool.sort(()=>Math.random()-0.5).slice(0, count);
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><br><span style="color:#e8e0d0">${merchantName}は声を潜め、奥から他地方の品をいくつか取り出して見せた。「産地と変わらない値でいいですよ」</span>`;
+ const choices = items.map(it=>{
+  const price = calcSpecialtyBuyPrice(it);
+  return {label:`${it.icon} ${it.name}（${price}GP）`, fn:()=>{
+   if(totalCP() < price*100){ showSaveToast('所持金が足りない'); return; }
+   payPrice(price);
+   PC.invSpecialties = PC.invSpecialties||[];
+   PC.invSpecialties.push({name:it.name, icon:it.icon, regionKey:pickRegion, baseCost:it.baseCost, weight:it.weight, boughtAt:price});
+   updateHUD();
+   _finishSmugglingResolved(node, floor, dung, `${it.icon}${it.name}を産地と変わらぬ値、${price}GPで手に入れた。`);
+  }};
+ });
+ choices.push({label:' 何も買わずに帰る', fn:()=>_finishSmugglingResolved(node, floor, dung, '結局、何も買わずに商家を後にした。')});
+ renderChoices(choices);
+}
+
+// 「商家の密輸」：この噂（掲示板の貼り紙）に紐づく商人名を取得する。
+// 貼り紙生成時にnotice.merchantNameとして確定済みのものを使い、聞き込みの手段や遭遇のたびに
+// 名前がバラバラにならないようにする（掲示板が見つからない場合のみ、その場限りの名前を振る）
+function _smugglingGetMerchantName(node, dung){
+ const miniBoard = getLocalWantedBoard(dung.villageId);
+ const notice = (miniBoard?.notices||[]).find(n=>n && typeof n==='object' && n.resolveType==='rumor' && n.rumorId===node.rumorId);
+ return (notice && notice.merchantName) || NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+}
+
+// 「商家の密輸」：3択（CHR／IQ／LK）の入口
+function _smugglingInvestigateChoices(node, floor, dung, reward){
+ return [
+  {label:' 世間話のふりで聞き出す', fn:()=>{
+   setupSavingRoll({attr:'chr', level:1,
+    onSuccess:()=>{
+     const merchantName = _smugglingGetMerchantName(node, dung);
+     const s = document.getElementById('story');
+     if(s) s.innerHTML += `<br><br><span style="color:#e8e0d0">世間話のふりをして、詳細な情報をうまく聞き出せた。商人の${merchantName}が裏で密輸品を扱っているようだ。</span>`;
+     renderChoices([
+      {label:' 衛兵に密告する', fn:()=>_finishSmugglingRumor(node, floor, dung, reward, `衛兵に密告すると、後日${merchantName}は取り調べを受け、捕らえられたという知らせが届いた。`)},
+      {label:' 商家に行く', fn:()=>_smugglingMerchantNode(node, floor, dung, reward, merchantName)},
+      {label:' 放っておく', fn:()=>_finishSmugglingRumor(node, floor, dung, reward, '気にはなったが、深追いはせずそのままにしておくことにした。')},
+     ]);
+    },
+    onFail:()=>_failSmugglingRumor(node, floor, '口が堅く、何も聞き出せなかった。'),
+   });
+  }},
+  {label:' 矛盾点を突いて見抜く', fn:()=>{
+   setupSavingRoll({attr:'iq', level:1,
+    onSuccess:()=>_finishSmugglingRumor(node, floor, dung, reward, '話の矛盾点を突くと、噂は嘘の情報であることが分かった。'),
+    onFail:()=>_failSmugglingRumor(node, floor, '話術で丸め込まれてしまった。'),
+   });
+  }},
+  {label:' 商人街を見張る', fn:()=>{
+   setupSavingRoll({attr:'lk', level:3,
+    onSuccess:()=>{
+     const merchantName = _smugglingGetMerchantName(node, dung);
+     _smugglingMerchantNode(node, floor, dung, reward, merchantName);
+    },
+    onFail:()=>{
+     if(advanceVillageTime(24*60)) return;
+     _failSmugglingRumor(node, floor, '一日中商人街を見張ることにしたが、何も起こらなかった。');
+    },
+   });
+  }},
+ ];
+}
+
+// 「先代の英雄のお宝」：探索を終える（達成扱い・謝礼SPと信頼度あり）
+function _finishHeroTreasureRumor(node, floor, dung, reward, resultText){
+ PC[node.miniResolveKey] = true;
+ gainSP(reward);
+ changeTrust(dung.villageId, 0.1);
+ const miniBoard = getLocalWantedBoard(dung.villageId);
+ if(miniBoard){
+  miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+  if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+ }
+ updateHUD();
+ const s = document.getElementById('story');
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">${(TOWNS[dung.villageId]||{}).name || dung.villageId}</span><br><br><span style="color:#e8e0d0">${resultText}（謝礼${reward}SP／信頼度+0.1）</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+}
+
+// 「先代の英雄のお宝」：何も得られずに探索を終える（達成扱いのみ・報酬なし）
+function _failHeroTreasureRumor(node, floor, failMsg){
+ PC[node.miniResolveKey] = true;
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><br><span style="color:#c8b8a0">${failMsg}</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+}
+
+// 「先代の英雄のお宝」：墓地で正体不明の人物の塚を発見する
+function _heroTreasureTombScene(node, floor, dung, reward){
+ const s = document.getElementById('story');
+ const townName = (TOWNS[dung.villageId]||{}).name || dung.villageId;
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">${townName}　墓地</span><br><br><span style="color:#e8e0d0">静まり返った墓地を歩き回ると、中央寄りに、由来の分からない古い塚があるのに気づいた。噂通り、この下に先代の英雄が遺したお宝が眠っているのかもしれない。塚の封印は既に解かれており、内部からは松明の光が漏れている。</span>`;
+ renderChoices([
+  {label:' 中を調べる', fn:()=>_heroTreasureEnterTomb(node, floor, dung, reward)},
+  {label:' 放っておく', fn:()=>_finishHeroTreasureRumor(node, floor, dung, reward, '気にはなったが、深追いはせず、中央広場へと戻った。')},
+ ]);
+}
+
+// 「先代の英雄のお宝」：塚の中に踏み込む（描写ノード。ここではまだ戦闘は始まらない）
+function _heroTreasureEnterTomb(node, floor, dung, reward){
+ const s = document.getElementById('story');
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">塚の中</span><br><br><span style="color:#e8e0d0">封印を越えて中に踏み込むと、そこは直径10mほどの石室だった。先客と思しき一団が、ちょうど宝箱を開けようとしているところだ。こちらに気づくと、一斉に武器を構えた。</span>`;
+ renderChoices([
+  {label:'▶ 進む', fn:()=>_heroTreasureTombCombat(node, floor, dung, reward)},
+ ]);
+}
+
+// 「先代の英雄のお宝」：塚の描写ノードの後、LV3NPCパーティ（×4）との戦闘になる。勝利すれば標準の宝物作成表×2を入手
+function _heroTreasureTombCombat(node, floor, dung, reward){
+ renderChoices([]);
+ scrollToTop();
+ const party = Array.from({length:4}, ()=>{
+  const p = generateNPC(3);
+  p.type = 'warrior';
+  p.name = '墓荒らし';
+  p.curCon = p.con;
+  return p;
+ });
+ const totalPower = party.reduce((s,e)=>s+((e.st||10)+(e.lk||10)+(e.dex||10)),0);
+ startCombatNPC({
+  enemies:party,
+  canFlee:false,
+  win:'__noop__', lose:'DEAD',
+  onWin:()=>{
+   PC[node.miniResolveKey] = true;
+   const miniBoard = getLocalWantedBoard(dung.villageId);
+   if(miniBoard){
+    miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+    if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+   }
+   const loot1 = generateTreasure(totalPower);
+   const loot2 = generateTreasure(totalPower);
+   updateHUD();
+   const s2 = document.getElementById('story');
+   if(s2) s2.innerHTML = `<span style="color:#f0ece0">塚の先客を退けた</span><br><br><span style="color:#e8e4d8">墓荒らしたちを倒し、宝箱の中身を手に入れた。（${loot1}／${loot2}）</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+  },
+ });
+}
+
+// 「先代の英雄のお宝」：3択（CHR／IQ／LK）の入口
+function _heroTreasureInvestigateChoices(node, floor, dung, reward){
+ return [
+  {label:' 世間話のふりで聞き出す', fn:()=>{
+   setupSavingRoll({attr:'chr', level:1,
+    onSuccess:()=>{
+     const s = document.getElementById('story');
+     if(s) s.innerHTML += `<br><br><span style="color:#e8e0d0">世間話のふりをして、詳細な情報をうまく聞き出せた。墓地にある塚の中に隠されているらしい。</span>`;
+     renderChoices([
+      {label:' 墓地にある塚へ行く', fn:()=>_heroTreasureTombScene(node, floor, dung, reward)},
+      {label:' 放っておく', fn:()=>_finishHeroTreasureRumor(node, floor, dung, reward, '気にはなったが、深追いはせずそのままにしておくことにした。')},
+     ]);
+    },
+    onFail:()=>_failHeroTreasureRumor(node, floor, '口が堅く、何も聞き出せなかった。'),
+   });
+  }},
+  {label:' 矛盾点を突いて見抜く', fn:()=>{
+   setupSavingRoll({attr:'iq', level:1,
+    onSuccess:()=>_finishHeroTreasureRumor(node, floor, dung, reward, '話の矛盾点を突くと、噂は嘘の情報であることが分かった。'),
+    onFail:()=>_failHeroTreasureRumor(node, floor, '話術で丸め込まれてしまった。'),
+   });
+  }},
+  {label:' 町の中を探す', fn:()=>{
+   setupSavingRoll({attr:'lk', level:3,
+    onSuccess:()=>_heroTreasureTombScene(node, floor, dung, reward),
+    onFail:()=>{
+     if(advanceVillageTime(24*60)) return;
+     _failHeroTreasureRumor(node, floor, '一日中町を歩き回ったが、何もヒントになるものはなかった。');
+    },
+   });
+  }},
+ ];
+}
+
+// 「町外れの奇妙な光」：探索を終える（達成扱い・謝礼SPと信頼度あり）
+function _finishStrangeLightRumor(node, floor, dung, reward, resultText){
+ PC[node.miniResolveKey] = true;
+ gainSP(reward);
+ changeTrust(dung.villageId, 0.1);
+ const miniBoard = getLocalWantedBoard(dung.villageId);
+ if(miniBoard){
+  miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+  if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+ }
+ updateHUD();
+ const s = document.getElementById('story');
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">${(TOWNS[dung.villageId]||{}).name || dung.villageId}</span><br><br><span style="color:#e8e0d0">${resultText}（謝礼${reward}SP／信頼度+0.1）</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+}
+
+// 「町外れの奇妙な光」：何も得られずに探索を終える（達成扱いのみ・報酬なし）
+function _failStrangeLightRumor(node, floor, failMsg){
+ PC[node.miniResolveKey] = true;
+ const s = document.getElementById('story');
+ if(s) s.innerHTML += `<br><br><span style="color:#c8b8a0">${failMsg}</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+}
+
+// 「町外れの奇妙な光」：町外れの廃屋を発見する
+function _strangeLightHouseScene(node, floor, dung, reward){
+ const s = document.getElementById('story');
+ const townName = (TOWNS[dung.villageId]||{}).name || dung.villageId;
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">${townName}　町外れ</span><br><br><span style="color:#e8e0d0">人気のない町外れを歩いていくと、朽ちかけた廃屋が目に入った。窓の隙間からは、緩やかに7色へと移ろう奇妙な光が漏れ出ている。</span>`;
+ renderChoices([
+  {label:' 中を調べる', fn:()=>_strangeLightEnterHouse(node, floor, dung, reward)},
+  {label:' 放っておく', fn:()=>_finishStrangeLightRumor(node, floor, dung, reward, '得体の知れない気配に、これ以上は関わらない方がいいと判断した。')},
+ ]);
+}
+
+// 「町外れの奇妙な光」：廃屋の中に踏み込む（描写ノード。ここではまだ戦闘は始まらない）
+function _strangeLightEnterHouse(node, floor, dung, reward){
+ const s = document.getElementById('story');
+ const victimName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+ if(s) s.innerHTML = `<span style="color:#e0d0d0">廃屋の中</span><br><br><span style="color:#e8e0d0">扉を開けて中に踏み込むと、祭壇の前に佇む人影があった。身にまとう装束や周囲に並べられた品々からは、相応の知識と知性を感じさせる。しかし、その目はぎらつく異様な光を宿し、正気を失っているのは明らかだった。祭壇には怯える${victimName}が縛り付けられており、詳細は分からないが、明らかに邪悪でおぞましい何かのための生贄に捧げられようとしているところだった。こちらに気づくと、その人物は嗤いながら杖を構えた。</span>`;
+ renderChoices([
+  {label:'▶ 進む', fn:()=>_strangeLightCombat(node, floor, dung, reward, victimName)},
+ ]);
+}
+
+// 「町外れの奇妙な光」：廃屋の描写ノードの後、LV5魔法使い（NPC能力値型・LV5魔法まで使用可能）との戦闘になる
+// 勝利すれば生贄になりかけたNPC（victimName、描写ノードと同一人物）を助け出し、街へ連れ帰って報奨金300GPを得る
+function _strangeLightCombat(node, floor, dung, reward, victimName){
+ renderChoices([]);
+ scrollToTop();
+ const rescuedName = victimName || NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+ const wizard = generateNPC(5);
+ wizard.type = 'wizard';
+ wizard.name = '正気を失った魔法使い';
+ let spells = SPELLS_L1.map(sp=>({...sp}));
+ for(let lv=2; lv<=5; lv++){ const table=SPELL_LEVEL_TABLES[lv]; if(table) spells = spells.concat(table.map(sp=>({...sp}))); }
+ wizard.spells = spells;
+ wizard.equippedWeapons = [];
+ wizard.invWeapons = [];
+ wizard.st = Math.max(wizard.st, 30); // Lv5魔法（強さ-10）を安定して唱えられるだけの強さを保証
+ wizard.curCon = wizard.con;
+ startCombatNPC({
+  enemies:[wizard],
+  canFlee:false,
+  win:'__noop__', lose:'DEAD',
+  onWin:()=>{
+   PC[node.miniResolveKey] = true;
+   changeTrust(dung.villageId, 5);
+   const miniBoard = getLocalWantedBoard(dung.villageId);
+   if(miniBoard){
+    miniBoard.resolvedMiniTypes = miniBoard.resolvedMiniTypes || [];
+    if(!miniBoard.resolvedMiniTypes.includes(node.miniSubtype)) miniBoard.resolvedMiniTypes.push(node.miniSubtype);
+   }
+   gainGP(300);
+   updateHUD();
+   const s2 = document.getElementById('story');
+   if(s2) s2.innerHTML = `<span style="color:#f0ece0">魔法使いを討伐した</span><br><br><span style="color:#e8e4d8">魔法使いを倒し、生贄になりかけていた${rescuedName}を助け出した。街へと連れ帰ると、報奨金として300GPを受け取った。（信頼度+5）</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
+  },
+ });
+}
+
+// 「町外れの奇妙な光」：3択（CHR／IQ／LK）の入口
+function _strangeLightInvestigateChoices(node, floor, dung, reward){
+ return [
+  {label:' 世間話のふりで聞き出す', fn:()=>{
+   setupSavingRoll({attr:'chr', level:1,
+    onSuccess:()=>{
+     const s = document.getElementById('story');
+     if(s) s.innerHTML += `<br><br><span style="color:#e8e0d0">世間話のふりをして、詳細な情報をうまく聞き出せた。話を総合すると、町外れの廃屋の方向に奇妙な光が出現しているらしい。</span>`;
+     renderChoices([
+      {label:' 町外れの廃屋へ行く', fn:()=>_strangeLightHouseScene(node, floor, dung, reward)},
+      {label:' 放っておく', fn:()=>_finishStrangeLightRumor(node, floor, dung, reward, '気にはなったが、深追いはせずそのままにしておくことにした。')},
+     ]);
+    },
+    onFail:()=>_failStrangeLightRumor(node, floor, '口が堅く、何も聞き出せなかった。'),
+   });
+  }},
+  {label:' 矛盾点を突いて見抜く', fn:()=>{
+   setupSavingRoll({attr:'iq', level:1,
+    onSuccess:()=>_finishStrangeLightRumor(node, floor, dung, reward, '話の矛盾点を突くと、噂は嘘の情報であることが分かった。'),
+    onFail:()=>_failStrangeLightRumor(node, floor, '話術で丸め込まれてしまった。'),
+   });
+  }},
+  {label:' 町外れを探す', fn:()=>{
+   setupSavingRoll({attr:'lk', level:1,
+    onSuccess:()=>_strangeLightHouseScene(node, floor, dung, reward),
+    onFail:()=>{
+     if(advanceVillageTime(24*60)) return;
+     _failStrangeLightRumor(node, floor, '一日中町外れを歩き回ったが、何もヒントになるものはなかった。');
+    },
+   });
+  }},
+ ];
+}
+
+const TOWN_RUMOR_DEDICATED_EVENTS = {
+ graveyard_moan: (node, floor, dung, reward) => _graveyardMoanInvestigateChoices(node, floor, dung, reward),
+ smuggling: (node, floor, dung, reward) => _smugglingInvestigateChoices(node, floor, dung, reward),
+ hero_treasure: (node, floor, dung, reward) => _heroTreasureInvestigateChoices(node, floor, dung, reward),
+ strange_light: (node, floor, dung, reward) => _strangeLightInvestigateChoices(node, floor, dung, reward),
+};
+
 function generateBountyQuest(fromTownId){
  // Lv3〜10の敵をランダム生成
  const level = 3 + Math.floor(Math.random()*8); // 3〜10
@@ -32567,9 +33763,11 @@ function generateBountyQuest(fromTownId){
   : fromTownId; // 同じ町
  const isCrossRegion = getRegionKey(targetTownId) !== getRegionKey(fromTownId);
  // 報酬：同地方=レベル×40〜60GP、他地方=レベル×70〜100GP
- const rewardBase = isCrossRegion
+ let rewardBase = isCrossRegion
   ? level * (70 + Math.floor(Math.random()*31))
   : level * (40 + Math.floor(Math.random()*21));
+ // 地方状態システム：対象の出没地（targetTownId）の治安悪化度に応じた割増（最大1.3倍）
+ rewardBase = Math.floor(rewardBase * regionConditionRewardMult(getRegionKey(targetTownId), 'unrest'));
  // 期限：他地方は1年（360日）、同地方は余裕を持たせる
  const deadline = isCrossRegion ? 360 : 20 + level * 3;
  const targetTownName = (TOWNS[targetTownId]||{name:targetTownId}).name;
@@ -33863,14 +35061,21 @@ function getActiveHuntChoices(townId){
 function calcQuestReward(fromId, toId){
  const walk = calcMinTravelDays(fromId, toId) || 12;
  // 報酬は従来の2/3（端数切り捨て）
- if(walk <= 20) return Math.floor((3  + Math.floor(Math.random()*8)));  // 3〜10GP
- if(walk <= 50) return Math.floor((13 + Math.floor(Math.random()*14))); // 13〜26GP
- return Math.floor((33 + Math.floor(Math.random()*34)));                // 33〜66GP（地方またぎ遠距離）
+ let base;
+ if(walk <= 20) base = 3  + Math.floor(Math.random()*8);  // 3〜10GP
+ else if(walk <= 50) base = 13 + Math.floor(Math.random()*14); // 13〜26GP
+ else base = 33 + Math.floor(Math.random()*34);                // 33〜66GP（地方またぎ遠距離）
+ // 地方状態システム：物流途絶度に応じた割増（最大1.3倍）
+ const mult = regionConditionRewardMult(getRegionKey(fromId), 'logi');
+ return Math.floor(base * mult);
 }
 
 // 護衛クエスト報酬：配達報酬の1.15倍
 function calcEscortReward(fromId, toId){
- return 5 + Math.floor(Math.random()*11); // 5〜15GP固定
+ const base = 5 + Math.floor(Math.random()*11); // 5〜15GP固定
+ // 地方状態システム：物流途絶度に応じた割増（最大1.3倍）
+ const mult = regionConditionRewardMult(getRegionKey(fromId), 'logi');
+ return Math.floor(base * mult);
 }
 
 const ESCORT_TYPES = [
@@ -34813,6 +36018,216 @@ function getRoute(fromId, toId){
  return ROUTES[key1] || ROUTES[key2] || null;
 }
 
+// ══════════════════════════════════════════
+// 世界的大地震システム
+// 30〜100年に一度、ランダムな地方（ただし前回発生した地方とPCが現在いる地方は除く）で
+// 大地震が発生する。震源となった町へ通じる陸上ルート（徒歩・乗合馬車。船は対象外）の
+// 移動日数が一時的に増加し、年月とともに段階的に平常へ回復していく。
+// 発生時の演出は無く、プレイヤーは酒場の噂を通じてのみ気づくことができる。
+// ══════════════════════════════════════════
+
+// 大地震システムの初期化（初回のみ・次回発生予定日をランダムに設定）
+function initWorldEarthquake(){
+ if(!PC._worldEarthquake){
+  PC._worldEarthquake = {
+   nextDueDay: GAME_TIME.totalDays + (30 + Math.floor(Math.random()*71)) * DAYS_PER_YEAR, // 30〜100年後
+   lastRegionKey: null,
+   current: null, // { regionKey, townId, dayOccurred }
+  };
+ }
+}
+
+// 発生予定日を過ぎていれば大地震を発生させる（何度呼び出しても安全＝冪等。旅立ち時・酒場で話す時に呼ばれる）
+function checkWorldEarthquake(){
+ if(!PC._worldEarthquake) initWorldEarthquake();
+ const eq = PC._worldEarthquake;
+ if(GAME_TIME.totalDays < eq.nextDueDay) return;
+
+ // 発生対象地方を選ぶ：前回発生した地方と、PCが現在いる地方を除外する
+ const pcRegionKey = getRegionKey(PC.town);
+ const allRegionKeys = Object.keys(REGIONS);
+ let pool = allRegionKeys.filter(k => k !== eq.lastRegionKey && k !== pcRegionKey);
+ if(pool.length === 0) pool = allRegionKeys.filter(k => k !== pcRegionKey);
+ if(pool.length === 0) pool = allRegionKeys;
+ const regionKey = pool[Math.floor(Math.random()*pool.length)];
+
+ // 震源となる町を地方内からランダムに選ぶ
+ const towns = REGIONS[regionKey] || [];
+ const townId = towns.length > 0 ? towns[Math.floor(Math.random()*towns.length)] : null;
+
+ eq.current = { regionKey, townId, dayOccurred: GAME_TIME.totalDays };
+ eq.lastRegionKey = regionKey;
+ eq.nextDueDay = GAME_TIME.totalDays + (30 + Math.floor(Math.random()*71)) * DAYS_PER_YEAR;
+
+ // 地方状態システム：被災地方に一度きりの衝撃（物流途絶度・住民流出度）を与える（マレア地方等スコープ外なら無視）
+ if(typeof REGION_CONDITION_SCOPE !== 'undefined' && REGION_CONDITION_SCOPE.includes(regionKey)){
+  ensureRegionCondition();
+  const clamp = v => Math.max(0, Math.min(100, v));
+  const c = PC._regionCondition[regionKey];
+  c.logi   = clamp(c.logi   + 15);
+  c.exodus = clamp(c.exodus + 8);
+ }
+}
+
+// fromId⇔toId間のルートが、直近の大地震の震源町に接続する陸上ルートであれば、
+// 発生からの経過年数に応じた移動日数倍率を返す（対象外・平常時は1.0）
+function worldEarthquakeRouteMultiplier(fromId, toId){
+ const eq = PC._worldEarthquake;
+ if(!eq || !eq.current || !eq.current.townId) return 1.0;
+ const cur = eq.current;
+ if(fromId !== cur.townId && toId !== cur.townId) return 1.0;
+ const years = Math.floor((GAME_TIME.totalDays - cur.dayOccurred) / DAYS_PER_YEAR);
+ if(years <= 1) return 1.5;
+ if(years <= 3) return 1.4;
+ if(years <= 5) return 1.3;
+ if(years <= 7) return 1.2;
+ if(years <= 9) return 1.1;
+ return 1.0;
+}
+
+// 大地震の噂：どの町でも聞ける一般的な噂（発生からの経過年数で内容の言い回しが変化する）
+function getWorldEarthquakeRumor(){
+ const eq = PC._worldEarthquake;
+ if(!eq || !eq.current || !eq.current.townId) return null;
+ const cur = eq.current;
+ const years = Math.floor((GAME_TIME.totalDays - cur.dayOccurred) / DAYS_PER_YEAR);
+ const regionName = (HERO_REGIONS[cur.regionKey]||{}).name || '';
+ const quakeYear = daysToDate(cur.dayOccurred).year;
+ if(years <= 0){
+  return `「${regionName}で大きな地震があったらしい」`;
+ } else if(years <= 50){
+  return `「${quakeYear}年にあった${regionName}の地震は大変だった」`;
+ } else if(years <= 75){
+  return `「うちの爺さん、${regionName}での${quakeYear}年の地震を体験したんだ。酷かったらしい。」`;
+ } else {
+  return `「昔${regionName}で大地震があってな……」`;
+ }
+}
+
+// 大地震の噂：震源となった町限定・発生後1年間だけ聞ける「復旧作業」の噂
+const WORLD_EARTHQUAKE_RECOVERY_RUMORS = [
+ '「まだあちこちで倒壊した建物の後片付けが続いている。落ち着くまでもう少しかかりそうだ」',
+ '「地震で崩れた道の修復に、みんな総出で当たっているそうだ」',
+ '「井戸や水路が地震でやられて、水の確保にも苦労しているらしい」',
+ '「余震にはまだ気をつけたほうがいい。時々小さく揺れることがあるからな」',
+ '「商人たちも品物が届かず困っているとか。街道の復旧が待たれる」',
+];
+function getWorldEarthquakeRecoveryRumor(townId){
+ const eq = PC._worldEarthquake;
+ if(!eq || !eq.current || !eq.current.townId) return null;
+ const cur = eq.current;
+ if(townId !== cur.townId) return null;
+ const years = (GAME_TIME.totalDays - cur.dayOccurred) / DAYS_PER_YEAR;
+ if(years >= 1) return null;
+ return WORLD_EARTHQUAKE_RECOVERY_RUMORS[Math.floor(Math.random()*WORLD_EARTHQUAKE_RECOVERY_RUMORS.length)];
+}
+
+// 大地震の噂：被災地方内のどの町でも聞ける、震源の町が一番揺れたという噂（発生後1年間のみ）
+const WORLD_EARTHQUAKE_REGION_DAMAGE_RUMORS = [
+ (t) => `「この間の大地震、${t}が一番大きく揺れたようだ。あの町までの道はいま散々だよ」`,
+ (t) => `「${t}のあたりが一番ひどい揺れだったらしい。今は近づかない方がいいって話だ」`,
+ (t) => `「聞いた話じゃ、${t}が今回の地震で一番揺れたって。あそこへの道は当分荒れたままだろうな」`,
+];
+function getWorldEarthquakeRegionDamageRumor(townId){
+ const eq = PC._worldEarthquake;
+ if(!eq || !eq.current || !eq.current.townId) return null;
+ const cur = eq.current;
+ const years = (GAME_TIME.totalDays - cur.dayOccurred) / DAYS_PER_YEAR;
+ if(years >= 1) return null;
+ if(getRegionKey(townId) !== cur.regionKey) return null;
+ const townName = (TOWNS[cur.townId]||{}).name || cur.townId;
+ const idx = Math.floor(Math.random()*WORLD_EARTHQUAKE_REGION_DAMAGE_RUMORS.length);
+ return WORLD_EARTHQUAKE_REGION_DAMAGE_RUMORS[idx](townName);
+}
+
+// 大地震の噂の発生確率（発生から3ヶ月間はブースト。それ以降は平常の低確率）
+function _worldEarthquakeRumorChance(){
+ const eq = PC._worldEarthquake;
+ if(!eq || !eq.current) return 0.05;
+ const daysSince = GAME_TIME.totalDays - eq.current.dayOccurred;
+ return daysSince <= 90 ? 0.20 : 0.05;
+}
+
+// 大地震の震源町では、発生後1年間は食料価格が2倍になる（foodPrice()から呼ばれる。現在地がPC.town前提）
+function worldEarthquakeFoodPriceMultiplier(){
+ const eq = PC._worldEarthquake;
+ if(!eq || !eq.current || !eq.current.townId) return 1.0;
+ if(PC.town !== eq.current.townId) return 1.0;
+ const years = (GAME_TIME.totalDays - eq.current.dayOccurred) / DAYS_PER_YEAR;
+ if(years >= 1) return 1.0;
+ return 2.0;
+}
+
+// ══════════════════════════════════════════
+// ポートアルゴン沖の隆起島
+// 世界のどこかで大地震が発生するたびに（震源地方を問わず）ポートアルゴン沖（船で3日）に
+// 島が隆起し、発生から5年間だけ上陸できる。5年経つといつの間にか再び沈下し、上陸できなくなる。
+// 現時点ではダンジョン等のコンテンツは無く、将来の実装に備えた足場のみ。
+// ══════════════════════════════════════════
+const PORT_ARGON_ISLAND_TRAVEL_DAYS = 3;
+
+// 島が現在浮上しているかどうか（直近の大地震発生から5年未満なら真。震源地方は問わない）
+function isPortArgonIslandUp(){
+ const eq = PC._worldEarthquake;
+ if(!eq || !eq.current) return false;
+ const years = (GAME_TIME.totalDays - eq.current.dayOccurred) / DAYS_PER_YEAR;
+ return years < 5;
+}
+
+// 大地震の噂：ポートアルゴン沖に島が隆起したという噂（どの町でも聞ける。島が浮上している間のみ）
+const PORT_ARGON_ISLAND_RUMORS = [
+ '「ポートアルゴン沖に島ができたそうだ」',
+ '「ポートアルゴン沖にできた島には何やら遺跡があるらしい」',
+];
+function getPortArgonIslandRumor(){
+ if(!isPortArgonIslandUp()) return null;
+ return PORT_ARGON_ISLAND_RUMORS[Math.floor(Math.random()*PORT_ARGON_ISLAND_RUMORS.length)];
+}
+// この噂の発生確率は他の地震関連の噂の半分にする
+function _portArgonIslandRumorChance(){
+ return _worldEarthquakeRumorChance() / 2;
+}
+
+function _portArgonIslandShowTravelUI(fromLabel, toLabel){
+ drawScene('travel');
+ showTravelImage('ship', 'port_argon', 'port_argon');
+ const storyEl = document.getElementById('story');
+ if(storyEl) storyEl.innerHTML = '';
+ const tpw = document.getElementById('travel-progress-wrap');
+ if(tpw){
+  tpw.style.display = '';
+  document.getElementById('travel-progress-bar').style.width = '0%';
+  document.getElementById('travel-progress-dot').style.left = '0%';
+  document.getElementById('travel-latest').textContent = '';
+  document.getElementById('travel-progress-label').innerHTML =
+   ` 船　<span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${PORT_ARGON_ISLAND_TRAVEL_DAYS}日</span>`;
+ }
+ renderChoices([]);
+}
+
+// ポートアルゴン → 隆起島（往路）
+function startPortArgonIslandJourney(){
+ checkCompanionDeliveryAbandon();
+ hideDungeonImage();
+ _portArgonIslandShowTravelUI('ポートアルゴン', '隆起した島');
+ advanceDaysAnimated(PORT_ARGON_ISLAND_TRAVEL_DAYS, ()=>{
+  go('PORT_ARGON_ISLAND');
+ });
+ if(travelState){ travelState.method = 'ship'; travelState.crossRegion = false; travelState.arriveLabel = ' 島に上陸する'; travelState.destLabel = '隆起した島'; }
+ travelLog(`<span style="color:#b8a890"> 船で <span style="color:#f0ece0">ポートアルゴン</span> → <span style="color:#f0ece0">隆起した島</span> へ出発。所要: ${PORT_ARGON_ISLAND_TRAVEL_DAYS}日</span>`);
+}
+
+// 隆起島 → ポートアルゴン（復路）
+function startPortArgonIslandReturnJourney(){
+ hideDungeonImage();
+ _portArgonIslandShowTravelUI('隆起した島', 'ポートアルゴン');
+ advanceDaysAnimated(PORT_ARGON_ISLAND_TRAVEL_DAYS, ()=>{
+  go('TOWN_PORT_ARGON');
+ });
+ if(travelState){ travelState.method = 'ship'; travelState.crossRegion = false; travelState.destLabel = 'ポートアルゴン'; }
+ travelLog(`<span style="color:#b8a890"> 船で <span style="color:#f0ece0">隆起した島</span> → <span style="color:#f0ece0">ポートアルゴン</span> へ出発。所要: ${PORT_ARGON_ISLAND_TRAVEL_DAYS}日</span>`);
+}
+
 // 移動実行
 function travelTo(toId, method){
  if(isGuardLockedOut(PC.town)){
@@ -34826,6 +36241,7 @@ function travelTo(toId, method){
   alert(' 冬期のため、このルートは雪で遮断されています。春（4月）まで通行できません。');
   return false;
  }
+ checkWorldEarthquake();
  let days = route.days[method];
  const cost = route.cost[method];
  if(days == null) return false;
@@ -34834,6 +36250,12 @@ function travelTo(toId, method){
  if(method === 'walk'){
   const wp = checkWeightPenalty();
   if(wp.over){ days = days * 2; overweightDoubled = true; }
+ }
+ // 大地震の影響（震源町に接続する陸上ルートのみ。船は対象外）
+ let earthquakeAffected = false;
+ if(method !== 'ship'){
+  const eqMult = worldEarthquakeRouteMultiplier(PC.town, toId);
+  if(eqMult > 1.0){ days = Math.ceil(days * eqMult); earthquakeAffected = true; }
  }
  if(cost > 0 && totalCP() < cost*100){ alert('所持金が足りない！'); return 'nogold'; }
 
@@ -34877,7 +36299,7 @@ function travelTo(toId, method){
   document.getElementById('travel-progress-dot').style.left = '0%';
   document.getElementById('travel-latest').textContent = '';
   document.getElementById('travel-progress-label').innerHTML =
-   `${methodLabel}　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>${overweightDoubled?'　<span style="color:#e0a060;font-size:calc(var(--font-sm) - 2px)">（重量オーバーのため2倍）</span>':''}`;
+   `${methodLabel}　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>${overweightDoubled?'　<span style="color:#e0a060;font-size:calc(var(--font-sm) - 2px)">（重量オーバーのため2倍）</span>':''}${earthquakeAffected?'　<span style="color:#e0a060;font-size:calc(var(--font-sm) - 2px)">（道が荒れており時間がかかる）</span>':''}`;
  }
  renderChoices([]);
 
@@ -34913,6 +36335,7 @@ function travelTo(toId, method){
 // 移動メニューのノード生成
 function makeTravelChoices(fromId){
  _migrateFiefDataIfNeeded();
+ checkWorldEarthquake();
  const MAREA_VILLAGES = ['dorua','sarpe','nebra'];
  const others = Object.keys(TOWNS).filter(id => id !== fromId);
  const choices = [];
@@ -34923,20 +36346,25 @@ function makeTravelChoices(fromId){
  if(!route) return;
   if(route.isIsland) return; // 旧島間航路は専用メニューから
   if(MAREA_VILLAGES.includes(toId)) return; // マレア地方の村は専用メニューから
+ const _eqMult = worldEarthquakeRouteMultiplier(fromId, toId);
  // 徒歩
  if(route.days.walk != null){
- const walkDays = _wpOver ? route.days.walk*2 : route.days.walk;
+ let walkDays = _wpOver ? route.days.walk*2 : route.days.walk;
+ if(_eqMult > 1.0) walkDays = Math.ceil(walkDays * _eqMult);
  choices.push({
  label:` ${t.name}へ 徒歩（${walkDays}日${_wpOver?'・重量オーバー':''}）`,
  fn:()=>travelTo(toId,'walk'), go:'__travel__'
  });
  }
  // 乗合馬車
- if(route.days.coach != null)
+ if(route.days.coach != null){
+ let coachDays = route.days.coach;
+ if(_eqMult > 1.0) coachDays = Math.ceil(coachDays * _eqMult);
  choices.push({
- label:` ${t.name}へ 乗合馬車（${route.days.coach}日・${route.cost.coach}GP）`,
+ label:` ${t.name}へ 乗合馬車（${coachDays}日・${route.cost.coach}GP）`,
  fn:()=>travelTo(toId,'coach'), go:'__travel__'
  });
+ }
  // 船（ルートに船がある場合）
  if(route.hasShip && route.days.ship != null){
  choices.push({
@@ -34965,6 +36393,7 @@ function makeIslandRouteChoices(fromId){
 }
 
 function makeMareaRouteChoices(fromId){
+ checkWorldEarthquake();
  const MAREA_TOWNS = ['neria','dorua','sarpe','nebra'];
  const choices = [];
  const _wpOver = checkWeightPenalty().over;
@@ -34972,7 +36401,9 @@ function makeMareaRouteChoices(fromId){
   const route = getRoute(fromId, toId);
   if(!route || !route.days.walk) return;
   const t = TOWNS[toId];
-  const days = _wpOver ? route.days.walk*2 : route.days.walk;
+  let days = _wpOver ? route.days.walk*2 : route.days.walk;
+  const _eqMult = worldEarthquakeRouteMultiplier(fromId, toId);
+  if(_eqMult > 1.0) days = Math.ceil(days * _eqMult);
   choices.push({
    label:` ${t.name}へ 徒歩（${days}日${_wpOver?'・重量オーバー':''}）`,
    fn:()=>travelTo(toId,'walk'), go:'__travel__'
@@ -35072,7 +36503,9 @@ const SEA_DELAY_EVENTS = [
 
 // 海上エンカウント判定（陸上8%の2/3 ≈ 5.3%）
 function rollSeaEncounter(){
- return Math.random() < 0.03; // 3%/日
+ // 地方状態システム：出発地（PC.town）の治安悪化度に応じた倍率（最大2.0倍）。陸上と同じ倍率を適用
+ const mult = regionConditionEncounterMult(getRegionKey(PC.town));
+ return Math.random() < 0.03 * mult;
 }
 
 // 海上遅延イベント判定（陸上合計約5%の2/3 ≈ 3.3%）
@@ -35256,7 +36689,9 @@ const REGION_TRAVEL_ENEMIES = {
 let travelState = null; // { totalDays, daysDone, destId, onDone, events }
 
 function rollTravelEncounter(){
- return Math.random() < 0.08; // 8%
+ // 地方状態システム：出発地（PC.town）の治安悪化度に応じた倍率（最大2.0倍）
+ const mult = regionConditionEncounterMult(getRegionKey(PC.town));
+ return Math.random() < 0.08 * mult;
 }
 
 function pickTravelEnemy(){
@@ -36270,7 +37705,78 @@ function popWeatherMsg(townId){
  if(!pool || !pool.length) return '';
  // 天候・時間帯・日付を種にして選ぶ（同じ日の同じ時間帯なら常に同じ文章）
  const idx = Math.floor(seededRandom(regionKey + '_' + weather + '_' + timeKey + '_' + GAME_TIME.totalDays) * pool.length);
+ return `<span style="color:#a89880">${pool[idx]}</span><br>` + popRegionConditionFlavor(townId);
+}
+
+// 地方状態システム（§7-a）：自地方の状態が「不穏」以上のとき、最も深刻な項目について一言添える
+const REGION_CONDITION_FLAVOR = {
+ logi: {
+  1: [ '最近、荷馬車の到着が少し遅れがちだという話をよく聞く。',
+       '街道の交易がどうも滞りがちだと、商人たちがぼやいていた。' ],
+  2: [ '物資の入荷が目に見えて滞っている。店先の品も心なしか薄い。',
+       '街道が荒れているとかで、商隊が思うように動けていないらしい。' ],
+  3: [ '交易がほとんど止まっている。まともに物が届かなくなって久しい。',
+       '街道はもはや命がけだという。商人も冒険者以外は使いたがらない。' ],
+ },
+ unrest: {
+  1: [ '夜道で妙な輩を見かけたという話が、ぽつぽつ耳に入ってくる。',
+       '近頃、ちょっとした諍いや小さな盗みが増えている気がする。' ],
+  2: [ '治安の悪化を肌で感じる。夜に出歩く者もめっきり減った。',
+       '衛兵も手が回っていないようだ。物騒な噂が絶えない。' ],
+  3: [ 'もはや日が落ちてから出歩く者はいない。この町は荒れきっている。',
+       '盗賊や無法者が我が物顔で闊歩していると、誰もが口を揃える。' ],
+ },
+ exodus: {
+  1: [ '店をたたんで町を出て行く家族が、ちらほら出始めているらしい。',
+       '「この町に先はない」と、よそへ移る算段をする者の話を小耳に挟んだ。' ],
+  2: [ '空き家が目立つようになった。この町を離れる者が後を絶たない。',
+       '若い衆から順に町を出て行くという。活気がどんどん失われている。' ],
+  3: [ 'もう住民の半分近くがいなくなったのではという噂だ。町はすっかり寂れた。',
+       '残っているのは、出て行く当てのない者ばかりだという話まで聞く。' ],
+ },
+};
+function popRegionConditionFlavor(townId){
+ const regionKey = getRegionKey(townId);
+ if(!regionKey || !REGION_CONDITION_SCOPE.includes(regionKey)) return '';
+ ensureRegionCondition();
+ const c = PC._regionCondition[regionKey];
+ const entries = [['logi',c.logi],['unrest',c.unrest],['exodus',c.exodus]];
+ entries.sort((a,b)=>b[1]-a[1]);
+ const [metric, score] = entries[0];
+ const stage = regionConditionStageIndex(score);
+ if(stage === 0) return '';
+ const pool = REGION_CONDITION_FLAVOR[metric][stage];
+ if(!pool || !pool.length) return '';
+ const idx = Math.floor(seededRandom(regionKey + '_cond_' + metric + '_' + stage + '_' + GAME_TIME.totalDays) * pool.length);
  return `<span style="color:#a89880">${pool[idx]}</span><br>`;
+}
+
+// 地方状態システム（§7-a-2）：他地方の噂。距離差なし・粗い情報（地方名＋深刻度のみ）
+const REGION_CONDITION_WORLD_RUMOR = {
+ 2: [ (name)=>`「${name}の方じゃ、最近どうも物騒らしい」`,
+      (name)=>`「${name}では物資がうまく回っていないという話だ」`,
+      (name)=>`「${name}から人が流れてきているらしい。向こうは大変みたいだ」` ],
+ 3: [ (name)=>`「${name}は今かなり荒れていると聞く。できれば近づきたくないね」`,
+      (name)=>`「${name}の方は危機的な状況らしい。商人も行きたがらないとか」`,
+      (name)=>`「${name}から逃げてきたという旅人に会った。相当ひどい有様だそうだ」` ],
+};
+function getRegionConditionWorldRumor(townId){
+ const myRegion = getRegionKey(townId);
+ ensureRegionCondition();
+ const candidates = [];
+ REGION_CONDITION_SCOPE.forEach(regionKey=>{
+  if(regionKey === myRegion) return;
+  const c = PC._regionCondition[regionKey];
+  const worst = Math.max(c.logi, c.unrest, c.exodus);
+  const stage = regionConditionStageIndex(worst);
+  if(stage >= 2) candidates.push({ regionKey, stage });
+ });
+ if(!candidates.length) return null;
+ const pick_ = candidates[Math.floor(Math.random()*candidates.length)];
+ const regionName = (HERO_REGIONS[pick_.regionKey]||{}).name || pick_.regionKey;
+ const pool = REGION_CONDITION_WORLD_RUMOR[pick_.stage];
+ const line = pool[Math.floor(Math.random()*pool.length)];
+ return line(regionName);
 }
 
 // 天候タイプ→表示ラベル
@@ -36764,6 +38270,26 @@ function departureConfideLine(npc, reason){
  return fn ? fn(npc, reason) : `「${PC.name}、実はパーティを抜けようと思っているんだ」`;
 }
 
+// 2026年10月2日：仲間の離脱会話（独立志向など）専用の選択肢描画。
+// renderChoices自体は他の画面（酒場の噂等）で広く使われており、クリック直後に
+// 選択肢を即座に消すよう共通処理を変えると副作用が大きいため、この会話だけに
+// 限定した対策として、ボタンを押した瞬間にそのボタンだけを無効化・非表示にする。
+// setTimeoutで旅のtickを遅延予約するこの画面特有の作りが、連打による二重予約
+// （旅の移動速度が上がって見える不具合）を起こしていたための措置。
+function renderDepartureChoices(choices){
+ renderChoices(choices);
+ document.querySelectorAll('#choices button').forEach(btn=>{
+  const orig = btn.onclick;
+  let clicked = false;
+  btn.onclick = function(){
+   if(clicked) return;
+   clicked = true;
+   btn.disabled = true;
+   btn.style.display = 'none';
+   if(orig) orig();
+  };
+ });
+}
 function startPartyDepartureEvent(ts){
  const cand = checkPartyDepartureCandidate();
  if(!cand){
@@ -36771,21 +38297,27 @@ function startPartyDepartureEvent(ts){
   setTimeout(travelTick, ts.interval);
   return;
  }
- const { npc, reason } = cand;
+ runPartyDepartureEvent(ts, cand.npc, cand.reason);
+}
+// 2026年10月2日：startPartyDepartureEventの本体部分を分離。
+// デバッグボタン等から特定のNPC・理由を指定して強制発生させられるようにするため
+// （checkPartyDepartureCandidate()は条件を満たす全NPC・全理由からランダムに1件選ぶため、
+// 「独立志向のみを確実に発生させる」といった指定ができなかった）。
+function runPartyDepartureEvent(ts, npc, reason){
  travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：${npc.name}が神妙な面持ちで話しかけてきた。</span>`);
  travelLog(`<span style="color:#e0d8c8"> ${departureConfideLine(npc, reason)}</span>`);
- renderChoices([{label:` ${npc.name}を引き止める（魅力 能力値テスト）`, fn:()=>{
+ renderDepartureChoices([{label:` ${npc.name}を引き止める（魅力 能力値テスト）`, fn:()=>{
   setupSavingRoll({
    attr:'chr', level:1, targetAdjust:Math.floor((npc.trust||0)/20),
    onSuccess:()=>{
     npc._departureCooldownUntil = GAME_TIME.totalDays + 365;
     travelLog(`<span style="color:#e8e4d8"> 説得の末、${npc.name}は思いとどまってくれた。「……そうだな、もう少しだけ一緒にいるとするか」</span>`);
-    renderChoices([{label:'▶ 旅を続ける', fn:()=>{ ts._resumeWithoutIncrement=true; setTimeout(travelTick, ts.interval); }}]);
+    renderDepartureChoices([{label:'▶ 旅を続ける', fn:()=>{ ts._resumeWithoutIncrement=true; setTimeout(travelTick, ts.interval); }}]);
    },
    onFail:()=>{
     PC._pendingDeparture = { npcId: npc._npcId, reason };
     travelLog(`<span class="red"> ${npc.name}の意志は固いようだ。「すまない、${PC.name}。目的地に着いたら、そこでお別れさせてもらう」</span>`);
-    renderChoices([{label:'▶ 旅を続ける', fn:()=>{ ts._resumeWithoutIncrement=true; setTimeout(travelTick, ts.interval); }}]);
+    renderDepartureChoices([{label:'▶ 旅を続ける', fn:()=>{ ts._resumeWithoutIncrement=true; setTimeout(travelTick, ts.interval); }}]);
    },
   });
  }}]);
@@ -39071,6 +40603,34 @@ function startGame(){
   PC._inheritedFoodPriceMult = undefined;
   PC._inheritedHarvestPriceApplied = undefined;
  }
+ // 地方状態システムの引き継ぎ（世界に残る記録。無ければensureRegionCondition()が初回アクセス時に0で初期化する）
+ if(PC._inheritedRegionCondition){
+  PC._regionCondition = PC._inheritedRegionCondition;
+  PC._inheritedRegionCondition = undefined;
+ } else {
+  PC._regionCondition = undefined;
+ }
+ // アンビエント圧力も同様に引き継ぐ（無ければensureRegionConditionAmbient()が初回アクセス時にランダム初期化する）
+ if(PC._inheritedRegionConditionAmbient){
+  PC._regionConditionAmbient = PC._inheritedRegionConditionAmbient;
+  PC._inheritedRegionConditionAmbient = undefined;
+ } else {
+  PC._regionConditionAmbient = undefined;
+ }
+ // 危機的状況からのPC主導の回復の記録も引き継ぐ（先代以前の功績として残り、未回復の「危機的に達した」フラグも持ち越す）
+ if(PC._inheritedRegionWasCrisis){
+  PC._regionWasCrisis = PC._inheritedRegionWasCrisis;
+  PC._inheritedRegionWasCrisis = undefined;
+ } else {
+  PC._regionWasCrisis = undefined;
+ }
+ if(PC._inheritedRegionCrisisRecord){
+  PC._regionCrisisRecord = PC._inheritedRegionCrisisRecord;
+  PC._inheritedRegionCrisisRecord = undefined;
+ } else {
+  PC._regionCrisisRecord = undefined;
+ }
+ PC._regionConditionLastKey = undefined; // 新PCの最初のtickで現在月を基準に取り直す
  const startDate = getCurrentDate();
  const birthMonth = Math.floor(Math.random() * 12) + 1; // 1〜12月
  const birthDay = Math.floor(Math.random() * 30) + 1; // 1〜30日
@@ -43331,6 +44891,13 @@ function startAsNPC(npcIdx){
  if(ws.harvestResult) PC._harvestResult = ws.harvestResult;
  if(ws.foodPriceMult) PC._foodPriceMult = ws.foodPriceMult;
  if(ws.harvestPriceApplied) PC._harvestPriceApplied = ws.harvestPriceApplied;
+ // 地方状態システムの引き継ぎ（世界に残る記録なので、世代交代しても地方ごとに引き継がれる）
+ if(ws.regionCondition) PC._regionCondition = JSON.parse(JSON.stringify(ws.regionCondition));
+ if(ws.regionConditionAmbient) PC._regionConditionAmbient = JSON.parse(JSON.stringify(ws.regionConditionAmbient));
+ // 危機的状況からのPC主導の回復の記録も引き継ぐ（記録自体は先代のものとして残り、未回復の「危機的に達した」フラグも持ち越す）
+ if(ws.regionWasCrisis) PC._regionWasCrisis = JSON.parse(JSON.stringify(ws.regionWasCrisis));
+ if(ws.regionCrisisRecord) PC._regionCrisisRecord = JSON.parse(JSON.stringify(ws.regionCrisisRecord));
+ PC._regionConditionLastKey = undefined; // 新PCの最初のtickで現在月を基準に取り直す
  saveWorldState(ws);
 
  // ゲーム画面へ
@@ -43353,6 +44920,10 @@ function startNewPCInherit(){
  if(ws && ws.heroTowns) PC._inheritedHeroTowns = JSON.parse(JSON.stringify(ws.heroTowns));
  if(ws && ws.regionLegends) PC._inheritedRegionLegends = JSON.parse(JSON.stringify(ws.regionLegends));
  if(ws && ws.harvestYear){ PC._inheritedHarvestYear = ws.harvestYear; PC._inheritedHarvestResult = ws.harvestResult; PC._inheritedFoodPriceMult = ws.foodPriceMult; PC._inheritedHarvestPriceApplied = ws.harvestPriceApplied; }
+ if(ws && ws.regionCondition) PC._inheritedRegionCondition = JSON.parse(JSON.stringify(ws.regionCondition));
+ if(ws && ws.regionConditionAmbient) PC._inheritedRegionConditionAmbient = JSON.parse(JSON.stringify(ws.regionConditionAmbient));
+ if(ws && ws.regionWasCrisis) PC._inheritedRegionWasCrisis = JSON.parse(JSON.stringify(ws.regionWasCrisis));
+ if(ws && ws.regionCrisisRecord) PC._inheritedRegionCrisisRecord = JSON.parse(JSON.stringify(ws.regionCrisisRecord));
  ['title-screen','shop-area','game'].forEach(id=>{
  const el = document.getElementById(id);
  if(el){ el.classList.add('hidden'); if(id==='game') el.style.display='none'; }
@@ -43705,7 +45276,7 @@ function go(nodeId){
  // モンスターエンカウント（暗闇中は判定しない）
  // 専用エンカウント関数を持つダンジョンはスキップ
  const _skipGenericEnc = nodeId.startsWith('RUIN_P') || nodeId.startsWith('RUIN_ROOM') || nodeId.startsWith('RUIN_TJUNC')
-  || nodeId.startsWith('LAIR_') || nodeId.startsWith('LAIR2_') || nodeId.startsWith('LAIR3_') || nodeId.startsWith('LAIR4_') || nodeId.startsWith('LAIR5_');
+  || nodeId.startsWith('LAIR_') || nodeId.startsWith('LAIR2_') || nodeId.startsWith('LAIR3_') || nodeId.startsWith('LAIR4_') || nodeId.startsWith('LAIR5_') || nodeId.startsWith('NIFLAIR_');
  if(PC._torchTurns > 0 && !_skipGenericEnc){
  const dungeonFloor = nodeId.startsWith('CRYPT3_') ? 3 : nodeId.startsWith('CRYPT2_') ? 2 : nodeId.startsWith('SHR2_') ? 2 : 1;
  const enc = rollEncounter(dungeonFloor);
@@ -48172,13 +49743,18 @@ function castSpell(spell,ctx){
   }
  } else result.textContent='戦闘中のみ使用可';break;
  case 'wisp':
- if(DUNGEON_NODES && DUNGEON_NODES.has && DUNGEON_NODES.has(currentNodeId)){
+ if((DUNGEON_NODES && DUNGEON_NODES.has && DUNGEON_NODES.has(currentNodeId)) || PC._yeldunDungeon){
  // ダンジョン内：松明1ターン分として処理
  PC._torchTurns = Math.max(PC._torchTurns||0, 1);
  result.innerHTML=' <span class="wizard-c">Candle Light</span>: 指先が明るく輝いた！ダンジョンを1ターン照らす。';
- // 暗闇状態だった場合はノードを再描画
- if(document.getElementById('story').textContent.includes('暗闇')){
+ // 暗闇状態だった場合はノードを再描画（討伐依頼等のYD系ダンジョンはydGoNodeで再描画する）
+ const _storyTxt = document.getElementById('story').textContent;
+ if(_storyTxt.includes('暗闇') || _storyTxt.includes('松明が切れた')){
+ if(PC._yeldunDungeon && _ydState){
+ ydGoNode(_ydState.nodeId, _ydState.floor);
+ } else {
  go(currentNodeId);
+ }
  return;
  }
  } else {
@@ -48517,6 +50093,15 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026100201', items:[
+  '町メニューで、天候にまつわる一言を他の情報より先に表示するよう順序を変更',
+  '地方ごとに治安等の内部パラメータを設置し、それに応じた状態が設定されるようになりました',
+  'PCの働きで地方を危機的な状況から救うと、その功績が世界の記録として残り、酒場の噂で聞けるようになりました',
+  '仲間との会話中、「旅を続ける」などの選択肢ボタンを連打すると、まれに旅の進行が二重に進んでしまう不具合を修正',
+ ]},
+ { version:'ver.2026092202', items:[
+  '世界のどこかでまれに大地震が起こるようになりました（噂で気づくことがあります）',
+ ]},
  { version:'ver.2026092201', items:[
   '巣窟ダンジョンに新しい「シナリオ」を追加',
   '巣窟ダンジョンで逃走に成功した場合、1つ前の場所に戻るように変更',
@@ -48880,6 +50465,122 @@ const ENTRY_NODE = 'TOWN_KHAZAN';
 function dbg(fn){
  try{ fn(); } catch(e){ showSaveToast('ERR:'+e.message); } }
 
+// デバッグ用：適当な仲間NPCに「独立志向」の離脱会話を強制発生させる（2026年10月2日追加）
+// checkPartyDepartureCandidate()は条件を満たす全NPC・全理由からランダムに1件選ぶため、
+// 既存の「仲間の離脱イベント強制発生」ボタンでは独立志向以外の理由が選ばれることもある。
+// このボタンは理由を「independence」に固定し、runPartyDepartureEvent()へ直接渡すことで確実に再現する。
+function dbgForceIndependenceDeparture(){
+ document.getElementById('debug-panel').style.display = 'none';
+ const candidates = (PC.party||[]).filter(npc => npc.con > 0 && !npc._isTemporaryCompanion && !isNpcPcSpouse(npc));
+ if(!candidates.length){ showSaveToast('独立を相談できる仲間NPCがいません'); return; }
+ const npc = candidates[Math.floor(Math.random()*candidates.length)];
+ npc.level = Math.max(npc.level||1, 5); // 独立志向の条件（Lv5以上）を満たす
+ drawScene('travel');
+ showSaveToast('独立志向の離脱会話を強制発生：' + npc.name);
+ runPartyDepartureEvent({daysDone:1, interval:1000}, npc, {type:'independence'});
+}
+
+// デバッグ用：世界的大地震を即座に発生させる（発生予定日を現在日に前倒しして通常の抽選ロジックを実行）
+function dbgForceWorldEarthquake(){
+ if(!PC._worldEarthquake) initWorldEarthquake();
+ PC._worldEarthquake.nextDueDay = GAME_TIME.totalDays;
+ checkWorldEarthquake();
+ const cur = PC._worldEarthquake.current;
+ if(!cur || !cur.townId){ showSaveToast('[DBG] 大地震の発生に失敗しました（地方候補なし）'); return; }
+ const regionName = (HERO_REGIONS[cur.regionKey]||{}).name || cur.regionKey;
+ const townName = (TOWNS[cur.townId]||{}).name || cur.townId;
+ showSaveToast(`[DBG] 大地震発生：${regionName}／震源地：${townName}（${dateStr()}）`);
+}
+
+// デバッグ用：「墓地の唸り声」専用イベントを、途中の各段階から直接テストする
+// stage: 'choices'（3択の入口）／'scene'（深夜の墓地シーン）／'combat'（塚の中の戦闘）
+function dbgTestGraveyardMoan(stage){
+ const panel = document.getElementById('debug-panel');
+ if(panel) panel.style.display = 'none';
+ const dung = { villageId: PC.town || 'stonehiem' };
+ const node = { id:'_dbg_graveyard_moan', miniResolveKey:'_dbg_graveyard_moan_'+Date.now(), miniSubtype:'rumor', rumorId:'graveyard_moan' };
+ const reward = 8;
+ if(stage === 'choices'){
+  const s = document.getElementById('story');
+  if(s) s.innerHTML = `<span style="color:#e0d0d0">[DEBUG] 墓地の唸り声：3択テスト</span>`;
+  renderChoices(_graveyardMoanInvestigateChoices(node, 1, dung, reward));
+ } else if(stage === 'scene'){
+  _graveyardMoanScene(node, 1, dung, reward);
+ } else if(stage === 'tomb'){
+  _graveyardMoanEnterTomb(node, 1, dung, reward);
+ } else if(stage === 'combat'){
+  _graveyardMoanTombCombat(node, 1, dung, reward);
+ }
+}
+
+// デバッグ用：「商家の密輸」専用イベントを、途中の各段階から直接テストする
+// stage: 'choices'（3択の入口）／'merchant'（商家ノード）／'threaten'（商人を脅す）／'buy'（密輸品を買う）
+function dbgTestSmuggling(stage){
+ const panel = document.getElementById('debug-panel');
+ if(panel) panel.style.display = 'none';
+ const dung = { villageId: PC.town || 'stonehiem' };
+ const node = { id:'_dbg_smuggling', miniResolveKey:'_dbg_smuggling_'+Date.now(), miniSubtype:'rumor', rumorId:'smuggling' };
+ const reward = 8;
+ const dbgMerchantName = 'テスト商人';
+ if(stage === 'choices'){
+  const s = document.getElementById('story');
+  if(s) s.innerHTML = `<span style="color:#e0d0d0">[DEBUG] 商家の密輸：3択テスト</span>`;
+  renderChoices(_smugglingInvestigateChoices(node, 1, dung, reward));
+ } else if(stage === 'merchant'){
+  _smugglingMerchantNode(node, 1, dung, reward, dbgMerchantName);
+ } else if(stage === 'threaten'){
+  const s = document.getElementById('story');
+  if(s) s.innerHTML = `<span style="color:#e0d0d0">[DEBUG] 商人を脅す：テスト</span>`;
+  _smugglingThreatenMerchant(node, 1, dung, dbgMerchantName);
+ } else if(stage === 'buy'){
+  const s = document.getElementById('story');
+  if(s) s.innerHTML = `<span style="color:#e0d0d0">[DEBUG] 密輸品を買う：テスト</span>`;
+  _smugglingBuyGoods(node, 1, dung, dbgMerchantName);
+ }
+}
+
+// デバッグ用：「先代の英雄のお宝」専用イベントを、途中の各段階から直接テストする
+// stage: 'choices'（3択の入口）／'scene'（塚を発見するシーン）／'tomb'（塚の中の描写ノード）／'combat'（塚の中の戦闘だけ直接開始）
+function dbgTestHeroTreasure(stage){
+ const panel = document.getElementById('debug-panel');
+ if(panel) panel.style.display = 'none';
+ const dung = { villageId: PC.town || 'stonehiem' };
+ const node = { id:'_dbg_hero_treasure', miniResolveKey:'_dbg_hero_treasure_'+Date.now(), miniSubtype:'rumor', rumorId:'hero_treasure' };
+ const reward = 8;
+ if(stage === 'choices'){
+  const s = document.getElementById('story');
+  if(s) s.innerHTML = `<span style="color:#e0d0d0">[DEBUG] 先代の英雄のお宝：3択テスト</span>`;
+  renderChoices(_heroTreasureInvestigateChoices(node, 1, dung, reward));
+ } else if(stage === 'scene'){
+  _heroTreasureTombScene(node, 1, dung, reward);
+ } else if(stage === 'tomb'){
+  _heroTreasureEnterTomb(node, 1, dung, reward);
+ } else if(stage === 'combat'){
+  _heroTreasureTombCombat(node, 1, dung, reward);
+ }
+}
+
+// デバッグ用：「町外れの奇妙な光」専用イベントを、途中の各段階から直接テストする
+// stage: 'choices'（3択の入口）／'scene'（廃屋を発見するシーン）／'house'（廃屋の中の描写ノード）／'combat'（戦闘だけ直接開始）
+function dbgTestStrangeLight(stage){
+ const panel = document.getElementById('debug-panel');
+ if(panel) panel.style.display = 'none';
+ const dung = { villageId: PC.town || 'stonehiem' };
+ const node = { id:'_dbg_strange_light', miniResolveKey:'_dbg_strange_light_'+Date.now(), miniSubtype:'rumor', rumorId:'strange_light' };
+ const reward = 8;
+ if(stage === 'choices'){
+  const s = document.getElementById('story');
+  if(s) s.innerHTML = `<span style="color:#e0d0d0">[DEBUG] 町外れの奇妙な光：3択テスト</span>`;
+  renderChoices(_strangeLightInvestigateChoices(node, 1, dung, reward));
+ } else if(stage === 'scene'){
+  _strangeLightHouseScene(node, 1, dung, reward);
+ } else if(stage === 'house'){
+  _strangeLightEnterHouse(node, 1, dung, reward);
+ } else if(stage === 'combat'){
+  _strangeLightCombat(node, 1, dung, reward);
+ }
+}
+
 function dbgShowWorldState(){
  const ws = loadWorldState();
  const story = document.getElementById('story');
@@ -48919,6 +50620,94 @@ function dbgShowPCProperties(){
   });
  }
  story.innerHTML = html;
+}
+
+// ── デバッグ：地方状態システム（物流途絶度／治安悪化度／住民流出度） ──
+function dbgShowRegionCondition(){
+ ensureRegionCondition();
+ ensureRegionConditionAmbient();
+ ensureRegionConditionHero();
+ ensureRegionConditionCrisisRecord();
+ const story = document.getElementById('story');
+ let html = '<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">── 地方状態システム ──</span><br><br>';
+ REGION_CONDITION_SCOPE.forEach(regionKey=>{
+  const c = PC._regionCondition[regionKey];
+  const regionName = (HERO_REGIONS[regionKey]||{}).name || regionKey;
+  const stageOf = (m)=>REGION_CONDITION_STAGE_LABEL[regionConditionStageIndex(c[m])];
+  const ext = getRegionConditionExternalDelta(regionKey);
+  const hero = PC._regionConditionHero[regionKey];
+  html += `<b>${regionName}</b>（${regionKey}）<br>`;
+  html += `&nbsp;&nbsp;物流途絶度: ${c.logi.toFixed(1)}（${stageOf('logi')}）<br>`;
+  html += `&nbsp;&nbsp;治安悪化度: ${c.unrest.toFixed(1)}（${stageOf('unrest')}）<br>`;
+  html += `&nbsp;&nbsp;住民流出度: ${c.exodus.toFixed(1)}（${stageOf('exodus')}）<br>`;
+  html += `&nbsp;&nbsp;<span style="color:#a89880">アンビエント圧力: ${PC._regionConditionAmbient[regionKey].toFixed(2)}（治安へ毎月加算）</span><br>`;
+  html += `&nbsp;&nbsp;<span style="color:#a89880">外的要因（現在値）: 物流+${ext.logi.toFixed(1)} 治安+${ext.unrest.toFixed(1)} 流出+${ext.exodus.toFixed(1)}</span><br>`;
+  html += `&nbsp;&nbsp;<span style="color:#a89880">NPC英雄介入: 悪化streak=${hero.streak}ヶ月 cooldown=${hero.cooldown}ヶ月`
+   + (hero.lastEvent ? ` / 直近介入者=${hero.lastEvent.npcName}（噂残り${3-(hero.rumorShown||0)}回）` : '') + `</span><br>`;
+  const crisisRec = PC._regionCrisisRecord[regionKey];
+  html += `&nbsp;&nbsp;<span style="color:#a89880">危機的到達フラグ: ${PC._regionWasCrisis[regionKey]?'あり（未回復）':'なし'}`
+   + (crisisRec ? ` / 救済者=${crisisRec.pcName}（${crisisRec.year}年、噂残り${3-(crisisRec.rumorShown||0)}回）` : '') + `</span><br><br>`;
+ });
+ html += `<span style="color:#a89880;font-size:calc(var(--font-sm) - 2px)">lastKey: ${PC._regionConditionLastKey==null?'未設定':PC._regionConditionLastKey}（現在: ${(()=>{const d=getCurrentDate();return d.year*12+d.month;})()}）</span>`;
+ story.innerHTML = html;
+}
+
+// 指定地方・指定項目にスコアを設定（プロンプト入力）
+function dbgSetRegionCondition(){
+ ensureRegionCondition();
+ const regionKey = prompt('地方キー（' + REGION_CONDITION_SCOPE.join(' / ') + '）', REGION_CONDITION_SCOPE[0]);
+ if(!regionKey || !REGION_CONDITION_SCOPE.includes(regionKey)){ showSaveToast('不正な地方キー'); return; }
+ const metric = prompt('項目（logi / unrest / exodus）', 'unrest');
+ if(!['logi','unrest','exodus'].includes(metric)){ showSaveToast('不正な項目名'); return; }
+ const val = parseInt(prompt(`${regionKey} の ${metric} に設定する値（0〜100）`, '80'), 10);
+ if(isNaN(val)){ showSaveToast('不正な数値'); return; }
+ PC._regionCondition[regionKey][metric] = Math.max(0, Math.min(100, val));
+ showSaveToast(`${regionKey} の ${metric} を ${PC._regionCondition[regionKey][metric]} に設定`);
+ dbgShowRegionCondition();
+}
+
+// 月次ティックを指定回数分だけ強制的に進める（checkRegionConditionTickと同じ計算：アンビエント圧力＋外的要因＋相互作用式）
+function dbgAdvanceRegionConditionTick(){
+ ensureRegionCondition();
+ ensureRegionConditionAmbient();
+ ensureRegionConditionHero();
+ ensureRegionConditionCrisisRecord();
+ const n = parseInt(prompt('何ヶ月分進めますか？', '1'), 10);
+ if(isNaN(n) || n <= 0){ showSaveToast('不正な数値'); return; }
+ const clamp = v => Math.max(0, Math.min(100, v));
+ for(let i=0;i<n;i++){
+  REGION_CONDITION_SCOPE.forEach(regionKey=>{
+   const ambient = stepRegionConditionAmbient(PC._regionConditionAmbient[regionKey]);
+   PC._regionConditionAmbient[regionKey] = ambient;
+   const ext = getRegionConditionExternalDelta(regionKey);
+   const c = PC._regionCondition[regionKey];
+   c.logi   = clamp(c.logi   + ext.logi);
+   c.unrest = clamp(c.unrest + ext.unrest + ambient);
+   c.exodus = clamp(c.exodus + ext.exodus);
+   PC._regionCondition[regionKey] = stepRegionCondition(c);
+   markRegionConditionCrisisIfNeeded(regionKey);
+   stepRegionConditionHero(regionKey);
+  });
+ }
+ const d = getCurrentDate();
+ PC._regionConditionLastKey = d.year*12 + d.month; // 現在月を最終計算済みとしてマークし直す
+ showSaveToast(`地方状態を${n}ヶ月分進めた`);
+ dbgShowRegionCondition();
+}
+
+// 全地方のスコアとアンビエント圧力を0にリセット
+function dbgResetRegionCondition(){
+ PC._regionCondition = {};
+ PC._regionConditionAmbient = {};
+ PC._regionConditionHero = {};
+ PC._regionWasCrisis = {};
+ PC._regionCrisisRecord = {};
+ ensureRegionCondition();
+ ensureRegionConditionAmbient();
+ ensureRegionConditionHero();
+ ensureRegionConditionCrisisRecord();
+ showSaveToast('地方状態を全地方0にリセットした');
+ dbgShowRegionCondition();
 }
 
 function showDebugPanel(){
@@ -49425,7 +51214,8 @@ const NODES = {
  // 実績スコアで形容を決定
  const heroTownCount = Object.keys(PC._heroTowns||{}).length;
  const heroRegionCount = Object.keys(PC._heroRegions||{}).length;
- const chaosCleared = !!(PC._chaosNest?.cleared);
+ // 2026年10月2日：攻略済みでも、それが「このPC自身」の功績の場合のみ実績に加点する（先代の功績を新PCの実績として数えないため）
+ const chaosCleared = !!(PC._chaosNest?.cleared && PC._chaosNest?.clearedByPCName === PC.name);
  const famineHero = !!(PC._famineYear && PC._famineHeroName === PC.name);
  const achievementScore =
   heroTownCount +
@@ -49819,10 +51609,10 @@ const NODES = {
  scene:'town_khazan',
  txt:()=>{
  const t=TOWNS.khazan;
- return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('khazan')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('khazan')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span class="gold" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('khazan')}<br>
+ ${popWeatherMsg('khazan')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_KHAZAN'},
@@ -49847,10 +51637,10 @@ const NODES = {
  scene:'town_port',
  txt:()=>{
  const t=TOWNS.port_argon;
- return `<span class="cyn" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('port_argon')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('port_argon')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span class="cyn" style="font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('port_argon')}<br>
+ ${popWeatherMsg('port_argon')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 武器屋・装備屋', go:'SHOP_PORT'},
@@ -49874,10 +51664,10 @@ const NODES = {
  scene:'town_stone',
  txt:()=>{
  const t=TOWNS.stonehiem;
- return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('stonehiem')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('stonehiem')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('stonehiem')}<br>
+ ${popWeatherMsg('stonehiem')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_STONE'},
@@ -49895,10 +51685,10 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const t=TOWNS.verda;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('verda')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('verda')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('verda')}<br>
+ ${popWeatherMsg('verda')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_VERDA'},
@@ -49941,10 +51731,10 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const t=TOWNS.rimholm;
- return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('rimholm')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('rimholm')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('rimholm')}<br>
+ ${popWeatherMsg('rimholm')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武具屋', go:'SHOP_RIMHOLM'},
@@ -49987,10 +51777,10 @@ const NODES = {
  scene:'town_village',
  txt:()=>{
  const t=TOWNS.marakai;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('marakai')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('marakai')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('marakai')}<br>
+ ${popWeatherMsg('marakai')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器商', go:'SHOP_MARAKAI'},
@@ -50036,10 +51826,10 @@ const NODES = {
  scene:'town_desert_city',
  txt:()=>{
  const t=TOWNS.al_rashid;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('al_rashid')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('al_rashid')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('al_rashid')}<br>
+ ${popWeatherMsg('al_rashid')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 武器屋・装備屋', go:'SHOP_AL_RASHID'},
@@ -50083,10 +51873,10 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const t=TOWNS.oasis_fort;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('oasis_fort')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('oasis_fort')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('oasis_fort')}<br>
+ ${popWeatherMsg('oasis_fort')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_OASIS'},
@@ -50744,10 +52534,10 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const t=TOWNS.saroon;
- return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('saroon')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('saroon')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span style="color:#e8e0d0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('saroon')}<br>
+ ${popWeatherMsg('saroon')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_SAROON'},
@@ -51549,10 +53339,10 @@ const NODES = {
  scene:'town_desert_village',
  txt:()=>{
  const t=TOWNS.duna;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('duna')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('duna')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('duna')}<br>
+ ${popWeatherMsg('duna')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋', go:'SHOP_DUNA'},
@@ -52111,10 +53901,10 @@ const NODES = {
  scene:'town_mountain_city',
  txt:()=>{
   const t=TOWNS.yeldun;
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('yeldun')}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br>
-  ${popWeatherMsg('yeldun')}<br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('yeldun')}<br>
+  ${popWeatherMsg('yeldun')}
+  ${popDeliveryMsg()}<br>
+  <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 武器屋・装備店', go:'SHOP_YELDUN'},
@@ -52137,10 +53927,10 @@ const NODES = {
  scene:'town_mountain_village',
  txt:()=>{
   const t=TOWNS.frostpeak;
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('frostpeak')}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br>
-  ${popWeatherMsg('frostpeak')}<br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('frostpeak')}<br>
+  ${popWeatherMsg('frostpeak')}
+  ${popDeliveryMsg()}<br>
+  <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 道具屋（毛皮・山岳装備）', go:'SHOP_FROSTPEAK'},
@@ -52163,10 +53953,10 @@ const NODES = {
  scene:'town_mountain_village',
  txt:()=>{
   const t=TOWNS.ashveil;
-  return `<span style="color:#e0d8cc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('ashveil')}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br>
-  ${popWeatherMsg('ashveil')}<br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+  return `<span style="color:#e0d8cc;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('ashveil')}<br>
+  ${popWeatherMsg('ashveil')}
+  ${popDeliveryMsg()}<br>
+  <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
   {label:' 鍛冶屋（黒曜石・鉄製品）', go:'SHOP_ASHVEIL'},
@@ -52193,10 +53983,10 @@ const NODES = {
   const winterWarn = isWinter() ? `<br><span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)"> 冬期：エルマリアへのルートは雪で遮断されています</span>` : '';
   const frostLvl = getFrostbiteLevel();
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('valdheim')}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br>
-  ${popWeatherMsg('valdheim')}<br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${winterWarn}${frostWarn}`;
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('valdheim')}<br>
+  ${popWeatherMsg('valdheim')}
+  ${popDeliveryMsg()}<br>
+  <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${winterWarn}${frostWarn}`;
  },
  choices:[
   {label:' 武具店（高品質武器・防寒装備）', go:'SHOP_VALDHEIM'},
@@ -52212,10 +54002,10 @@ const NODES = {
   const t=TOWNS.nifurvik;
   const frostLvl = getFrostbiteLevel();
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('nifurvik')}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br>
-  ${popWeatherMsg('nifurvik')}<br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('nifurvik')}<br>
+  ${popWeatherMsg('nifurvik')}
+  ${popDeliveryMsg()}<br>
+  <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
  },
  choices:[
   {label:' 交易所（毛皮・魚油）', go:'SHOP_NIFURVIK'},
@@ -52231,10 +54021,10 @@ const NODES = {
   const t=TOWNS.iskald;
   const frostLvl = getFrostbiteLevel();
   const frostWarn = frostLvl > 0 ? `<br><span style="color:${frostLvl>=3?'#ff6644':'var(--info2)'};font-size:calc(var(--font-sm) - 1px)"> 凍傷状態（${FROSTBITE_EFFECTS[frostLvl].label}）── 宿屋で回復できる</span>` : '';
-  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('iskald')}<br><br>
-  <span style="color:#c0b098">${t.desc}</span><br>
-  ${popWeatherMsg('iskald')}<br>
-  ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
+  return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('iskald')}<br>
+  ${popWeatherMsg('iskald')}
+  ${popDeliveryMsg()}<br>
+  <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}${frostWarn}`;
  },
  choices:[
   {label:' 鉱山道具屋（希少鉱石・採掘具）', go:'SHOP_ISKALD'},
@@ -52387,10 +54177,10 @@ const NODES = {
  scene:'town_elsia',
  txt:()=>{
  const t=TOWNS.elsia;
- return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('elsia')}<br><br>
- <span style="color:#c0b098">${t.desc}</span><br>
- ${popWeatherMsg('elsia')}<br>
- ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
+ return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('elsia')}<br>
+ ${popWeatherMsg('elsia')}
+ ${popDeliveryMsg()}<br>
+ <span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}` ;
  },
  choices:[
  {label:' 道具屋（エルフ製品・遺物）', go:'SHOP_ELSIA'},
@@ -55480,10 +57270,10 @@ const NODES = {
   scene:'town_port',
   txt:()=>{
    const t=TOWNS.neria;
-   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('neria')}<br><br>
-<span style="color:#c0b098">${t.desc}</span><br>
-${popWeatherMsg('neria')}<br>
-${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
+   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('neria')}<br>
+${popWeatherMsg('neria')}
+${popDeliveryMsg()}<br>
+<span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 武器屋・装備屋', go:'SHOP_NERIA'},
@@ -55531,10 +57321,10 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   scene:'town_village',
   txt:()=>{
    const t=TOWNS.dorua;
-   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('dorua')}<br><br>
-<span style="color:#c0b098">${t.desc}</span><br>
-${popWeatherMsg('dorua')}<br>
-${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
+   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('dorua')}<br>
+${popWeatherMsg('dorua')}
+${popDeliveryMsg()}<br>
+<span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 道具屋', go:'SHOP_DORUA'},
@@ -55596,10 +57386,10 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   scene:'town_village',
   txt:()=>{
    const t=TOWNS.sarpe;
-   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('sarpe')}<br><br>
-<span style="color:#c0b098">${t.desc}</span><br>
-${popWeatherMsg('sarpe')}<br>
-${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
+   return `<span style="color:#f0ece0;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('sarpe')}<br>
+${popWeatherMsg('sarpe')}
+${popDeliveryMsg()}<br>
+<span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 酒場兼宿屋', go:'TAVERN_SARPE'},
@@ -55634,10 +57424,10 @@ ${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popReg
   scene:'town_village',
   txt:()=>{
    const t=TOWNS.nebra;
-   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('nebra')}<br><br>
-<span style="color:#c0b098">${t.desc}</span><br>
-${popWeatherMsg('nebra')}<br>
-${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
+   return `<span style="color:#e0d8c8;font-size:calc(var(--font-base) + 1px)"> ${t.name}</span>　<span class="dim" style="font-size:calc(var(--font-lg) + 4px)">${t.size}</span>${popTimeOfDayMsg('nebra')}<br>
+${popWeatherMsg('nebra')}
+${popDeliveryMsg()}<br>
+<span style="color:#c0b098">${t.desc}</span><br>${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMsg()}${popRegionInfamyMsg()}${popRegionEvalMsg()}${popRaidUnitMsg()}<br>${renderTrustBadge(PC.town)}${hasProperty(PC.town)?'　<span style="color:#f0ece0"> 拠点あり</span>':''}`;
   },
   choices:[
    {label:' 民宿（酒場兼）', go:'TAVERN_NEBRA'},
@@ -58595,6 +60385,16 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
  ],
  },
 
+ PORT_ARGON_ISLAND:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">隆起した島</span><br><br>
+  地震によって海底から隆起したばかりの、切り立った岩肌が剥き出しの小島。まだ誰の手も入っていないようで、目立った建造物や道らしきものは見当たらない。<br>
+  今はまだ、ただの岩と土の塊にすぎないようだ。`,
+ choices:()=>[
+  {label:'↑ ポートアルゴンへ戻る（船で3日）', fn:()=>startPortArgonIslandReturnJourney()},
+ ],
+ },
+
  LAIR_ENTRANCE:{
  scene:'dungeon',
  area:1,
@@ -60614,6 +62414,342 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
  ],
  },
 
+
+ // ══════════════════════════════════════════
+ // 第6の固定ダンジョン「地中神殿の廃墟」（ニフルヴィクから徒歩5日）
+ // ══════════════════════════════════════════
+ NIFLAIR_FRONT:{
+ scene:'dungeon',
+ txt:()=>{
+  const lair = PC._niflairDungeon;
+  const flavor = (lair && lair.themeId)
+   ? LAIR_THEMES[lair.themeId].entryFlavor
+   : '地下への入口はひっそりと静まり返っており、これといった気配は感じられない。';
+  return `<span style="color:#f0ece0">${NIFLAIR_NAME} ── 入口前</span><br><br>
+  5日にわたる旅の末、地面に大きく口を開けた縦穴にたどり着いた。石段が地下へと続いている。${flavor}`;
+ },
+ choices:()=>[
+  {label:'→ 穴の中へ入る', fn:()=>enterNiflairDungeon()},
+  {label:'↑ ニフルヴィクへ戻る（徒歩5日）', fn:()=>startNiflairReturnJourney()},
+ ],
+ },
+
+ NIFLAIR_ENTRANCE:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME} ── 入口</span><br><br>
+  地上から北へ下る階段。降りきると5m四方の空間になっている。北壁には扉がある。`,
+ choices:()=>[
+  {label:'↑ 北の扉へ', fn:()=>niflairMove('NIFLAIR_ROOM1')},
+  {label:'↓ 地上へ戻る', fn:()=>go('NIFLAIR_FRONT')},
+ ],
+ },
+
+ NIFLAIR_ROOM1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  南北15m、東西25mの部屋。東西南北それぞれの壁の中央に扉がついている。`,
+ choices:()=>[
+  {label:'↓ 南の扉へ（入口）', fn:()=>go('NIFLAIR_ENTRANCE')},
+  {label:'↑ 北の扉へ', fn:()=>niflairMove('NIFLAIR_ROOM2')},
+  {label:'← 西の扉へ', fn:()=>niflairMove('NIFLAIR_ROOM7')},
+  {label:'→ 東の扉へ'+(PC._niflairR1TrapDone?'（罠は解除済み）':''), fn:()=>niflairRoom1EastDoor()},
+ ],
+ },
+
+ NIFLAIR_ROOM2:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  15m四方の部屋。南壁中央に扉、北壁中央に扉、東壁北端に扉がある。部屋の中央には、かつて噴水であったらしい泉がある。`,
+ choices:()=>[
+  {label:'↓ 南の扉へ', fn:()=>go('NIFLAIR_ROOM1')},
+  {label:'↑ 北の扉へ', fn:()=>niflairMove('NIFLAIR_ROOM3')},
+  {label:'→ 東の扉へ', fn:()=>niflairMove('NIFLAIR_ROOM5')},
+  {label:' 泉の水を飲んでみる', fn:()=>{
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><br><span style="color:#c8b8a0">泉の水を口に含んでみたが、特に何も起こらなかった。</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go('NIFLAIR_ROOM2')}]);
+  }},
+ ],
+ },
+
+ NIFLAIR_ROOM3:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  南北20m、東西15mの部屋。南壁中央に扉、東壁北端から10mのところに扉がある。西壁に共通語で「ギブスンはここで死んだ、彼の精神は壊れて」と刻まれている。` + _lairRoomStatusTextGeneric('niflair', 'NIFLAIR_ROOM3'),
+ choices:()=>{
+  const ns = PC._niflairDungeon.nodeState.NIFLAIR_ROOM3;
+  if(PC._niflairDungeon.themeId && !ns.defeated) return [{label:_lairEncounterLabel(ns), fn:()=>_lairStartEncounterGeneric('niflair', 'NIFLAIR_ROOM3')}];
+  return [
+   {label:'↓ 南の扉へ', fn:()=>go('NIFLAIR_ROOM2')},
+   {label:'→ 東の扉へ', fn:()=>niflairMove('NIFLAIR_PASSAGE1')},
+  ];
+ },
+ },
+
+ NIFLAIR_ROOM4:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  15m四方の部屋。西壁中央にアーチがあり、通路へつながっている。` + _lairRoomStatusTextGeneric('niflair', 'NIFLAIR_ROOM4'),
+ choices:()=>{
+  const ns = PC._niflairDungeon.nodeState.NIFLAIR_ROOM4;
+  if(PC._niflairDungeon.themeId && !ns.defeated) return [{label:_lairEncounterLabel(ns), fn:()=>_lairStartEncounterGeneric('niflair', 'NIFLAIR_ROOM4')}];
+  return [{label:'← 西のアーチへ', fn:()=>niflairMove('NIFLAIR_PASSAGE1')}];
+ },
+ },
+
+ NIFLAIR_PASSAGE1:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  東西15mの通路。西端は部屋への扉、東端の東壁にはアーチが、南壁には扉がある。`,
+ choices:()=>[
+  {label:'← 西の扉へ', fn:()=>go('NIFLAIR_ROOM3')},
+  {label:'→ 東のアーチへ', fn:()=>go('NIFLAIR_ROOM4')},
+  {label:'↓ 南の扉へ', fn:()=>go('NIFLAIR_ROOM5')},
+ ],
+ },
+
+ NIFLAIR_ROOM5:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  15m四方の部屋。北壁東端に扉、西壁南端に扉、東壁中央に扉がある。` + _lairRoomStatusTextGeneric('niflair', 'NIFLAIR_ROOM5'),
+ choices:()=>{
+  const ns = PC._niflairDungeon.nodeState.NIFLAIR_ROOM5;
+  if(PC._niflairDungeon.themeId && !ns.defeated) return [{label:_lairEncounterLabel(ns), fn:()=>_lairStartEncounterGeneric('niflair', 'NIFLAIR_ROOM5')}];
+  return [
+   {label:'↑ 北の扉へ', fn:()=>go('NIFLAIR_PASSAGE1')},
+   {label:'← 西の扉へ', fn:()=>go('NIFLAIR_ROOM2')},
+   {label:'→ 東の扉へ', fn:()=>go('NIFLAIR_ROOM6')},
+  ];
+ },
+ },
+
+ NIFLAIR_ROOM6:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  南北25m、東西20mの部屋。西壁北端に扉がある。冷たい錬鉄で作られた円卓が、床に刻まれた魔法陣の中に置かれ、今も部屋の中央に鎮座している。`,
+ choices:()=>[
+  {label:'← 西の扉へ', fn:()=>go('NIFLAIR_ROOM5')},
+ ],
+ },
+
+ NIFLAIR_ROOM7:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  南北35m、東西20mの部屋。東壁中央に扉、西壁中央に扉、北壁東端から10mのところに扉がある。` + _lairRoomStatusTextGeneric('niflair', 'NIFLAIR_ROOM7'),
+ choices:()=>{
+  const ns = PC._niflairDungeon.nodeState.NIFLAIR_ROOM7;
+  if(PC._niflairDungeon.themeId && !ns.defeated) return [{label:_lairEncounterLabel(ns), fn:()=>_lairStartEncounterGeneric('niflair', 'NIFLAIR_ROOM7')}];
+  return [
+   {label:'→ 東の扉へ', fn:()=>go('NIFLAIR_ROOM1')},
+   {label:'← 西の扉へ', fn:()=>niflairMove('NIFLAIR_HALL2')},
+   {label:'↑ 北の扉へ', fn:()=>niflairMove('NIFLAIR_PASSAGE2')},
+  ];
+ },
+ },
+
+ NIFLAIR_PASSAGE2:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  南北15mの通路。南端は南壁に扉があり、北端は西に折れて別の通路へつながっている。`,
+ choices:()=>[
+  {label:'↓ 南の扉へ', fn:()=>go('NIFLAIR_ROOM7')},
+  {label:'↖ 北→西へ', fn:()=>niflairMove('NIFLAIR_PASSAGE3')},
+ ],
+ },
+
+ NIFLAIR_PASSAGE3:{
+ scene:'dungeon',
+ area:1,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  東西15mの通路。東端は南に折れて別の通路へ、西端は西壁の扉へつながっている。`,
+ choices:()=>[
+  {label:'↘ 東→南へ', fn:()=>niflairMove('NIFLAIR_PASSAGE2')},
+  {label:'← 西の扉へ', fn:()=>niflairMove('NIFLAIR_HALL1')},
+ ],
+ },
+
+ NIFLAIR_HALL1:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20m、南北40mの柱廊。東壁北端から20mのところに通路への扉がある。北端は壁が崩れて行き止まりになっており、南端は柱廊が続いているが暗くなっていてよく見えない。`,
+ choices:()=>[
+  {label:'→ 東の扉へ', fn:()=>niflairMove('NIFLAIR_PASSAGE3')},
+  {label:'↓ 南の柱廊へ', fn:()=>niflairMove('NIFLAIR_HALL2')},
+ ],
+ },
+
+ NIFLAIR_HALL2:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20m、南北35mの柱廊。北と南、どちらも暗くなっていて先がよく見えない。東壁北端から15mのあたりに部屋への扉がある。`,
+ choices:()=>[
+  {label:'↑ 北の柱廊へ', fn:()=>niflairMove('NIFLAIR_HALL1')},
+  {label:'↓ 南の柱廊へ', fn:()=>niflairMove('NIFLAIR_HALL3')},
+  {label:'→ 東の扉へ', fn:()=>niflairMove('NIFLAIR_ROOM7')},
+ ],
+ },
+
+ NIFLAIR_HALL3:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20m、南北35mの柱廊。北は柱廊が続いているが暗くなっていてよく見えない。南端は東に折れている。東壁北端から15mのところに別の柱廊への扉がある。`,
+ choices:()=>[
+  {label:'↑ 北の柱廊へ', fn:()=>niflairMove('NIFLAIR_HALL2')},
+  {label:'↘ 南→東へ', fn:()=>niflairMove('NIFLAIR_HALL4')},
+  {label:'→ 東の扉へ', fn:()=>niflairMove('NIFLAIR_HALL6')},
+ ],
+ },
+
+ NIFLAIR_HALL4:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20m、南北45mの柱廊。西端は北へ折れている。東端は南北に延びる柱廊とのT字路につながっている。南壁西端から25mのところに通路への扉がある。`,
+ choices:()=>[
+  {label:'↖ 西→北へ', fn:()=>niflairMove('NIFLAIR_HALL3')},
+  {label:'→ 東のT字路へ', fn:()=>niflairMove('NIFLAIR_TJUNC1')},
+  {label:'↓ 南の扉へ', fn:()=>niflairMove('NIFLAIR_PASSAGE4')},
+ ],
+ },
+
+ NIFLAIR_TJUNC1:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20mの柱廊のT字路。南北に延びる柱廊から、西に柱廊が分岐している。`,
+ choices:()=>[
+  {label:'↑ 北の柱廊へ', fn:()=>niflairMove('NIFLAIR_HALL5')},
+  {label:'↓ 南の柱廊へ', fn:()=>niflairMove('NIFLAIR_HALL7')},
+  {label:'← 西の柱廊へ', fn:()=>niflairMove('NIFLAIR_HALL4')},
+ ],
+ },
+
+ NIFLAIR_HALL5:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20m、南北20mの柱廊。南は西に柱廊が分岐するT字路へ、北端は西に折れている。`,
+ choices:()=>[
+  {label:'↓ 南のT字路へ', fn:()=>niflairMove('NIFLAIR_TJUNC1')},
+  {label:'↖ 北→西へ', fn:()=>niflairMove('NIFLAIR_HALL6')},
+ ],
+ },
+
+ NIFLAIR_HALL6:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20m、東西40mの柱廊。東は南へ折れている。西端は行き止まりで、西壁に扉がある。`,
+ choices:()=>[
+  {label:'↘ 東→南へ', fn:()=>niflairMove('NIFLAIR_HALL5')},
+  {label:'← 西の扉へ', fn:()=>niflairMove('NIFLAIR_HALL3')},
+ ],
+ },
+
+ NIFLAIR_HALL7:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20m、南北40mの柱廊。北は西に柱廊が分岐するT字路へ、南端は東に折れている。西壁南端から25mのところに通路への扉がある。`,
+ choices:()=>[
+  {label:'↑ 北のT字路へ', fn:()=>niflairMove('NIFLAIR_TJUNC1')},
+  {label:'↘ 南→東へ', fn:()=>niflairMove('NIFLAIR_HALL8')},
+  {label:'← 西の扉へ', fn:()=>niflairMove('NIFLAIR_PASSAGE5')},
+ ],
+ },
+
+ NIFLAIR_HALL8:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20m、東西20mの柱廊。西端は北へ折れている。東端は部屋への大アーチになっている。`,
+ choices:()=>[
+  {label:'↖ 西→北へ', fn:()=>niflairMove('NIFLAIR_HALL7')},
+  {label:'→ 東の大アーチへ', fn:()=>niflairMove('NIFLAIR_ROOM8')},
+ ],
+ },
+
+ NIFLAIR_ROOM8:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  南北20m、東西30mの部屋。西壁中央に幅10mの大アーチが、北壁中央にも幅10mの大アーチがある。部屋の中央には、雑に鍛造された鉄製の長いテーブルが鎮座しており、その頭上には、ボロボロになり描かれていたものがなんであったか判別のできない旗が掲げられている。` + _lairRoomStatusTextGeneric('niflair', 'NIFLAIR_ROOM8'),
+ choices:()=>{
+  const ns = PC._niflairDungeon.nodeState.NIFLAIR_ROOM8;
+  if(PC._niflairDungeon.themeId && !ns.defeated) return [{label:_lairEncounterLabel(ns), fn:()=>_lairStartEncounterGeneric('niflair', 'NIFLAIR_ROOM8')}];
+  return [
+   {label:'← 西の大アーチへ', fn:()=>niflairMove('NIFLAIR_HALL8')},
+   {label:'↑ 北の大アーチへ', fn:()=>niflairMove('NIFLAIR_HALL9')},
+  ];
+ },
+ },
+
+ NIFLAIR_HALL9:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  幅10m、高さ20m、南北30mの柱廊。南端は部屋への大アーチ、北端も部屋への大アーチになっている。`,
+ choices:()=>[
+  {label:'↓ 南の大アーチへ', fn:()=>niflairMove('NIFLAIR_ROOM8')},
+  {label:'↑ 北の大アーチへ', fn:()=>niflairMove('NIFLAIR_ROOM9')},
+ ],
+ },
+
+ NIFLAIR_ROOM9:{
+ scene:'dungeon',
+ area:3,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  南北40m、東西30mの広間。南壁中央に幅10mの大アーチがある。崩落した天井の破片と見上げるほどの巨大な亀裂から、外の光が差し込んでいる。部屋の北端には禍々しい黒い蔦が絡みついた高台の祭壇がある。` + _lairRoomStatusTextGeneric('niflair', 'NIFLAIR_ROOM9'),
+ choices:()=>{
+  const ns = PC._niflairDungeon.nodeState.NIFLAIR_ROOM9;
+  if(PC._niflairDungeon.themeId && !ns.defeated) return [{label:_lairEncounterLabel(ns), fn:()=>_lairStartEncounterGeneric('niflair', 'NIFLAIR_ROOM9')}];
+  return [{label:'↓ 南の大アーチへ', fn:()=>niflairMove('NIFLAIR_HALL9')}];
+ },
+ },
+
+ NIFLAIR_PASSAGE4:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  南北15mの通路。北端は北壁に柱廊への扉があり、南端は東に折れて別の通路へ、南端の南壁には部屋へのアーチがある。`,
+ choices:()=>[
+  {label:'↑ 北の扉へ', fn:()=>niflairMove('NIFLAIR_HALL4')},
+  {label:'↘ 南→東へ', fn:()=>niflairMove('NIFLAIR_PASSAGE5')},
+  {label:'↓ 南のアーチへ', fn:()=>niflairMove('NIFLAIR_ROOM10')},
+ ],
+ },
+
+ NIFLAIR_ROOM10:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  15m四方の部屋。北壁中央に通路へのアーチがある。` + _lairRoomStatusTextGeneric('niflair', 'NIFLAIR_ROOM10'),
+ choices:()=>{
+  const ns = PC._niflairDungeon.nodeState.NIFLAIR_ROOM10;
+  if(PC._niflairDungeon.themeId && !ns.defeated) return [{label:_lairEncounterLabel(ns), fn:()=>_lairStartEncounterGeneric('niflair', 'NIFLAIR_ROOM10')}];
+  return [{label:'↑ 北のアーチへ', fn:()=>niflairMove('NIFLAIR_PASSAGE4')}];
+ },
+ },
+
+ NIFLAIR_PASSAGE5:{
+ scene:'dungeon',
+ area:2,
+ txt:()=>`<span style="color:#f0ece0">${NIFLAIR_NAME}</span><br><br>
+  東西15mの通路。西端は北へ折れ曲がって別の通路へ、東端は東壁の扉へつながっている。`,
+ choices:()=>[
+  {label:'↖ 西→北へ', fn:()=>niflairMove('NIFLAIR_PASSAGE4')},
+  {label:'→ 東の扉へ', fn:()=>niflairMove('NIFLAIR_HALL7')},
+ ],
+ },
+
 }; // NODES
 
 </script>
@@ -60639,6 +62775,59 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    <button onclick="dbg(()=>{PC._torchTurns=0;updateHUD();showSaveToast('松明を消灯（残turnsを0に）')})" class="dbg-btn" style="border-color:#663322;color:#cc6644">松明を消す</button>
    <button onclick="dbg(()=>{PC.food=(PC.food||0)+50;updateHUD();showSaveToast('食料+50')})" class="dbg-btn">食料+50</button>
    <button onclick="dbg(()=>{PC.iq=Math.max(PC.iq,16);PC.dex=Math.max(PC.dex,11);updateHUD();showSaveToast('IQ16/DEX11以上に調整（Lv4呪文用）')})" class="dbg-btn" style="border-color:#446688;color:#88aacc">Lv4呪文要件</button>
+  </div>
+
+  <!-- 世界的大地震システム -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 世界的大地震 ──</div>
+  <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
+   <button onclick="dbg(()=>{dbgForceWorldEarthquake();})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">大地震を即座に発生させる</button>
+  </div>
+
+  <!-- 「地中神殿の廃墟」（ニフルヴィク新ダンジョン）テスト -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 地中神殿の廃墟（ニフルヴィク新ダンジョン）テスト ──</div>
+  <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
+   <button onclick="dbg(()=>{drawScene('dungeon');go('NIFLAIR_FRONT');})" class="dbg-btn" style="border-color:#448866;color:#88eebb">① 入口前へ直接移動</button>
+   <button onclick="dbg(()=>{initTorch();drawScene('dungeon');go('NIFLAIR_ENTRANCE');})" class="dbg-btn" style="border-color:#448866;color:#88eebb">② 入口（地下）へ直接移動</button>
+   <button onclick="dbg(()=>{PC._niflairR1TrapDone=false;initTorch();drawScene('dungeon');go('NIFLAIR_ROOM1');})" class="dbg-btn" style="border-color:#448866;color:#88eebb">③ 部屋1（東の扉の罠・未解決）へ移動</button>
+   <button onclick="dbg(()=>{initNiflairDungeon();const l=PC._niflairDungeon;const s=l.themeId?LAIR_THEMES[l.themeId].name:'（無人）';const cleared=Object.keys(NIFLAIR_ROOM_AREAS).filter(id=>l.nodeState[id]?.defeated).length;showSaveToast('テーマ:'+s+' / 討伐済み部屋:'+cleared+'/'+Object.keys(NIFLAIR_ROOM_AREAS).length+' / 次回湧き予定日:'+l.nextRespawnDay+'（現在:'+GAME_TIME.totalDays+'日目）')})" class="dbg-btn" style="border-color:#446688;color:#88aacc">巣窟の状態を確認</button>
+   <button onclick="dbg(()=>{initNiflairDungeon();const ids=Object.keys(LAIR_THEMES);const pick=prompt('テーマID('+ids.join('/')+')','buriedTemple');if(!ids.includes(pick)){showSaveToast('不正なテーマID');return;}const l=PC._niflairDungeon;l.themeId=pick;l.spawnDay=GAME_TIME.totalDays;l.clearedDay=null;Object.keys(NIFLAIR_ROOM_AREAS).forEach(id=>{l.nodeState[id]={defeated:false,monsters:null};});showSaveToast('テーマを強制設定：'+LAIR_THEMES[pick].name)})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">テーマを強制指定</button>
+   <button onclick="dbg(()=>{initNiflairDungeon();const l=PC._niflairDungeon;Object.keys(NIFLAIR_ROOM_AREAS).forEach(id=>{l.nodeState[id].defeated=true;});l.lastThemeId=l.themeId;l.clearedDay=GAME_TIME.totalDays;l.nextRespawnDay=GAME_TIME.totalDays+180;l.themeId=null;showSaveToast('全部屋を討伐済みにして一掃成立（次回湧き:'+l.nextRespawnDay+'日目）')})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">全部屋を討伐済みにして一掃</button>
+  </div>
+
+  <!-- 「墓地の唸り声」専用イベント -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 墓地の唸り声（専用イベント）テスト ──</div>
+  <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
+   <button onclick="dbg(()=>{dbgTestGraveyardMoan('choices');})" class="dbg-btn" style="border-color:#664488;color:#cc99ee">① 3択（CHR/IQ/LK）から開始</button>
+   <button onclick="dbg(()=>{dbgTestGraveyardMoan('scene');})" class="dbg-btn" style="border-color:#664488;color:#cc99ee">② 深夜の墓地シーンから開始</button>
+   <button onclick="dbg(()=>{dbgTestGraveyardMoan('tomb');})" class="dbg-btn" style="border-color:#664488;color:#cc99ee">③ 塚の中の描写ノードから開始</button>
+   <button onclick="dbg(()=>{dbgTestGraveyardMoan('combat');})" class="dbg-btn" style="border-color:#664488;color:#cc99ee">④ 塚の中の戦闘だけ直接開始</button>
+  </div>
+
+  <!-- 「商家の密輸」専用イベント -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 商家の密輸（専用イベント）テスト ──</div>
+  <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
+   <button onclick="dbg(()=>{dbgTestSmuggling('choices');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">① 3択（CHR/IQ/LK）から開始</button>
+   <button onclick="dbg(()=>{dbgTestSmuggling('merchant');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">② 商家ノードから開始</button>
+   <button onclick="dbg(()=>{dbgTestSmuggling('threaten');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">③ 商人を脅す（CHR Lv2）だけ直接開始</button>
+   <button onclick="dbg(()=>{dbgTestSmuggling('buy');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">④ 密輸品を買うだけ直接開始</button>
+  </div>
+
+  <!-- 「先代の英雄のお宝」専用イベント -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 先代の英雄のお宝（専用イベント）テスト ──</div>
+  <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
+   <button onclick="dbg(()=>{dbgTestHeroTreasure('choices');})" class="dbg-btn" style="border-color:#886644;color:#eeaa77">① 3択（CHR/IQ/LK）から開始</button>
+   <button onclick="dbg(()=>{dbgTestHeroTreasure('scene');})" class="dbg-btn" style="border-color:#886644;color:#eeaa77">② 塚を発見するシーンから開始</button>
+   <button onclick="dbg(()=>{dbgTestHeroTreasure('tomb');})" class="dbg-btn" style="border-color:#886644;color:#eeaa77">③ 塚の中の描写ノードから開始</button>
+   <button onclick="dbg(()=>{dbgTestHeroTreasure('combat');})" class="dbg-btn" style="border-color:#886644;color:#eeaa77">④ 塚の中の戦闘だけ直接開始</button>
+  </div>
+
+  <!-- 「町外れの奇妙な光」専用イベント -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 町外れの奇妙な光（専用イベント）テスト ──</div>
+  <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
+   <button onclick="dbg(()=>{dbgTestStrangeLight('choices');})" class="dbg-btn" style="border-color:#446688;color:#77aaee">① 3択（CHR/IQ/LK）から開始</button>
+   <button onclick="dbg(()=>{dbgTestStrangeLight('scene');})" class="dbg-btn" style="border-color:#446688;color:#77aaee">② 廃屋を発見するシーンから開始</button>
+   <button onclick="dbg(()=>{dbgTestStrangeLight('house');})" class="dbg-btn" style="border-color:#446688;color:#77aaee">③ 廃屋の中の描写ノードから開始</button>
+   <button onclick="dbg(()=>{dbgTestStrangeLight('combat');})" class="dbg-btn" style="border-color:#446688;color:#77aaee">④ 戦闘だけ直接開始</button>
   </div>
 
   <!-- 村・裏路地システム（実験導入） -->
@@ -60686,6 +62875,7 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';PC._heroTowns=PC._heroTowns||{};PC._heroTowns['khazan']=true;PC.town='khazan';showRegionalPalace('khazan');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">カザーヌで英雄扱いにして庁舎へ</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';PC._fiefCharters=PC._fiefCharters||[];PC._fiefCharters.push({fiefId:fiefIdForAnchor('khazan'),regionKey:'khazan_region',townId:'khazan',anchorTownId:'khazan',anchorDays:20,obtainedDay:GAME_TIME.totalDays});PC.town='khazan';enterFiefClearing('khazan');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">封地免状を強制取得して砦跡討伐へ</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';if(!(PC.party||[]).length){showSaveToast('パーティにNPCがいません');return;}const npc=PC.party[0];npc.level=5;const cand=checkPartyDepartureCandidate();if(!cand){showSaveToast('離脱候補が見つかりません（条件未達）');return;}drawScene('travel');showSaveToast('離脱イベント強制発生：'+cand.npc.name+'／理由:'+cand.reason.type);startPartyDepartureEvent({daysDone:1,interval:1000});})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">仲間の離脱イベント強制発生（先頭NPCをLv5に）</button>
+   <button onclick="dbg(()=>dbgForceIndependenceDeparture())" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">仲間の独立志向の相談を強制発生（適当なNPCをLv5に）</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';if(!PC.background||PC.background.motiveTag!=='revenge'){showSaveToast('PCの動機がrevengeタグではありません');return;}if(PC.level<3)PC.level=3;PC.background.revengeResolved=false;drawScene('travel');startRevengeFinaleEvent({daysDone:1,interval:1000});})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">revenge決着イベント強制発生（PCをLv3以上に）</button>
    <button onclick="dbg(()=>{const lvl=parseInt(prompt('敵のレベルを入力','3'),10)||3;const count=Math.max(1,parseInt(prompt('敵の人数を入力','2'),10)||2);document.getElementById('debug-panel').style.display='none';const enemies=Array.from({length:count},()=>generateNPC(lvl));drawScene('combat');startCombatNPC({enemies,canFlee:true,win:'__noop__',lose:'DEAD',onWin:()=>{document.getElementById('cbt-area').classList.add('hidden');document.getElementById('scroll-area').classList.remove('in-combat');document.getElementById('text-win').style.display='';cbtState=null;showSaveToast('デバッグ戦闘：勝利');}});})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">NPC型戦闘テスト（レベル・人数を指定）</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';if(!PC.background||PC.background.motiveTag!=='wealth'){showSaveToast('PCの動機がwealthタグではありません');return;}if(!PC.background.motiveIsDebt){showSaveToast('この動機は借金持ちではありません（isDebt:false）');return;}PC.gold=(PC.gold||0)+10000;PC.town=PC._startTown;updateHUD();goOtherActions(PC._startTown);showSaveToast('所持金+10000GP・出発した町のその他の行動を表示（借金を返すボタンを確認）');})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">wealth（借金）の返済条件を満たして出発地の「その他の行動」へ</button>
@@ -61001,6 +63191,15 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
   <!-- ダンジョントラップ -->
   <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin-bottom:6px;letter-spacing:1px">── ダンジョントラップ強制発動（全ダンジョン共通） ──</div>
   <div id="dbg-trap-list" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:14px"></div>
+
+  <!-- 地方状態システム -->
+  <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 地方状態システム（物流途絶度／治安悪化度／住民流出度） ──</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:14px">
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgShowRegionCondition();})" class="dbg-btn" style="border-color:#446688;color:#88aacc">状態を表示</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgSetRegionCondition();})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">値を指定して設定</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgAdvanceRegionConditionTick();})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">月次ティックを指定回数進める</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgResetRegionCondition();})" class="dbg-btn" style="border-color:#663322;color:#cc6644">全地方を0にリセット</button>
+  </div>
 
  </div>
 </div>
