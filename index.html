@@ -644,7 +644,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103001</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103002</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -721,6 +721,13 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div style="font-size:calc(var(--font-lg) + 4px);color:#c8b8a0;margin:6px 4px 2px" id="stat-after-race-label">◆ 種族補正後ステータス</div>
  <div class="stat-preview" id="stat-after-race" style="grid-template-columns:repeat(7,1fr)"></div>
  <button class="cg-btn rand" onclick="rollStats()" style="margin-top:10px"> サイコロを振る（3D6）</button>
+ </div>
+
+ <div class="cg-section">
+ <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+ <input type="checkbox" id="a-mode" style="width:22px;height:22px;flex:none;margin-top:2px">
+ <span>Adventureモード<br><span style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0">カジュアルなプレイ向き。能力値テストのダイス目に+5のボーナスが付与され、戦闘時に敵の攻撃ヒットが2/3になります。ゲーム開始後の変更はできません。</span></span>
+ </label>
  </div>
 
  <div class="cg-section">
@@ -15805,9 +15812,13 @@ function monsterCombatRoll(mr){
 // target = level*5 + 15 (Lv1=20, Lv2=25, Lv3=30...)
 // Roll 2D6 + attribute value. Doubles explode.
 // Returns {success, rolled, total, target, ap}
+// Adventureモード：能力値テストの合計に+5（パーティ全員）。Warriorでは0。
+function easyBonus(){ return PC._adventurer ? 5 : 0; }
+// Adventureモード：敵の攻撃値の合計を2/3（端数切り上げ）
+function easyEnemyHits(n){ return (PC._adventurer && n>0) ? Math.ceil(n*2/3) : n; }
 function savingRoll(attr, level, pc=PC){
  const target = level*5 + 15;
- const attrVal = pc[attr] || 0;
+ const attrVal = (pc[attr] || 0) + easyBonus();
  const rolled = roll2D6explode();
  const ap = rolled * level; // 成否・ファンブル問わず経験値加算
  if(rolled < 5){ return {success:false, rolled, total:rolled+attrVal, target, ap}; }
@@ -16093,6 +16104,7 @@ function loadAutoSave(){
  // Object.assignは「上書きマージ」のため、ロード前のセッションに残っていたキーが
  // ロードするセーブデータに存在しない場合でもクリアされず残ってしまう。
  // 領地関連のフィールドはこれが原因で新旧データが混線しうるため、代入前に明示的にリセットする
+ delete PC._adventurer; // 印は読み込むセーブにある場合だけ立つ（旧セーブはWarrior扱い）
  delete PC._fiefCharter;
  delete PC._fiefCharters;
  PC.properties = {}; // 拠点データもロード前のセッションの残留を防ぐため必ず空にリセットしてから代入する
@@ -16539,6 +16551,7 @@ function loadGame(slot){
  // Object.assignは「上書きマージ」のため、ロード前のセッションに残っていたキーが
  // ロードするセーブデータに存在しない場合でもクリアされず残ってしまう。
  // 領地関連のフィールドはこれが原因で新旧データが混線しうるため、代入前に明示的にリセットする
+ delete PC._adventurer; // 印は読み込むセーブにある場合だけ立つ（旧セーブはWarrior扱い）
  delete PC._fiefCharter;
  delete PC._fiefCharters;
  PC.properties = {}; // 拠点データもロード前のセッションの残留を防ぐため必ず空にリセットしてから代入する
@@ -16548,6 +16561,8 @@ function loadGame(slot){
  delete PC._wild; delete PC._wildMaps; delete PC._wildCamps; delete PC._wildCastles; delete PC._troupes; delete PC._troupeContract; delete PC._arcs; delete PC._arcLog; delete PC._arcEpilogues; delete PC._arcLastStart; delete PC._arcLastType; delete PC._arcSeeds; delete PC._arcLetters; delete PC._arcReunions; delete PC._arcTravelerDone; // 旅芸人の一座・護衛契約も、ロード前のセッションの残留を防ぐため消してから代入する
  Object.assign(PC, data.pc);
  Object.assign(GAME_TIME, data.gameTime);
+ // 旧版で魔法使いの仲間が持っていた弓などの遠距離武器は外す（魔法使いは飛び道具を使えない）
+ (PC.party||[]).concat(PC._tutorial&&PC._tutorial.oldNPC?[PC._tutorial.oldNPC]:[]).forEach(n=>{ if(n && n.type==='wizard'){ if(n.equippedRanged) n.equippedRanged=null; n.arrows=0; n.invWeapons=(n.invWeapons||[]).filter(w=>!isRangedWeapon(w)); } });
 
  // 旧形式移行：invEquip内の松明を_torchStockに変換
  if(PC.invEquip){
@@ -49229,6 +49244,7 @@ function startGame(){
 
  // Build PC
  PC.name=document.getElementById('a-name').value||'Adventurer';
+ if(document.getElementById('a-mode')?.checked) PC._adventurer = true; else delete PC._adventurer;
  PC.race=race;PC.type=selectedType;
  // 身長・体重（未入力なら振っていなかったものとしてこの場でランダムに決定する）
  if(window._pcHeightBase==null) window._pcHeightBase = 125 + Math.random()*(210-125);
@@ -50880,6 +50896,9 @@ const TUTORIAL_SHOP_MAP = {
 function startTutorial(){
  const oldNPC = generateNPC(5);
  oldNPC.type = 'wizard';
+ // 魔法使いは弓などの飛び道具を持てないため、生成時に持たされた遠距離武器と矢は取り上げる
+ oldNPC.invWeapons = (oldNPC.invWeapons||[]).filter(w=>!isRangedWeapon(w));
+ oldNPC.equippedRanged = null; oldNPC.arrows = 0;
  oldNPC.name = pickNPC();
  oldNPC.equippedWeapons = [];
  oldNPC.race = 'human'; // 寿命を人間基準（80歳）に固定し、老NPCとして扱えるようにする
@@ -52923,7 +52942,7 @@ function setupSavingRollFor(actor, sr){
  const attrVal = actor[sr.attr] || 0;
  const actorLabel = isPC ? PC.name : actor.name;
  document.getElementById('dd').innerHTML =
-  `<span style="color:#e8e0d8">${actorLabel}</span>　<span style="color:var(--white)">Lv${sr.level} ${attrNames[sr.attr]||sr.attr}(${attrVal})</span><br>目標: 2D6+${attrVal} ≥ <span style="color:var(--white)">${target}</span>`;
+  `<span style="color:#e8e0d8">${actorLabel}</span>　<span style="color:var(--white)">Lv${sr.level} ${attrNames[sr.attr]||sr.attr}(${attrVal})</span><br>目標: 2D6+${attrVal}${easyBonus()?'+'+easyBonus()+'(Adventure)':''} ≥ <span style="color:var(--white)">${target}</span>`;
  document.getElementById('dres').textContent='──  ──';
  _activateDiceUI(srWithActor, actor);
  scrollToTop();
@@ -55108,7 +55127,7 @@ function setupSavingRoll(sr){
  const target=sr.level*5+15-(sr.targetAdjust||0);
  const attrVal=PC[sr.attr];
  document.getElementById('dd').innerHTML=
- `<span style="color:var(--white)">Lv${sr.level} ${attrNames[sr.attr]||sr.attr}(${attrVal})</span><br>目標: 2D6+${attrVal} ≥ <span style="color:var(--white)">${target}</span>`;
+ `<span style="color:var(--white)">Lv${sr.level} ${attrNames[sr.attr]||sr.attr}(${attrVal})</span><br>目標: 2D6+${attrVal}${easyBonus()?'+'+easyBonus()+'(Adventure)':''} ≥ <span style="color:var(--white)">${target}</span>`;
  document.getElementById('dres').textContent='──  ──';
  _activateDiceUI(sr, PC);
 }
@@ -55164,7 +55183,7 @@ function _resolveSRRoll(sr, diceArr){
  const rolledTotal = rawTotal + footwearBonus;
  const footwearStr = footwearBonus>0 ? `<span style="color:#c8b8a0">+${footwearBonus}(${footwearLabel})</span>` : '';
 
- const grandTotal=rolledTotal+attrVal;
+ const grandTotal=rolledTotal+attrVal+easyBonus();
  const success=rolledTotal>=5&&grandTotal>=target;
  const ap=rolledTotal*sr.level; // 成否問わず経験値加算
 
@@ -55175,15 +55194,16 @@ function _resolveSRRoll(sr, diceArr){
  }
 
  const actorTag = isPC ? '' : `<span style="color:#e0d8c8">${actor.name}</span>　`;
- const apStr = sr.noAP ? '' : `　${success?`<span style="color:var(--white)"> 成功 経験値+${ap}</span>`:`<span style="color:var(--white)"> 失敗 経験値+${ap}</span>`}`;
- const resHtml = ` ${actorTag}<span style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=<span style="color:#f0ece0">${rawTotal}</span>${footwearStr}${doublesStr}　合計: ${rolledTotal}+${attrVal}=<span style="color:#f0ece0">${grandTotal}</span>　${success?'<span style="color:var(--white)"> 成功</span>':'<span style="color:var(--white)"> 失敗</span>'}${apStr}`;
- document.getElementById('dres').innerHTML = resHtml;
+ const apStr = sr.noAP ? '' : `　<span style="color:var(--white)">経験値+${ap}</span>`;
+ const resHtml = ` ${actorTag}<span style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px)">${diceStr(diceArr)}</span>=<span style="color:#f0ece0">${rawTotal}</span>${footwearStr}${doublesStr}\u0001合計: ${rolledTotal}+${attrVal}${easyBonus()?'+'+easyBonus()+'(Adventure)':''}=<span style="color:#f0ece0">${grandTotal}</span>\u0001${success?'<span style="color:var(--white)"> 成功</span>':'<span style="color:var(--white)"> 失敗</span>'}${apStr}`;
+ // 結果欄は横並び(flex)なので、1つのブロックにまとめ、区切りで改行して縦に読めるようにする
+ document.getElementById('dres').innerHTML = `<div style="text-align:center;line-height:1.6;font-size:calc(var(--font-base) + 2px)">${resHtml.replace(/\u0001/g,'<br>')}</div>`;
  document.getElementById('rl-btn').classList.remove('hidden');
  document.getElementById('dice-manual-area').classList.add('hidden');
  document.getElementById('rl-btn').disabled=true;
  document.getElementById('rl-btn').textContent=' DONE';
  // 移動中なら travelLog にも結果を流す
- if(travelState) travelLog(`<span style="color:#ccccaa;font-size:calc(var(--font-sm) - 1px)">　${resHtml}</span>`);
+ if(travelState) travelLog(`<span style="color:#ccccaa;font-size:calc(var(--font-sm) - 1px)">　${resHtml.replace(/\u0001/g,'　')}</span>`);
 
  updateHUD();
  const rlBtn = document.getElementById('rl-btn');
@@ -55281,7 +55301,7 @@ function showMultiSRPhase(){
  const attrNames={st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'};
  const target=r.level*5+15;
  document.getElementById('dd').innerHTML=
- `[${m.phase+1}/${m.rolls.length}] Lv${r.level} <span style="color:var(--white)">${attrNames[r.attr]}(${PC[r.attr]})</span><br>目標 ≥ ${target}`;
+ `[${m.phase+1}/${m.rolls.length}] Lv${r.level} <span style="color:var(--white)">${attrNames[r.attr]}(${PC[r.attr]})</span><br>目標 ≥ ${target}${easyBonus()?'（Adventure +'+easyBonus()+'）':''}`;
  document.getElementById('dres').textContent='──  ──';
  const btn=document.getElementById('rl-btn');btn.disabled=false;btn.textContent='▶ ROLL!';
  document.getElementById('dice-area').classList.remove('hidden');
@@ -55294,13 +55314,13 @@ function doMultiSRStep(){
  let total=0,a=d6(),b=d6();total=a+b;
  let doublesStr='';
  while(a===b){doublesStr+=' +';a=d6();b=d6();total+=a+b;}
- const grand=total+attrVal;
+ const grand=total+attrVal+easyBonus();
  const success=total>=5&&grand>=target;
  const ap=total*r.level; // 成否問わずAP加算
  if(ap>0) gainAPAll(ap);
  m.results.push({attr:r.attr,success,rolled:total,total:grand,miss:success?0:target-grand});
  document.getElementById('dres').innerHTML=
- `${total}${doublesStr}+${attrVal}=<span style="font-size:calc(var(--font-lg) + 4px);color:#f0ece0">${grand}</span>　${success?` 経験値+${ap}`:` 経験値+${ap}`}`;
+ `${total}${doublesStr}+${attrVal}${easyBonus()?'+'+easyBonus()+'(Adventure)':''}=<span style="font-size:calc(var(--font-lg) + 4px);color:#f0ece0">${grand}</span>　${success?` 経験値+${ap}`:` 経験値+${ap}`}`;
  document.getElementById('rl-btn').disabled=true;
  updateHUD();
  setTimeout(()=>{
@@ -57331,7 +57351,8 @@ function resolveRoundNPC(pRoll, npcActions){
   return {enemy:e, roll:rv.total, dice:rv.dice, ttyf:0};
  });
  if(cs.sleeping>0) cs.sleeping--;
- const eTotalRoll = eRolls.reduce((s,r)=>s+r.roll, 0);
+ const eRawRoll = eRolls.reduce((s,r)=>s+r.roll, 0);
+ const eTotalRoll = easyEnemyHits(eRawRoll);
 
  // ── ログ ──
  const pDice = cs._pDiceThisTurn||[]; cs._pDiceThisTurn=[];
@@ -57364,6 +57385,7 @@ function resolveRoundNPC(pRoll, npcActions){
   detail += `${aliveEnemies[0]?.name} <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">${diceStr(_er0?.dice||[])}</span>${_er0?.ttyf>0?`+<span style="color:#e8e0d0">Magic Bolt+${_er0.ttyf}</span>`:''} =<span class="ora">${eTotalRoll}</span>`;
  }
 
+ if(PC._adventurer && eRawRoll!==eTotalRoll) detail += `<span style="color:#c8b8a0">（Adventure：敵の攻撃 ${eRawRoll}→${eTotalRoll}）</span>`;
  // 敵の魔法フェーズでのTTYFは既にそちらで直接ダメージ適用・死亡判定済み。ここではショック効果の計算にのみ使う
  const ttyfRolls = eRolls.filter(r=>r.ttyf>0);
  const enemyTtyfTotal = ttyfRolls.reduce((s,r)=>s+r.ttyf, 0);
@@ -57602,7 +57624,7 @@ function doFlee(){
   const rv = isNPCCombat ? calcNPCRoll(e) : monsterCombatRoll(e.curMR);
   return {name:e.name, total:rv.total, dice:rv.dice};
  });
- const eTotal = eRolls.reduce((s,r)=>s+r.total, 0);
+ const eTotal = easyEnemyHits(eRolls.reduce((s,r)=>s+r.total, 0));
  const myArmor = effectiveArmor();
  const dmg = Math.max(1, eTotal - myArmor);
  PC.con -= dmg;
@@ -58127,7 +58149,8 @@ function resolveRound(pRoll, npcActions){
  const rv = monsterCombatRoll(e.curMR);
  return {enemy:e, roll: rv.total, dice:rv.dice};
  });
- const eTotalRoll = eRolls.reduce((s,r)=>s+r.roll, 0);
+ const eRawRoll = eRolls.reduce((s,r)=>s+r.roll, 0);
+ const eTotalRoll = easyEnemyHits(eRawRoll);
 
  // ── ラウンドログ ──
  const pDice = cs._pDiceThisTurn || [];
@@ -58162,6 +58185,7 @@ function resolveRound(pRoll, npcActions){
   detail += `${aliveEnemies[0]?.name} <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">${diceStr(eRolls[0]?.dice||[])}</span>=<span class="ora">${eTotalRoll}</span>`;
  }
 
+ if(PC._adventurer && eRawRoll!==eTotalRoll) detail += `<span style="color:#c8b8a0">（Adventure：敵の攻撃 ${eRawRoll}→${eTotalRoll}）</span>`;
  // 概要ログ（ターン番号＋詳細トグルボタン）
  let log = `<span style="color:var(--white)">T${cs.turn}</span> `
   +`<span onclick="var d=document.getElementById('${detailId}');if(d){d.style.display=d.style.display==='none'?'':'none';}" `
@@ -59300,6 +59324,11 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026103002', sections:[
+  { heading:'新規実装項目', items:[
+   'Adventureモード: キャラクター作成時にチェックを入れて選べる、カジュアルなプレイ向けのモードを追加した。チェックを入れない場合は従来どおりの設定になる。ゲーム開始後は変更できない。<ul style="margin:2px 0 0;padding-left:1.2em"><li>能力値テストのダイス目に+5のボーナスが付く。</li><li>戦闘時に、敵の攻撃ヒットが2/3になる。</li></ul>',
+  ]},
+ ]},
  { version:'ver.2026103001', sections:[
   { heading:'新規実装項目', items:[
    '旅芸人の一座を護衛中、嵐と増水で「天気が回復するまで待つ」を選ぶと、一座との交流の場面が起きるようになった（即興公演、座長の昔話、団員との話し込み、軽業の手ほどき）。団員と打ち解けると、護衛の満了時に、団員が仲間になる申し出を受けやすくなる。',
