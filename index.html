@@ -190,6 +190,10 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 #scroll-area.in-combat:has(#magic-area:not(.hidden):not([style*="display:none"])){
  overflow-y:auto;
 }
+/* レベルアップ画面の表示中も、戦闘中のままスクロールできるようにする */
+#scroll-area.in-combat:has(#levelup-panel:not(.hidden)){
+ overflow-y:auto;
+}
 #cbt-status{flex-shrink:0;margin-bottom:6px}
 #cbt-ally{flex:1;background:var(--ink);border:1px solid #484848;border-radius:3px;padding:6px;min-width:0}
 #cbt-enemy{flex:1;background:#180808;border:1px solid #6a2020;border-radius:3px;padding:6px;min-width:0}
@@ -640,7 +644,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026102501</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103001</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -1966,7 +1970,7 @@ const HERO_QUEST_TEMPLATES = [
   clientLine:(town)=>`「隣街への街道で旅人の行方不明が続いている。商人も通れない状況だ。あなたの名前なら恐れをなして逃げるかと思ったが、そうはいかないようだ」`,
   mrType:true,
   nodes:[
-   { txt:'街道を外れた茂みに、壊れた荷車が捨てられていた。積み荷は食い荒らされ、御者の姿はない。新しい足跡が獣道の奥へと続いている。', sr:{attr:'lk', level:2, reason:'怪物の気配を感じながら茂みを進む。', fail:{attr:'lk', dmg:2}, failTxt:'嫌な予感が当たった。不意打ちを受ける。LK-2'} },
+   { txt:'街道を外れた茂みに、壊れた荷車が捨てられていた。積み荷は食い荒らされ、御者の姿はない。新しい足跡が獣道の奥へと続いている。', sr:{attr:'lk', level:2, reason:'怪物の気配を感じながら茂みを進む。', fail:{attr:'lk', dmg:2}, failTxt:'嫌な予感が当たった。不意打ちを受ける。運-2'} },
    { txt:'足跡が突然消えた。上だ——と気づいたとき、木の上から何かが飛びかかってきた。間一髪でかわし、体勢を整える。', sr:{attr:'dex', level:3, reason:'木の上から飛びかかってきた怪物をかわす。', fail:{attr:'con', dmg:3}, failTxt:'着地に失敗して体を痛めた。体力-3'} },
   ],
   bossDesc:'街道に潜む怪物',
@@ -1990,7 +1994,7 @@ const HERO_QUEST_TEMPLATES = [
   ydType:true,
   ydStyle:'fortress',
   nodes:[
-   { txt:'盗賊団の野営地の周囲を偵察した。見張りが複数いる。正面突破は得策ではない。抜け道を探して進んでいると、見張りの一人がこちらを向いた。', sr:{attr:'dex', level:2, reason:'見張りに気づかれないよう野営地に忍び込む。', fail:{attr:'lk', dmg:2}, failTxt:'物音を立ててしまった。警戒が高まる。LK-2'} },
+   { txt:'盗賊団の野営地の周囲を偵察した。見張りが複数いる。正面突破は得策ではない。抜け道を探して進んでいると、見張りの一人がこちらを向いた。', sr:{attr:'dex', level:2, reason:'見張りに気づかれないよう野営地に忍び込む。', fail:{attr:'lk', dmg:2}, failTxt:'物音を立ててしまった。警戒が高まる。運-2'} },
    { txt:'野営地の中心に大きな天幕がある。頭目がいるはずだ。天幕の前には護衛が待ち構えていた。正面から行くしかない。', sr:null },
   ],
   bossDesc:'盗賊団頭目',
@@ -2001,7 +2005,7 @@ const HERO_QUEST_TEMPLATES = [
   title:'暴れる元傭兵の排除',
   clientLine:(town)=>`「腕の立つ元傭兵が街に居座り、住民に因縁をつけている。穏便に話したが聞かなかった。あなたに実力行使をお願いしたい」`,
   nodes:[
-   { txt:'元傭兵は街の酒場に陣取っていた。手下を引き連れ、酒を飲んでいる。こちらを見て不敵な笑みを浮かべた。「英雄様のご到着だ」と周囲に囃し立てる。', sr:{attr:'chr', level:2, reason:'元傭兵の挑発をかわし、有利な状況を作る。', fail:{attr:'lk', dmg:1}, failTxt:'挑発に乗ってしまった。冷静さを欠く。LK-1'} },
+   { txt:'元傭兵は街の酒場に陣取っていた。手下を引き連れ、酒を飲んでいる。こちらを見て不敵な笑みを浮かべた。「英雄様のご到着だ」と周囲に囃し立てる。', sr:{attr:'chr', level:2, reason:'元傭兵の挑発をかわし、有利な状況を作る。', fail:{attr:'lk', dmg:1}, failTxt:'挑発に乗ってしまった。冷静さを欠く。運-1'} },
    { txt:'「英雄とやらが何をしてくれるか見てやろう」元傭兵が立ち上がった。手下たちも武器に手をかける。避けられない戦いだ。', sr:null },
   ],
   bossDesc:'元傭兵の頭',
@@ -2025,7 +2029,7 @@ const HERO_QUEST_TEMPLATES = [
   ydType:true,
   ydStyle:'mine',
   nodes:[
-   { txt:'地下通路の入口は隠し扉の奥にあった。松明の光を頼りに進んでいくと、荷物を運ぶ男たちの声が聞こえてくる。まだ気づかれていない。', sr:{attr:'dex', level:2, reason:'地下通路で荷物を運ぶ男たちに気づかれないよう進む。', fail:{attr:'lk', dmg:2}, failTxt:'足音を立てた。警戒される。LK-2'} },
+   { txt:'地下通路の入口は隠し扉の奥にあった。松明の光を頼りに進んでいくと、荷物を運ぶ男たちの声が聞こえてくる。まだ気づかれていない。', sr:{attr:'dex', level:2, reason:'地下通路で荷物を運ぶ男たちに気づかれないよう進む。', fail:{attr:'lk', dmg:2}, failTxt:'足音を立てた。警戒される。運-2'} },
    { txt:'地下の倉庫に出た。積まれた荷物の陰から足音が聞こえる。首謀者は奥にいるはずだ。', sr:null },
   ],
   bossDesc:'密輸団の首謀者',
@@ -3870,6 +3874,52 @@ const ARENA_TOWN_NODE = {
  khazan: 'ARENA_KHAZAN',
 };
 
+// 闘技場の営業時間：朝・昼・午後（6時〜18時）だけ開いている
+function arenaIsOpen(){
+ const k = villagePhase(getGameHour()).key;
+ return k === 'morning' || k === 'noon' || k === 'afternoon';
+}
+// 闘技場の各ノードを、閉場中は「閉まっている」表示に差し替える（最初の画面遷移のときに一度だけ包む）
+function arenaEnsureHours(){
+ if(arenaEnsureHours._done || typeof NODES === 'undefined') return;
+ arenaEnsureHours._done = true;
+ Object.values(ARENA_TOWN_NODE).forEach(key=>{
+  const nd = NODES[key]; if(!nd || !nd.txt || !nd.choices) return;
+  const origTxt = nd.txt, origCh = nd.choices;
+  nd.txt = ()=>{
+   if(arenaIsOpen()) return origTxt();
+   const base = origTxt();
+   const title = (base.match(/<span[^>]*>([^<]*闘技場)<\/span>/) || [])[1] || '闘技場';
+   return `<span style="color:#f0ece0">${title}</span><br><br>
+    <span style="color:#c0b098">門は固く閉ざされている。興行が開かれるのは、朝から午後までのようだ。</span><br><br>
+    <span style="color:#e0d8c8">現在：${villagePhase(getGameHour()).label}</span>`;
+  };
+  nd.choices = ()=>{
+   const ch = origCh();
+   if(arenaIsOpen()) return ch;
+   const back = ch.filter(c=>c.go && /^TOWN_/.test(c.go)).pop() || ch[ch.length-1];
+   return back ? [back] : [];
+  };
+ });
+}
+// 観覧を終えたあと、1日の区分（時間帯）を一つ進める。途中で死亡した場合は true
+function arenaAdvancePhase(what){
+ const h0 = getGameHour();
+ let h = ((h0 % 24) + 24) % 24; if(h < 2) h += 24;
+ const ph = villagePhase(h0);
+ const died = advanceVillageTime(Math.max(1, Math.round((ph.to - h) * 60)));
+ if(!died) showSaveToast(` ${what || '観覧'}を終えると、${villagePhase(getGameHour()).label}になっていた`);
+ return died;
+}
+// 観覧席を立つ：観覧した（決着、または1ラウンド以上）なら時間帯を進めてから戻る
+function arenaLeaveWatch(backNode){
+ const w = _arenaWatch;
+ const watched = !!(w && (w.finished || w.round > 0));
+ _arenaWatch = null;
+ if(watched && arenaAdvancePhase()) return;
+ go(backNode);
+}
+
 // パーティ人数（PC＋生存パーティNPC）
 function arenaPartySize(){
  return 1 + (PC.party||[]).filter(n=>n.con>0).length;
@@ -4119,7 +4169,7 @@ function arenaWatchResolveRound(){
   if(picked.fn === 'ttyf'){
    const dmg = (n.iq||0)*npcLv;
    const dr = _arenaWatchDodgeRoll(npcLv, target);
-   detail += `　<span style="color:#c8b8a0">[魔法:${spName}] ${n.name}（${side}）→${target.name}：IQ${n.iq||0}×Lv${npcLv}=${dmg}／回避判定[${dr.diceA},${dr.diceB}]+運(${target.lk||0})=${dr.grand} vs ${dr.targetVal} → ${dr.success?'回避成功':'被弾'}</span><br>`;
+   detail += `　<span style="color:#c8b8a0">[魔法:${spName}] ${n.name}（${side}）→${target.name}：知力${n.iq||0}×Lv${npcLv}=${dmg}／回避判定[${dr.diceA},${dr.diceB}]+運(${target.lk||0})=${dr.grand} vs ${dr.targetVal} → ${dr.success?'回避成功':'被弾'}</span><br>`;
    if(dr.success){
     log += `<span style="color:#c8b8a0">${n.name}の${spName}を${target.name}が回避！</span><br>`;
    } else {
@@ -4165,7 +4215,7 @@ function arenaWatchResolveRound(){
    if(n.curCon<=0) return;
    const wpn = n.equippedRanged;
    const sr = savingRoll('dex', 2, n);
-   detail += `　<span style="color:#c8b8a0">[遠距離] ${n.name}（${side}）の命中判定：[${sr.rolled}]+DEX(${n.dex||0})=${sr.total} vs ${sr.target} → ${sr.success?'命中コース':'外れ'}</span><br>`;
+   detail += `　<span style="color:#c8b8a0">[遠距離] ${n.name}（${side}）の命中判定：[${sr.rolled}]+器用さ(${n.dex||0})=${sr.total} vs ${sr.target} → ${sr.success?'命中コース':'外れ'}</span><br>`;
    if(!sr.success){ log += `<span style="color:#c8b8a0">${n.name}の${wpn.name}は狙いが外れた。</span><br>`; return; }
    const targets = _arenaWatchAlive(side==='東' ? w.sideWest : w.sideEast);
    if(targets.length===0) return;
@@ -4265,7 +4315,7 @@ function arenaChallengeRank(rankKey, returnNodeId, arenaTitle, townId){
  const enemies = Array.from({length:count}, ()=>generateNPC(lvl));
  drawScene('combat');
  startCombatNPC({
-  enemies, canFlee:true, win:'__noop__', lose:'__noop__', skipLuckSave:true, arenaMode:true,
+  enemies, canFlee:false, win:'__noop__', lose:'__noop__', skipLuckSave:true, arenaMode:true,
   onWin:()=>{
    const prize = rank.prizeBase * count;
    gainGP(prize);
@@ -4274,6 +4324,7 @@ function arenaChallengeRank(rankKey, returnNodeId, arenaTitle, townId){
    document.getElementById('scroll-area').classList.remove('in-combat');
    document.getElementById('text-win').style.display = '';
    cbtState = null;
+   if(arenaAdvancePhase('試合')) return;   // 試合のあと、時間帯が一つ進む
    const streak = arenaGetStreak(townId, rankKey) + 1;
    arenaSetStreak(townId, rankKey, streak);
    let extraMsg = '';
@@ -4316,6 +4367,7 @@ function arenaChallengeRank(rankKey, returnNodeId, arenaTitle, townId){
    document.getElementById('scroll-area').classList.remove('in-combat');
    document.getElementById('text-win').style.display = '';
    cbtState = null;
+   if(arenaAdvancePhase('試合')) return;   // 試合のあと、時間帯が一つ進む
    const s = document.getElementById('story');
    if(s) s.innerHTML = `<span style="color:#f0ece0">${arenaTitle}</span><br><br><span style="color:#e0d0d0">力及ばず、審判の合図で戦いは止められた。命に別状はなく、参加費を失っただけで済んだようだ。</span>`;
    renderChoices([{label:'▶ OK', go:returnNodeId}]);
@@ -5554,7 +5606,7 @@ function goPropertyNode(townId){
   if(info.srRequired){
    html += `<span style="color:#e0c8b8"> 信頼度不足（${getTrust(townId)}/100）</span><br>`;
    html += `<span style="color:#c0b098">まだ信頼されていない。顔を売れば話は変わるかもしれない。</span><br>`;
-   html += `<span style="color:#e8e0d0">CHR魅力 能力値テストに成功すれば強引に話をまとめられるかもしれない…（${info.price}GP）</span>`;
+   html += `<span style="color:#e8e0d0">魅力 能力値テストに成功すれば強引に話をまとめられるかもしれない…（${info.price}GP）</span>`;
   } else {
    html += `<span style="color:#f0ece0">提示価格: ${info.price}GP`;
    if(rank.disc < 1.0) html += ` <span style="color:#ece8d8">（顔なじみ割引あり）</span>`;
@@ -6936,7 +6988,7 @@ function propertyPickupChild(townId){
       const canWizard = iq>=10 && dex>=8;
       story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
        +`<b> ${child.name}の職業を選ぶ</b><br><br>`
-       +`<span style="color:#c0b098">ST:${child.st} IQ:${child.iq} LK:${child.lk} CON:${child.con} DEX:${child.dex} CHR:${child.chr} SPD:${child.spd}</span><br><br>`
+       +`<span style="color:#c0b098">強さ:${child.st} 知力:${child.iq} 運:${child.lk} 体力:${child.con} 器用さ:${child.dex} 魅力:${child.chr} 素早さ:${child.spd}</span><br><br>`
        +`<span style="color:#c0b098">${child.name}はどの道を歩むのか。今こそ決める時だ。</span>`
        +(!canWizard?`<br><span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">※ 魔法使いには知力10・器用さ8以上が必要</span>`:'');
       const typeChoices = [
@@ -7012,7 +7064,7 @@ function _recruitChild(child, prop, townId){
  story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
   +`<span style="color:#f0ece0"> <b>${child.name}</b>がパーティに加わった！</span><br><br>`
   +`<span style="color:#c0b098">種族：${child.race}　タイプ：${typeJa}</span><br>`
-  +`<span style="color:#c0b098">ST:${child.st} IQ:${child.iq} LK:${child.lk} CON:${child.con} DEX:${child.dex} CHR:${child.chr} SPD:${child.spd}</span>`;
+  +`<span style="color:#c0b098">強さ:${child.st} 知力:${child.iq} 運:${child.lk} 体力:${child.con} 器用さ:${child.dex} 魅力:${child.chr} 素早さ:${child.spd}</span>`;
  renderChoices([{label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)}]);
 }
 
@@ -7028,7 +7080,7 @@ function propertyRest(townId){
    : `${costPerDay}GP／日`;
   story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}で休養</span><br><br>`
    +`<span style="color:#c0b098">生活費：${priceLabel}</span><br>`
-   +`<span style="color:#c0b098">所持金：${PC.gold||0}GP　現在CON：${PC.con}/${PC.maxCon}</span>`
+   +`<span style="color:#c0b098">所持金：${PC.gold||0}GP　現在体力：${PC.con}/${PC.maxCon}</span>`
    +(msg?`<br><br>${msg}`:'');
 
   const choices = [];
@@ -7074,7 +7126,7 @@ function doPropertyRest(townId, days, costPerDay){
   PC.st  = Math.min(PC._stBase||PC.maxSt,  PC.st  + PC._hungerDmg);
   PC.con = Math.min(PC._conBase||PC.maxCon, PC.con + PC._hungerDmg);
   PC.dex = Math.min(PC._dexBase||PC.dex+PC._hungerDmg, PC.dex + PC._hungerDmg);
-  msgs.push(`飢えが回復（ST/CON/DEX +${PC._hungerDmg}）`);
+  msgs.push(`飢えが回復（強さ/体力/器用さ +${PC._hungerDmg}）`);
   PC._hungerDmg = 0; PC._stBase = PC._conBase = PC._dexBase = null;
  }
  // パーティ回復
@@ -7969,7 +8021,7 @@ function visitSettledCompanion(townId, npcId){
     npc._childPendingStats = child; // 実際の加入処理でも同じ能力値・職業を使い回す
     const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[child.type]||child.type;
     story.innerHTML = ` <span style="color:#e0d8c8">${npc._childName}</span><br><br>`
-     +`<span style="color:#c0b098">ST:${child.st} IQ:${child.iq} LK:${child.lk} CON:${child.con} DEX:${child.dex} CHR:${child.chr} SPD:${child.spd}</span><br><br>`
+     +`<span style="color:#c0b098">強さ:${child.st} 知力:${child.iq} 運:${child.lk} 体力:${child.con} 器用さ:${child.dex} 魅力:${child.chr} 素早さ:${child.spd}</span><br><br>`
      +`<span style="color:#c0b098">${npc._childName}は、これまで培ってきた力を見込まれ、${typeJa}としての道を歩むことになりそうだ。</span>`;
     renderChoices([
      {label:` 迎え入れる`, fn:()=>_recruitFormerCompanionChild(npc, townId)},
@@ -8231,6 +8283,40 @@ function collectCoins(baseAmt){
  }
 }
 
+// ── 宝石付き武器の名前（拡張オーク語を主に、エルフ語を少し混ぜた造語） ──
+// 宝石の数は表示せず、時代の語の選定だけに使う（5個＝上古、4個＝古代、3個＝中興、2個＝前代、1個＝なし）
+const GEM_WEAPON_ERA = {5:'上古', 4:'古代', 3:'中興', 2:'前代', 1:''};
+const GEM_WEAPON_GEMWORD = {
+ '水晶':'シルブ', '七宝':'グルム', 'トパーズ':'スナール', 'ガーネット':'モカルン', 'トルコ石':'ウズルブ', 'アメジスト':'ヒルン',
+ '象牙':'ニンク', '紅玉髄':'カルトゥルク', 'オパール':'パンミル', '炎のオパール':'ガシュミル', 'アクアマリン':'ウルシルブ',
+ '翡翠':'ウズグンド', '蛇紋石':'グログンド', '真珠':'ニンミル', 'ルビー':'カンブ', 'サファイア':'ウルミル',
+ 'ダイヤモンド':'カルク', 'エメラルド':'ウズミル',
+};
+const GEM_WEAPON_WPNWORD = {
+ 'グレートソード':'メグマイク', 'ブロードソード（大）':'メグマイク', 'ブロードソード':'メグマイク', 'ショートソード':'メグマイク',
+ '野太刀':'メグナイグ', 'シミター':'メグナイグ', 'サーベル':'メグナイグ', 'サーベル（短）':'メグナイグ',
+ '両刃の斧':'ダグプルク', 'グレートアックス':'ダグプルク', 'ブロードアックス':'ダグプルク',
+ 'ヘビーメイス':'ダグドラング', '戦鎚':'ダグドラング', 'ヘビーフレイル':'ダグドラング',
+ '棍棒':'オルドラング', '杖':'オルドラ', '鉈':'シググンド', '短剣':'シグキルム',
+ '軽弓':'クークグ', '戦弓':'クークグ', '重戦弓':'クークグ',
+};
+function gemWeaponName(gemName, gemCount, baseName){
+ const gw = GEM_WEAPON_GEMWORD[gemName] || gemName;
+ const ww = GEM_WEAPON_WPNWORD[baseName] || baseName;
+ const era = GEM_WEAPON_ERA[gemCount] || '';
+ return `${era ? era + 'の' : ''}${baseName}「${gw}・${ww}」`;
+}
+// 説明欄に出す日本語の説明（宝石の数は書かない）
+function gemWeaponDesc(gemName, setting, baseName){
+ return `${gemName}付き${baseName}`;
+}
+// 宝石付き武器の売値（GP）：宝石の売値（基準値×10×数）の半額の10倍
+const GEM_WEAPON_SELL_MULT = 10;
+function gemWeaponSellGP(priceGP){ return Math.floor(priceGP * 0.5 * GEM_WEAPON_SELL_MULT); }
+function weaponDescHtml(w){
+ return (w && w._desc) ? `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-top:2px">${w._desc}</div>` : '';
+}
+
 function generateJewel(){
  const f = d6();
  const s = d6();
@@ -8251,7 +8337,7 @@ function generateJewel(){
    // 売値の1/10を攻撃修整として加算（切り捨て）
    const magicBonus = Math.floor(priceGP / 10);
    const newAdds = baseWeapon.adds + magicBonus;
-   const magicName = gem.name+'x'+gemCount+' '+setting+' '+baseWeapon.name;
+   const magicName = gemWeaponName(gem.name, gemCount, baseWeapon.name);
    const magicWeapon = {
     name: magicName,
     dice: baseWeapon.dice,
@@ -8263,13 +8349,14 @@ function generateJewel(){
     cost: Math.floor(priceGP * 0.5),
     _isMagic: true,
     _priceGP: priceGP,
+    _desc: gemWeaponDesc(gem.name, setting, baseWeapon.name),
     ...(baseWeapon.isRanged  ? { isRanged:  true, range: baseWeapon.range||50 } : {}),
     ...(baseWeapon.rangedOk  ? { rangedOk:  true } : {}),
    };
    PC.invWeapons = PC.invWeapons || [];
    PC.invWeapons.push(magicWeapon);
-   const desc = `${magicName}（${baseWeapon.dice}D${newAdds>=0?'+':''}${newAdds}）`;
-   return `⚔ ${desc}（売値${Math.floor(priceGP*0.5)}GP）`;
+   const desc = `${magicName}（${baseWeapon.dice}D${newAdds>=0?'+':''}${newAdds}）　${gemWeaponDesc(gem.name, setting, baseWeapon.name)}`;
+   return `⚔ ${desc}（売値${gemWeaponSellGP(priceGP)}GP）`;
   }
 
   const name = gem.name+'x'+gemCount+' '+setting+' '+itemType;
@@ -8697,7 +8784,7 @@ function _recruitFormerCompanionChild(npc, townId){
  if(story) story.innerHTML = ` <span style="color:#f0ece0">${npc.name}の家</span><br><br>`
   +`<span style="color:#f0ece0"> <b>${child.name}</b>がパーティに加わった！</span><br><br>`
   +`<span style="color:#c0b098">種族：${child.race}　タイプ：${typeJa}</span><br>`
-  +`<span style="color:#c0b098">ST:${child.st} IQ:${child.iq} LK:${child.lk} CON:${child.con} DEX:${child.dex} CHR:${child.chr} SPD:${child.spd}</span>`;
+  +`<span style="color:#c0b098">強さ:${child.st} 知力:${child.iq} 運:${child.lk} 体力:${child.con} 器用さ:${child.dex} 魅力:${child.chr} 素早さ:${child.spd}</span>`;
  renderChoices([{label:'← 戻る', fn:()=>goOtherActions(townId)}]);
 }
 
@@ -9783,7 +9870,7 @@ function lair3OpenUnlockLevelSelect(caster, cfg){
   btn.disabled = !canAfford;
   btn.innerHTML = `
    <span class="sm-name">Lv${lv}</span>
-   <span class="sm-cost">ST -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">強さ -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在強さ ${caster.st}）</span>`;
   btn.addEventListener('click', () => {
    closeSpellModal();
    lair3CastUnlockAtLevel(caster, lv, cost, cfg);
@@ -10028,7 +10115,7 @@ function lair4OpenUnlockLevelSelect(caster, cfg){
   btn.disabled = !canAfford;
   btn.innerHTML = `
    <span class="sm-name">Lv${lv}</span>
-   <span class="sm-cost">ST -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">強さ -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在強さ ${caster.st}）</span>`;
   btn.addEventListener('click', () => {
    closeSpellModal();
    lair4CastUnlockAtLevel(caster, lv, cost, cfg);
@@ -11152,7 +11239,7 @@ function _lairVaultUnlockLevelSelectGeneric(key, caster, nodeId, cfg){
   btn.disabled = !canAfford;
   btn.innerHTML = `
    <span class="sm-name">Lv${lv}</span>
-   <span class="sm-cost">ST -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">強さ -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在強さ ${caster.st}）</span>`;
   btn.addEventListener('click', () => {
    closeSpellModal();
    _lairVaultCastUnlockGeneric(key, caster, lv, cost, nodeId, cfg);
@@ -11233,7 +11320,7 @@ function _lairLockboxUnlockLevelSelectGeneric(key, caster, nodeId, cfg){
   btn.disabled = !canAfford;
   btn.innerHTML = `
    <span class="sm-name">Lv${lv}</span>
-   <span class="sm-cost">ST -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">強さ -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在強さ ${caster.st}）</span>`;
   btn.addEventListener('click', () => {
    closeSpellModal();
    _lairLockboxCastUnlockGeneric(key, caster, lv, cost, nodeId, cfg);
@@ -11553,7 +11640,7 @@ function _lair5VaultUnlockLevelSelect(caster, nodeId, cfg){
   btn.disabled = !canAfford;
   btn.innerHTML = `
    <span class="sm-name">Lv${lv}</span>
-   <span class="sm-cost">ST -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">強さ -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在強さ ${caster.st}）</span>`;
   btn.addEventListener('click', () => {
    closeSpellModal();
    _lair5VaultCastUnlock(caster, lv, cost, nodeId, cfg);
@@ -11637,7 +11724,7 @@ function _lair5LockboxUnlockLevelSelect(caster, nodeId, cfg){
   btn.disabled = !canAfford;
   btn.innerHTML = `
    <span class="sm-name">Lv${lv}</span>
-   <span class="sm-cost">ST -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">強さ -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在強さ ${caster.st}）</span>`;
   btn.addEventListener('click', () => {
    closeSpellModal();
    _lair5LockboxCastUnlock(caster, lv, cost, nodeId, cfg);
@@ -11769,7 +11856,7 @@ function lair5OpenUnlockLevelSelect(caster, cfg){
   btn.disabled = !canAfford;
   btn.innerHTML = `
    <span class="sm-name">Lv${lv}</span>
-   <span class="sm-cost">ST -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">強さ -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在強さ ${caster.st}）</span>`;
   btn.addEventListener('click', () => {
    closeSpellModal();
    lair5CastUnlockAtLevel(caster, lv, cost, cfg);
@@ -12126,7 +12213,7 @@ function lairOpenUnlockLevelSelect(caster, cfg){
   btn.disabled = !canAfford;
   btn.innerHTML = `
    <span class="sm-name">Lv${lv}</span>
-   <span class="sm-cost">ST -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">強さ -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在強さ ${caster.st}）</span>`;
   btn.addEventListener('click', () => {
    closeSpellModal();
    lairCastUnlockAtLevel(caster, lv, cost, cfg);
@@ -12503,7 +12590,7 @@ const PATRON_EVENTS = {
   { name:'元海賊のバロック', icon:'‍️',
     intro:'耳に金の輪をつけた強面の男が奥の席で飲んでいる。目が合うと手招きした。',
     type:'luck',
-    line_good:'「お前、運がいい顔してるな」男は懐から古いコインを取り出した。「これ、航海守りのコインだ。持っときな」LKが上がった気がする。',
+    line_good:'「お前、運がいい顔してるな」男は懐から古いコインを取り出した。「これ、航海守りのコインだ。持っときな」運が上がった気がする。',
     line_bad:'「運が悪そうだな…」男は首を振り、席を立った。何となく嫌な予感がした。',
     lk_thresh:15, good_ap:10, good_lk:2, bad_lk:-1 },
  ],
@@ -12701,7 +12788,7 @@ const PATRON_EVENTS = {
     intro:'深い皺の老人が砂漠の歌を口ずさみながら飲んでいる。',
     type:'charm',
     attr:'lk', level:1,
-    win_line:'「お前は砂漠と相性がいい。この護符を持て」老人は小さな骨の飾りを渡してくれた。LKが上がった気がする。',
+    win_line:'「お前は砂漠と相性がいい。この護符を持て」老人は小さな骨の飾りを渡してくれた。運が上がった気がする。',
     lose_line:'「砂漠はお前に興味がないようだ」老人は静かに歌に戻った。',
     win_ap:15, win_lk:3, trust_delta:3 },
   { name:'絨毯職人のナレ', icon:'',
@@ -12773,7 +12860,7 @@ const PATRON_EVENTS = {
   { name:'灰の村の老婆テラ', icon:'',
     intro:'皺だらけの老婆が薄暗い隅で何かを呟きながら飲んでいる。',
     type:'luck',
-    line_good:'老婆はこちらをじっと見た。「お前には力がある」呟くように言い、灰で描いた印を渡してくれた。LKが上がった気がする。',
+    line_good:'老婆はこちらをじっと見た。「お前には力がある」呟くように言い、灰で描いた印を渡してくれた。運が上がった気がする。',
     line_bad:'老婆はこちらを見て首を振った。「今は進むな」不吉な予感がした。',
     lk_thresh:10, good_ap:10, good_lk:3, bad_lk:-2 },
   { name:'旅の錬金術師ゾアン', icon:'',
@@ -12821,7 +12908,7 @@ const PATRON_EVENTS = {
   { name:'アッシュヴェイルの子供たち', icon:'',
     intro:'灰色の顔をした子供たちが珍しそうにこちらを見ている。',
     type:'luck',
-    line_good:'「外から来た人！石をあげる！」子供が黒曜石の欠片をくれた。なぜかLKが上がった気がした。',
+    line_good:'「外から来た人！石をあげる！」子供が黒曜石の欠片をくれた。なぜか運が上がった気がした。',
     line_bad:'「暗い顔してる、こわい」子供たちが逃げてしまった。なんとなく気分が沈んだ。',
     lk_thresh:10, good_ap:0, good_lk:2, bad_lk:-1 },
  ],
@@ -13250,7 +13337,7 @@ const extra = {
   { name:'遺跡荒らしの冒険者グレン', icon:'',
     intro:'どこか後ろめたそうな顔の男が急いで飲んでいる。',
     type:'luck',
-    line_good:'「実は遺跡でこれを見つけたんだが…いらないか？」男は小さな光る石を渡してきた。LKが上がった気がする。',
+    line_good:'「実は遺跡でこれを見つけたんだが…いらないか？」男は小さな光る石を渡してきた。運が上がった気がする。',
     line_bad:'「おい、見張りに言うなよ！」いきなり怒鳴られた。なんか嫌な気分になった。',
     lk_thresh:13, good_ap:0, good_lk:2, bad_lk:-1 },
   { name:'エルフの子供ティア', icon:'',
@@ -13303,7 +13390,7 @@ const extra = {
   { name:'森の精霊を見たという老婆', icon:'',
     intro:'不思議な目をした老婆が一人でぶつぶつ言いながら飲んでいる。',
     type:'luck',
-    line_good:'「お前には精霊の加護がある。この木の実を持て」老婆は奇妙な実を渡してくれた。LKが上がった気がする。',
+    line_good:'「お前には精霊の加護がある。この木の実を持て」老婆は奇妙な実を渡してくれた。運が上がった気がする。',
     line_bad:'「お前の周りに暗い影が見える。気をつけなさい」不吉な言葉を残して老婆は去った。',
     lk_thresh:11, good_ap:0, good_lk:3, bad_lk:-2 },
   { name:'エルマリアを旅するドワーフ', icon:'',
@@ -13460,7 +13547,7 @@ const extra = {
   { name:'地元の子供たちのリーダー', icon:'',
     intro:'元気な少年がグループのリーダーらしく仲間を率いている。',
     type:'luck',
-    line_good:'「外から来た人！これあげる！」砂漠で拾ったという光る小石をくれた。LKが上がった気がする。',
+    line_good:'「外から来た人！これあげる！」砂漠で拾ったという光る小石をくれた。運が上がった気がする。',
     line_bad:'「怖い顔！あっち行って！」子供たちに囃し立てられた。気分が落ちた。',
     lk_thresh:12, good_ap:0, good_lk:2, bad_lk:-1 },
   { name:'隠れ家を探す魔術師ベルガ', icon:'',
@@ -13512,7 +13599,7 @@ const extra = {
   { name:'砂漠育ちの少女ハナ', icon:'',
     intro:'快活な少女が砂漠の踊りを披露して小銭を稼いでいる。',
     type:'luck',
-    line_good:'「踊りを見てくれてありがとう！お礼に砂漠の秘密を教えるよ！」少女は砂の下に隠れた泉の場所を教えてくれた。LKが上がった気がした。',
+    line_good:'「踊りを見てくれてありがとう！お礼に砂漠の秘密を教えるよ！」少女は砂の下に隠れた泉の場所を教えてくれた。運が上がった気がした。',
     line_bad:'「踊りを見ないの？つまんない人！」少女はぷりぷりしながら去った。なんとなく気分が沈んだ。',
     lk_thresh:11, good_ap:0, good_lk:2, bad_lk:-1 },
  ],
@@ -13651,7 +13738,7 @@ const extra = {
   { name:'鍛冶職人組合の長老ドン', icon:'',
     intro:'勲章のような金属の証を胸につけた老人が飲んでいる。',
     type:'luck',
-    line_good:'「腕に覚えのある者か。これを持て」老人は試作品の短刀を手渡してくれた。LKが上がった気がする。',
+    line_good:'「腕に覚えのある者か。これを持て」老人は試作品の短刀を手渡してくれた。運が上がった気がする。',
     line_bad:'「今日は弟子の出来が悪くて参った。お前も関係ないが巻き込まれた気分だ」老人の愚痴に付き合わされた。',
     lk_thresh:13, good_ap:0, good_lk:2, bad_lk:0 },
  ],
@@ -13683,7 +13770,7 @@ const extra = {
   { name:'温泉を発見した老人', icon:'',
     intro:'妙に上機嫌な老人が熱そうな飲み物を飲んでいる。',
     type:'luck',
-    line_good:'「山の中に温泉を見つけたんだ！場所を教えてやろう」老人は秘密の温泉の場所を教えてくれた。LKが上がった気がする。',
+    line_good:'「山の中に温泉を見つけたんだ！場所を教えてやろう」老人は秘密の温泉の場所を教えてくれた。運が上がった気がする。',
     line_bad:'「お前に温泉の話をしようとしたのに…もういい」老人は急に不機嫌になって去った。',
     lk_thresh:12, good_ap:0, good_lk:2, bad_lk:-1 },
   { name:'凍傷持ちの帰還冒険者', icon:'',
@@ -13704,7 +13791,7 @@ const extra = {
     intro:'山岳民族の衣装をまとった老婆がお茶を飲んでいる。',
     type:'charm',
     attr:'lk', level:1,
-    win_line:'「山に愛された者よ。この冬の守り歌を贈ろう」老婆は不思議な歌を歌ってくれた。体が温まり、LKが上がった気がする。',
+    win_line:'「山に愛された者よ。この冬の守り歌を贈ろう」老婆は不思議な歌を歌ってくれた。体が温まり、運が上がった気がする。',
     lose_line:'「山はまだお前を認めていない」老婆は目を閉じた。',
     win_ap:0, win_lk:2, trust_delta:2 },
  ],
@@ -13722,7 +13809,7 @@ const extra = {
     intro:'奇妙な装飾品をまとった老人が炉端で何かを唱えている。',
     type:'charm',
     attr:'iq', level:2,
-    win_line:'「お前の目には何かが宿っている。これを持て」老人は不思議な護符を渡してくれた。LKが上がった気がする。',
+    win_line:'「お前の目には何かが宿っている。これを持て」老人は不思議な護符を渡してくれた。運が上がった気がする。',
     lose_line:'「お前にはまだ早い」老人は目を閉じた。',
     win_ap:20, win_lk:1, trust_delta:2 },
   { name:'凍海の漁師イングヴァル', icon:'',
@@ -14534,7 +14621,7 @@ function talkToPatron(townId){
   const results = [];
   if(ev.gp_delta > 0){ gainGPAll(ev.gp_delta); results.push(`+${ev.gp_delta}GP`); }
   if(ev.gp_delta < 0){ results.push(`${ev.gp_delta}GP`); }
-  if(ev.con_heal){ PC.con = Math.min(PC.maxCon, PC.con + ev.con_heal); results.push(`CON+${ev.con_heal}`); }
+  if(ev.con_heal){ PC.con = Math.min(PC.maxCon, PC.con + ev.con_heal); results.push(`体力+${ev.con_heal}`); }
   const res = results.length ? resultLine(results.join('　')) : '';
   _showPatronPanel(header + msgBox(ev.line) + res, onClose);
 
@@ -14581,7 +14668,7 @@ function talkToPatron(townId){
     if(ev.trust_delta) changeTrust(PC.town, ev.trust_delta);
     if(ev.win_jewel){ const j=generateJewel(); }
     const res = [];
-    if(ev.win_lk) res.push(`LK+${ev.win_lk}`);
+    if(ev.win_lk) res.push(`運+${ev.win_lk}`);
     if(ev.trust_delta) res.push(`信頼度+${ev.trust_delta}`);
     if(ev.win_jewel) res.push(' 鉱石の欠片を得た');
     updateHUD();
@@ -14605,7 +14692,7 @@ function talkToPatron(townId){
    attr: 'lk', level: 1, label:'運',
    onSuccess:()=>{
     const results = [];
-    if(ev.good_lk){ PC.lk += ev.good_lk; results.push(`LK+${ev.good_lk}`); }
+    if(ev.good_lk){ PC.lk += ev.good_lk; results.push(`運+${ev.good_lk}`); }
     if(ev.good_ap){ gainAPAll(ev.good_ap); results.push(`経験値+${ev.good_ap}`); }
     if(ev.good_gp){ gainGPAll(ev.good_gp); results.push(`+${ev.good_gp}GP`); }
     updateHUD();
@@ -14617,7 +14704,7 @@ function talkToPatron(townId){
    },
    onFail:()=>{
     const results = [];
-    if(ev.bad_lk){ PC.lk = Math.max(1, PC.lk + ev.bad_lk); results.push(`LK${ev.bad_lk}`); }
+    if(ev.bad_lk){ PC.lk = Math.max(1, PC.lk + ev.bad_lk); results.push(`運${ev.bad_lk}`); }
     if(ev.bad_gp){ gainGPAll(ev.bad_gp); results.push(`${ev.bad_gp}GP`); }
     updateHUD();
     _appendPatronPanel(
@@ -14658,7 +14745,7 @@ function _renderItemTransfer(npcIdx, direction){
  // 未装備の武器
  (src.invWeapons||[]).forEach((w,i)=>{
   items.push({type:'weapon', idx:i, icon:'', label:w.name,
-   sub:`${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}`});
+   sub:`${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}${w._desc?'　'+w._desc:''}`});
  });
  // 未装備の防具
  (src.invArmors||[]).forEach((a,i)=>{
@@ -14810,7 +14897,7 @@ function learnSpell(spellName, lv){
  if(!sp) return;
  const req = SPELL_LEVEL_REQS[lv] || SPELL_LEVEL_REQS[4];
  const iqReq = req.iq, dexReq = req.dex;
- if((actor.iq||0)<iqReq||(actor.dex||0)<dexReq){ alert(`IQ${iqReq}・DEX${dexReq}が必要です`); return; }
+ if((actor.iq||0)<iqReq||(actor.dex||0)<dexReq){ alert(`知力${iqReq}・器用さ${dexReq}が必要です`); return; }
  if(npcAvailableCP(actor, PC.town)<sp.learnCost*100){ alert('所持金が足りません（両替所の預金を含めても不足しています）'); return; }
  if((actor.spells||[]).some(s=>s.name===sp.name)){ alert('すでに習得済みです'); return; }
  npcCoverFromBank(actor, PC.town, sp.learnCost*100);
@@ -14832,7 +14919,7 @@ function npcCastSpellOutside(npcIdx, spellIdx){
  if(!spell) return;
  const cost = spell.cost||0;
  const discCost = _applyStaffDiscount(n, cost);
- if((n.st||0) < discCost){ showSaveToast(`${n.name}のSTが足りない`); return; }
+ if((n.st||0) < discCost){ showSaveToast(`${n.name}の強さが足りない`); return; }
  n.st = Math.max(0, n.st - discCost);
  const fn = spell.fn||'';
  const story = document.getElementById('story');
@@ -14863,7 +14950,7 @@ function npcCastSpellOutside(npcIdx, spellIdx){
   const heal = (n.iq||10);
   PC.con = Math.min(PC.maxCon, PC.con + heal);
   updateHUD();
-  msg = ` ${n.name}が${spell.name}を唱えた。あなたのCON+${heal}（→${PC.con}/${PC.maxCon}）`;
+  msg = ` ${n.name}が${spell.name}を唱えた。あなたの体力+${heal}（→${PC.con}/${PC.maxCon}）`;
  } else {
   msg = ` ${n.name}が${spell.name}を唱えた（強さ-${cost}）`;
  }
@@ -14886,7 +14973,7 @@ function learnSpellRogue(spellName, lv){
  if(!sp) return;
  const req1 = {iq:10, dex:8};
  const req = lv===1 ? req1 : (SPELL_LEVEL_REQS[lv] || SPELL_LEVEL_REQS[4]);
- if((actor.iq||0)<req.iq||(actor.dex||0)<req.dex){ alert(`IQ${req.iq}・DEX${req.dex}が必要です`); return; }
+ if((actor.iq||0)<req.iq||(actor.dex||0)<req.dex){ alert(`知力${req.iq}・器用さ${req.dex}が必要です`); return; }
  const cost = lv===1 ? 500 : sp.learnCost*2;
  if(npcAvailableCP(actor, PC.town)<cost*100){ alert('所持金が足りません（両替所の預金を含めても不足しています）'); return; }
  if((actor.spells||[]).some(s=>s.name===sp.name)){ alert('すでに習得済みです'); return; }
@@ -14934,7 +15021,7 @@ function npcLearnSpell(npcIdx, spellName, lv, isRogue){
  const req = lv===1 ? req1 : (SPELL_LEVEL_REQS[lv] || SPELL_LEVEL_REQS[4]);
  const iqReq  = req.iq, dexReq = req.dex;
  if((n.iq||0)<iqReq||(n.dex||0)<dexReq){
-  showSaveToast(`${n.name} IQ${iqReq}・DEX${dexReq}が必要`); return;
+  showSaveToast(`${n.name} 知力${iqReq}・器用さ${dexReq}が必要`); return;
  }
 
  // 費用：rogueは2倍、wizardは通常。手持ちで足りなければ、現在の街の口座残高で補填する
@@ -14987,13 +15074,13 @@ function startRecruitSR(npc, returnNode, srLevel, onAfter){
  }
  const npcLabel = `${npc.epithet?npc.epithet+' ':''}${npc.name}`;
  if(inTravel){
-  travelLog(`<span style="color:#b8a890"> ${npcLabel}を仲間に誘った。（CHR(${PC.chr}) Lv${srLevel} 能力値テスト　目標: ${srLevel*5+15}）</span>`);
+  travelLog(`<span style="color:#b8a890"> ${npcLabel}を仲間に誘った。（魅力(${PC.chr}) Lv${srLevel} 能力値テスト　目標: ${srLevel*5+15}）</span>`);
  } else {
  const story = document.getElementById('story');
  story.innerHTML += `
  <div style="border-top:1px solid var(--info-border);margin-top:10px;padding-top:8px">
  <div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px)"> ${npc.epithet?`<span style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px)">${npc.epithet}</span> `:''}<b>${npc.name}</b> を仲間に誘う</div>
- <div style="color:#e8e0d8;font-size:calc(var(--font-sm) - 1px);margin-top:4px">CHR(${PC.chr}) Lv${srLevel} 能力値テスト　目標: ${srLevel*5+15}</div>
+ <div style="color:#e8e0d8;font-size:calc(var(--font-sm) - 1px);margin-top:4px">魅力(${PC.chr}) Lv${srLevel} 能力値テスト　目標: ${srLevel*5+15}</div>
  </div>`;
  }
  setupSavingRoll({
@@ -15844,6 +15931,13 @@ function showLevelUpPanel(lv, pc){
  const half = Math.floor(lv / 2);
 
  // 選択肢定義（対象pcに適用）
+ // 現在の能力値（強さ・体力は最大値）と、選んだ場合の上昇後の値を並べて見せる
+ const cs = (pc.maxSt||pc.st||0), cc = (pc.maxCon||pc.con||0);
+ const cur = {
+  A:`強さ ${cs} → ${cs+lv}`, B:`知力 ${pc.iq||0} → ${(pc.iq||0)+half}`, C:`運 ${pc.lk||0} → ${(pc.lk||0)+lv*2}`,
+  D:`体力 ${cc} → ${cc+lv}`, E:`器用さ ${pc.dex||0} → ${(pc.dex||0)+half}`, F:`魅力 ${pc.chr||0} → ${(pc.chr||0)+half}`,
+  G:`強さ ${cs} → ${cs+half} ／ 体力 ${cc} → ${cc+half}`,
+ };
  const opts = [
   { label:`A. 強さ + ${lv}`,                       fn:()=>{ pc.st+=lv; pc.maxSt=(pc.maxSt||pc.st)+lv; } },
   { label:`B. 知力 + ${half}`,                     fn:()=>{ gainIQ(half, pc); } },
@@ -15861,6 +15955,8 @@ function showLevelUpPanel(lv, pc){
   btn.className = 'choice-btn';
   btn.style.cssText = 'background:#2a1a08;border:1px solid var(--leather);color:#f0ece0;font-size:calc(var(--font-sm) - 1px);padding:10px;text-align:left';
   btn.textContent = opt.label;
+  const _cu = cur[opt.label.charAt(0)];
+  if(_cu){ const sp = document.createElement('span'); sp.style.cssText = 'display:block;margin-top:3px;font-size:calc(var(--font-sm) - 3px);color:#c8b8a0'; sp.textContent = '現在 ' + _cu; btn.appendChild(sp); }
   btn.onclick = ()=>{
    opt.fn();
    updateHUD();
@@ -16985,7 +17081,7 @@ function _showNPCImportMenu(){
  const rows = pool.length ? pool.map((n,i)=>`
   <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:8px;margin-bottom:6px">
    <div style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px)">${n.name}<span style="color:#c8b8a0;margin-left:6px">${raceJa(n.race)}の${typeJa(n.type)} Lv${n.level||1}</span></div>
-   <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;margin:4px 0">ST${n.st} IQ${n.iq} LK${n.lk} CON${n.con} DEX${n.dex} CHR${n.chr} SPD${n.spd}</div>
+   <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;margin:4px 0">強さ${n.st} 知力${n.iq} 運${n.lk} 体力${n.con} 器用さ${n.dex} 魅力${n.chr} 素早さ${n.spd}</div>
    <div style="display:flex;gap:6px">
     <button data-recruit="${i}" style="flex:1;background:var(--ink);border:1px solid #585858;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:6px;cursor:pointer;border-radius:3px">パーティに加える</button>
     <button data-remove="${i}" style="background:#180808;border:1px solid #6a2020;color:#e0d0d0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:6px 8px;cursor:pointer;border-radius:3px">削除</button>
@@ -17110,13 +17206,13 @@ function _showNPCManualForm(){
    </div>
   </div>
   <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px);margin:6px 0 4px">能力値</div>
-  ${statRow('ST','npcf-st')}
-  ${statRow('IQ','npcf-iq')}
-  ${statRow('LK','npcf-lk')}
-  ${statRow('CON','npcf-con')}
-  ${statRow('DEX','npcf-dex')}
-  ${statRow('CHR','npcf-chr')}
-  ${statRow('SPD','npcf-spd')}
+  ${statRow('強さ','npcf-st')}
+  ${statRow('知力','npcf-iq')}
+  ${statRow('運','npcf-lk')}
+  ${statRow('体力','npcf-con')}
+  ${statRow('器用さ','npcf-dex')}
+  ${statRow('魅力','npcf-chr')}
+  ${statRow('素早さ','npcf-spd')}
   <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px);margin-bottom:2px">所持金（GP）</div>
   <input id="npcf-gold" type="number" value="0" min="0" style="${inputStyle}">
   <button id="npcf-submit" style="width:100%;background:var(--ink);border:1px solid #585858;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:10px;cursor:pointer;border-radius:3px;margin:6px 0">プールに追加</button>
@@ -17534,8 +17630,8 @@ function progressFrostbite(){
   PC.dex = Math.max(1, (PC.dex||1) - 2);
   PC._frostbite = 5;
   applyFrostbiteEffects();
-  showSaveToast(' 壊疽！ST・DEXが恒久的に減少した');
-  addLifeEvent('', '壊疽を患った。STとDEXが恒久的に減少した。');
+  showSaveToast(' 壊疽！強さ・器用さが恒久的に減少した');
+  addLifeEvent('', '壊疽を患った。強さと器用さが恒久的に減少した。');
  } else {
   PC._frostbite = cur + 1;
   applyFrostbiteEffects();
@@ -18254,6 +18350,8 @@ function troupeTownHook(nodeId){
   PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e08060;font-size:var(--font-sm);margin-bottom:6px">一座『${t.name}』は、${PC.name}が戻るのを待ちきれず、${troupeTownName(_tn)}を発った。護衛の契約は破棄され、${troupeTownName(_tn)}での評判が下がった。</div>`;
   return false;
  }
+ // 冬のあいだ一座の町を離れている間は、別の町では給金も無事度の知らせも出さない（一座のいる町へ戻ったときにまとめて処理する）
+ if(c.away && townId !== t.townId) return false;
  troupePayDue();
  troupeSafetyInit(c); troupeSafetyTick();
  if(c.safety < 20 && GAME_TIME.totalDays < c.endDay){
@@ -18368,7 +18466,7 @@ function troupeFinishNext(townId, t){
  if(!c){ go('TOWN_'+townId.toUpperCase()); return; }
  if(!c.recruitDone){
   c.recruitDone = true;
-  const chance = Math.min(1, 0.4 + 0.3*(c.renewals||0));
+  const chance = Math.min(1, 0.4 + 0.3*(c.renewals||0) + 0.15*Math.min(2, c.rapport||0)); // 団員と打ち解けているほど、名簿入りの申し出が出やすい
   if((c.finishSafety||0) >= 50 && (PC.party||[]).length < 3 && Math.random() < chance){
    troupeRecruitOffer(townId, t); return;
   }
@@ -18598,14 +18696,27 @@ function troupeSafetyTick(){
  if(g > 0) c.safety = Math.min(100, c.safety + g);
 }
 // 能力値判定：PCとパーティの中で最も高い能力値を使う（成功率 = 30 + 能力値×3 %、20〜90%）
-function troupeCheck(stats){
- let best = 0;
- [PC].concat((PC.party||[]).filter(n=>n && n.con > 0)).forEach(p=>stats.forEach(k=>{ best = Math.max(best, p[k]||0); }));
- const pct = Math.max(20, Math.min(90, 30 + best*3));
- const roll = Math.floor(Math.random()*100) + 1;
- return {ok: roll <= pct, pct, roll};
+// 一座のイベントの判定：本物の能力値テスト（2D6のダイス演出）を行う。
+// 複数の能力値が挙がっているときは、パーティの中でいちばん高い能力値を使い、誰が挑むかを選ばせる（Lv1）
+function troupeRoll(stats, cb){
+ const actors = [PC].concat((PC.party||[]).filter(n=>n && n.con > 0));
+ let attr = stats[0], best = -1;
+ stats.forEach(k=>{ const v = Math.max(...actors.map(a=>a[k]||0)); if(v > best){ best = v; attr = k; } });
+ const run = actor=>setupSavingRollFor(actor, {attr, level:1,
+  onSuccess:()=>cb({ok:true}),
+  onFail:()=>cb({ok:false}),
+ });
+ renderChoices([]);
+ if(typeof travelState !== 'undefined' && travelState){
+  // 移動中は選択パネルを出す場所がないので、いちばん能力値の高い者が挑む
+  const who = actors.reduce((a, b)=> (b[attr]||0) > (a[attr]||0) ? b : a);
+  travelLog(`<span style="color:#b8a890"> ${who === PC ? 'あなた' : who.name}が挑む。（${({st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力',spd:'素早さ'})[attr]} Lv1 能力値テスト）</span>`);
+  run(who);
+ } else {
+  selectActorForSR(attr, 1, run);
+ }
 }
-function troupeCheckNote(r){ return `<span style="color:#a8a090;font-size:var(--font-sm)">（判定${r.pct}%：${r.ok ? '成功' : '失敗'}）</span>`; }
+function troupeCheckNote(r){ return ''; }
 
 // 移動1区間ぶんの、イベントが起きる日（0〜2件）を先に決めておく
 function troupeRollEvDays(days){
@@ -18693,6 +18804,61 @@ function troupeContractFail(ctx, lastHtml){
  scrollToTop();
 }
 
+// 足止めを待って過ごす間の、一座との交流の場面（天気や道の回復を待つときに1つだけ起きる）
+const TROUPE_WAIT_RUMORS = [
+ '「峠の向こうの町では、近ごろ市が立つたびに、見慣れない商人が増えているそうだ」',
+ '「街道沿いの宿屋は、客足の少ない季節ほど、泊まり客に酒を一杯つけてくれる。覚えておくといい」',
+ '「山沿いの道は、雨のあとは必ず崩れる。急ぐ旅ほど、一日待つほうが結局は早いものさ」',
+ '「ずっと昔、この辺りの川には渡し守がいてな。今でも、渡し場の跡に祠が残っているはずだ」',
+ '「どこの町でも、広場の端に立つ屋台の親父が、いちばん噂を知っている。芸の合間に、よく世話になった」',
+];
+function troupeWaitScene(ctx, baseMsg){
+ const c = ctx.c;
+ const done = (delta, res)=>troupeEvResolve(ctx, delta, baseMsg + '<br>' + res);
+ const scenes = [];
+ scenes.push(()=>troupeEvShow(ctx, '幌馬車の下の即興公演', `雨宿りの退屈しのぎに、団員たちが幌馬車の下で芸を披露しはじめた。軽業師が宙返りをし、楽師が小さな笛を吹いている。座長${ctx.t.leader}が「あんたも、どうだい」と手招きしている。`, [
+  {label:' 見物する', fn:()=>done(3, '皆の芸を眺めているうちに、足止めの憂鬱も、いくらか晴れた。')},
+  {label:' 飛び入りで参加する（器用さか魅力のテスト）', fn:()=>{
+   troupeRoll(['dex','chr'], r=>{
+   done(r.ok ? 8 : 2, (r.ok ? '見よう見まねで輪に加わると、思いのほか息が合った。団員たちの拍手と笑い声が、雨音をかき消した。' : '輪に加わってはみたものの、すっかり調子が外れてしまった。皆が腹を抱えて笑い、それもまた場を和ませた。') + troupeCheckNote(r));
+   });
+  }},
+ ]));
+ scenes.push(()=>troupeEvShow(ctx, '座長の昔話', `焚き火を囲んでいると、座長${ctx.t.leader}が、旅の昔話を語りはじめた。一座を率いて幾つもの地方を巡ってきた人の話は、尽きることがない。`, [
+  {label:' 耳を傾ける', fn:()=>done(3, `座長の語りを聞くうちに、一座の来し方が見えてくるようだった。<br>${TROUPE_WAIT_RUMORS[Math.floor(Math.random()*TROUPE_WAIT_RUMORS.length)]}`)},
+  {label:' 見張りに立つ', fn:()=>done(1, '話は他の者に任せ、馬車の周りの見張りに立った。何事もなく、時間だけが過ぎた。')},
+ ]));
+ scenes.push(()=>{
+  const m = troupeMakeMember();
+  const nm = m.name;
+  troupeEvShow(ctx, '団員との話し込み', `一座の${m._troupeRole}、${nm}が、護衛の旅の話を聞きたがって隣に腰を下ろした。「あんたたち冒険者の話、いちど聞いてみたかったんだ」`, [
+   {label:' 冒険の話を聞かせる（魅力のテスト）', fn:()=>{
+    troupeRoll(['chr'], r=>{
+    if(r.ok) c.rapport = Math.min(2, (c.rapport||0) + 1);
+    done(r.ok ? 4 : 0, (r.ok ? `${nm}は目を輝かせて聞き入っていた。「……いい話だった。ありがとう」` : `話に熱が入りすぎて、肝心なところで言葉に詰まった。${nm}は、気まずそうに笑っている。`) + troupeCheckNote(r));
+    });
+   }},
+   {label:' 相手の話の聞き役に回る', fn:()=>{
+    const bond = Math.random() < 0.4;
+    if(bond) c.rapport = Math.min(2, (c.rapport||0) + 1);
+    done(2, `${nm}は、旅芸人の暮らしを、ぽつりぽつりと話してくれた。` + (bond ? '聞いてもらえたことが、よほど嬉しかったようだ。' : ''));
+   }},
+  ]);
+ });
+ if(!c.lessonDone){
+  scenes.push(()=>troupeEvShow(ctx, '軽業の手ほどき', `手持ち無沙汰にしていると、軽業師が「身のこなしを見てやるよ」と声をかけてきた。幌馬車の脇で、受け身と跳び方を教えてくれるという。`, [
+   {label:' 教わる（器用さのテスト）', fn:()=>{
+    troupeRoll(['dex'], r=>{
+    if(r.ok){ c.lessonDone = true; PC.dex = (PC.dex||0) + 1; updateHUD(); }
+    done(r.ok ? 2 : 0, (r.ok ? '何度も転びながらも、足運びのコツをつかんだ。体の動きが、少し軽くなった気がする。（器用さ+1）' : '何度やっても、うまく体が動かない。「雨で足元が悪いからな、また今度だ」と、軽業師は笑っていた。') + troupeCheckNote(r));
+    });
+   }},
+   {label:' 遠慮しておく', fn:()=>done(0, '丁重に断り、馬車の脇で雨が上がるのを待った。')},
+  ]));
+ }
+ scenes[Math.floor(Math.random()*scenes.length)]();
+}
+
 // ── イベント ──
 const TROUPE_EVENTS = {
  bandits: { modes:['travel'], weight:3, bad:true, run(ctx){
@@ -18713,14 +18879,16 @@ const TROUPE_EVENTS = {
  rival: { modes:['stay'], weight:2, bad:true, run(ctx){
   troupeEvShow(ctx, 'ライバルの嫌がらせ', `別の旅芸人たちが、『${ctx.t.name}』の公演の邪魔をしている。客を引き抜いたり、舞台道具に悪戯をしたり……団員たちは怒りをあらわにしている。`, [
    {label:' 相手の座長と話をつける', fn:()=>{
-    const r = troupeCheck(['chr','iq']);
+    troupeRoll(['chr','iq'], r=>{
     troupeEvResolve(ctx, r.ok ? 0 : -10, (r.ok ? '腹を割って話すと、相手は渋々、嫌がらせをやめると約束した。' : '話し合いはこじれ、嫌がらせはその後も続いた。') + troupeCheckNote(r));
+    });
    }},
    {label:' 無視する', fn:()=>troupeEvResolve(ctx, -8, '相手にせず公演を続けたが、客足は目に見えて落ちてしまった。')},
    {label:' 逆に懲らしめる', fn:()=>{
     changeTrust(ctx.townId, -1, 'incident');
-    const r = troupeCheck(['st','dex']);
+    troupeRoll(['st','dex'], r=>{
     troupeEvResolve(ctx, r.ok ? 5 : -12, (r.ok ? '夜道で待ち伏せて灸をすえると、ライバルたちはこの町から姿を消した。（町の評判がわずかに下がった）' : '返り討ちにあいかけ、騒ぎを聞きつけた衛兵に叱責された。（町の評判がわずかに下がった）') + troupeCheckNote(r));
+    });
    }},
   ]);
  }},
@@ -18732,8 +18900,9 @@ const TROUPE_EVENTS = {
    troupeEvResolve(ctx, 0, '薬を飲ませると、団員は一晩でみるみる回復した。');
   }});
   ch.push({label:' 看病する（知力か魅力のテスト）', fn:()=>{
-   const r = troupeCheck(['iq','chr']);
+   troupeRoll(['iq','chr'], r=>{
    troupeEvResolve(ctx, r.ok ? 0 : -5, (r.ok ? '汗を拭き、水を飲ませ、夜通し付き添うと、団員の熱は翌朝には引いていた。' : '懸命に看病したが、熱はなかなか下がらず、団員たちの不安が広がった。') + troupeCheckNote(r));
+   });
   }});
   // 魔法：PCでも仲間のNPCでも、Purify を覚えていてSTが足りる者が唱えられる
   [PC, ...(PC.party||[]).filter(n=>n.con>0)].forEach(who=>{
@@ -18741,7 +18910,7 @@ const TROUPE_EVENTS = {
    if(!sp) return;
    const cost = _applyStaffDiscount(who, sp.cost);
    if((who.st||0) < cost) return;
-   ch.push({label:` 魔法で癒す：${who === PC ? 'あなた' : who.name}が${sp.name}を唱える（ST ${cost}）`, fn:()=>{
+   ch.push({label:` 魔法で癒す：${who === PC ? 'あなた' : who.name}が${sp.name}を唱える（強さ ${cost}）`, fn:()=>{
     who.st = Math.max(0, who.st - cost);
     gainAPAll(sp.cost);
     updateHUD();
@@ -18761,8 +18930,9 @@ const TROUPE_EVENTS = {
   troupeEvShow(ctx, '貴族の後援', `身なりのよい貴族が公演を気に入り、『${ctx.t.name}』の後援を申し出た。条件は、屋敷に滞在する間の夜の見張りだという。`, [
    {label:' 申し出を受ける', fn:()=>{
     ctx.c.bonusGP = (ctx.c.bonusGP||0) + 10;
-    const r = troupeCheck(['iq','lk','dex']);
+    troupeRoll(['iq','lk','dex'], r=>{
     troupeEvResolve(ctx, r.ok ? 10 : 5, (r.ok ? '見張りの夜は何事もなく明け、貴族は大いに満足した。満了の礼金に+10GPの約束を取りつけた。' : '見張りの最中、うっかり気を緩めて貴族の機嫌を損ねたが、後援そのものは続くことになった。満了の礼金に+10GPの約束を取りつけた。') + troupeCheckNote(r));
+    });
    }},
    {label:' 丁重に断る', fn:()=>troupeEvResolve(ctx, 0, '座長は残念そうだったが、「縛られない旅も悪くない」と笑った。')},
   ]);
@@ -18771,19 +18941,21 @@ const TROUPE_EVENTS = {
   const ts = ctx.ts;
   troupeEvShow(ctx, '嵐と増水', `空が暗くなり、激しい雨が降り出した。行く手の川は、みるみる水かさを増していく。`, [
    {label:' 迂回する（2日遅れる）', fn:()=>{ ts.totalDays += 2; checkQuestDeadlines(); troupeEvResolve(ctx, 0, '遠回りの道を選び、旅程が2日延びた。'); }},
-   {label:' 天気が回復するまで待つ（3日遅れる）', fn:()=>{ ts.totalDays += 3; checkQuestDeadlines(); troupeEvResolve(ctx, 0, '幌馬車の下で嵐をやり過ごした。旅程が3日延びた。'); }},
+   {label:' 天気が回復するまで待つ（3日遅れる）', fn:()=>{ ts.totalDays += 3; checkQuestDeadlines(); troupeWaitScene(ctx, '幌馬車の下で嵐をやり過ごした。旅程が3日延びた。'); }},
    {label:' 強行して渡る', fn:()=>{
-    const r = troupeCheck(['dex','lk']);
+    troupeRoll(['dex','lk'], r=>{
     troupeEvResolve(ctx, r.ok ? 0 : -15, (r.ok ? 'ロープを張り、全員で馬車を押して、なんとか渡りきった。' : '渡河の途中で荷車が傾き、積み荷と道具の一部を流してしまった。') + troupeCheckNote(r));
+    });
    }},
   ]);
  }},
  thief: { modes:['stay'], weight:2, bad:true, run(ctx){
   troupeEvShow(ctx, '公演中の盗み', `公演の人だかりに紛れて、誰かが団員の財布を抜き取ったらしい。「どろぼうだ！」　人混みの向こうで、ひとりの男が駆け出した。`, [
    {label:' 追いかける', fn:()=>{
-    const r = troupeCheck(['dex','spd']);
+    troupeRoll(['dex','spd'], r=>{
     if(r.ok){ gainGPAll(5); updateHUD(); }
     troupeEvResolve(ctx, r.ok ? 0 : -8, (r.ok ? '路地裏で男を押さえ込み、財布を取り戻した。礼として5GPを受け取った。' : '男は人混みの中に消えてしまった。') + troupeCheckNote(r));
+    });
    }},
    {label:' 団員に任せる', fn:()=>troupeEvResolve(ctx, -8, '団員たちは追いかけたが、財布は戻らなかった。')},
   ]);
@@ -19659,7 +19831,7 @@ function wildMove(f){
  wildMarkVisited();
  const ci = (f + map.k) % 8;
  msgs.unshift(`${sd}日かけて${WILD_COMPASS[ci]}へ進んだ。`);
- if(acc.hunger > 0) msgs.push(`食料がない！飢えで体が弱っていく… ST/CON/DEX 各-${acc.hunger}（計-${PC._hungerDmg}）`);
+ if(acc.hunger > 0) msgs.push(`食料がない！飢えで体が弱っていく… 強さ/体力/器用さ 各-${acc.hunger}（計-${PC._hungerDmg}）`);
  w.msg = msgs.join('<br>');
  updateHUD();
  go('WILDERNESS');
@@ -22533,7 +22705,7 @@ function arcDBossHook(key, nodeId, ns){
    .filter(m=>power(m) <= topPow * 0.8).sort((x,y)=>power(x) - power(y)).slice(0, 2);
   let boss;
   if(npcType){
-   boss = top; // 強化：ST・CONを上げる
+   boss = top; // 強化：強さ・体力を上げる
    boss.st = Math.round((boss.st||10) * 1.2);
    boss.con = Math.round((boss.con||10) * 1.5); boss.curCon = boss.con; if(boss.maxCon) boss.maxCon = boss.con;
    boss.name = boss.name + '（主）';
@@ -26160,7 +26332,7 @@ const KHAZAN_DISTRICT_EVENTS = {
           onSuccess:()=>{ story.innerHTML+=`<br><span style="color:#e8e4d8">間一髪で逃げ切った！</span>`;
            renderChoices([{label:'← 街に戻る', go:'TOWN_KHAZAN'}]); },
           onFail:()=>{ const d=1+Math.floor(Math.random()*6); PC.con=Math.max(1,PC.con-d); updateHUD();
-           story.innerHTML+=`<br><span class="red">背中に一撃を受けた。CON-${d}（残り${PC.con}）</span>`;
+           story.innerHTML+=`<br><span class="red">背中に一撃を受けた。体力-${d}（残り${PC.con}）</span>`;
            renderChoices([{label:'← 街に戻る', go:'TOWN_KHAZAN'}]); },
          });
         }},
@@ -26182,7 +26354,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    const story = document.getElementById('story');
    story.innerHTML = `<span style="color:#f0ece0"> 王宮地区</span><br><br>`
     +`<b> 冤罪による拘束</b><br><br>`
-    +`突然、衛兵に「貴様が怪しい」と身柄を拘束された。身に覚えのない罪だ。CHRで弁明できるか？`;
+    +`突然、衛兵に「貴様が怪しい」と身柄を拘束された。身に覚えのない罪だ。魅力で弁明できるか？`;
    dungeonTrySR({ attr:'chr', level:3,
     successTxt:()=>`粘り強く弁明した結果、衛兵も折れて釈放された。理不尽だったが、無事だ。`,
     failFn:()=>{
@@ -26250,7 +26422,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    const story = document.getElementById('story');
    story.innerHTML = `<span style="color:#f0ece0"> 王宮地区</span><br><br>`
     +`<b> 有力者との偶然の出会い</b><br><br>`
-    +`宮廷に出入りしていると思われる有力者と目が合った。CHRの高さで印象が決まる。`;
+    +`宮廷に出入りしていると思われる有力者と目が合った。魅力の高さで印象が決まる。`;
    dungeonTrySR({ attr:'chr', level:2,
     successFn:()=>{ changeTrust('khazan', 10); updateHUD(); },
     successTxt:()=>`話が弾み、推薦の言葉をいただけた。<br><span style="color:#e8e4d8">カザーヌの信頼度 +10</span>`,
@@ -26320,7 +26492,7 @@ const KHAZAN_DISTRICT_EVENTS = {
         {label:'← 街に戻る', go:'TOWN_KHAZAN'},
        ]); },
       onFail:()=>{ const d=2+Math.floor(Math.random()*8); PC.con=Math.max(1,PC.con-d); updateHUD();
-       story.innerHTML+=`<br><span class="red">逃げる途中に怪我をした。CON-${d}（残り${PC.con}）</span>`;
+       story.innerHTML+=`<br><span class="red">逃げる途中に怪我をした。体力-${d}（残り${PC.con}）</span>`;
        renderChoices([{label:'← 街に戻る', go:'TOWN_KHAZAN'}]); },
      });
     }},
@@ -26503,7 +26675,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    const story = document.getElementById('story');
    story.innerHTML = `<span style="color:#f0ece0"> 市場地区</span><br><br>`
     +`<b> スリ！</b><br><br>`
-    +`人混みの中で誰かが財布に手を伸ばした気配がした。DEXで気づけるか？`;
+    +`人混みの中で誰かが財布に手を伸ばした気配がした。器用さで気づけるか？`;
    dungeonTrySR({ attr:'dex', level:2,
     successTxt:()=>`咄嗟に手を抑えた。スリは舌打ちして逃げ去った。無事だ。`,
     failFn:()=>{ const lost=PC.gold||0; PC.gold=0; PC.sp=0; PC.cp=0; updateHUD();
@@ -26538,7 +26710,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    const story = document.getElementById('story');
    story.innerHTML = `<span style="color:#f0ece0"> 市場地区</span><br><br>`
     +`<b> 衛兵の取り締まり</b><br><br>`
-    +`衛兵が市場を巡回しながら「徴税」と称して金を徴収している。CHRで言い逃れできるか？`;
+    +`衛兵が市場を巡回しながら「徴税」と称して金を徴収している。魅力で言い逃れできるか？`;
    dungeonTrySR({ attr:'chr', level:2,
     successTxt:()=>`うまく言いくるめ、徴税を免れた。`,
     failFn:()=>{
@@ -26567,13 +26739,13 @@ const KHAZAN_DISTRICT_EVENTS = {
    const story = document.getElementById('story');
    story.innerHTML = `<span style="color:#f0ece0"> 市場地区</span><br><br>`
     +`<b> 荷崩れ事故</b><br><br>`
-    +`脇に積まれた荷物が突然崩れ落ちてきた！DEXで回避できるか？`;
+    +`脇に積まれた荷物が突然崩れ落ちてきた！器用さで回避できるか？`;
    dungeonTrySR({ attr:'dex', level:1,
     successTxt:()=>`咄嗟に飛び退いて難を逃れた。`,
     failFn:()=>{
      const dmg=1+Math.floor(Math.random()*6); PC.con=Math.max(1,PC.con-dmg); updateHUD();
     },
-    failTxt:()=>`下敷きになってしまった。<span class="red">CON-${1}（残り${PC.con}）</span>`,
+    failTxt:()=>`下敷きになってしまった。<span class="red">体力-${1}（残り${PC.con}）</span>`,
     choicesFn:()=>[
      {label:' 散策を続ける', fn:()=>khazanGoDistrict('market', ret)},
      {label:'← 街に戻る', go:'TOWN_KHAZAN'},
@@ -26620,7 +26792,7 @@ const KHAZAN_DISTRICT_EVENTS = {
    const story = document.getElementById('story');
    story.innerHTML = `<span style="color:#f0ece0"> 市場地区</span><br><br>`
     +`<b> 突然の検問</b><br><br>`
-    +`衛兵が市場の出口を封鎖して検問を始めた。CHRで怪しまれずに通過できるか？`;
+    +`衛兵が市場の出口を封鎖して検問を始めた。魅力で怪しまれずに通過できるか？`;
    dungeonTrySR({ attr:'chr', level:2,
     successTxt:()=>`問題なく通過できた。`,
     failFn:()=>{
@@ -26648,11 +26820,11 @@ const KHAZAN_DISTRICT_EVENTS = {
    const story = document.getElementById('story');
    story.innerHTML = `<span style="color:#f0ece0"> 市場地区</span><br><br>`
     +`<b> 市場で乱闘</b><br><br>`
-    +`突然、商人同士の言い争いが乱闘に発展した。LKで巻き込まれずに済むか？`;
+    +`突然、商人同士の言い争いが乱闘に発展した。運で巻き込まれずに済むか？`;
    dungeonTrySR({ attr:'lk', level:1,
     successTxt:()=>`うまく距離を取り、乱闘に巻き込まれずに済んだ。`,
     failFn:()=>{ const dmg=1+Math.floor(Math.random()*10); PC.con=Math.max(1,PC.con-dmg); updateHUD(); },
-    failTxt:()=>`乱闘に巻き込まれ、怪我をした。<span class="red">CON-${1}（残り${PC.con}）</span>`,
+    failTxt:()=>`乱闘に巻き込まれ、怪我をした。<span class="red">体力-${1}（残り${PC.con}）</span>`,
     choicesFn:()=>[
      {label:' 散策を続ける', fn:()=>khazanGoDistrict('market', ret)},
      {label:'← 街に戻る', go:'TOWN_KHAZAN'},
@@ -26664,11 +26836,11 @@ const KHAZAN_DISTRICT_EVENTS = {
    const story = document.getElementById('story');
    story.innerHTML = `<span style="color:#f0ece0"> 市場地区</span><br><br>`
     +`<b> 火事発生！</b><br><br>`
-    +`市場の一角から突然火の手が上がった！LKで逃げ切れるか？`;
+    +`市場の一角から突然火の手が上がった！運で逃げ切れるか？`;
    dungeonTrySR({ attr:'lk', level:1,
     successTxt:()=>`人混みをかき分けて逃げ出した。無事だった。`,
     failFn:()=>{ const dmg=1+Math.floor(Math.random()*10); PC.con=Math.max(1,PC.con-dmg); updateHUD(); },
-    failTxt:()=>`逃げ遅れ、火傷を負った。<span class="red">CON-${1}（残り${PC.con}）</span>`,
+    failTxt:()=>`逃げ遅れ、火傷を負った。<span class="red">体力-${1}（残り${PC.con}）</span>`,
     choicesFn:()=>[
      {label:' 散策を続ける', fn:()=>khazanGoDistrict('market', ret)},
      {label:'← 街に戻る', go:'TOWN_KHAZAN'},
@@ -26945,7 +27117,7 @@ const KHAZAN_DISTRICT_EVENTS = {
   { id:'s16', fn:(ret)=>{
    PC.con=Math.max(1,PC.con-5); updateHUD();
    const story=document.getElementById('story');
-   story.innerHTML=`<span style="color:#d0c8b8"> 貧民地区</span><br><br><span class="red"> 病気感染<br><br>劣悪な空気で体調を崩した。CON-5（残り${PC.con}）</span>`;
+   story.innerHTML=`<span style="color:#d0c8b8"> 貧民地区</span><br><br><span class="red"> 病気感染<br><br>劣悪な空気で体調を崩した。体力-5（残り${PC.con}）</span>`;
    renderChoices([{label:' 散策を続ける',fn:()=>khazanGoDistrict('slum',ret)},{label:'← 街に戻る',go:'TOWN_KHAZAN'}]);
   }},
   // 19: 隠し財産
@@ -27012,8 +27184,8 @@ const KHAZAN_DISTRICT_EVENTS = {
         failFn:()=>{ const sl=1+Math.floor(Math.random()*6);
          GAME_TIME.totalDays+=180; updateTimebar(); checkAging();
          PC.st=Math.max(1,PC.st-sl); PC.maxSt=Math.max(1,(PC.maxSt||PC.st)-sl); updateHUD();
-         addLifeEvent('','暴動加担で逮捕。6カ月勾留。ST恒久減少。'); return true; },
-        failTxt:()=>`逮捕された。6カ月の勾留でSTが減少した…`,
+         addLifeEvent('','暴動加担で逮捕。6カ月勾留。強さ恒久減少。'); return true; },
+        failTxt:()=>`逮捕された。6カ月の勾留で強さが減少した…`,
         choicesFn:()=>[{label:'← 街に戻る',go:'TOWN_KHAZAN'}],
        }); return;
       }
@@ -27104,8 +27276,8 @@ const KHAZAN_DISTRICT_EVENTS = {
    dungeonTrySR({attr:'con',level:2,
     successTxt:()=>`なんとか感染を免れた。急いでその場を離れた。`,
     failFn:()=>{ const old=PC.st; PC.st=Math.max(1,Math.floor(old/2)); PC.maxSt=Math.max(1,Math.floor((PC.maxSt||old)/2)); updateHUD();
-     addLifeEvent('','疫病感染。ST恒久的に半減。'); return true; },
-    failTxt:()=>`疫病に感染した。後遺症でSTが半減した…`,
+     addLifeEvent('','疫病感染。強さ恒久的に半減。'); return true; },
+    failTxt:()=>`疫病に感染した。後遺症で強さが半減した…`,
     choicesFn:()=>[{label:' 散策を続ける',fn:()=>khazanGoDistrict('slum',ret)},{label:'← 街に戻る',go:'TOWN_KHAZAN'}],
    });
   }},
@@ -27125,8 +27297,8 @@ const KHAZAN_DISTRICT_EVENTS = {
         failFn:()=>{ const sl=3+Math.floor(Math.random()*16);
          GAME_TIME.totalDays+=3600; updateTimebar(); checkAging();
          PC.st=Math.max(1,PC.st-sl); PC.maxSt=Math.max(1,(PC.maxSt||PC.st)-sl); updateHUD();
-         addLifeEvent('','反乱加担で逮捕。10年勾留。ST恒久大幅減少。'); return true; },
-        failTxt:()=>`捕らえられた。10年の勾留でSTが大きく失われた…`,
+         addLifeEvent('','反乱加担で逮捕。10年勾留。強さ恒久大幅減少。'); return true; },
+        failTxt:()=>`捕らえられた。10年の勾留で強さが大きく失われた…`,
         choicesFn:()=>[{label:'← 街に戻る',go:'TOWN_KHAZAN'}],
        }); return;
       }
@@ -27332,7 +27504,7 @@ const EXPLORE_EVENTS = {
  intro:`天幕の中の老婆が手招きした。砂に描かれた紋様を見て、何か語ろうとしている。`,
  sr:{attr:'iq', level:1},
  onSuccess:()=>{ const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); PC.lk=Math.min(30,(PC.lk||10)+1); updateHUD();
- return `占い師の言葉の深意を理解した。砂漠の摂理を学び、運が開けた気がする。<br><span style="color:#e8e4d8">経験値+${ap}　LK+1</span>`; },
+ return `占い師の言葉の深意を理解した。砂漠の摂理を学び、運が開けた気がする。<br><span style="color:#e8e4d8">経験値+${ap}　運+1</span>`; },
  onFail:()=>{ const ap=5+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
  return `難解な言葉で半分も理解できなかったが、何となく教訓を得た。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; }
  },
@@ -27370,9 +27542,9 @@ const EXPLORE_EVENTS = {
  intro:`路地の奥に砂漠の神の祠を見つけた。静かな場所だ。真剣に祈りを捧げてみよう。`,
  sr:{attr:'lk', level:1},
  onSuccess:()=>{ PC.lk=Math.min(30,(PC.lk||10)+1); const ap=10+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
- return `祈りが届いた気がした。心が澄み渡り、砂漠の神の加護を感じる。<br><span style="color:#e8e4d8">LK+1　経験値+${ap}</span>`; },
+ return `祈りが届いた気がした。心が澄み渡り、砂漠の神の加護を感じる。<br><span style="color:#e8e4d8">運+1　経験値+${ap}</span>`; },
  onFail:()=>{ PC.lk=Math.min(30,(PC.lk||10)+1); updateHUD();
- return `神の意思は測りかねるが、それでも祈りを捧げた意味はあるだろう。<br><span style="color:#e8e4d8">LK+1</span>`; }
+ return `神の意思は測りかねるが、それでも祈りを捧げた意味はあるだろう。<br><span style="color:#e8e4d8">運+1</span>`; }
  },
  //  熱波
  { title:' 砂漠の熱気に晒された',
@@ -27476,7 +27648,7 @@ const EXPLORE_EVENTS = {
  intro:`木の上で弓の練習をしているエルフがいる。見よう見まねで弓を借りて射てみようとしたが…`,
  sr:{attr:'dex', level:2},
  onSuccess:()=>{ PC.dex=Math.min(30,(PC.dex||10)+1); const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
- return `矢は見事に的に命中した。エルフは驚いて称え、弓法の秘伝を授けてくれた。<br><span style="color:#e8e4d8">DEX+1　経験値+${ap}</span>`; },
+ return `矢は見事に的に命中した。エルフは驚いて称え、弓法の秘伝を授けてくれた。<br><span style="color:#e8e4d8">器用さ+1　経験値+${ap}</span>`; },
  onFail:()=>{ const ap=5+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
  return `矢はあらぬ方向へ飛んだ。エルフは苦笑いしながら基礎だけ教えてくれた。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; }
  },
@@ -27514,7 +27686,7 @@ const EXPLORE_EVENTS = {
  intro:`大樹の中をくり抜いた不思議な図書館。エルフの司書が古代語の本を差し出してきた。`,
  sr:{attr:'iq', level:2},
  onSuccess:()=>{ PC.iq=Math.min(30,(PC.iq||10)+1); const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
- return `古代語を読み解き、世界の理の一端に触れた。司書は驚いて「また来なさい」と言った。<br><span style="color:#e8e4d8">IQ+1　経験値+${ap}</span>`; },
+ return `古代語を読み解き、世界の理の一端に触れた。司書は驚いて「また来なさい」と言った。<br><span style="color:#e8e4d8">知力+1　経験値+${ap}</span>`; },
  onFail:()=>{ const ap=10+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
  return `古代語は難解だったが、挿絵と推測で何とか内容を汲み取った。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; }
  },
@@ -27563,7 +27735,7 @@ const EXPLORE_EVENTS = {
  name:'エルフの試練士', mr:38, armor:2, isHuman:true, canFlee:true,
  _exploreWin:()=>{ const ap=35+Math.floor(Math.random()*21); PC.dex=Math.min(30,(PC.dex||10)+1); updateHUD();
  gainAPAll(ap);
- return `エルフを打ち負かすと、周囲のエルフたちが尊敬の眼差しを向けた。試練士は笑顔で「合格だ」と言い、秘伝を教えてくれた。<br><span style="color:#e8e4d8">DEX+1　経験値+${ap}</span>`; }
+ return `エルフを打ち負かすと、周囲のエルフたちが尊敬の眼差しを向けた。試練士は笑顔で「合格だ」と言い、秘伝を教えてくれた。<br><span style="color:#e8e4d8">器用さ+1　経験値+${ap}</span>`; }
  }
  },
  ],
@@ -27617,7 +27789,7 @@ const EXPLORE_EVENTS = {
    intro:`宿屋の前で隻眼の老人が「お前の腕前を見せろ」と木剣を投げてきた。断るか、受けて立つか。`,
    sr:{attr:'dex', level:2},
    onSuccess:()=>{ const ap=35+Math.floor(Math.random()*21); PC.st=Math.min(30,(PC.st||10)+1); gainAPAll(ap); updateHUD();
-     return `老人の技を受け流し、一本取った。老人は「まだまだだが筋はある」と山岳流の一撃を教えてくれた。<br><span style="color:#e8e4d8">ST+1　経験値+${ap}</span>`; },
+     return `老人の技を受け流し、一本取った。老人は「まだまだだが筋はある」と山岳流の一撃を教えてくれた。<br><span style="color:#e8e4d8">強さ+1　経験値+${ap}</span>`; },
    onFail:()=>{ const dmg=2+Math.floor(Math.random()*3); PC.con=Math.max(1,PC.con-dmg); updateHUD();
      return `老人の素早い一撃をもらった。「もっと鍛えろ」と言われ、体が痛む。<br><span class="red">体力-${dmg}</span>`; }
  },
@@ -27690,7 +27862,7 @@ const EXPLORE_EVENTS = {
    sr:{attr:'iq', level:2},
    onSuccess:()=>{ PC.lk = Math.min(99,(PC.lk||1)+1); const ap=20+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
     const texts = ['「精霊の眠る地には、三つの試練がある」','「古の王は西の密林に剣を眠らせた」','「月が満ちる夜、隠し扉は口を開く」'];
-    return `碑文を読み解いた。古代の言葉が脳裏に刻まれた気がする。<br><br><i>「${texts[Math.floor(Math.random()*texts.length)]}」</i><br><span style="color:#e8e4d8">LK+1　経験値+${ap}</span>`; },
+    return `碑文を読み解いた。古代の言葉が脳裏に刻まれた気がする。<br><br><i>「${texts[Math.floor(Math.random()*texts.length)]}」</i><br><span style="color:#e8e4d8">運+1　経験値+${ap}</span>`; },
    onFail:()=>{ const ap=5+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
     return `古代語は難解すぎた。うっすらと意味が掴めただけだ。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; }
   },
@@ -27779,7 +27951,7 @@ const EXPLORE_EVENTS = {
    sr:{attr:'chr', level:2},
    onSuccess:()=>{
     if(Math.random()<0.5){ PC.lk=Math.min(99,(PC.lk||1)+1); updateHUD();
-     return `番人は長い沈黙の後、扉を開けた。木の根元に触れると、温かい光が体を包んだ。<br><span style="color:#e8e4d8">LK+1</span>`; }
+     return `番人は長い沈黙の後、扉を開けた。木の根元に触れると、温かい光が体を包んだ。<br><span style="color:#e8e4d8">運+1</span>`; }
     else { const j=generateJewel(); updateHUD();
      return `番人に認められ、中に入ると精霊の贈り物が置かれていた。<br><span style="color:#e8e4d8">宝石取得</span>`; } },
    onFail:()=>{ return `番人は首を振った。「あなたはまだ精霊に認められていない」`; }
@@ -27809,7 +27981,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{
     if(getTrust('elsia') < 70) return `長老の部屋に通されたが、「まだ早い」と短く告げられ退室を促された。`;
     PC.lk=Math.min(99,(PC.lk||1)+1); changeTrust('elsia',10); const ap=40+Math.floor(Math.random()*21); gainAPAll(ap); updateHUD();
-    return `長老は静かに語りかけた。「森を愛する者よ、この地の友として認めよう」その言葉は体の奥に響いた。<br><span style="color:#e8e4d8">LK+1　信頼度+10　経験値+${ap}</span>`; },
+    return `長老は静かに語りかけた。「森を愛する者よ、この地の友として認めよう」その言葉は体の奥に響いた。<br><span style="color:#e8e4d8">運+1　信頼度+10　経験値+${ap}</span>`; },
    onFail:()=>{ const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
     return `長老の前で緊張してしまい、言葉が出なかった。それでも静かに話を聞いてくれた。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; }
   },
@@ -27821,7 +27993,7 @@ const EXPLORE_EVENTS = {
     const titles = ['「精霊召喚の原典」','「古代王朝の秘密の年代記」','「忘れられた魔法陣の解説書」'];
     return `素早く${titles[Math.floor(Math.random()*titles.length)]}を立ち読みした。貴重な知識が頭に入った。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; },
    onFail:()=>{ PC.chr=Math.max(1,(PC.chr||1)-1); updateHUD();
-    return `番人に見つかってしまった。「禁書庫は立入禁止だ！」と叱責され、評議会地区での評判が落ちた。<br><span class="red">CHR-1</span>`; }
+    return `番人に見つかってしまった。「禁書庫は立入禁止だ！」と叱責され、評議会地区での評判が落ちた。<br><span class="red">魅力-1</span>`; }
   },
   // e_r15: 暗殺者の影
   { title:' 暗殺者の影',
@@ -27837,7 +28009,7 @@ const EXPLORE_EVENTS = {
    intro:`評議会地区の奥で、エルフたちが輪になって古い歌を歌っている。祭儀のようだ。加わることを求められた。`,
    sr:{attr:'chr', level:2},
    onSuccess:()=>{ PC.lk=Math.min(99,(PC.lk||1)+2); changeTrust('elsia',3); const ap=25+Math.floor(Math.random()*16); gainAPAll(ap); updateHUD();
-    return `輪の中に加わり、古い歌に合わせて動いた。エルフたちが微笑み、祭儀が終わると体が軽くなった。<br><span style="color:#e8e4d8">LK+2　信頼度+3　経験値+${ap}</span>`; },
+    return `輪の中に加わり、古い歌に合わせて動いた。エルフたちが微笑み、祭儀が終わると体が軽くなった。<br><span style="color:#e8e4d8">運+2　信頼度+3　経験値+${ap}</span>`; },
    onFail:()=>{ return `動きが合わず、エルフたちに穏やかに「外来者は遠慮してほしい」と追い払われた。`; }
   },
  ],
@@ -27856,7 +28028,7 @@ const EXPLORE_EVENTS = {
    intro:`天幕の入口で老婆が砂に紋様を描いている。「運命を見てやろう」と手を引かれた。`,
    sr:{attr:'iq', level:1},
    onSuccess:()=>{ PC.lk=Math.min(99,(PC.lk||1)+1); const ap=20+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
-    return `老婆の言葉の深意を理解した。「砂漠は嘘をつかない」——その言葉が心に刻まれた。<br><span style="color:#e8e4d8">LK+1　経験値+${ap}</span>`; },
+    return `老婆の言葉の深意を理解した。「砂漠は嘘をつかない」——その言葉が心に刻まれた。<br><span style="color:#e8e4d8">運+1　経験値+${ap}</span>`; },
    onFail:()=>{ const ap=5+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
     return `難解な言葉で半分も理解できなかった。老婆は肩をすくめて砂を払った。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; }
   },
@@ -28027,7 +28199,7 @@ const EXPLORE_EVENTS = {
    intro:`古老が子どもたちを囲んで砂漠の英雄の話を語っている。聞き入ってしまった。`,
    sr:{attr:'iq', level:1},
    onSuccess:()=>{ PC.lk=Math.min(99,(PC.lk||1)+1); const ap=25+Math.floor(Math.random()*16); gainAPAll(ap); updateHUD();
-    return `物語の核心——英雄が砂漠を制した知恵——を理解した。心に刻まれた。<br><span style="color:#e8e4d8">LK+1　経験値+${ap}</span>`; },
+    return `物語の核心——英雄が砂漠を制した知恵——を理解した。心に刻まれた。<br><span style="color:#e8e4d8">運+1　経験値+${ap}</span>`; },
    onFail:()=>{ const ap=8+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
     return `楽しい話だったが、教訓は掴みきれなかった。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; }
   },
@@ -28057,7 +28229,7 @@ const EXPLORE_EVENTS = {
     const trust=getTrust('al_rashid');
     if(trust>=70){
      PC.lk=Math.min(99,(PC.lk||1)+1); changeTrust('al_rashid',10); const ap=40+Math.floor(Math.random()*21); gainAPAll(ap); updateHUD();
-     return `長老たちは真剣な眼差しでこちらを見つめ、やがて静かに頷いた。「砂漠はあなたを認める」その言葉が体に響いた。<br><span style="color:#e8e4d8">LK+1　信頼度+10　経験値+${ap}</span>`;
+     return `長老たちは真剣な眼差しでこちらを見つめ、やがて静かに頷いた。「砂漠はあなたを認める」その言葉が体に響いた。<br><span style="color:#e8e4d8">運+1　信頼度+10　経験値+${ap}</span>`;
     }
     const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
     return `議会の末席に座ることを許されたが、長老たちはまだこちらを値踏みしているようだった。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; },
@@ -28171,7 +28343,7 @@ const EXPLORE_EVENTS = {
    onSuccess:()=>{ const gp=10+Math.floor(Math.random()*11); const ap=15+Math.floor(Math.random()*11); gainGPAll(gp); gainAPAll(ap); updateHUD();
     return `本物と偽物を正確に見分けた。商人は満足して報酬を払ってくれた。<br><span style="color:#e8e4d8">+${gp}GP　経験値+${ap}</span>`; },
    onFail:()=>{ PC.chr=Math.max(1,(PC.chr||1)-1); updateHUD();
-    return `判断を誤ってしまった。商人は失望し、悪い噂が広まった。<br><span class="red">CHR-1</span>`; }
+    return `判断を誤ってしまった。商人は失望し、悪い噂が広まった。<br><span class="red">魅力-1</span>`; }
   },
   // a_m11: 遊牧民の織物
   { title:' 遊牧民の織物',
@@ -28204,7 +28376,7 @@ const EXPLORE_EVENTS = {
    intro:`バザールの砂地に足を取られたとき、何かが足の下でぴかりと光った。`,
    sr:{attr:'lk', level:2},
    onSuccess:()=>{ PC.lk=Math.min(99,(PC.lk||1)+1); const j=generateJewel(); updateHUD();
-    return `掘り返すと古代王国の金貨が出てきた。しかも複数。価値ある発見だ。<br><span style="color:#e8e4d8">LK+1　宝石取得</span>`; },
+    return `掘り返すと古代王国の金貨が出てきた。しかも複数。価値ある発見だ。<br><span style="color:#e8e4d8">運+1　宝石取得</span>`; },
    onFail:()=>{ const ap=8+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
     return `掘り返したが、ただの石だった。砂漠は気まぐれだ。<br><span style="color:#e8e4d8">経験値+${ap}</span>`; }
   },
@@ -28222,7 +28394,7 @@ const EXPLORE_EVENTS = {
    intro:`色あせた地図を広げた男が「遺跡の場所がわかる地図だ」と近づいてきた。`,
    sr:{attr:'iq', level:1},
    onSuccess:()=>{ PC.lk=Math.min(99,(PC.lk||1)+1); const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
-    return `地図の記号を読み解き、本物だと確信した。古代遺跡への道が頭に刻まれた。<br><span style="color:#e8e4d8">LK+1　経験値+${ap}</span>`; },
+    return `地図の記号を読み解き、本物だと確信した。古代遺跡への道が頭に刻まれた。<br><span style="color:#e8e4d8">運+1　経験値+${ap}</span>`; },
    onFail:()=>{ PC.gold=Math.max(0,(PC.gold||0)-10); updateHUD();
     return `買ってみたが、白紙同然の偽物だった。<br><span class="red">-10GP</span>`; }
   },
@@ -29224,12 +29396,12 @@ const RDUNG_DOOR = [
 
 // テーブルV：罠の種類（d8）
 const RDUNG_TRAP = [
- {name:'落とし穴',   fn:(actor)=>{ const d=Nd6(2); actor.con=Math.max(0,actor.con-d); return `落とし穴！CON-${d}`; }},
- {name:'毒矢',       fn:(actor)=>{ const d=Nd6(1)+2; actor.con=Math.max(0,actor.con-d); return `毒矢が飛んできた！CON-${d}`; }},
- {name:'落石',       fn:(actor)=>{ const d=Nd6(2)+2; actor.con=Math.max(0,actor.con-d); return `天井から岩が落下！CON-${d}`; }},
+ {name:'落とし穴',   fn:(actor)=>{ const d=Nd6(2); actor.con=Math.max(0,actor.con-d); return `落とし穴！体力-${d}`; }},
+ {name:'毒矢',       fn:(actor)=>{ const d=Nd6(1)+2; actor.con=Math.max(0,actor.con-d); return `毒矢が飛んできた！体力-${d}`; }},
+ {name:'落石',       fn:(actor)=>{ const d=Nd6(2)+2; actor.con=Math.max(0,actor.con-d); return `天井から岩が落下！体力-${d}`; }},
  {name:'毒ガス',     fn:(actor)=>{ actor._poisoned=true; return `毒ガスが噴出！毒状態になった`; }},
- {name:'火炎噴射',   fn:(actor)=>{ const d=Nd6(1)+1; actor.con=Math.max(0,actor.con-d); return `炎が噴き出した！CON-${d}`; }},
- {name:'スパイク',   fn:(actor)=>{ const d=Nd6(1)+1; actor.con=Math.max(0,actor.con-d); return `床からスパイクが飛び出した！CON-${d}`; }},
+ {name:'火炎噴射',   fn:(actor)=>{ const d=Nd6(1)+1; actor.con=Math.max(0,actor.con-d); return `炎が噴き出した！体力-${d}`; }},
+ {name:'スパイク',   fn:(actor)=>{ const d=Nd6(1)+1; actor.con=Math.max(0,actor.con-d); return `床からスパイクが飛び出した！体力-${d}`; }},
  {name:'テレポート', fn:(actor)=>{ return `テレポート罠！別の部屋に飛ばされた（入口へ戻る）`; }},
  {name:'縄罠',       fn:(actor)=>{ return `縄罠に引っかかった！（次の行動に-2）`; }},
 ];
@@ -29246,7 +29418,7 @@ const RDUNG_ROOM_CONTENT = [
 
 // テーブルVII：特殊部屋（d6）
 const RDUNG_SPECIAL_ROOM = [
- {label:'泉がある', fn:()=>{ PC.con=Math.min(PC.maxCon,PC.con+Nd6(1)+1); updateHUD(); return `泉の水を飲んだ。CON+${Nd6(1)+1}`; }},
+ {label:'泉がある', fn:()=>{ PC.con=Math.min(PC.maxCon,PC.con+Nd6(1)+1); updateHUD(); return `泉の水を飲んだ。体力+${Nd6(1)+1}`; }},
  {label:'祭壇がある（知力 能力値テスト）', fn:()=>null},
  {label:'宝箱がある（罠付き）', fn:()=>null},
  {label:'古い武器が壁に掛かっている', fn:()=>null},
@@ -30957,7 +31129,7 @@ function _tavernRumorGo(townId, districtType){
  updateHUD();
  enterVillageBackAlley(townId, districtType);
  // 酒場の主人の誘いで向かった今回の町歩きだけ、聞いた噂の遭遇率を倍にする（この町歩きの間だけ有効。入り直すと消える）
- if(PC._yeldunDungeon) PC._yeldunDungeon.tavernRumorBoost = true;
+ if(PC._yeldunDungeon){ PC._yeldunDungeon.tavernRumorBoost = true; PC._yeldunDungeon.rumorAtNode = 2 + Math.floor(Math.random()*2); }   // 聞いた噂の出来事は、歩き出して2〜3ノード目に必ず出す
 }
 
 // 酒場の主人が噂を語り、「調べに行ってみないか」と誘う（語ったら true）
@@ -33414,13 +33586,13 @@ const YD_T_ROOM_CONTENTS_HIDEOUT = [
 
 // テーブルIX: 罠の種類（簡易）
 const YD_T_TRAP_CORRIDOR = [
- {r:[1,10],  type:'pit',        label:'落とし穴',   fn:(fl)=>{ const d=fl*3+Math.floor(Math.random()*fl*3); return {dmg:d,msg:`落とし穴に落ちた！CON-${d}`}; }},
+ {r:[1,10],  type:'pit',        label:'落とし穴',   fn:(fl)=>{ const d=fl*3+Math.floor(Math.random()*fl*3); return {dmg:d,msg:`落とし穴に落ちた！体力-${d}`}; }},
  {r:[11,15], type:'gas',        label:'毒ガス',     fn:(fl)=>{ return {poison:true,msg:'毒ガスが噴出した！体が痺れる……（毒状態）'}; }},
- {r:[16,20], type:'projectile', label:'飛び道具',   fn:(fl)=>{ const d=fl*2+Math.floor(Math.random()*4); return {dmg:d,msg:`矢が飛んできた！CON-${d}`}; }},
+ {r:[16,20], type:'projectile', label:'飛び道具',   fn:(fl)=>{ const d=fl*2+Math.floor(Math.random()*4); return {dmg:d,msg:`矢が飛んできた！体力-${d}`}; }},
  {r:[31,35], type:'net',        label:'罠の網',     fn:(fl)=>{ return {combat:true,msg:'罠の網に捕まった！身動きが取れないところを襲われた！'}; }},
- {r:[61,65], type:'smoke',      label:'煙幕',       fn:(fl)=>{ return {msg:'煙幕が充満した！視界が制限された。'}; }},
- {r:[86,90], type:'deadfall',   label:'落石',       fn:(fl)=>{ const d=fl*2+Math.floor(Math.random()*fl*4); return {dmg:d,msg:`天井から岩が落下！CON-${d}`}; }},
- {r:[96,100],type:'flame',      label:'炎の通路',   fn:(fl)=>{ const d=fl*3+Math.floor(Math.random()*fl*3); return {dmg:d,msg:`炎が噴出！CON-${d}`}; }},
+ {r:[61,65], type:'smoke',      label:'煙幕',       fn:(fl)=>{ return {smoke:true,msg:'煙幕が充満した！視界が利かず、手探りで進むしかない。'}; }},
+ {r:[86,90], type:'deadfall',   label:'落石',       fn:(fl)=>{ const d=fl*2+Math.floor(Math.random()*fl*4); return {dmg:d,msg:`天井から岩が落下！体力-${d}`}; }},
+ {r:[96,100],type:'flame',      label:'炎の通路',   fn:(fl)=>{ const d=fl*3+Math.floor(Math.random()*fl*3); return {dmg:d,msg:`炎が噴出！体力-${d}`}; }},
 ];
 
 // テーブルXI: モンスターテーブル（MR付き・資料準拠）
@@ -33621,6 +33793,7 @@ function ydRollTrapLevel(floor){
 function _ydApplyTrapResult(res, node, floor, actor=PC){
  if(res.dmg){ actor.con=Math.max(0,actor.con-res.dmg); updateHUD(); }
  if(res.poison){ actor._poisoned = true; updateHUD(); }
+ if(res.smoke && PC._yeldunDungeon) PC._yeldunDungeon._smoke = 2; // 次の分かれ道2か所は行き先を選べない
  if(res.combat){
   const maxFloor = Math.max(...Object.keys(YD_MONSTER_TABLES).map(Number));
   const table = YD_MONSTER_TABLES[Math.min(floor, maxFloor)] || YD_MONSTER_TABLES[1];
@@ -33740,7 +33913,7 @@ function enterVillageBackAlley(townId, districtType){
  checkVillageDeliveryExpiry();
  PC._yeldunDungeon = initVillageBackAlley(townId, districtType);
  // 前回分の探索フラグをクリア（毎回再生成のためノードIDが使い回されるので必須）
- Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')||k.startsWith('yd_vf_')||k.startsWith('yd_vi_')||k.startsWith('yd_dlv_')||k.startsWith('yd_wt_')||k.startsWith('yd_bh_')).forEach(k=>delete PC[k]);
+ Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_tm_')||k.startsWith('yd_hb_')||k.startsWith('yd_t_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')||k.startsWith('yd_vf_')||k.startsWith('yd_vi_')||k.startsWith('yd_dlv_')||k.startsWith('yd_wt_')||k.startsWith('yd_bh_')).forEach(k=>delete PC[k]);
  initTorch();
  const f1 = PC._yeldunDungeon.floors[1];
  ydGoNode(f1.entryNodeId, 1);
@@ -33748,6 +33921,9 @@ function enterVillageBackAlley(townId, districtType){
 
 // ── 賞金首アジト：街区・裏路地探索中に発見した際、その場に生成する小規模な屋内ダンジョン ──
 function initBountyHideout(bq){
+ // アジト内のノードIDは毎回同じ（YDH_F1_2 など）なので、前回のアジトで立てた「処理済み」フラグ（賞金首の部屋・手下・宝箱など）を必ず消す。
+ // 消さないと、2回目以降のアジトで賞金首の部屋が「もう片付けた」扱いになり、突入できなくなる
+ Object.keys(PC).filter(k=>/^yd_[a-z]+_YDH_/.test(k) || /^YDH_/.test(k)).forEach(k=>delete PC[k]);
  const level = Math.max(3, bq.targetLevel || 5);
  const messy = Math.random() < 0.7; // 70%荒れている・30%妙に整頓されている
  const design = {
@@ -33762,6 +33938,7 @@ function initBountyHideout(bq){
   isHideoutDungeon: true,
   bountyQuestId: bq.id,
   bossPlaced: false,
+  bossAtNode: 2 + Math.floor(Math.random()*2), // 入ってから2〜3ノード目に賞金首本人を必ず置く
   // フロア数はランダム（階段が出た分だけ自然に増える）。潜りすぎないよう緩い上限を設ける
   maxFloor: 1 + Math.floor(Math.random()*3), // 1〜3階
  };
@@ -33953,7 +34130,7 @@ function enterValdheimGrandDungeon(){
   vd.dungeon = ydInitValdheimDungeon();
   vd.lastGenDay = today;
   // 前回分の探索フラグをクリア（構造が変わるため。討伐ダンジョンの新規発行時と同じ考え方）
-  Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')).forEach(k=>delete PC[k]);
+  Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_tm_')||k.startsWith('yd_hb_')||k.startsWith('yd_t_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')).forEach(k=>delete PC[k]);
   // 保管庫もリセット（中身は失われる）
   PC._valdheimStash = { floors:{} };
   showSaveToast('迷宮の構造が変化していた……');
@@ -34276,7 +34453,10 @@ function ydExplore(fromNodeId, direction){
  const bountyRoll = bountyEligible && Math.random() < 0.30;
 
  // 賞金首アジト内部：まだ本体を配置していなければ、残りスロットが尽きる前に強制配置する
- const mustBoss = dung.isHideoutDungeon && !dung.bossPlaced && remainingSlots <= 1;
+ const _hideoutNodes = dung.isHideoutDungeon
+  ? Object.values(dung.floors).reduce((a,f)=>a + Object.values(f.nodeMap).filter(n=>n.type!=='entrance' && n.type!=='stair_landing').length, 0)
+  : 0;
+ const mustBoss = dung.isHideoutDungeon && !dung.bossPlaced && (remainingSlots <= 1 || _hideoutNodes >= (dung.bossAtNode || 3) - 1);
 
  // ローカル手配：町の手配書に未解決の対象がいれば、5%の確率で遭遇ノードを生成（行政地区・旧市街どちらでも）
  const wantedBoard = dung.districtType ? getLocalWantedBoard(dung.villageId) : null;
@@ -34298,7 +34478,10 @@ function ydExplore(fromNodeId, direction){
   && (miniBoard.notices||[]).some(n=>n && typeof n==='object' && n.resolveType==='rumor' && n.heardAtTavern));
  // 酒場の主人の誘いで向かった町歩きでは、噂の遭遇の実質確率（約36%）を倍の約72%にする（先に判定する確率を67%にする。外れても従来の15%判定が残る）
  const heardRumorP = dung.tavernRumorBoost ? 0.67 : 0.25;
- const heardRumorRoll = miniQuestEligible && heardRumorActive && Math.random() < heardRumorP;
+ // 酒場の主人の誘いで来た場合：2〜3ノード目に、聞いた噂の出来事を必ず出す（他の遭遇より優先）
+ const rumorForced = !!(dung.tavernRumorBoost && heardRumorActive && !dung._rumorPlaced && !mustHunt && !mustAnchor && !atLimit
+  && nonEntryNodes >= (dung.rumorAtNode || 3) - 1);
+ const heardRumorRoll = rumorForced || (miniQuestEligible && heardRumorActive && Math.random() < heardRumorP);
  const miniQuestRoll = heardRumorRoll || (miniQuestEligible && Math.random() < 0.15);
  const miniSubtype = miniQuestRoll
   ? (heardRumorRoll ? 'rumor' : activeMiniTypes[Math.floor(Math.random()*activeMiniTypes.length)])
@@ -34312,7 +34495,9 @@ function ydExplore(fromNodeId, direction){
    ? {type: forcedAnchor==='forage' ? 'village_forage' : 'encounter', anchorTag: forcedAnchor}
    : mustBoss
     ? {type:'hideout_boss'}             // アジト本体との遭遇を強制配置
-    : deliveryRoll
+    : rumorForced
+     ? {type:'town_mini_resolve', miniSubtype:'rumor'}   // 酒場の噂の出来事を必ず配置
+     : deliveryRoll
      ? {type:'village_delivery'}         // 宅配先発見（10%）
      : bountyRoll
       ? {type:'bounty_hideout', bountyQuestId: bountyQuest.id} // 賞金首アジト発見（30%）
@@ -34324,6 +34509,19 @@ function ydExplore(fromNodeId, direction){
          ? {type:'dead_end'}                 // 上限到達（討伐完了済み／アンカー配置済み）
          : ydRoll100(dung.isHideoutDungeon ? YD_T_PASSAGE_HIDEOUT : (dung.isVillageBackAlley ? YD_T_PASSAGE_VILLAGE : YD_T_PASSAGE)); // 通常テーブル
  let node  = ydBuildNode(newId, fromNodeId, direction, roll, floor);
+ // 酒場の誘いで来た町歩き：噂の出来事がまだ出ていないのに、最後の進路が行き止まりになる場合は、そこに噂の出来事を置く
+ if(dung.tavernRumorBoost && heardRumorActive && !dung._rumorPlaced && node.type !== 'town_mini_resolve' && !(node.pending && node.pending.length) && !mustHunt && !mustAnchor){
+  let openR = 0;
+  Object.values(floorData.nodeMap).forEach(n=>{
+   (n.pending||[]).forEach(dir=>{
+    if(n.exits && n.exits[dir]) return;
+    if(n.id === fromNodeId && dir === direction) return;
+    openR++;
+   });
+  });
+  if(openR === 0) node = ydBuildNode(newId, fromNodeId, direction, {type:'town_mini_resolve', miniSubtype:'rumor'}, floor);
+ }
+ if(node.type === 'town_mini_resolve' && node.miniSubtype === 'rumor') dung._rumorPlaced = true;
  // 賞金首アジト：本体がまだ出ていないのに、この階の最後の進路が行き止まり（階段も含む）になる場合は、そこに本体を置く
  if(dung.isHideoutDungeon && !dung.bossPlaced && node.type !== 'hideout_boss' && !(node.pending && node.pending.length)){
   let openRoutes = 0;
@@ -36245,14 +36443,14 @@ function ydActionChoices(node, floor){
      PC.con = Math.max(0, PC.con-dmg); updateHUD();
      return dmg;
     };
-    ch.push({label:` 慎重に調べる（${(node.trapAttr||'dex').toUpperCase()} 能力値テスト）`, fn:()=>{
+    ch.push({label:` 慎重に調べる（${({dex:'器用さ',iq:'知力',lk:'運',st:'強さ',con:'体力',chr:'魅力',spd:'素早さ'})[node.trapAttr||'dex']||'器用さ'} 能力値テスト）`, fn:()=>{
      dungeonTrySR({
       attr: node.trapAttr||'dex',
       level: _trapLv,
       flagKey: _tk,
       successTxt: ()=>`<b>【${node.trapName}】を発見！</b><br>危なかった……慎重に解除して安全を確保した。`,
       failFn: ()=>{ PC[_tk]=true; const d=dmgOnFail(); PC[_tk+'_dmg']=d; },
-      failTxt: ()=>`<b>罠発動！【${node.trapName}】</b><br>避けきれなかった。CON-${PC[_tk+'_dmg']||0}`,
+      failTxt: ()=>`<b>罠発動！【${node.trapName}】</b><br>避けきれなかった。体力-${PC[_tk+'_dmg']||0}`,
       choicesFn: ()=>[{label:'▶ 先へ進む', fn:()=>ydGoNode(_nid,_fl)}],
      });
     }});
@@ -36260,7 +36458,7 @@ function ydActionChoices(node, floor){
      PC[_tk]=true;
      const d=dmgOnFail(); PC[_tk+'_dmg']=d;
      document.getElementById('story').innerHTML+=
-      `<br><span style="color:#e0d0d0">罠発動！【${node.trapName}】CON-${d}</span>`;
+      `<br><span style="color:#e0d0d0">罠発動！【${node.trapName}】体力-${d}</span>`;
      if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
      renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
     }});
@@ -36612,7 +36810,7 @@ function ydActionChoices(node, floor){
        },
        onFail:()=>{
         PC.st = Math.max(0, (PC.st||0)-2);
-        finish(`<span style="color:#e0d0d0"> 巨木はびくともせず、無理に力んで腰を痛めた。（ST-2、宿屋で回復）</span>`);
+        finish(`<span style="color:#e0d0d0"> 巨木はびくともせず、無理に力んで腰を痛めた。（強さ-2、宿屋で回復）</span>`);
        },
       });
      }});
@@ -36827,7 +37025,7 @@ function ydActionChoices(node, floor){
        },
        onFail:()=>{
         PC.st = Math.max(0, (PC.st||0)-2);
-        finish(`<span style="color:#e0d0d0"> トロッコはびくともせず、無理に力んで腰を痛めた。（ST-2、宿屋で回復）</span>`);
+        finish(`<span style="color:#e0d0d0"> トロッコはびくともせず、無理に力んで腰を痛めた。（強さ-2、宿屋で回復）</span>`);
        },
       });
      }});
@@ -37870,16 +38068,23 @@ function ydActionChoices(node, floor){
       setupSavingRoll({ attr:'dex', level:2,
        onSuccess:()=>finish(`<span style="color:#f0ece0"> とっさに腕を掴み、スリを未然に防いだ。子供は泣きそうな顔で逃げていった。</span>`),
        onFail:()=>{
-        const gp = Math.min(PC.gold||0, 3);
-        PC.gold = Math.max(0, (PC.gold||0)-gp);
+        // 所持金（金貨・銀貨・銅貨の合計）から1〜3GP相当を抜かれる。持ち合わせが少なければ、ある分だけ
+        const lossCP = Math.min(totalCP(), (1 + Math.floor(Math.random()*3)) * 100);
+        if(lossCP > 0) payPrice(lossCP / 100);
         updateHUD();
-        finish(`<span style="color:#e0d0d0"> 一瞬の隙をつかれ、財布の中身をいくらか抜かれてしまった。（-${gp}G）</span>`);
+        const lossTxt = lossCP <= 0 ? '幸い、抜かれるような中身は残っていなかった。' : `（-${lossCP % 100 === 0 ? lossCP/100 + 'GP' : lossCP + 'CP'}）`;
+        finish(`<span style="color:#e0d0d0"> 一瞬の隙をつかれ、財布の中身をいくらか抜かれてしまった。${lossTxt}</span>`);
        },
       });
      }});
      ch.push({label:' 見逃してやる', fn:()=>{
       changeAlignment(3, 0);
-      finish(`<span style="color:#e8e0d0"> 気づかないふりをして、そのまま行かせてやった。</span>`);
+      // 見逃した場合も、懐の中身は少し持っていかれる（1〜2GP相当。持ち合わせが少なければある分だけ）
+      const lossCP = Math.min(totalCP(), (1 + Math.floor(Math.random()*2)) * 100);
+      if(lossCP > 0) payPrice(lossCP / 100);
+      updateHUD();
+      const lossTxt = lossCP <= 0 ? '' : `（-${lossCP % 100 === 0 ? lossCP/100 + 'GP' : lossCP + 'CP'}）`;
+      finish(`<span style="color:#e8e0d0"> 気づかないふりをして、そのまま行かせてやった。子供は、懐の中身をいくらか抜いて、素早く路地の奥へ消えた。${lossTxt}</span>`);
      }});
      break;
 
@@ -38143,7 +38348,7 @@ function ydActionChoices(node, floor){
       setupSavingRoll({ attr:'iq', level:2,
        onSuccess:()=>{
         PC.iq=Math.min(30,(PC.iq||10)+1); const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
-        finish(`<span style="color:#f0ece0"> 古代語を読み解き、世界の理の一端に触れた。司書は驚いて「また来なさい」と言った。（IQ+1／経験値+${ap}）</span>`);
+        finish(`<span style="color:#f0ece0"> 古代語を読み解き、世界の理の一端に触れた。司書は驚いて「また来なさい」と言った。（知力+1／経験値+${ap}）</span>`);
        },
        onFail:()=>{
         const ap=10+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
@@ -38187,7 +38392,7 @@ function ydActionChoices(node, floor){
        onWin:()=>{
         PC[node.eventKey]=true;
         const ap=35+Math.floor(Math.random()*21); PC.dex=Math.min(30,(PC.dex||10)+1); gainAPAll(ap); updateHUD();
-        document.getElementById('story').innerHTML+=`<br><br><span style="color:#f0ece0"> エルフを打ち負かすと、周囲のエルフたちが尊敬の眼差しを向けた。試練士は笑顔で「合格だ」と言い、秘伝を教えてくれた。（DEX+1／経験値+${ap}）</span>`;
+        document.getElementById('story').innerHTML+=`<br><br><span style="color:#f0ece0"> エルフを打ち負かすと、周囲のエルフたちが尊敬の眼差しを向けた。試練士は笑顔で「合格だ」と言い、秘伝を教えてくれた。（器用さ+1／経験値+${ap}）</span>`;
         renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
        },
       });
@@ -38239,7 +38444,7 @@ function ydActionChoices(node, floor){
       setupSavingRoll({ attr:'dex', level:2,
        onSuccess:()=>{
         PC.dex=Math.min(30,(PC.dex||10)+1); const ap=15+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
-        finish(`<span style="color:#f0ece0"> 矢は見事に的に命中した。エルフは驚いて称え、弓法の秘伝を授けてくれた。（DEX+1／経験値+${ap}）</span>`);
+        finish(`<span style="color:#f0ece0"> 矢は見事に的に命中した。エルフは驚いて称え、弓法の秘伝を授けてくれた。（器用さ+1／経験値+${ap}）</span>`);
        },
        onFail:()=>{
         const ap=5+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
@@ -38472,7 +38677,7 @@ function ydActionChoices(node, floor){
       setupSavingRoll({ attr:'iq', level:1,
        onSuccess:()=>{
         const ap=15+Math.floor(Math.random()*11); PC.lk=Math.min(30,(PC.lk||10)+1); gainAPAll(ap); updateHUD();
-        finish(`<span style="color:#f0ece0"> 占い師の言葉の深意を理解した。砂漠の摂理を学び、運が開けた気がする。（LK+1／経験値+${ap}）</span>`);
+        finish(`<span style="color:#f0ece0"> 占い師の言葉の深意を理解した。砂漠の摂理を学び、運が開けた気がする。（運+1／経験値+${ap}）</span>`);
        },
        onFail:()=>{
         const ap=5+Math.floor(Math.random()*6); gainAPAll(ap); updateHUD();
@@ -38490,11 +38695,11 @@ function ydActionChoices(node, floor){
       setupSavingRoll({ attr:'lk', level:1,
        onSuccess:()=>{
         PC.lk=Math.min(30,(PC.lk||10)+1); const ap=10+Math.floor(Math.random()*11); gainAPAll(ap); updateHUD();
-        finish(`<span style="color:#f0ece0"> 祈りが届いた気がした。心が澄み渡り、砂漠の神の加護を感じる。（LK+1／経験値+${ap}）</span>`);
+        finish(`<span style="color:#f0ece0"> 祈りが届いた気がした。心が澄み渡り、砂漠の神の加護を感じる。（運+1／経験値+${ap}）</span>`);
        },
        onFail:()=>{
         PC.lk=Math.min(30,(PC.lk||10)+1); updateHUD();
-        finish(`<span style="color:#e0d0d0"> 神の意思は測りかねるが、それでも祈りを捧げた意味はあるだろう。（LK+1）</span>`);
+        finish(`<span style="color:#e0d0d0"> 神の意思は測りかねるが、それでも祈りを捧げた意味はあるだろう。（運+1）</span>`);
        },
       });
      }});
@@ -39839,7 +40044,7 @@ function ydActionChoices(node, floor){
           GAME_TIME.totalDays+=180; updateTimebar(); checkAging();
           PC.st=Math.max(1,PC.st-sl); PC.maxSt=Math.max(1,(PC.maxSt||PC.st)-sl); updateHUD();
           PC[node.eventKey]=true;
-          document.getElementById('story').innerHTML+=`<br><br><span style="color:#e0d0d0"> 逮捕された。6ヶ月の勾留でSTが減少した…（強さ-${sl}）</span>`;
+          document.getElementById('story').innerHTML+=`<br><br><span style="color:#e0d0d0"> 逮捕された。6ヶ月の勾留で強さが減少した…（強さ-${sl}）</span>`;
           renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
          },
         });
@@ -39958,8 +40163,8 @@ function ydActionChoices(node, floor){
        onSuccess:()=>finish(`<span style="color:#f0ece0"> なんとか感染を免れた。急いでその場を離れた。</span>`),
        onFail:()=>{
         const old=PC.st; PC.st=Math.max(1,Math.floor(old/2)); PC.maxSt=Math.max(1,Math.floor((PC.maxSt||old)/2)); updateHUD();
-        addLifeEvent('','疫病感染。ST恒久的に半減。');
-        finish(`<span style="color:#e0d0d0"> 疫病に感染した。後遺症でSTが半減した…（強さ ${old}→${PC.st}）</span>`);
+        addLifeEvent('','疫病感染。強さ恒久的に半減。');
+        finish(`<span style="color:#e0d0d0"> 疫病に感染した。後遺症で強さが半減した…（強さ ${old}→${PC.st}）</span>`);
        },
       });
      }});
@@ -39981,9 +40186,9 @@ function ydActionChoices(node, floor){
           const sl=3+Math.floor(Math.random()*16);
           GAME_TIME.totalDays+=3600; updateTimebar(); checkAging();
           PC.st=Math.max(1,PC.st-sl); PC.maxSt=Math.max(1,(PC.maxSt||PC.st)-sl); updateHUD();
-          addLifeEvent('','反乱加担で逮捕。10年勾留。ST恒久大幅減少。');
+          addLifeEvent('','反乱加担で逮捕。10年勾留。強さ恒久大幅減少。');
           PC[node.eventKey]=true;
-          document.getElementById('story').innerHTML+=`<br><br><span style="color:#e0d0d0"> 捕らえられた。10年の勾留でSTが大きく失われた…（強さ-${sl}）</span>`;
+          document.getElementById('story').innerHTML+=`<br><br><span style="color:#e0d0d0"> 捕らえられた。10年の勾留で強さが大きく失われた…（強さ-${sl}）</span>`;
           renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
          },
         });
@@ -40243,9 +40448,28 @@ function ydMoveChoices(node, floor){
   }
  }
 
+ // 煙幕の中：分かれ道では行き先を選べず、手探りでどれかに進む
+ let _smoked = false;
+ if(dung?._smoke > 0){
+  const _sb = node.exits?.back;
+  const cands = ch.slice();
+  if(_sb && node.type!=='entrance') cands.push({label: dirLabel('back'), fn:()=>ydGoNode(_sb, floor)}); // 来た道に戻ることもある
+  if(cands.length >= 2){
+  _smoked = true;
+  const chosen = cands[Math.floor(Math.random()*cands.length)];
+  ch.length = 0;
+  ch.push({label:'▶ 手探りで進む（煙で行き先が分からない）', fn:()=>{
+   dung._smoke--;
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += '<br><span style="color:#c8b8a0"> 煙の中、壁に手をついて進んだ……</span>';
+   chosen.fn();
+  }});
+  }
+ }
+
  // 戻る
  const back = node.exits?.back;
- if(back && node.type!=='entrance'){
+ if(!_smoked && back && node.type!=='entrance'){
   ch.push({label: dirLabel('back'), fn:()=>ydGoNode(back, floor)});
  }
  // 入口の場合は外へ
@@ -40416,12 +40640,12 @@ function ydGoFloor(targetFloor, fromStairNodeId, fromFloor){
 function ydStatueEffect(floor, nodeId, statueKey){
  const r = ydD(100);
  if(r<=20) return '何も起きなかった。（魔力は尽きているようだ）';
- if(r<=22){ const v=ydDn(6,1)*floor; PC.st=Math.min(PC.st+v,PC.st+v); updateHUD(); return `力が湧いてきた！ST+${v}`; }
- if(r<=24){ const v=ydDn(6,1)*floor; PC.iq=(PC.iq||10)+v; updateHUD(); return `知性が高まった！IQ+${v}`; }
- if(r<=26){ const v=ydDn(6,1)*floor; PC.lk=(PC.lk||10)+v; updateHUD(); return `幸運が高まった！LK+${v}`; }
- if(r<=28){ const v=ydDn(6,1)*floor; PC.con=Math.min(PC.maxCon,PC.con+v); updateHUD(); return `体が頑強になった！CON+${v}`; }
- if(r<=53){ const v=ydDn(6,1)*floor; PC.con=Math.max(0,PC.con-v); updateHUD(); return `体が蝕まれた！CON-${v}`; }
- if(r<=58){ PC.con=PC.maxCon; updateHUD(); return '傷がすべて癒えた！CON全回復！'; }
+ if(r<=22){ const v=ydDn(6,1)*floor; PC.st=Math.min(PC.st+v,PC.st+v); updateHUD(); return `力が湧いてきた！強さ+${v}`; }
+ if(r<=24){ const v=ydDn(6,1)*floor; PC.iq=(PC.iq||10)+v; updateHUD(); return `知性が高まった！知力+${v}`; }
+ if(r<=26){ const v=ydDn(6,1)*floor; PC.lk=(PC.lk||10)+v; updateHUD(); return `幸運が高まった！運+${v}`; }
+ if(r<=28){ const v=ydDn(6,1)*floor; PC.con=Math.min(PC.maxCon,PC.con+v); updateHUD(); return `体が頑強になった！体力+${v}`; }
+ if(r<=53){ const v=ydDn(6,1)*floor; PC.con=Math.max(0,PC.con-v); updateHUD(); return `体が蝕まれた！体力-${v}`; }
+ if(r<=58){ PC.con=PC.maxCon; updateHUD(); return '傷がすべて癒えた！体力全回復！'; }
  if(r<=85){
   // 石像が動き出して攻撃してくる（呼び出し元でOKボタンを挟んでから戦闘を開始させるため、
   // ここでは戦闘を起動せず「戦闘が必要」という印を返すだけにする）
@@ -40435,7 +40659,7 @@ function ydStatueEffect(floor, nodeId, statueKey){
 function _renderStatueEffectResult(eff, nodeId, floor){
  const stEl = document.getElementById('story');
  if(eff && typeof eff === 'object' && eff.combat){
-  stEl.innerHTML += `<br><span style="color:#f0ddd8"> 石像が動き出した！（CombatRating${eff.mr}）</span>`;
+  stEl.innerHTML += `<br><span style="color:#f0ddd8"> 石像が動き出した！</span>`;
   renderChoices([{label:'▶ OK', fn:()=>{
    startCombat({
     enemies:[{name:'動く石像', mr:eff.mr, curMR:eff.mr, armor:4}],
@@ -40463,11 +40687,11 @@ function ydFountainEffect(floor){
  if(r<=30) return '何も起きなかった。（魔力は尽きているようだ）';
  if(r<=35){ PC.con=Math.max(0,PC.con-999); updateHUD(); return '即死の毒！（運 能力値テストで回避判定）'; }
  if(r<=40) return '毒や病気が治癒した！';
- if(r<=55){ const v=ydDn(6,1)*floor; PC.con=Math.min(PC.maxCon,PC.con+v); updateHUD(); return `清涼な水でCON+${v}回復！`; }
+ if(r<=55){ const v=ydDn(6,1)*floor; PC.con=Math.min(PC.maxCon,PC.con+v); updateHUD(); return `清涼な水で体力+${v}回復！`; }
  if(r<=62){ const v=ydDn(6,2)*floor; gainGPAll(v*5); updateHUD(); return `泉の底にコインがあった！+${v*5}GP`; }
- if(r<=80){ const v=ydDn(6,1)*floor; PC.con=Math.min(PC.maxCon,PC.con+v); updateHUD(); return `力強い水！CON+${v}（一時的）`; }
- if(r<=87){ const v=ydDn(6,1); PC.con=Math.max(0,PC.con-Math.floor(PC.con/2)); updateHUD(); return `汚染された水！STR・CON半減（24時間）`; }
- if(r<=92){ PC.con=PC.maxCon; updateHUD(); return 'すべての傷が癒えた！CON全回復！'; }
+ if(r<=80){ const v=ydDn(6,1)*floor; PC.con=Math.min(PC.maxCon,PC.con+v); updateHUD(); return `力強い水！体力+${v}（一時的）`; }
+ if(r<=87){ const v=ydDn(6,1); PC.con=Math.max(0,PC.con-Math.floor(PC.con/2)); updateHUD(); return `汚染された水！強さ・体力半減（24時間）`; }
+ if(r<=92){ PC.con=PC.maxCon; updateHUD(); return 'すべての傷が癒えた！体力全回復！'; }
  return '泉の水が体を満たした。何かが変わった気がする。';
 }
 
@@ -41273,6 +41497,11 @@ function _failGraveyardMoanRumor(node, floor, failMsg){
 
 // 「墓地の唸り声」：深夜の墓地で、封印の解かれた塚を発見する
 function _graveyardMoanScene(node, floor, dung, reward){
+ // 場面は深夜：現在が深夜でなければ、深夜（22時）まで時刻を進める（終わって街路に戻っても深夜のまま）
+ if(villagePhase(getGameHour()).key !== 'midnight'){
+  const cur = getGameHour();
+  if(advanceVillageTime(((22 - cur) % 24 + 24) % 24 * 60)) return;
+ }
  const s = document.getElementById('story');
  const townName = (TOWNS[dung.villageId]||{}).name || dung.villageId;
  if(s) s.innerHTML = `<span style="color:#e0d0d0">${townName}　墓地（深夜）</span><br><br><span style="color:#e8e0d0">月明かりだけを頼りに、静まり返った墓地を見回る。すると、墓地の外れにある古い塚の入口の封印が解かれているのに気づいた。中からは、奇妙な赤い光が漏れている。</span>`;
@@ -41830,7 +42059,8 @@ const TOWN_RUMOR_DEDICATED_EVENTS = {};
 Object.keys(TOWN_RUMOR_DEDICATED_EVENTS_BASE).forEach(id=>{
  TOWN_RUMOR_DEDICATED_EVENTS[id] = (node, floor, dung, reward)=>{
   const original = TOWN_RUMOR_DEDICATED_EVENTS_BASE[id](node, floor, dung, reward);
-  return _rumorHeardAtTavern(node, dung) ? _tavernHeardEntryChoices(node, floor, dung, reward, original) : original;
+  // 酒場で聞いた噂でも、選択肢は噂を聞かずに遭遇したときと同じにする（先頭を差し替えると「放っておく」「関わらずに立ち去る」などが重複するため）
+  return original;
  };
 });
 
@@ -42312,7 +42542,7 @@ function ydInitDungeonForHunt(quest){
  dung.killedKeys    = []; // 配置した討伐対象のflagKey一覧
  dung.huntReward    = quest.reward;
  // PCに残っている古いyd_ht_フラグをクリア（前回討伐の残留を防ぐ）
- Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')).forEach(k=>delete PC[k]);
+ Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_tm_')||k.startsWith('yd_hb_')||k.startsWith('yd_t_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')).forEach(k=>delete PC[k]);
  // 入口ノードを生成
  const f = dung.floors[1];
  const entryNode = {
@@ -42331,7 +42561,7 @@ function ydInitDungeonForFief(){
  dung.targetCount = (4 + Math.floor(Math.random()*3)) * 2; // 4〜6体の2倍＝8〜12体
  dung.targetName  = '砦に住み着いた者たち';
  dung.killedKeys  = [];
- Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')).forEach(k=>delete PC[k]);
+ Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_tm_')||k.startsWith('yd_hb_')||k.startsWith('yd_t_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')).forEach(k=>delete PC[k]);
  const f = dung.floors[1];
  const entryNode = {
   id: f.entryNodeId, type:'entrance', floor:1,
@@ -46895,7 +47125,7 @@ function travelTick(){
  PC.dex = Math.max(0, PC.dex - 1);
  PC._hungerDmg++;
  updateHUD();
- travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：食料がない！飢えで体が弱っていく… ST/CON/DEX 各-1（計-${PC._hungerDmg}）</span>`);
+ travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：食料がない！飢えで体が弱っていく… 強さ/体力/器用さ 各-1（計-${PC._hungerDmg}）</span>`);
  // 飢え死チェック
  if(PC.con <= 0){
  renderTravelEvents(ts.events);
@@ -47853,7 +48083,7 @@ function innRest(cost){
  PC.st = Math.min(PC._stBase || PC.maxSt, PC.st + PC._hungerDmg);
  PC.con = Math.min(PC._conBase || PC.maxCon, PC.con + PC._hungerDmg);
  PC.dex = Math.min(PC._dexBase || PC.dex + PC._hungerDmg, PC.dex + PC._hungerDmg);
- msgs.push(`飢えが回復（ST/CON/DEX +${PC._hungerDmg}）`);
+ msgs.push(`飢えが回復（強さ/体力/器用さ +${PC._hungerDmg}）`);
  PC._hungerDmg = 0;
  PC._stBase = PC._conBase = PC._dexBase = null;
  }
@@ -48921,7 +49151,7 @@ const RACE_INFO_TEXT = {
  dwarf: 'ドワーフ: 強さ・体力 ×2、魅力 ×2/3',
  halfling: 'ハーフリング: 強さ ×1/2、体力 ×2、器用さ ×3/2',
  fairy: 'フェアリー: 強さ・体力 ×1/4、運・器用さ ×3/2、魅力 ×2',
- leprechaun: 'Leprechaun: ST ×1/2、IQ・LK・DEX ×3/2',
+ leprechaun: 'Leprechaun: 強さ ×1/2、知力・運・器用さ ×3/2',
  troll: '⚠ トロール: 強さ・体力 ×3。規格外の肉体を持つ上級者向けの種族。弱点による帳尻合わせはなく、ゲームバランスを大きく踏み越える。',
  ogre: '⚠ オーガ: 強さ・体力 ×2。並外れた膂力を持つ、荒々しい種族。トロールに次ぐ強さの上級者向けの選択肢。',
  orc: 'オーク: 全能力値 ×1（人間と同等の水準）。人間社会にも比較的馴染みやすい種族。',
@@ -49025,7 +49255,7 @@ function startGame(){
  rollLanguages(PC); // 知力に応じてモンスター語の習得判定
  PC.spouse = []; // 前の代の配偶者記録は引き継がない
  PC._questPenalties = {}; // 前の代の依頼期限切れ罰金は引き継がない
- PC.spdBase = PC.spd; // 重量ペナルティ計算用の基準SPD
+ PC.spdBase = PC.spd; // 重量ペナルティ計算用の基準素早さ
 
  // 年齢・誕生日の初期化（開始年齢20歳）
  PC.age = 15 + Math.floor(Math.random() * 16); // 15〜30歳
@@ -49273,8 +49503,8 @@ function canEquipWeapon(w, actor){
   const first = eq[0];
   const totalSt  = (first.stReq||0)  + (w.stReq||0);
   const totalDex = (first.dexReq||0) + (w.dexReq||0);
-  if(actor.st  < totalSt)  return {ok:false, reason:`ST${totalSt}以上必要（現在${actor.st}）`};
-  if(actor.dex < totalDex) return {ok:false, reason:`DEX${totalDex}以上必要（現在${actor.dex}）`};
+  if(actor.st  < totalSt)  return {ok:false, reason:`強さ${totalSt}以上必要（現在${actor.st}）`};
+  if(actor.dex < totalDex) return {ok:false, reason:`器用さ${totalDex}以上必要（現在${actor.dex}）`};
  }
  }
  return {ok:true};
@@ -49460,9 +49690,39 @@ function coldWorsen(x){
 }
 // 旅の途中で風邪を引いた：次の日の始めに「休むか進むか」を選ばせる
 function coldAskSet(){ if(typeof travelState !== 'undefined' && travelState) travelState._coldAsk = true; }
+// Purify を覚えていて強さが足りる者（PC・仲間）が、風邪を引いた者（PC・仲間）を治す選択肢
+function coldPurifyChoices(ts, redo){
+ const sick = coldActors().filter(x=>x._cold > 0);
+ const out = [];
+ coldActors().forEach(who=>{
+  const sp = (who.spells||[]).find(s=>s.fn === 'healingFeeling' || s.name === 'Purify');
+  if(!sp) return;
+  const cost = _applyStaffDiscount(who, sp.cost);
+  sick.forEach(t=>{
+   out.push({label:`${sp.name}で治す：${coldName(who)}が${who === t ? '自分に' : coldName(t) + 'に'}唱える（強さ ${cost}）`, fn:()=>{
+    renderChoices([]);
+    if((who.st||0) < cost){ travelLog(`<span style="color:#e0a060"> ${coldName(who)}は${sp.name}を唱えるだけの強さが残っていない。</span>`); redo(); return; }
+    who.st = Math.max(0, who.st - cost);
+    gainAPAll(sp.cost);
+    travelLog(`<span style="color:#c8d0e8"> ${coldName(who)}が${sp.name}を唱えた。${who === t ? '' : coldName(t) + 'の'}体内の病が浄化されていく。</span>`);
+    coldCureNotify(t);
+    updateHUD();
+    if(coldActors().some(x=>x._cold > 0)){ redo(); return; }
+    coldSlowRelease(ts);
+    if(ts._coldRest){
+     ts._coldRest = false;
+     travelLog(`<span style="color:#c8b8a0"> 風邪が癒えたので、野営を畳んで旅を再開する。</span>${coldResumeLine(true)}`);
+    }
+    setTimeout(_travelTickSched(), ts.interval);
+   }});
+  });
+ });
+ return out;
+}
 function coldPromptRest(ts){
  const sick = coldActors().filter(x=>x._cold > 0);
  if(!sick.length){ setTimeout(_travelTickSched(), ts.interval); return; }
+ ts._coldSickWho = []; _coldRemember(ts, sick);
  const names = sick.map(coldName).join('・');
  travelLog(`<span style="color:#e0b0a0"> ${names}が風邪を引いている。このまま旅を続けると、風邪が長引き、こじらせて悪化するおそれがある。</span>`);
  renderChoices([
@@ -49477,11 +49737,13 @@ function coldPromptRest(ts){
    coldSlowApply(ts);
    setTimeout(_travelTickSched(), ts.interval);
   }},
+  ...coldPurifyChoices(ts, ()=>coldPromptRest(ts)),
  ]);
 }
 // 休息中の1日ごと：体調を見せて、もう1日休むか、旅を再開するかを選ばせる（治るまでの日数は見せない）
 function coldRestAsk(ts){
  const sick = coldActors().filter(x=>x._cold > 0);
+ _coldRemember(ts, sick);
  const cond = sick.map(x=>`${coldName(x)}（強さ・体力 ${coldPenaltyText(x)}、${x._cold <= 2 ? 'だいぶ楽になってきた' : x._cold <= 5 ? '熱は下がりつつある' : 'まだ熱が高い'}）`).join('　');
  travelLog(`<span style="color:#b8a890"> 野営で体を休めた（${ts._coldRestDays}日目）。体調：${cond}</span>`);
  renderChoices([
@@ -49493,16 +49755,26 @@ function coldRestAsk(ts){
    travelLog(`<span style="color:#c8b8a0"> ${ts._coldRestDays}日休んだところで野営を畳み、旅を再開する。</span>${coldResumeLine(false)}`);
    setTimeout(_travelTickSched(), ts.interval);
   }},
+  ...coldPurifyChoices(ts, ()=>coldRestAsk(ts)),
  ]);
 }
 // 休息を終えて旅を再開するとき、仲間の誰かがひとこと言う（仲間の台詞は性別が出ないよう、一人称を使わない）
 const COLD_RESUME_CURED = ['よし、体が軽い。そろそろ出発しよう。','ひと息つけた。もう大丈夫、行こうか。','すっかり良くなった。待たせたな。'];
 const COLD_RESUME_NOT_CURED = ['無理はするな。つらくなったらすぐ言ってくれ。','まだ本調子ではなさそうだが……急ぐなら、付き合おう。','歩けるうちは進もう。ただし、無茶は禁物だ。'];
+const COLD_RESUME_SICK_NOT_CURED = ['まだ本調子ではないが、歩けるうちは進もう。足手まといにはならない。','熱は残っているが……これ以上、待たせるわけにはいかない。','無理はしない。つらくなったら、ちゃんと言う。'];
+function _coldRemember(ts, sick){
+ if(!ts) return;
+ ts._coldSickWho = ts._coldSickWho || [];
+ sick.forEach(x=>{ if(!ts._coldSickWho.includes(x)) ts._coldSickWho.push(x); });
+}
+// 風邪を引いていた仲間がいれば、その者が出発のひとことを言う（PCだけが風邪だったときは、他の仲間が言う）
 function coldResumeLine(cured){
  const mem = (PC.party || []).filter(n=>n.con > 0);
  if(!mem.length) return '';
- const n = mem[Math.floor(Math.random() * mem.length)];
- const arr = cured ? COLD_RESUME_CURED : COLD_RESUME_NOT_CURED;
+ const ts = (typeof travelState !== 'undefined') ? travelState : null;
+ const sickMem = ((ts && ts._coldSickWho) || []).filter(x=>x !== PC && mem.includes(x));
+ const n = (sickMem.length ? sickMem : mem)[Math.floor(Math.random() * (sickMem.length || mem.length))];
+ const arr = cured ? COLD_RESUME_CURED : (sickMem.length ? COLD_RESUME_SICK_NOT_CURED : COLD_RESUME_NOT_CURED);
  return `<br><span style="color:#e8e0d0">${n.name}「${arr[Math.floor(Math.random() * arr.length)]}」</span>`;
 }
 // 風邪のまま旅を続けると、残りの旅程が2倍かかる。治れば元の速さに戻る（荒野のマスは1マスごとに日数を決めるので対象外）
@@ -49624,7 +49896,7 @@ function tickFootwearWear(){
 // 靴が壊れたときの履き替えの選択（旅を一時停止して選ばせ、選んだら旅を再開する）
 function promptFootwearSwap(ts){
  _footwearSwapPending = false;
- const resume = ()=>{ ts._resumeWithoutIncrement = true; setTimeout(_travelTickSched(), ts.interval); };
+ const resume = ()=>{ renderChoices([]); ts._resumeWithoutIncrement = true; setTimeout(_travelTickSched(), ts.interval); };
  const owned = FOOTWEAR_NAMES.filter(n=>spareFootwearCount(n) > 0);
  if(!owned.length || PC.invBoots){ resume(); return; }
  const doSwap = (n)=>{
@@ -49862,10 +50134,10 @@ function sellWeapon(idx){
  _sa.invWeapons.splice(idx,1);
  // 魔法武器は_priceGPの半額
  if(w._isMagic && w._priceGP){
-  const price = Math.floor(w._priceGP * 0.5 * 100);
+  const price = gemWeaponSellGP(w._priceGP) * 100;
   if(price>0) gainPriceCP(price, _sa);
   updateHUD(); checkWeightPenalty(); renderIngameShop();
-  showSaveToast(` ${w.name}を売った（${Math.floor(w._priceGP*0.5)}GP）`);
+  showSaveToast(` ${w.name}を売った（${gemWeaponSellGP(w._priceGP)}GP）`);
   return;
  }
  const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(w._baseName||w.name));
@@ -50075,7 +50347,7 @@ function renderIgsList(townId){
   sec(' 武器');
   uninvW.forEach(w=>{
    const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(w._baseName||w.name));
-   const priceCP = w._isMagic && w._priceGP ? Math.floor(w._priceGP * 0.5 * 100) : (def ? sellPriceCP(def.cost) : 0);
+   const priceCP = w._isMagic && w._priceGP ? gemWeaponSellGP(w._priceGP) * 100 : (def ? sellPriceCP(def.cost) : 0);
    const _w = w;
    row(w._isMagic ? '⚔' : '', w.name, priceCP, ()=>{ const _idx=(_shopActor||PC).invWeapons.indexOf(_w); if(_idx>=0) sellWeapon(_idx); });
   });
@@ -51436,7 +51708,7 @@ function renderNPCDetail(el, n, idx){
  <div style="background:var(--ink);border:1px solid #440044;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#f0ece0"> ${w.name}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
  </div>
  <button onclick="npcUnequipWeapon(${idx},${wi})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>
  </div>`).join('');
@@ -51446,7 +51718,7 @@ function renderNPCDetail(el, n, idx){
  return `<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name}${canUse?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※要件未満</span>'}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
  </div>
  <button onclick="npcEquipWeapon(${idx},${wi})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>
  </div>`;
@@ -51503,7 +51775,7 @@ function renderNPCDetail(el, n, idx){
  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-top:2px">身長 ${n.height!=null ? n.height+'cm' : '-'}　体重 ${n.weight!=null ? n.weight+'kg' : '-'}</div>
  </div>
 
- <!-- CONバー -->
+ <!-- 体力バー -->
  <div style="margin-bottom:10px">
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:3px">体力　${n.con} / ${n.maxCon}</div>
  <div style="height:8px;background:#1a1a1a;border-radius:4px">
@@ -51574,7 +51846,7 @@ function renderNPCDetail(el, n, idx){
    rHtml += `<div style="background:var(--ink);border:1px solid #484848;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
    <div>
     <div style="font-size:var(--font-sm);color:#e0d8c8"> ${rw.name}</div>
-    <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rw.dice}D+${rw.adds||0}　${rw.isRanged?'弓':'投擲'}</div>
+    <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rw.dice}D+${rw.adds||0}　${rw.isRanged?'弓':'投擲'}</div>${weaponDescHtml(rw)}
    </div>
    <button onclick="npcUnequipRanged(${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>
    </div>`;
@@ -51585,7 +51857,7 @@ function renderNPCDetail(el, n, idx){
   candidates.forEach((w,wi)=>{
    const widx = (n.invWeapons||[]).indexOf(w);
    rHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
-   <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds||0}</span></div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds||0}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
    <button onclick="npcEquipRanged(${idx},${widx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:var(--info-bg);border:1px solid #484848;color:var(--white2);font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">遠距離装備</button>
    </div>`;
   });
@@ -51739,7 +52011,7 @@ function renderStatusPanel(){
  // 重量状況
  const wtColor = wtOver?'var(--red)':wtCur>wtMax*0.8?'var(--ora)':'var(--grn)';
  const wtMsg = wtOver
- ? `<span style="color:#e0d0d0"> 過積載！ SPD ${PC.spdBase}→${PC.spd}（半減）</span>`
+ ? `<span style="color:#e0d0d0"> 過積載！ 素早さ ${PC.spdBase}→${PC.spd}（半減）</span>`
  : '';
  const wtDiv = document.createElement('div');
  wtDiv.style.cssText = 'grid-column:1/-1;background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:6px 8px;margin-top:2px';
@@ -51773,7 +52045,7 @@ function renderStatusPanel(){
  wornHtml += `<div style="background:var(--panel);border:1px solid #484848;border-radius:3px;padding:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <span style="font-size:var(--font-sm);color:#f0ece0"> 魔法の指輪</span>
- <span style="font-size:calc(var(--font-sm) - 2px);color:#e0d8c8;margin-left:6px">装備中　LK +10</span>
+ <span style="font-size:calc(var(--font-sm) - 2px);color:#e0d8c8;margin-left:6px">装備中　運 +10</span>
  </div>
  <button onclick="removeRing()" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#1a0e06;border:1px solid #550022;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>
  </div>`;
@@ -51823,7 +52095,7 @@ function renderStatusPanel(){
  wpHtml += `<div style="background:var(--ink);border:1px solid #550055;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#f0ece0"> ${w.name}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
  </div>
  <button onclick="unequipWeapon(${i})" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>
  </div>`;
@@ -51840,7 +52112,7 @@ function renderStatusPanel(){
  const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===lookupName);
  const sellBtn = isShopOpen() && (def || w._isMagic)
  ? (w._isMagic && w._priceGP
-   ? `<button onclick="sellWeapon(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${Math.floor(w._priceGP*0.5)}GP</button>`
+   ? `<button onclick="sellWeapon(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${gemWeaponSellGP(w._priceGP)}GP</button>`
    : def ? `<button onclick="sellWeapon(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(def.cost)}</button>` : '')
  : '';
  const displayName = w.name;
@@ -51849,7 +52121,7 @@ function renderStatusPanel(){
  <div style="display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${displayName} ${baseLabel}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
  </div>
  <div style="display:flex;gap:4px">
  <button onclick="equipWeapon(${idx})" ${check.ok?btnStyle('var(--nature2)','#0e1006','var(--rust)'):`disabled ${btnStyle('#444','#111','#a0a0a0')}`}>${check.ok?'装備':'不可'}</button>
@@ -51870,7 +52142,7 @@ function renderStatusPanel(){
   rngHtml += `<div style="background:var(--ink);border:1px solid #484848;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
   <div>
   <div style="font-size:var(--font-sm);color:#e0d8c8"> ${rngW.name}</div>
-  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rngW.dice}D+${rngW.adds}　${rngW.isRanged?'弓':'投擲'}</div>
+  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rngW.dice}D+${rngW.adds}　${rngW.isRanged?'弓':'投擲'}</div>${weaponDescHtml(rngW)}
   </div>
   <button onclick="unequipRanged()" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>
   </div>`;
@@ -51882,7 +52154,7 @@ function renderStatusPanel(){
  rangedCandidates.forEach(w=>{
   const idx = PC.invWeapons.indexOf(w);
   rngHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
-  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds}</span></div>
+  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
   <button onclick="equipRanged(${idx})" ${btnStyle('var(--white2)','var(--info-bg)','var(--info-border)')}>遠距離装備</button>
   </div>`;
  });
@@ -52187,7 +52459,7 @@ function renderStatusPanel(){
  dwarf: '強さ・体力 ×2、魅力 ×2/3。寿命200年前後。',
  halfling: '強さ ×1/2、体力 ×2、器用さ ×3/2。寿命100年前後。',
  fairy: '強さ・体力 ×1/4、運・器用さ ×3/2、魅力 ×2。寿命200年前後。',
- leprechaun: 'ST ×1/2、IQ・LK・DEX ×3/2。寿命300年前後。',
+ leprechaun: '強さ ×1/2、知力・運・器用さ ×3/2。寿命300年前後。',
  };
  const alEl = document.getElementById('sp-alignment');
  if(alEl) alEl.innerHTML = renderAlignmentWidget(PC.alignment_ethics, PC.alignment_order);
@@ -52594,7 +52866,7 @@ const TRAP_TABLE = [
  pc.con = Math.max(0, pc.con - dmg);
  if(pc.type==='wizard') pc.st = Math.max(0, pc.st - Nd6(1));
  return pc.type==='wizard'
- ? `魔力が逆流した！ 体力-${dmg}、ST -${Nd6(1)}（魔法使いは影響大）`
+ ? `魔力が逆流した！ 体力-${dmg}、強さ -${Nd6(1)}（魔法使いは影響大）`
  : `魔法の雷撃を受けた！ 体力-${dmg}`;
  },
  onPass: ()=>'魔法陣を踏み越えた！なぜか発動しなかった…',
@@ -52694,19 +52966,19 @@ const DUNGEON_EVENTS = [
  const story = document.getElementById('story');
  if(roll < 0.05){
  PC.st += 10; PC.maxSt = (PC.maxSt||PC.st) + 10;
- story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>力の泉だった！</b> ST が永続的に +10！（ST ${PC.st}）</div>`;
+ story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>力の泉だった！</b> 強さ が永続的に +10！（強さ ${PC.st}）</div>`;
  } else if(roll < 0.10){
  gainIQ(10, PC);
- story.innerHTML += `<div style="color:#e8e0d8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>知恵の泉だった！</b> IQ が永続的に +10！（IQ ${PC.iq}）</div>`;
+ story.innerHTML += `<div style="color:#e8e0d8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>知恵の泉だった！</b> 知力 が永続的に +10！（知力 ${PC.iq}）</div>`;
  } else if(roll < 0.15){
  PC.lk += 10;
- story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幸運の泉だった！</b> LK が永続的に +10！（LK ${PC.lk}）</div>`;
+ story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幸運の泉だった！</b> 運 が永続的に +10！（運 ${PC.lk}）</div>`;
  } else if(roll < 0.20){
  PC.st = Math.max(1, Math.floor(PC.st / 2));
  PC.con = Math.max(1, Math.floor(PC.con / 2));
  PC.maxSt = Math.max(1, Math.floor((PC.maxSt||PC.st) / 2));
  PC.maxCon = Math.max(1, Math.floor(PC.maxCon / 2));
- story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>毒の泉だった！</b> ST と CON が永続的に 1/2 になった…（ST ${PC.st} / CON ${PC.con}）</div>`;
+ story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>毒の泉だった！</b> 強さ と 体力 が永続的に 1/2 になった…（強さ ${PC.st} / 体力 ${PC.con}）</div>`;
  } else {
  story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 冷たく澄んだ水だった。特に何も感じない。</div>`;
  }
@@ -52820,12 +53092,12 @@ const DUNGEON_EVENTS = [
  const hasRing = PC._magicRing;
  return [
  !hasRing ? {
- label: ' 指輪を身につける（LK +10）',
+ label: ' 指輪を身につける（運 +10）',
  fn: () => {
  PC._magicRing = true;
  PC.lk += 10;
  const story = document.getElementById('story');
- story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 指輪をはめた。不思議な温かみを感じる。LK +10（つけている間）</div>`;
+ story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 指輪をはめた。不思議な温かみを感じる。運 +10（つけている間）</div>`;
  updateHUD();
  _restoreNodeChoices();
  },
@@ -52917,7 +53189,7 @@ const DUNGEON_EVENTS = [
     story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>冒険者の痕跡！</b>少し先で古いバックパックを発見した。<br>${treasure}</div>`;
    } else {
     PC.lk += 5;
-    story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幸運のコイン！</b>持つと温かくなる気がする。LK +5（永続）（LK ${PC.lk}）</div>`;
+    story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幸運のコイン！</b>持つと温かくなる気がする。運 +5（永続）（運 ${PC.lk}）</div>`;
    }
    updateHUD();
    _restoreNodeChoices();
@@ -53091,7 +53363,7 @@ const DUNGEON_EVENTS = [
      onFail:()=>{
       const story = document.getElementById('story');
       PC.lk = Math.max(1, PC.lk - 5);
-      story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪いの残滓。</b>この場に死の気配が漂う。LK -5（残り${PC.lk}）</div>`;
+      story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪いの残滓。</b>この場に死の気配が漂う。運 -5（残り${PC.lk}）</div>`;
       updateHUD();
       _restoreNodeChoices();
      },
@@ -53201,7 +53473,7 @@ const DUNGEON_EVENTS = [
      onFail:()=>{
       const story = document.getElementById('story');
       PC.con = Math.max(0, PC.con - 1); updateHUD();
-      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>見えない刃。</b>空間に見えない罠の残骸がある。追加でCON -1（残り${PC.con}）</div>`;
+      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>見えない刃。</b>空間に見えない罠の残骸がある。追加で体力 -1（残り${PC.con}）</div>`;
       _restoreNodeChoices();
      },
      onSuccess:()=>{
@@ -53221,7 +53493,7 @@ const DUNGEON_EVENTS = [
      onFail:()=>{
       const story = document.getElementById('story');
       PC.lk = Math.max(1, PC.lk - 5);
-      story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた傷。</b>傷口が黒ずんでくる。LK -5（残り${PC.lk}）</div>`;
+      story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた傷。</b>傷口が黒ずんでくる。運 -5（残り${PC.lk}）</div>`;
       updateHUD();
       _restoreNodeChoices();
      },
@@ -53235,7 +53507,7 @@ const DUNGEON_EVENTS = [
    } else {
     const story = document.getElementById('story');
     PC.lk += 5;
-    story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>奇妙な感覚。</b>傷はすぐ止まったが、危険を察知する感覚が研ぎ澄まされた気がする。LK +5（永続）（LK ${PC.lk}）</div>`;
+    story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>奇妙な感覚。</b>傷はすぐ止まったが、危険を察知する感覚が研ぎ澄まされた気がする。運 +5（永続）（運 ${PC.lk}）</div>`;
     updateHUD();
     _restoreNodeChoices();
    }
@@ -53284,7 +53556,7 @@ const DUNGEON_EVENTS = [
        onFail:()=>{
         const story2 = document.getElementById('story');
         PC.lk = Math.max(1, PC.lk - 5);
-        story2.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた空洞。</b>中には何もない。しかし不吉な気配に取り憑かれた。LK -5（残り${PC.lk}）</div>`;
+        story2.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>呪われた空洞。</b>中には何もない。しかし不吉な気配に取り憑かれた。運 -5（残り${PC.lk}）</div>`;
         updateHUD();
         _restoreNodeChoices();
        },
@@ -53305,7 +53577,7 @@ const DUNGEON_EVENTS = [
   fn: () => {
    PC.chr = Math.max(1, PC.chr - 1);
    const story = document.getElementById('story');
-   story.innerHTML += `<div style="color:#b8a890;font-size:var(--font-sm);margin-top:8px">心を鬼にして通り過ぎた。冒険者らしくない振る舞いに後悔が残る。CHR -1（残り${PC.chr}）</div>`;
+   story.innerHTML += `<div style="color:#b8a890;font-size:var(--font-sm);margin-top:8px">心を鬼にして通り過ぎた。冒険者らしくない振る舞いに後悔が残る。魅力 -1（残り${PC.chr}）</div>`;
    updateHUD();
    _restoreNodeChoices();
   },
@@ -53339,12 +53611,12 @@ const DUNGEON_EVENTS = [
     PC.invEquip = PC.invEquip || [];
     PC.invEquip.push('聖なる護符');
     PC.con = Math.min(PC.maxCon, PC.con + 10);
-    story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>死者の祈り。</b>古い祭壇と朽ちた死体のそばに聖なる護符を見つけた。護符を手に入れた（重量1、売値200GP）。CON +10（残り${PC.con}/${PC.maxCon}）</div>`;
+    story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>死者の祈り。</b>古い祭壇と朽ちた死体のそばに聖なる護符を見つけた。護符を手に入れた（重量1、売値200GP）。体力 +10（残り${PC.con}/${PC.maxCon}）</div>`;
    } else if(roll === 5){
     story.innerHTML += `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-top:8px">残響：昔この場所で行われた祈りが奇妙な形で残っているだけ。何も起こらないが、空気は重い。</div>`;
    } else {
     PC.lk += 5;
-    story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>守護の気配。</b>祈りを聞いた者の心が落ち着く。LK +5（永続）（LK ${PC.lk}）</div>`;
+    story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>守護の気配。</b>祈りを聞いた者の心が落ち着く。運 +5（永続）（運 ${PC.lk}）</div>`;
    }
    updateHUD();
    _restoreNodeChoices();
@@ -53381,14 +53653,14 @@ const DUNGEON_EVENTS = [
       const story = document.getElementById('story');
       PC.lk = Math.max(1, PC.lk - 5);
       const torchMsg3 = extinguishTorch();
-      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>崩れる宝と毒ガス！</b>黄金の山が崩れ、毒ガスが噴き出した。気絶した。宝も消えた。LK -5（残り${PC.lk}）<br><span style="color:#f0ddd0;font-size:var(--font-sm)">${torchMsg3}</span></div>`;
+      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>崩れる宝と毒ガス！</b>黄金の山が崩れ、毒ガスが噴き出した。気絶した。宝も消えた。運 -5（残り${PC.lk}）<br><span style="color:#f0ddd0;font-size:var(--font-sm)">${torchMsg3}</span></div>`;
       updateHUD();
       _restoreNodeChoices();
      },
      onSuccess:()=>{
       const story = document.getElementById('story');
       PC.lk = Math.max(1, PC.lk - 5);
-      story.innerHTML += `<div style="color:#e8e0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 毒ガスが噴き出したが耐えた。宝は消えた。LK -5（残り${PC.lk}）</div>`;
+      story.innerHTML += `<div style="color:#e8e0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 毒ガスが噴き出したが耐えた。宝は消えた。運 -5（残り${PC.lk}）</div>`;
       updateHUD();
       _restoreNodeChoices();
      },
@@ -53436,16 +53708,16 @@ const DUNGEON_EVENTS = [
    const roll = d6();
    const effects = [
     ()=>{ PC.con = Math.max(1, Math.floor(PC.con/2)); PC.maxCon = Math.max(1, Math.floor(PC.maxCon/2)); return `<span style="color:#e0d0d0"> <b>生命の吸収。</b>体力が奪われる。体力 1/2（残り${PC.con}/${PC.maxCon}）</span>`; },
-    ()=>{ PC.st = Math.max(1, Math.floor(PC.st/2)); PC.maxSt = Math.max(1, Math.floor((PC.maxSt||PC.st)/2)); return `<span style="color:#e0d0d0"> <b>弱体化。</b>体が重くなる。ST 1/2（残り${PC.st}）</span>`; },
-    ()=>{ PC.iq = Math.max(1, Math.floor(PC.iq/2)); return `<span style="color:#e0d0d0"> <b>精神の揺らぎ。</b>不安と幻覚。IQ 1/2（残り${PC.iq}）</span>`; },
-    ()=>{ PC.dex *= 2; return `<span style="color:#f0ece0"> <b>奇妙な活力。</b>体が軽くなる。DEX ×2（${PC.dex}）</span>`; },
-    ()=>{ PC.st *= 2; PC.maxSt = (PC.maxSt||PC.st)*2; return `<span style="color:#f0ece0"> <b>強化。</b>肉体が強くなる。ST ×2（${PC.st}）</span>`; },
+    ()=>{ PC.st = Math.max(1, Math.floor(PC.st/2)); PC.maxSt = Math.max(1, Math.floor((PC.maxSt||PC.st)/2)); return `<span style="color:#e0d0d0"> <b>弱体化。</b>体が重くなる。強さ 1/2（残り${PC.st}）</span>`; },
+    ()=>{ PC.iq = Math.max(1, Math.floor(PC.iq/2)); return `<span style="color:#e0d0d0"> <b>精神の揺らぎ。</b>不安と幻覚。知力 1/2（残り${PC.iq}）</span>`; },
+    ()=>{ PC.dex *= 2; return `<span style="color:#f0ece0"> <b>奇妙な活力。</b>体が軽くなる。器用さ ×2（${PC.dex}）</span>`; },
+    ()=>{ PC.st *= 2; PC.maxSt = (PC.maxSt||PC.st)*2; return `<span style="color:#f0ece0"> <b>強化。</b>肉体が強くなる。強さ ×2（${PC.st}）</span>`; },
     ()=>{
      // プレイヤーが選択
      story.innerHTML += `<div style="color:#e8e0d8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>深い覚醒。</b>精神が研ぎ澄まされる。どちらを強化する？</div>`;
      renderChoices([
-      { label:` IQ ×2（現在${PC.iq}→${PC.iq*2}）`, fn:()=>{ PC.iq *= 2; document.getElementById('story').innerHTML += `<div style="color:#f0ece0">IQ ×2（${PC.iq}）</div>`; updateHUD(); _restoreNodeChoices(); } },
-      { label:` LK ×2（現在${PC.lk}→${PC.lk*2}）`, fn:()=>{ PC.lk *= 2; document.getElementById('story').innerHTML += `<div style="color:#f0ece0">LK ×2（${PC.lk}）</div>`; updateHUD(); _restoreNodeChoices(); } },
+      { label:` 知力 ×2（現在${PC.iq}→${PC.iq*2}）`, fn:()=>{ PC.iq *= 2; document.getElementById('story').innerHTML += `<div style="color:#f0ece0">知力 ×2（${PC.iq}）</div>`; updateHUD(); _restoreNodeChoices(); } },
+      { label:` 運 ×2（現在${PC.lk}→${PC.lk*2}）`, fn:()=>{ PC.lk *= 2; document.getElementById('story').innerHTML += `<div style="color:#f0ece0">運 ×2（${PC.lk}）</div>`; updateHUD(); _restoreNodeChoices(); } },
      ]);
      return null; // 選択肢を出したので処理継続しない
     },
@@ -53559,7 +53831,7 @@ function removeRing(){
  if(!PC._magicRing) return;
  PC._magicRing = false;
  PC.lk = Math.max(1, PC.lk - 10);
- showSaveToast(' 指輪を外した。LK -10');
+ showSaveToast(' 指輪を外した。運 -10');
  renderStatusPanel();
 }
 
@@ -53611,7 +53883,7 @@ function buildContinueHtml(reason){
  <div>
  <span style="color:#f0ece0;font-size:var(--font-sm)">${n.name}</span>
  <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px);margin-left:6px">${raceJa(n.race)}の${typeJa(n.type)} Lv${n.level||1}</span>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;margin-top:2px">CON ${n.con}/${n.maxCon}　ST ${n.st}　IQ ${n.iq}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;margin-top:2px">体力 ${n.con}/${n.maxCon}　強さ ${n.st}　知力 ${n.iq}</div>
  </div>
  <button onclick="startAsNPC(${i})"
  style="font-size:calc(var(--font-sm) - 3px);padding:6px 10px;background:var(--ink);border:1px solid var(--bark);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">
@@ -53853,7 +54125,7 @@ function torchIndicator(){
  : '';
  const frostLvl = getFrostbiteLevel();
  const frostBadge = frostLvl > 0
- ? `<div style="font-family:monospace;font-size:calc(var(--font-sm) - 1px);color:${frostLvl>=4?'var(--danger)':frostLvl>=3?'var(--torch)':'var(--ice)'};margin-bottom:4px;padding:4px 6px;background:var(--ink);border:1px solid #484848;border-radius:3px"> ${FROSTBITE_EFFECTS[frostLvl].label}（SPD${FROSTBITE_EFFECTS[frostLvl].spd} DEX${FROSTBITE_EFFECTS[frostLvl].dex}）　治療: 宿屋で休む</div>`
+ ? `<div style="font-family:monospace;font-size:calc(var(--font-sm) - 1px);color:${frostLvl>=4?'var(--danger)':frostLvl>=3?'var(--torch)':'var(--ice)'};margin-bottom:4px;padding:4px 6px;background:var(--ink);border:1px solid #484848;border-radius:3px"> ${FROSTBITE_EFFECTS[frostLvl].label}（素早さ${FROSTBITE_EFFECTS[frostLvl].spd} 器用さ${FROSTBITE_EFFECTS[frostLvl].dex}）　治療: 宿屋で休む</div>`
  : '';
  const blindBadge = (PC._blindSpotRounds||0) > 0
  ? `<div style="font-family:monospace;font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:4px;padding:4px 6px;background:#0a0a12;border:1px solid #484858;border-radius:3px"> Blind Spot 有効　残り${PC._blindSpotRounds}ノード</div>`
@@ -53963,6 +54235,7 @@ function setRegionTheme(nodeId){
 
 function go(nodeId){
  if(nodeId==='RESTART'){location.reload();return;}
+ arenaEnsureHours();
  if(nodeId==='__travel__') return;
  if(nodeId==='__hunt_room__') return;
  if(nodeId==='__ARC_REST__'){ if(window._restVisitResume && restTickState) window._restVisitResume(); return; }
@@ -54165,7 +54438,7 @@ function go(nodeId){
  // 死亡はテキスト表示後にgo()内で処理
  PC._poisonKill = true;
  } else {
- PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e0d8c8;font-size:var(--font-sm);margin-top:8px"> 毒が体を蝕む… CON -1（${PC.con}/${PC.maxCon}）</div>`;
+ PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e0d8c8;font-size:var(--font-sm);margin-top:8px"> 毒が体を蝕む… 体力 -1（${PC.con}/${PC.maxCon}）</div>`;
  }
  }
 
@@ -55681,7 +55954,7 @@ function _enemyCastTtyfNPC(enemy, onDone){
    const dmg = (enemy.iq||0)*npcLv;
    PC.con = Math.max(0, PC.con - dmg);
    updateHUD();
-   cl.innerHTML += `<span class="red"> ${_spellFlavor('ttyf_hit', {caster:enemy.name, target:'あなた'})}（CON-${dmg}・防護値無視・残り${PC.con}）</span><br>`;
+   cl.innerHTML += `<span class="red"> ${_spellFlavor('ttyf_hit', {caster:enemy.name, target:'あなた'})}（体力-${dmg}・防護値無視・残り${PC.con}）</span><br>`;
    enemy._castTtyfThisRound = true;
    enemy._ttyfHitThisRound = dmg;
    if(PC.con <= 0){
@@ -56124,7 +56397,7 @@ function _npcTtyfSelectLevel(npc, npcIdx, magicParty, sp, onDone){
  const title = document.getElementById('npc-action-title');
  const btns  = document.getElementById('npc-action-btns');
  panel.style.display='';
- title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${npc.name}のTTYF — レベルを選択（最大Lv${maxLv}）</span>`;
+ title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${npc.name}のMagic Bolt — レベルを選択（最大Lv${maxLv}）</span>`;
  btns.innerHTML='';
 
  for(let lv=1; lv<=maxLv; lv++){
@@ -56151,7 +56424,7 @@ function _npcTtyfCast(npc, npcIdx, magicParty, sp, lv, stCost, onDone){
  const title = document.getElementById('npc-action-title');
  const btns  = document.getElementById('npc-action-btns');
  panel.style.display='';
- title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${npc.name}のTTYF Lv${lv} — 対象を選択</span>`;
+ title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${npc.name}のMagic Bolt Lv${lv} — 対象を選択</span>`;
  btns.innerHTML='';
  alive.forEach(e=>{
   const b=document.createElement('button');
@@ -56178,7 +56451,7 @@ function _npcTtyfApply(npc, sp, lv, stCost, target, onDone){
   else { target.curMR = Math.max(0, target.curMR - dmg); }
   const afterHp = isNPCCbt ? target.curCon : target.curMR;
   const hpLabel = isNPCCbt ? '体力' : 'CombatRating';
-  cl.innerHTML+=`<span style="color:var(--white)"> ${target.name}に${dmg}ダメージ！（IQ${npc.iq||10}×Lv${lv}）${hpLabel}: ${prevHp}→${afterHp}</span><br>`;
+  cl.innerHTML+=`<span style="color:var(--white)"> ${target.name}に${dmg}ダメージ！（知力${npc.iq||10}×Lv${lv}）${hpLabel}: ${prevHp}→${afterHp}</span><br>`;
   cbtState._npcTtyfMagicHit = (cbtState._npcTtyfMagicHit||0) + dmg;
   // HPバーのみ更新（_showPCActionChoicesは呼ばない）
   _updateCombatBars();
@@ -56447,7 +56720,7 @@ function _enemyRangedAttackNPC(enemy, onDone){
  const cl = document.getElementById('clog');
  if(w.isRanged && !w.rangedOk){ enemy.arrows = Math.max(0,(enemy.arrows||0)-1); }
  const sr = savingRoll('dex', 2, enemy);
- cl.innerHTML += `<span style="color:#e0d8c8"> ${enemy.name}が${w.name}で狙いを定めた——[${sr.rolled}]+DEX(${enemy.dex||0})=${sr.total} vs ${sr.target}</span><br>`;
+ cl.innerHTML += `<span style="color:#e0d8c8"> ${enemy.name}が${w.name}で狙いを定めた——[${sr.rolled}]+器用さ(${enemy.dex||0})=${sr.total} vs ${sr.target}</span><br>`;
  if(sr.success){
   const diceRoll = Nd6(w.dice);
   const dexAdd = enemy.dex > 12 ? (enemy.dex-12)*2 : (enemy.dex < 9 ? (enemy.dex-9)*2 : 0);
@@ -56740,7 +57013,7 @@ function _pcRangedAttack(target, onDone){
    const applyRangedHit = ()=>{
     if(cbtState.isNPC){ target.curCon=Math.max(0,target.curCon-dmg); } else { target.curMR=Math.max(0,target.curMR-dmg); }
     cbtState._rangedHitTotal = (cbtState._rangedHitTotal||0) + hit;
-    cl.innerHTML += `<span style="color:#e0d8c8"> 命中！${w.dice}D=${diceRoll} adds=${rangedAdds}（DEX×2） hit=${hit} → ${target.name} ${cbtState.isNPC?'体力':'CombatRating'}-${dmg}${armor>0?`（防護-${armor}）`:''}</span><br>`;
+    cl.innerHTML += `<span style="color:#e0d8c8"> 命中！${w.dice}D=${diceRoll} adds=${rangedAdds}（器用さ×2） hit=${hit} → ${target.name} ${cbtState.isNPC?'体力':'CombatRating'}-${dmg}${armor>0?`（防護-${armor}）`:''}</span><br>`;
     updateCombatUI();
     if(onDone) onDone(); else _showPCActionChoices();
    };
@@ -57065,7 +57338,7 @@ function resolveRoundNPC(pRoll, npcActions){
  const detailId = `cbt-detail-${cs.turn}-${Date.now()}`;
  let detail = '';
  if(spellCaster && ttyfHit>0){
-  detail += `You <span style="color:#e8e0d0">TTYF=${ttyfHit}</span>`;
+  detail += `You <span style="color:#e8e0d0">Magic Bolt=${ttyfHit}</span>`;
  } else if(spellCaster){
   detail += `You <span style="color:#e8e0d0">魔法+${spellHitBonus}</span>`;
  } else if(pcDefending){
@@ -57084,11 +57357,11 @@ function resolveRoundNPC(pRoll, npcActions){
  if(partyRolls.length) detail += `→<span style="color:#f0ece0">${totalPlayerRoll}</span>`;
  detail += ' vs ';
  if(aliveEnemies.length>1){
-  detail += eRolls.map(r=>`${r.enemy.name}<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">${diceStr(r.dice)}</span>${r.ttyf>0?`+<span style="color:#e8e0d0">TTYF+${r.ttyf}</span>`:''}=<span class="ora">${r.roll}</span>`).join('+');
+  detail += eRolls.map(r=>`${r.enemy.name}<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">${diceStr(r.dice)}</span>${r.ttyf>0?`+<span style="color:#e8e0d0">Magic Bolt+${r.ttyf}</span>`:''}=<span class="ora">${r.roll}</span>`).join('+');
   detail += `→<span class="ora">${eTotalRoll}</span>`;
  } else {
   const _er0 = eRolls[0];
-  detail += `${aliveEnemies[0]?.name} <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">${diceStr(_er0?.dice||[])}</span>${_er0?.ttyf>0?`+<span style="color:#e8e0d0">TTYF+${_er0.ttyf}</span>`:''} =<span class="ora">${eTotalRoll}</span>`;
+  detail += `${aliveEnemies[0]?.name} <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">${diceStr(_er0?.dice||[])}</span>${_er0?.ttyf>0?`+<span style="color:#e8e0d0">Magic Bolt+${_er0.ttyf}</span>`:''} =<span class="ora">${eTotalRoll}</span>`;
  }
 
  // 敵の魔法フェーズでのTTYFは既にそちらで直接ダメージ適用・死亡判定済み。ここではショック効果の計算にのみ使う
@@ -57107,7 +57380,7 @@ function resolveRoundNPC(pRoll, npcActions){
   const rawDmg = Math.max(0, rawDmgBeforeTtyf - ttyfHit);
   const eNames = aliveEnemies.map(e=>e.name);
   log += _combatNarrative(rawDmg, totalPlayerRoll+eTotalRollFinal, true, eNames)+'<br>';
-  detail += `<br><span style="color:#e8e4d8">→ 敵 -${rawDmg} ダメージ${ttyfHit>0?`（TTYF${ttyfHit}分は控除済み）`:''}</span><br>`;
+  detail += `<br><span style="color:#e8e4d8">→ 敵 -${rawDmg} ダメージ${ttyfHit>0?`（Magic Bolt${ttyfHit}分は控除済み）`:''}</span><br>`;
   const perEnemy  = Math.floor(rawDmg/aliveEnemies.length);
   const remainder = rawDmg%aliveEnemies.length;
   aliveEnemies.forEach((e,idx)=>{
@@ -57132,18 +57405,18 @@ function resolveRoundNPC(pRoll, npcActions){
   if(totalDmg > 0){
    const perTarget  = Math.floor(totalDmg/targets.length);
    const remainder2 = totalDmg%targets.length;
-   detail += `<br><span class="red">→ 味方 -${totalDmg} ダメージ（${targets.length}人で分担）${enemyTtyfTotal>0?`（TTYF${enemyTtyfTotal}分は控除済み）`:''}</span><br>`;
+   detail += `<br><span class="red">→ 味方 -${totalDmg} ダメージ（${targets.length}人で分担）${enemyTtyfTotal>0?`（Magic Bolt${enemyTtyfTotal}分は控除済み）`:''}</span><br>`;
    targets.forEach(({t,armor,label},idx)=>{
     const dmg = Math.max(1, (perTarget+(idx===0?remainder2:0)) - armor);
     t.con = Math.max(0, t.con - dmg);
-    detail += `　<span style="color:#c0b098">→ ${label}: -${dmg} [残CON${t.con}]</span><br>`;
+    detail += `　<span style="color:#c0b098">→ ${label}: -${dmg} [残体力${t.con}]</span><br>`;
    });
   } else if(enemyTtyfTotal>0){
-   detail += `<br><span style="color:#c0b098">→ TTYFの即時ダメージのみで、追加のダメージ分配はなかった</span><br>`;
+   detail += `<br><span style="color:#c0b098">→ Magic Boltの即時ダメージのみで、追加のダメージ分配はなかった</span><br>`;
   }
   updateHUD();
  } else {
-  log += `<span style="color:#c0b098">${ttyfHit>0||enemyTtyfTotal>0?'（TTYFの即時ダメージのみ）':'引き分け…'}</span><br>`;
+  log += `<span style="color:#c0b098">${ttyfHit>0||enemyTtyfTotal>0?'（Magic Boltの即時ダメージのみ）':'引き分け…'}</span><br>`;
   updateHUD();
  }
 
@@ -57232,7 +57505,7 @@ function doFlee(){
  ts.method = 'walk';
  PC.chr = Math.max(1, PC.chr - 1);
  updateHUD();
- travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：馬車を捨てて逃げ出した！</span><br><span style="color:#c0b098">ここからは徒歩になる… 残り約${walkTotal}日</span><br><span class="red"> 乗客たちに臆病な姿を見られた… CHR-1</span>`);
+ travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：馬車を捨てて逃げ出した！</span><br><span style="color:#c0b098">ここからは徒歩になる… 残り約${walkTotal}日</span><br><span class="red"> 乗客たちに臆病な姿を見られた… 魅力-1</span>`);
  } else {
  travelLog(`<span style="color:#f0ece0"> ${ts.daysDone}日目：間一髪で逃げ切った！</span>`);
  }
@@ -57824,7 +58097,7 @@ function resolveRound(pRoll, npcActions){
   r = 0; // カオス能力値テスト失敗による空振り
  } else if(action === 'spell' && bonus){
   if(bonus.type==='ttyf'){
-   r = bonus.value; // TTYFは直接ヒット値として加算
+   r = bonus.value; // Magic Boltは直接ヒット値として加算
   } else if(bonus.type==='vorpal'){
    npc._vorpalNext = true; r = 0;
   } else {
@@ -57863,7 +58136,7 @@ function resolveRound(pRoll, npcActions){
  const detailId = `cbt-detail-${cs.turn}-${Date.now()}`;
  let detail = ``;
  if(spellCaster && ttyfHit > 0){
-  detail += `You <span style="color:#e8e0d0">TTYF=${ttyfHit}</span>`;
+  detail += `You <span style="color:#e8e0d0">Magic Bolt=${ttyfHit}</span>`;
   if(spellHitBonus) detail += `+<span style="color:#e8e0d0">魔法+${spellHitBonus}</span>`;
  } else if(spellCaster){
   detail += `You <span style="color:#e8e0d0">魔法+${spellHitBonus}</span>`;
@@ -57934,9 +58207,9 @@ function resolveRound(pRoll, npcActions){
   const dmg = Math.max(1, (perTarget+(idx===0?remainder:0)) - armor);
   t.con = Math.max(0, t.con - dmg);
   if(t===PC){
-   detail += `　<span class="red">→ You -${dmg} CON [${PC.con}/${PC.maxCon}]</span><br>`;
+   detail += `　<span class="red">→ You -${dmg} 体力 [${PC.con}/${PC.maxCon}]</span><br>`;
   } else {
-   detail += `　<span style="color:#e0d8c8">→ ${label} -${dmg} CON [${t.con}/${t.maxCon}]</span>${t.con<=0?` <span class="red"> ${label}が倒れた！</span>`:''}<br>`;
+   detail += `　<span style="color:#e0d8c8">→ ${label} -${dmg} 体力 [${t.con}/${t.maxCon}]</span>${t.con<=0?` <span class="red"> ${label}が倒れた！</span>`:''}<br>`;
   }
  });
  npcActions.filter(({action})=>action==='flee').forEach(({npc})=>{
@@ -58071,7 +58344,7 @@ function openSpellModal(context, nodeSpellEffects, nodeId){
   const typeJa = {wizard:'魔法使い', rogue:'盗賊'}[c.type] || c.type;
   btn.innerHTML = `
    <span class="sm-name">${c===PC ? `${c.name}（あなた）` : c.name}</span>
-   <span class="sm-desc">${typeJa}　ST ${c.st}</span>`;
+   <span class="sm-desc">${typeJa}　強さ ${c.st}</span>`;
   btn.addEventListener('click', () => {
    _openSpellModalFor(c, context, nodeSpellEffects, nodeId);
   });
@@ -58099,7 +58372,7 @@ function _openSpellModalFor(caster, context, nodeSpellEffects, nodeId){
   btn.innerHTML = `
    <span class="sm-name">${sp.name}</span>
    <span class="sm-desc">${isUnlockTrap ? '気づいている罠を解除する（レベルを選択）' : sp.desc}</span>
-   <span class="sm-cost">${isUnlockTrap ? 'ST -2×レベル' : `ST -${sp.cost}`}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">${isUnlockTrap ? '強さ -2×レベル' : `強さ -${sp.cost}`}　（現在強さ ${caster.st}）</span>`;
 
   btn.addEventListener('click', () => {
    if(isUnlockTrap){
@@ -58156,7 +58429,7 @@ function _openUnlockLevelSelect(caster, nodeId){
   btn.disabled = !canAfford;
   btn.innerHTML = `
    <span class="sm-name">Lv${lv}</span>
-   <span class="sm-cost">ST -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在ST ${caster.st}）</span>`;
+   <span class="sm-cost">強さ -${dcost}${dcost!==cost?`（杖で${cost}→${dcost}）`:''}　（現在強さ ${caster.st}）</span>`;
   btn.addEventListener('click', () => {
    closeSpellModal();
    _castUnlockAtLevel(caster, lv, cost, nodeId);
@@ -58203,7 +58476,7 @@ function _castUnlockAtLevel(caster, lv, cost, nodeId){
    const dmg = floor + Math.floor(Math.random()*floor*2+1);
    PC.con = Math.max(0, PC.con-dmg); updateHUD();
    PC[_tk+'_dmg'] = dmg;
-   story.innerHTML += `<br><span style="color:#e0d0d0">呪文の力が及ばず、罠が発動した！【${node.trapName}】CON-${dmg}</span>`;
+   story.innerHTML += `<br><span style="color:#e0d0d0">呪文の力が及ばず、罠が発動した！【${node.trapName}】体力-${dmg}</span>`;
    if(PC.con<=0){ renderChoices([{label:'…（力尽きた）', go:'DEAD'}]); return; }
    renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
   }
@@ -58226,7 +58499,7 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
  // ダンジョン専用呪文（fn基準で直接処理）
  if(spell.fn === 'poorBaby'){
   if(caster.con >= caster.maxCon){
-   caster.st += spell.cost; // 効果不発のためST返還
+   caster.st += spell.cost; // 効果不発のため強さ返還
    resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #585858;border-radius:4px">
     <div style="color:var(--white);font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
     <div style="color:var(--white2);font-size:var(--font-sm)">${casterLabel}体力はすでに最大値です。</div>
@@ -58255,7 +58528,7 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
    resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
     <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
     <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">姿が掻き消えた！3ノード分、モンスターに遭遇しなくなる。</div>
-    <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">ST -${spell.cost}　経験値+${spell.cost}</div>
+    <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">強さ -${spell.cost}　経験値+${spell.cost}</div>
    </div>`;
    story.innerHTML += resultHtml;
    scrollToTop();
@@ -58264,7 +58537,7 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
    resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #585858;border-radius:4px">
     <div style="color:var(--white);font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
     <div style="color:var(--white2);font-size:var(--font-sm)">ダンジョン内でのみ使用可。</div>
-    <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">ST -${spell.cost}　経験値+${spell.cost}</div>
+    <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">強さ -${spell.cost}　経験値+${spell.cost}</div>
    </div>`;
    story.innerHTML += resultHtml;
    scrollToTop();
@@ -58284,7 +58557,7 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
   resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
    <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>
    <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${casterLabel}${label}${turns}ターンの間、${effectDesc}になる。</div>
-   <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">ST -${spell.cost}　経験値+${spell.cost}</div>
+   <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">強さ -${spell.cost}　経験値+${spell.cost}</div>
   </div>`;
   story.innerHTML += resultHtml;
   updateHUD();
@@ -58298,7 +58571,7 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
   resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
    <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>
    <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${msg}</div>
-   <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">ST -${spell.cost}　経験値+${spell.cost}</div>
+   <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">強さ -${spell.cost}　経験値+${spell.cost}</div>
   </div>`;
   story.innerHTML += resultHtml;
   updateHUD();
@@ -58322,7 +58595,7 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
   resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
    <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>
    <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${typeof fnResult==='string'?fnResult:(effect.desc||'')}</div>
-   <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">ST -${spell.cost}　経験値+${spell.cost}</div>
+   <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">強さ -${spell.cost}　経験値+${spell.cost}</div>
   </div>`;
   story.innerHTML += resultHtml;
   scrollToTop();
@@ -58360,7 +58633,7 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
  resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #585858;border-radius:4px">
   <div style="color:var(--white);font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>
   <div style="color:var(--white2);font-size:var(--font-sm)">${flavor}</div>
-  <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">ST -${spell.cost}　経験値+${spell.cost}</div>
+  <div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">強さ -${spell.cost}　経験値+${spell.cost}</div>
  </div>`;
 
  story.innerHTML += resultHtml;
@@ -58412,7 +58685,7 @@ function _ttyfSelectLevel(spell){
  const btns  = document.getElementById('npc-action-btns');
  const panel = document.getElementById('npc-action-panel');
  panel.style.display = '';
- title.innerHTML = `<span style="color:#e0d8c8;font-size:var(--font-sm)"> TTYF レベルを選択 ${lvNote}</span>`;
+ title.innerHTML = `<span style="color:#e0d8c8;font-size:var(--font-sm)"> Magic Bolt レベルを選択 ${lvNote}</span>`;
  btns.innerHTML = '';
 
  for(let lv = 1; lv <= maxLv; lv++){
@@ -58438,7 +58711,7 @@ function _ttyfSelectTarget(spell, ttyfLv, stCost){
 
  const title = document.getElementById('npc-action-title');
  const btns  = document.getElementById('npc-action-btns');
- title.innerHTML = `<span style="color:#e0d8c8;font-size:var(--font-sm)"> TTYF Lv${ttyfLv} 対象を選択</span>`;
+ title.innerHTML = `<span style="color:#e0d8c8;font-size:var(--font-sm)"> Magic Bolt Lv${ttyfLv} 対象を選択</span>`;
  btns.innerHTML = '';
 
  aliveEn.forEach(e=>{
@@ -58514,7 +58787,7 @@ function _ttyfApplyHit(spell, ttyfLv, stCost, target, discCost, result, isNPCCbt
 
  result.innerHTML = ` <span class="wizard-c">Magic Bolt</span> Lv${ttyfLv}<br>
   <span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">${_spellFlavor('ttyf_hit', {caster:PC.name, target:target.name})}</span><br>
-  <span style="color:var(--white)">${target.name}に ${dmg}ダメージ！（IQ${PC.iq} × Lv${ttyfLv}）</span><br>
+  <span style="color:var(--white)">${target.name}に ${dmg}ダメージ！（知力${PC.iq} × Lv${ttyfLv}）</span><br>
   <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">${hpLabel}: ${prevHp} → ${afterHp}　強さ-${discCost}</span><br>
   <span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 2px)">近接戦闘では詠唱者の攻撃ヒット＝${dmg}として処理</span>`;
 
@@ -58614,7 +58887,7 @@ function renderSpellList(ctx){
 // 魔法使いの杖：装備していれば呪文の強さ消費をキャラクターのレベル分だけ軽減する（0未満にはならない）
 function _staffSTDiscount(caster){
  if(!caster) return 0;
- if(caster.type!=='wizard' && caster.type!=='rogue') return 0;
+ if(caster.type!=='wizard') return 0;
  const hasStaff = (caster.equippedWeapons||[]).some(w=>w.isWizardStaff);
  if(!hasStaff) return 0;
  return caster.level||1;
@@ -58867,7 +59140,7 @@ function castSpell(spell,ctx){
   PC._enchantWeaponTurns = turns;
   result.innerHTML = ` <span class="wizard-c">Enchant Weapon</span>: 武器が魔力を帯びて輝いた！${turns}ターンの間、ヒットダイスが3倍になる。`;
  } else {
-  PC.st += spell.cost; // ST返還
+  PC.st += spell.cost; // 強さ返還
   result.textContent = '戦闘中は使用できない';
   updateHUD();
  }
@@ -59027,6 +59300,17 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026103001', sections:[
+  { heading:'新規実装項目', items:[
+   '旅芸人の一座を護衛中、嵐と増水で「天気が回復するまで待つ」を選ぶと、一座との交流の場面が起きるようになった（即興公演、座長の昔話、団員との話し込み、軽業の手ほどき）。団員と打ち解けると、護衛の満了時に、団員が仲間になる申し出を受けやすくなる。',
+   '宝石付きの武器に、宝石と武器の種類を表す固有の名前を付けた。古いものほど「上古」「古代」などの時代の語が付き、説明欄に宝石と元の武器が日本語で表示される。',
+   '旅の途中で風邪を引いた仲間を、Purifyで治せるように変更。',
+  ]},
+  { heading:'調整', items:[
+   'レベルアップの能力値選択画面に、各選択肢の現在の能力値と上昇後の値を表示するようにした。',
+   '戦闘後のレベルアップ画面で、スクロールできなくなる場合がある不具合を修正した。',
+  ]},
+ ]},
  { version:'ver.2026102501', sections:[
   { heading:'新規実装項目', items:[
    '重要人物の護衛クエストを追加。酒場の噂から始まり、重要人物を目的地の地方中心都市の酒場まで送り届ける。',
@@ -59174,6 +59458,30 @@ function showCharGen(){
 // ──────────────────────────────────────
 // DEAD NODE
 // ──────────────────────────────────────
+// デバッグ用：宝石付きの武器を入手する（wantCount＝宝石の数1〜5を指定するとその時代のものが出るまで引き直す。省略でランダム）
+function dbgGemWeapon(wantCount){
+ PC.invWeapons = PC.invWeapons || [];
+ PC.invJewels = PC.invJewels || [];
+ const era = wantCount ? (GEM_WEAPON_ERA[wantCount] || '') : null;
+ for(let i = 0; i < 20000; i++){
+  const jBefore = PC.invJewels.slice();
+  const wBefore = PC.invWeapons.length;
+  generateJewel();
+  PC.invJewels = jBefore; // 武器以外の宝石は受け取らない
+  if(PC.invWeapons.length > wBefore){
+   const w = PC.invWeapons[PC.invWeapons.length - 1];
+   const hasEra = /^(上古|古代|中興|前代)の/.test(w.name);
+   if(era === null || (era ? w.name.startsWith(era + 'の') : !hasEra)){
+    updateHUD();
+    showSaveToast(` ${w.name}（${w.dice}D+${w.adds}）を入手`);
+    return w;
+   }
+   PC.invWeapons.pop();
+  }
+ }
+ showSaveToast('宝石付き武器を引けませんでした');
+}
+
 function dbg(fn){
  try{ fn(); } catch(e){ showSaveToast('ERR:'+e.message); } }
 
@@ -59355,7 +59663,7 @@ const DEAD_NODE = {
  ${PC.name}は力尽きた…<br><br>
  <span style="color:#c0b098">最終レベル: ${PC.level}<br>
  獲得AP: ${PC.ap}<br>
- 最終CON: ${PC.con}/${PC.maxCon}</span>
+ 最終体力: ${PC.con}/${PC.maxCon}</span>
  ${buildContinueHtml('dead')}`;
  },
  choices: buildEndChoices,
@@ -59403,7 +59711,7 @@ const WANTED_ARREST_NODE = {
    npc.equippedWeapons = []; npc.equippedArmors = [];
    npc.equippedBoots = false; npc.equippedClothing = false;
    npc.invWeapons = []; npc.invArmors = [];
-   partyLines.push(`${npc.name}（ST-${npcStLoss}）`);
+   partyLines.push(`${npc.name}（強さ-${npcStLoss}）`);
   });
 
   // 服役した町の手配度は大きく下がる（刑期を終えた扱い）
@@ -59413,11 +59721,11 @@ const WANTED_ARREST_NODE = {
   _forceExpireAllQuests();
 
   updateHUD();
-  addLifeEvent('', `${townName}で捕縛され、${months}ヶ月投獄された。ST-${stLoss}、所持金・装備没収。`);
+  addLifeEvent('', `${townName}で捕縛され、${months}ヶ月投獄された。強さ-${stLoss}、所持金・装備没収。`);
   const partyTxt = partyLines.length ? `<br>仲間も共に投獄された：${partyLines.join('、')}` : '';
   return `<span style="color:#e0d0d0">${townName}・牢獄</span><br><br>`
    +`<b> 捕縛・投獄</b><br><br>`
-   +`<span style="color:#e8e4d8">一味もろとも取り押さえられ、${months}ヶ月の間、牢に繋がれた。所持金・装備は身包み剥がされ、出所した時には体が鈍っていた。ST-${stLoss}。${partyTxt}</span><br><br>`
+   +`<span style="color:#e8e4d8">一味もろとも取り押さえられ、${months}ヶ月の間、牢に繋がれた。所持金・装備は身包み剥がされ、出所した時には体が鈍っていた。強さ-${stLoss}。${partyTxt}</span><br><br>`
    +`<span style="color:#c0b098">進行中の依頼は全て失効した。両替所に預けていた財産だけは無事だった。</span>`;
  },
  choices:()=>[{label:'▶ 出所する', go:'TOWN_'+((window._wantedArrestContext||{}).townId||PC.town).toUpperCase()}],
@@ -60042,7 +60350,7 @@ function fpB3CheckEncounter(returnNode){
 
 // B3テレポーター罠
 function fpB3Teleporter(){
- const attrs = [{attr:'lk', name:'LK 運'}, {attr:'dex', name:'DEX 器用'}];
+ const attrs = [{attr:'lk', name:'運'}, {attr:'dex', name:'器用さ'}];
  const chosen = attrs[Math.floor(Math.random()*attrs.length)];
  const destinations = ['FP_B3_ROOM1','FP_B3_ROOM2','FP_B3_ROOM3','FP_B3_ROOM4'];
  const s = document.getElementById('story');
@@ -60984,11 +61292,11 @@ const NODES = {
   if(!w) return [{label:'← 戻る', go:'ARENA_OASIS'}];
   const backNode = w.returnNodeId || 'ARENA_OASIS';
   if(w.finished){
-   return [{label:'▶ 観覧席を後にする', fn:()=>{ _arenaWatch=null; }, go:backNode}];
+   return [{label:'▶ 観覧席を後にする', fn:()=>arenaLeaveWatch(backNode)}];
   }
   return [
    {label:'▶ 次のラウンドへ', fn:()=>arenaWatchResolveRound(), go:'ARENA_WATCH_MATCH'},
-   {label:'席を立つ（観戦をやめる）', fn:()=>{ _arenaWatch=null; }, go:backNode},
+   {label:'席を立つ（観戦をやめる）', fn:()=>arenaLeaveWatch(backNode)},
   ];
  },
  },
@@ -62175,7 +62483,7 @@ const NODES = {
     onFail(){
      const target=actor===PC?PC:actor; applyChainedEffect(target, 2);
      const an=actor===PC?PC.name:actor.name;
-     document.getElementById('story').innerHTML+=`<div style="color:#f0ddd8;margin-top:8px">${an}：鎖が足首に絡みついた！ 拘束状態（2ターンDEX半減）</div>`;
+     document.getElementById('story').innerHTML+=`<div style="color:#f0ddd8;margin-top:8px">${an}：鎖が足首に絡みついた！ 拘束状態（2ターン器用さ半減）</div>`;
      updateHUD(); setTimeout(()=>go('TOMB_TRAP_1215'),600);
     },
    });
@@ -62719,7 +63027,7 @@ const NODES = {
  choices:()=>[
  ...(PC._ruinWestGateOpen
  ? [{label:' 小部屋を調べる', go:'RUIN_E_WEST_ROOM'}]
- : [{label:' 力ずくでこじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_ruinWestGateOpen', successTxt:()=>`<b>鉄格子をこじ開けた</b><br>全体重をかけて押し続けると、錆びた蝶番が悲鳴を上げ、鉄格子がゆっくり倒れた。`, failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,actor.con-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._westForceDmg=dmg; }, failTxt:()=>`<b>鉄格子は動かない</b><br>力いっぱい押したが、びくともしない。手を痛めた。CON -${PC._westForceDmg||0}`, choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinWestGateOpen',successTxt:()=>`<b>鉄格子をこじ開けた</b><br>倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._westForceDmg=dmg;},failTxt:()=>`<b>まだ動かない</b><br>CON -${PC._westForceDmg||0}`,choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 大広間へ',go:'RUIN_E'}]:[{label:' 再挑戦',go:'RUIN_E_WEST_FORCE'},{label:'⬅ 大広間へ',go:'RUIN_E'}]}),},{label:'⬅ 西の大広間へ',go:'RUIN_E'}] })}]
+ : [{label:' 力ずくでこじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_ruinWestGateOpen', successTxt:()=>`<b>鉄格子をこじ開けた</b><br>全体重をかけて押し続けると、錆びた蝶番が悲鳴を上げ、鉄格子がゆっくり倒れた。`, failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,actor.con-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._westForceDmg=dmg; }, failTxt:()=>`<b>鉄格子は動かない</b><br>力いっぱい押したが、びくともしない。手を痛めた。体力 -${PC._westForceDmg||0}`, choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinWestGateOpen',successTxt:()=>`<b>鉄格子をこじ開けた</b><br>倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._westForceDmg=dmg;},failTxt:()=>`<b>まだ動かない</b><br>体力 -${PC._westForceDmg||0}`,choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 大広間へ',go:'RUIN_E'}]:[{label:' 再挑戦',go:'RUIN_E_WEST_FORCE'},{label:'⬅ 大広間へ',go:'RUIN_E'}]}),},{label:'⬅ 西の大広間へ',go:'RUIN_E'}] })}]
  ),
  {label:'⬅ 西の大広間へ', go:'RUIN_E'},
  ],
@@ -62732,10 +63040,10 @@ const NODES = {
    attr:'st', level:1, flagKey:'_ruinWestGateOpen',
    successTxt:()=>`<span style="color:#f0ece0">鉄格子をこじ開けた</span><br><br>全体重をかけて押し続けると、錆びた蝶番が悲鳴を上げ、鉄格子がゆっくり倒れた。`,
    failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,(actor===PC?PC.con:actor.con)-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._ruinWestDmg=dmg; },
-   failTxt:()=>`<span style="color:#f0ece0">鉄格子は動かない</span><br><br>力いっぱい押したが、鉄格子はびくともしない。手を痛めてしまった。CON -${PC._ruinWestDmg||0}`,
+   failTxt:()=>`<span style="color:#f0ece0">鉄格子は動かない</span><br><br>力いっぱい押したが、鉄格子はびくともしない。手を痛めてしまった。体力 -${PC._ruinWestDmg||0}`,
    choicesFn:(ok)=> ok
     ? [{label:' 小部屋を調べる', go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ', go:'RUIN_E'}]
-    : [{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinWestGateOpen',successTxt:()=>`<b>鉄格子をこじ開けた</b><br>全体重をかけると、錆びた蝶番が悲鳴を上げ、鉄格子が倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._westForceDmg=dmg;},failTxt:()=>`<b>鉄格子は動かない</b><br>CON -${PC._westForceDmg||0}`,choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',go:'RUIN_E_WEST_FORCE'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]})},{label:'⬅ 西の大広間へ', go:'RUIN_E'}],
+    : [{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinWestGateOpen',successTxt:()=>`<b>鉄格子をこじ開けた</b><br>全体重をかけると、錆びた蝶番が悲鳴を上げ、鉄格子が倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._westForceDmg=dmg;},failTxt:()=>`<b>鉄格子は動かない</b><br>体力 -${PC._westForceDmg||0}`,choicesFn:(ok)=>ok?[{label:' 小部屋を調べる',go:'RUIN_E_WEST_ROOM'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',go:'RUIN_E_WEST_FORCE'},{label:'⬅ 西の大広間へ',go:'RUIN_E'}]})},{label:'⬅ 西の大広間へ', go:'RUIN_E'}],
   }); return '';
  },
  choices:()=>[
@@ -62796,7 +63104,7 @@ const NODES = {
  choices:()=>[
  ...(PC._ruinSouthGateOpen
  ? [{label:'⬇ 石室へ進む', go:'RUIN_F_SOUTH_ROOM'}]
- : [{label:' 力ずくでこじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_ruinSouthGateOpen', successTxt:()=>`<b>格子をこじ開けた</b><br>格子に肩を当てて体重をかけると、腐食した蝶番が外れ、扉が倒れた。`, failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,actor.con-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._southForceDmg=dmg; }, failTxt:()=>`<b>格子は動かない</b><br>渾身の力で押したが、格子はびくともしない。CON -${PC._southForceDmg||0}`, choicesFn:(ok)=>ok?[{label:'⬇ 石室へ進む',go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',go:'RUIN_F_SOUTH_FORCE'},{label:'⬆ 北の石室へ',go:'RUIN_F'}] })}]
+ : [{label:' 力ずくでこじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({ attr:'st', level:1, flagKey:'_ruinSouthGateOpen', successTxt:()=>`<b>格子をこじ開けた</b><br>格子に肩を当てて体重をかけると、腐食した蝶番が外れ、扉が倒れた。`, failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,actor.con-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._southForceDmg=dmg; }, failTxt:()=>`<b>格子は動かない</b><br>渾身の力で押したが、格子はびくともしない。体力 -${PC._southForceDmg||0}`, choicesFn:(ok)=>ok?[{label:'⬇ 石室へ進む',go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',go:'RUIN_F_SOUTH_FORCE'},{label:'⬆ 北の石室へ',go:'RUIN_F'}] })}]
  ),
  {label:'⬆ 北の石室へ', go:'RUIN_F'},
  ],
@@ -62809,10 +63117,10 @@ const NODES = {
    attr:'st', level:1, flagKey:'_ruinSouthGateOpen',
    successTxt:()=>`<span style="color:#f0ece0">格子をこじ開けた</span><br><br>格子に肩を当てて体重をかけると、腐食した蝶番が外れ、扉が倒れた。`,
    failFn:(actor)=>{ const dmg=Math.floor(Math.random()*4)+1; actor.con=Math.max(0,(actor===PC?PC.con:actor.con)-dmg); if(actor===PC)PC.con=actor.con; updateHUD(); PC._ruinSouthDmg=dmg; },
-   failTxt:()=>`<span style="color:#f0ece0">格子は動かない</span><br><br>渾身の力で押したが、格子はびくともしない。壁に手をぶつけてしまった。CON -${PC._ruinSouthDmg||0}`,
+   failTxt:()=>`<span style="color:#f0ece0">格子は動かない</span><br><br>渾身の力で押したが、格子はびくともしない。壁に手をぶつけてしまった。体力 -${PC._ruinSouthDmg||0}`,
    choicesFn:(ok)=> ok
     ? [{label:'⬇ 石室へ進む', go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ', go:'RUIN_F'}]
-    : [{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinSouthGateOpen',successTxt:()=>`<b>格子をこじ開けた</b><br>格子に肩を当てると、腐食した蝶番が外れ、扉が倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._southForceDmg=dmg;},failTxt:()=>`<b>格子は動かない</b><br>CON -${PC._southForceDmg||0}`,choicesFn:(ok)=>ok?[{label:'⬇ 石室へ進む',go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',go:'RUIN_F_SOUTH_FORCE'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]})},{label:'⬆ 北の石室へ', go:'RUIN_F'}],
+    : [{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）', fn:()=>dungeonTrySR({attr:'st',level:1,flagKey:'_ruinSouthGateOpen',successTxt:()=>`<b>格子をこじ開けた</b><br>格子に肩を当てると、腐食した蝶番が外れ、扉が倒れた。`,failFn:(actor)=>{const dmg=Math.floor(Math.random()*4)+1;actor.con=Math.max(0,actor.con-dmg);if(actor===PC)PC.con=actor.con;updateHUD();PC._southForceDmg=dmg;},failTxt:()=>`<b>格子は動かない</b><br>体力 -${PC._southForceDmg||0}`,choicesFn:(ok)=>ok?[{label:'⬇ 石室へ進む',go:'RUIN_F_SOUTH_ROOM'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]:[{label:' もう一度こじ開ける（強さ Lv1 能力値テスト）',go:'RUIN_F_SOUTH_FORCE'},{label:'⬆ 北の石室へ',go:'RUIN_F'}]})},{label:'⬆ 北の石室へ', go:'RUIN_F'}],
   }); return '';
  },
  choices:()=>[
@@ -63264,7 +63572,7 @@ const NODES = {
  <br>
  武器: <span style="color:#f0ece0">${(PC.equippedWeapons||[]).length?(PC.equippedWeapons).map(w=>w.name).join(', '):'なし（素手）'}</span><br>
  防具: <span style="color:#ece8e0">${effectiveArmor()>0?effectiveArmor()+'hits':'なし'}</span><br>
- <span style="color:#c0b098">ST:${PC.st} IQ:${PC.iq} LK:${PC.lk} CON:${PC.con} DEX:${PC.dex} CHR:${PC.chr} SPD:${PC.spd}</span><br>
+ <span style="color:#c0b098">強さ:${PC.st} 知力:${PC.iq} 運:${PC.lk} 体力:${PC.con} 器用さ:${PC.dex} 魅力:${PC.chr} 素早さ:${PC.spd}</span><br>
  <span style="color:#c0b098">パーソナルアド: ${(calcAdds()>=0?'+':'')+calcAdds()}</span><br><br>
  <span style="color:#e8e4d8">── シナリオをロードしてください ──</span>`,
  choices:[
@@ -63302,8 +63610,8 @@ const NODES = {
  TEST_SR:{
  scene:'dungeon',
  txt:()=>`能力値テストのテストをしよう。<br><br>
- <span style="color:#f0ece0">LK Lv2能力値テスト！</span><br>
- あなたのLK: ${PC.lk}<br>
+ <span style="color:#f0ece0">運 Lv2能力値テスト！</span><br>
+ あなたの運: ${PC.lk}<br>
  目標: 2D6+${PC.lk} ≥ 25（Lv2×5+15）<br><br>
  <span style="color:#c0b098">ダブルスが出ると振り直してさらに加算される！</span>`,
  savingRoll:{attr:'lk',level:2,success:'SR_PASS',fail:'SR_FAIL'}
@@ -64130,7 +64438,7 @@ const NODES = {
  TEST_MAGIC:{
  scene:'dungeon',
  txt:()=>PC.type==='wizard'?
- `魔法テスト。<br>あなたのST: ${PC.st}<br>好きな呪文を選んでください。`
+ `魔法テスト。<br>あなたの強さ: ${PC.st}<br>好きな呪文を選んでください。`
  :`<span class="red">あなたは戦士なので魔法は使えません。</span>`,
  magic:'呪文テスト中',
  choices:[{label:'▶ 戻る',go:'START'}]
@@ -65528,7 +65836,7 @@ const NODES = {
    {label:' 逃げる（素早さ Lv3 能力値テスト）', fn:()=>{
     setupSavingRoll({
      attr:'spd', level:3,
-     onFail:()=>{ const d=15; PC.con=Math.max(0,PC.con-d); updateHUD(); showSaveToast(`逃げ損ねた！CON-${d}`); go('CRYPT3_2'); },
+     onFail:()=>{ const d=15; PC.con=Math.max(0,PC.con-d); updateHUD(); showSaveToast(`逃げ損ねた！体力-${d}`); go('CRYPT3_2'); },
      onSuccess:()=>{ go('CRYPT3_2'); },
     });
    }},
@@ -73226,7 +73534,7 @@ try{ arcDInstallGoalRooms(); }catch(e){ console.error('arcD install', e); }
   <!-- 「墓地の唸り声」専用イベント -->
   <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 墓地の唸り声（専用イベント）テスト ──</div>
   <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
-   <button onclick="dbg(()=>{dbgTestGraveyardMoan('choices');})" class="dbg-btn" style="border-color:#664488;color:#cc99ee">① 3択（CHR/IQ/LK）から開始</button>
+   <button onclick="dbg(()=>{dbgTestGraveyardMoan('choices');})" class="dbg-btn" style="border-color:#664488;color:#cc99ee">① 3択（魅力/知力/運）から開始</button>
    <button onclick="dbg(()=>{dbgTestGraveyardMoan('scene');})" class="dbg-btn" style="border-color:#664488;color:#cc99ee">② 深夜の墓地シーンから開始</button>
    <button onclick="dbg(()=>{dbgTestGraveyardMoan('tomb');})" class="dbg-btn" style="border-color:#664488;color:#cc99ee">③ 塚の中の描写ノードから開始</button>
    <button onclick="dbg(()=>{dbgTestGraveyardMoan('combat');})" class="dbg-btn" style="border-color:#664488;color:#cc99ee">④ 塚の中の戦闘だけ直接開始</button>
@@ -73235,16 +73543,16 @@ try{ arcDInstallGoalRooms(); }catch(e){ console.error('arcD install', e); }
   <!-- 「商家の密輸」専用イベント -->
   <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 商家の密輸（専用イベント）テスト ──</div>
   <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
-   <button onclick="dbg(()=>{dbgTestSmuggling('choices');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">① 3択（CHR/IQ/LK）から開始</button>
+   <button onclick="dbg(()=>{dbgTestSmuggling('choices');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">① 3択（魅力/知力/運）から開始</button>
    <button onclick="dbg(()=>{dbgTestSmuggling('merchant');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">② 商家ノードから開始</button>
-   <button onclick="dbg(()=>{dbgTestSmuggling('threaten');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">③ 商人を脅す（CHR Lv2）だけ直接開始</button>
+   <button onclick="dbg(()=>{dbgTestSmuggling('threaten');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">③ 商人を脅す（魅力 Lv2）だけ直接開始</button>
    <button onclick="dbg(()=>{dbgTestSmuggling('buy');})" class="dbg-btn" style="border-color:#448866;color:#88ddaa">④ 密輸品を買うだけ直接開始</button>
   </div>
 
   <!-- 「先代の英雄のお宝」専用イベント -->
   <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 先代の英雄のお宝（専用イベント）テスト ──</div>
   <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
-   <button onclick="dbg(()=>{dbgTestHeroTreasure('choices');})" class="dbg-btn" style="border-color:#886644;color:#eeaa77">① 3択（CHR/IQ/LK）から開始</button>
+   <button onclick="dbg(()=>{dbgTestHeroTreasure('choices');})" class="dbg-btn" style="border-color:#886644;color:#eeaa77">① 3択（魅力/知力/運）から開始</button>
    <button onclick="dbg(()=>{dbgTestHeroTreasure('scene');})" class="dbg-btn" style="border-color:#886644;color:#eeaa77">② 塚を発見するシーンから開始</button>
    <button onclick="dbg(()=>{dbgTestHeroTreasure('tomb');})" class="dbg-btn" style="border-color:#886644;color:#eeaa77">③ 塚の中の描写ノードから開始</button>
    <button onclick="dbg(()=>{dbgTestHeroTreasure('combat');})" class="dbg-btn" style="border-color:#886644;color:#eeaa77">④ 塚の中の戦闘だけ直接開始</button>
@@ -73253,7 +73561,7 @@ try{ arcDInstallGoalRooms(); }catch(e){ console.error('arcD install', e); }
   <!-- 「町外れの奇妙な光」専用イベント -->
   <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 町外れの奇妙な光（専用イベント）テスト ──</div>
   <div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:14px">
-   <button onclick="dbg(()=>{dbgTestStrangeLight('choices');})" class="dbg-btn" style="border-color:#446688;color:#77aaee">① 3択（CHR/IQ/LK）から開始</button>
+   <button onclick="dbg(()=>{dbgTestStrangeLight('choices');})" class="dbg-btn" style="border-color:#446688;color:#77aaee">① 3択（魅力/知力/運）から開始</button>
    <button onclick="dbg(()=>{dbgTestStrangeLight('scene');})" class="dbg-btn" style="border-color:#446688;color:#77aaee">② 廃屋を発見するシーンから開始</button>
    <button onclick="dbg(()=>{dbgTestStrangeLight('house');})" class="dbg-btn" style="border-color:#446688;color:#77aaee">③ 廃屋の中の描写ノードから開始</button>
    <button onclick="dbg(()=>{dbgTestStrangeLight('combat');})" class="dbg-btn" style="border-color:#446688;color:#77aaee">④ 戦闘だけ直接開始</button>
@@ -73424,6 +73732,9 @@ try{ arcDInstallGoalRooms(); }catch(e){ console.error('arcD install', e); }
     const after = (PC._formerCompanions||[]).filter(n=>!n._dead).length;
     showSaveToast(`かつての仲間チェック実行：存命 ${before}人→${after}人`);
    })" class="dbg-btn" style="border-color:#446688;color:#88aacc">仲間の死亡判定を実行</button>
+   <button onclick="dbg(()=>{ dbgGemWeapon(); })" class="dbg-btn" style="border-color:#886644;color:#eeaa77">宝石付き武器を入手（ランダム）</button>
+   <button onclick="dbg(()=>{ dbgGemWeapon(5); })" class="dbg-btn" style="border-color:#886644;color:#eeaa77">宝石付き武器を入手（上古）</button>
+   <button onclick="dbg(()=>{ dbgGemWeapon(1); })" class="dbg-btn" style="border-color:#886644;color:#eeaa77">宝石付き武器を入手（時代なし）</button>
    <button onclick="dbg(()=>{ document.getElementById('debug-panel').style.display='none'; fcDebugHeroRumor('old'); })" class="dbg-btn" style="border-color:#446688;color:#88aacc">酒場の噂：過去の英雄（死後50〜99年）</button>
    <button onclick="dbg(()=>{ document.getElementById('debug-panel').style.display='none'; fcDebugHeroRumor('forgotten'); })" class="dbg-btn" style="border-color:#446688;color:#88aacc">酒場の噂：過去の英雄（死後100年以上・エルフ）</button>
    <button onclick="dbg(()=>{ document.getElementById('debug-panel').style.display='none'; wildDebugStart(); })" class="dbg-btn" style="border-color:#688848;color:#a8c888">荒野：カザーヌ→イェルドゥン街道の中央（25日目）から荒野に入る</button>
