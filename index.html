@@ -644,7 +644,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103102</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103103</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -50286,6 +50286,7 @@ function discardWeapon(idx){
  const w = PC.invWeapons[idx];
  if(!w) return;
  if(PC.equippedWeapons.includes(w)){ showSaveToast('装備中の武器は先に外してください'); return; }
+ if(!confirm(`${w.name}を捨てますか？`)) return;
  PC.invWeapons.splice(idx,1);
  updateHUD(); checkWeightPenalty(); renderStatusPanel();
  if(isShopOpen()) renderIngameShop();
@@ -50297,6 +50298,7 @@ function discardArmor(idx){
  const a = PC.invArmors[idx];
  if(!a) return;
  if(PC.equippedArmors.includes(a)){ showSaveToast('装備中の防具は先に外してください'); return; }
+ if(!confirm(`${a.name}を捨てますか？`)) return;
  PC.invArmors.splice(idx,1);
  updateHUD(); checkWeightPenalty(); renderStatusPanel();
  if(isShopOpen()) renderIngameShop();
@@ -52326,7 +52328,7 @@ function renderStatusPanel(){
  <div style="font-size:var(--font-sm);color:#f0ece0"> ${w.name}</div>
  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
  </div>
- <button onclick="unequipWeapon(${i})" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>
+ <div style="display:flex;gap:4px"><button onclick="unequipWeapon(${i})" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>${discBtn('wEq',-1,i)}</div>
  </div>`;
  });
  }
@@ -52373,7 +52375,7 @@ function renderStatusPanel(){
   <div style="font-size:var(--font-sm);color:#e0d8c8"> ${rngW.name}</div>
   <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rngW.dice}D+${rngW.adds}　${rngW.isRanged?'弓':'投擲'}</div>${weaponDescHtml(rngW)}
   </div>
-  <button onclick="unequipRanged()" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>
+  <div style="display:flex;gap:4px"><button onclick="unequipRanged()" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>${discBtn('ranged',-1)}</div>
   </div>`;
  } else {
   rngHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--white2);padding:6px">（なし）</div>`;
@@ -52384,7 +52386,7 @@ function renderStatusPanel(){
   const idx = PC.invWeapons.indexOf(w);
   rngHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
   <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
-  <button onclick="equipRanged(${idx})" ${btnStyle('var(--white2)','var(--info-bg)','var(--info-border)')}>遠距離装備</button>
+  <div style="display:flex;gap:4px"><button onclick="equipRanged(${idx})" ${btnStyle('var(--white2)','var(--info-bg)','var(--info-border)')}>遠距離装備</button>${discBtn('wInv',-1,idx)}</div>
   </div>`;
  });
 
@@ -52405,7 +52407,7 @@ function renderStatusPanel(){
  <div style="font-size:var(--font-sm);color:#ece8e0">${a.isShield?'':''} ${a.name}</div>
  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${a.hits}hits${isWarrior?` →${eff}hits(×2)`:''}${a.isShield?' [シールド]':''}</div>
  </div>
- <button onclick="unequipArmor(${i})" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>
+ <div style="display:flex;gap:4px"><button onclick="unequipArmor(${i})" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>${discBtn('aEq',-1,i)}</div>
  </div>`;
  });
  arHtml += `<div style="font-size:calc(var(--font-sm) - 1px);color:#ece8e0;padding:4px 0">合計防護: ${effectiveArmor()}hits</div>`;
@@ -59552,6 +59554,12 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026103103', sections:[
+  { heading:'新規実装項目', items:[
+   '街歩きで、ときどき旅の料理人に出会うことがある。出会った時間帯によって、様子が変わる。',
+   '主人公の装備を、STATUSから捨てられるようにした。遠距離武器や、装備中の武器・防具も捨てられる。捨てるときは、確認が出る。',
+  ]},
+ ]},
  { version:'ver.2026103102', sections:[
   { heading:'調整', items:[
    '拠点の店番に主人公を設定すると、店番をやめられず拠点から出られなくなる不具合を修正した。店番をやめる（店を閉める）選択肢を追加した。',
