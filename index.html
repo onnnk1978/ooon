@@ -644,7 +644,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103002</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103101</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -49994,16 +49994,17 @@ function igsBuyJewel(townId, idx){
  const stock = _jewelStock[townId];
  if(!stock || !stock[idx]) return;
  const it = stock[idx];
- if(!payPrice(it.priceGP)){ showSaveToast('所持金が足りない'); return; }
+ const _sa = _shopActor || PC; // 入店している本人の金で買い、本人の持ち物にする（仲間も宝飾品を持てる）
+ if(!payPrice(it.priceGP, _sa)){ showSaveToast('所持金が足りない'); return; }
  if(it._isMagicWeapon && it._weaponData){
-  PC.invWeapons = PC.invWeapons || [];
-  PC.invWeapons.push({...it._weaponData});
+  _sa.invWeapons = _sa.invWeapons || [];
+  _sa.invWeapons.push({...it._weaponData});
   stock.splice(idx, 1);
   updateHUD(); renderIngameShop(townId);
   showSaveToast(`⚔ ${it.name}を入手した（ステータスから装備できます）`);
  } else {
-  PC.invJewels = PC.invJewels || [];
-  PC.invJewels.push({name: it.name, priceGP: it.priceGP});
+  _sa.invJewels = _sa.invJewels || [];
+  _sa.invJewels.push({name: it.name, priceGP: it.priceGP});
   stock.splice(idx, 1);
   updateHUD(); renderIngameShop(townId);
   showSaveToast(' '+it.name+'を購入した（売却タブから売れます）');
@@ -50011,12 +50012,13 @@ function igsBuyJewel(townId, idx){
 }
 
 function sellJewel(idx){
- PC.invJewels = PC.invJewels || [];
- const j = PC.invJewels[idx];
+ const _sa = _shopActor || PC;
+ _sa.invJewels = _sa.invJewels || [];
+ const j = _sa.invJewels[idx];
  if(!j) return;
- PC.invJewels.splice(idx,1);
+ _sa.invJewels.splice(idx,1);
  const priceCP = Math.floor(j.priceGP * 100 * 0.5);
- gainPriceCP(priceCP);
+ gainPriceCP(priceCP, _sa);
  updateHUD(); renderIngameShop();
  showSaveToast(' '+j.name+'を売った（'+formatItemCost(priceCP/100)+'）');
 }
@@ -50135,8 +50137,7 @@ function renameWeapon(idx){
  // 初回リネーム時に元の名前を保存
  if(!w._baseName) w._baseName = current;
  w.name = newName.trim();
- // 装備中の同名武器も更新
- PC.equippedWeapons = (PC.equippedWeapons||[]).map(e=>e.name===current ? {...e, name:w.name, _baseName:w._baseName} : e);
+ // 装備中の武器は所持品と同じ実体なので、上の書き換えがそのまま反映される（コピーを作ると複製や取り違えの原因になる）
  saveGame();
  renderStatusPanel();
  showSaveToast(` 武器名を「${w.name}」に変更した`);
@@ -50236,6 +50237,99 @@ function sellEquip(idx){
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(); renderIngameShop();
  showSaveToast(` ${name}を売った（${sellPriceLabel(def?.cost||0)}）`);
+}
+
+// 矢の売値：1本あたり5CP
+function arrowSellCP(n){ return n * 5; }
+function arrowSellLabel(n){
+ const cp = arrowSellCP(n);
+ if(cp === 0) return '0CP';
+ if(cp % 100 === 0) return `${cp/100}GP`;
+ if(cp % 10 === 0) return `${cp/10}SP`;
+ return `${cp}CP`;
+}
+function _askArrowCount(have, verb){
+ const input = prompt(`${verb}矢の本数を入力してください（所持：${have}本）`, String(have));
+ if(input === null) return 0;
+ const n = parseInt(input, 10);
+ if(!n || n <= 0){ showSaveToast('正しい本数を入力してください'); return 0; }
+ if(n > have){ showSaveToast('所持している矢が足りません'); return 0; }
+ return n;
+}
+// 矢を売る（ショップ内。買い物中の本人の矢が対象）
+function sellArrows(){
+ const _sa = _shopActor||PC;
+ const have = _sa.arrows||0;
+ if(have <= 0) return;
+ const n = _askArrowCount(have, '売る');
+ if(!n) return;
+ _sa.arrows = have - n;
+ const cp = arrowSellCP(n);
+ if(cp>0) gainPriceCP(cp, _sa);
+ updateHUD(); checkWeightPenalty(); renderIngameShop();
+ showSaveToast(` 矢${n}本を売った（${arrowSellLabel(n)}）`);
+}
+// 所持品・装備を捨てる（対価なし・ショップ外でも使用可）。who: -1=主人公, 0以上=仲間の番号
+const _DISC_BTN = `style="background:#150808;border:1px solid #5a3030;color:#c89090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 8px;cursor:pointer;border-radius:2px"`;
+function discBtn(kind, who, idx){ return `<button onclick="discardOwned('${kind}',${who},${idx==null?-1:idx})" ${_DISC_BTN}>捨てる</button>`; }
+function discardOwned(kind, who, idx){
+ const t = who < 0 ? PC : (PC.party||[])[who];
+ if(!t) return;
+ const isPC = (t === PC);
+ let label = '';
+ const _count = (have, name)=>{
+  const input = prompt(`捨てる${name}の数を入力してください（所持：${have}）`, String(have));
+  if(input === null) return 0;
+  const k = parseInt(input, 10);
+  if(!k || k <= 0 || k > have){ showSaveToast('正しい数を入力してください'); return 0; }
+  return k;
+ };
+ const ask = (nm)=> confirm(`${nm}を捨てますか？`);
+ switch(kind){
+  case 'wEq': { const w=(t.equippedWeapons||[])[idx]; if(!w) return; if(!ask(w.name)) return; t.equippedWeapons.splice(idx,1); const i=(t.invWeapons||[]).indexOf(w); if(i>=0) t.invWeapons.splice(i,1); label=w.name; break; }
+  case 'wInv': { const w=(t.invWeapons||[])[idx]; if(!w) return; if(!ask(w.name)) return; t.invWeapons.splice(idx,1); const i=(t.equippedWeapons||[]).indexOf(w); if(i>=0) t.equippedWeapons.splice(i,1); label=w.name; break; }
+  case 'aEq': { const a=(t.equippedArmors||[])[idx]; if(!a) return; if(!ask(a.name)) return; t.equippedArmors.splice(idx,1); const i=(t.invArmors||[]).indexOf(a); if(i>=0) t.invArmors.splice(i,1); label=a.name; break; }
+  case 'aInv': { const a=(t.invArmors||[])[idx]; if(!a) return; if(!ask(a.name)) return; t.invArmors.splice(idx,1); const i=(t.equippedArmors||[]).indexOf(a); if(i>=0) t.equippedArmors.splice(i,1); label=a.name; break; }
+  case 'ranged': { const w=t.equippedRanged; if(!w) return; if(!ask(w.name)) return; t.equippedRanged=null; label=w.name; break; }
+  case 'equip': { const nm=(t.invEquip||[])[idx]; if(!nm) return; if(!ask(nm)) return; t.invEquip.splice(idx,1); label=nm; break; }
+  case 'torch': {
+   const have = isPC ? (PC._torchStock||0) + (PC._torchTurns>0?1:0) : (t._torchStock||0);
+   if(have <= 0) return; const k=_count(have,'松明'); if(!k) return;
+   if(isPC){ const fromStock=Math.min(k, PC._torchStock||0); PC._torchStock=(PC._torchStock||0)-fromStock; if(k-fromStock>0) PC._torchTurns=0; /* 足りない分は点灯中の1本を捨てる */ }
+   else t._torchStock = Math.max(0,(t._torchStock||0)-k);
+   label=`松明${k}本`; break; }
+  case 'food': {
+   const have = isPC ? (PC._food||0) : (t._food||0);
+   if(have <= 0) return; const k=_count(have,'食料（日分）'); if(!k) return;
+   if(isPC) PC._food = have-k; else t._food = have-k;
+   label=`食料${k}日分`; break; }
+  case 'arrows': {
+   const have=t.arrows||0; if(have<=0) return; const k=_count(have,'矢'); if(!k) return;
+   t.arrows=have-k; label=`矢${k}本`; break; }
+  case 'clothing': { const nm=t.invClothingName||'防寒着と荷物袋'; if(!(t.invClothing||t.equippedClothing)) return; if(!ask(nm)) return; t.invClothing=false; t.equippedClothing=false; t.invClothingName=null; label=nm; break; }
+  case 'boots': { const nm=t.invBootsName||'履物'; if(!(t.invBoots||t.equippedBoots)) return; if(!ask(nm)) return; t.invBoots=false; t.equippedBoots=false; t.invBootsName=null; label=nm; break; }
+  case 'spare': { /* idx は FOOTWEAR_NAMES の添字 */ const nm=FOOTWEAR_NAMES[idx]; if(!nm || spareFootwearCount(nm,t)<=0) return; if(!ask('予備の'+nm)) return; t._spareFootwear[nm]--; label='予備の'+nm; break; }
+  case 'jewel': { const j=(t.invJewels||[])[idx]; if(!j) return; if(!ask(j.name)) return; t.invJewels.splice(idx,1); label=j.name; break; }
+  case 'spec': { const sp=(t.invSpecialties||[])[idx]; if(!sp) return; if(!ask(sp.name)) return; t.invSpecialties.splice(idx,1); label=sp.name; break; }
+  default: return;
+ }
+ // 仲間の持ち物を捨てさせると、その仲間の信頼度が1品目につき5下がる（本数・日数を指定して捨てる品も1品目として数える）
+ if(!isPC) t.trust = Math.max(0, (t.trust??0) - 5);
+ updateHUD(); checkWeightPenalty(t);
+ if(isPC){ renderStatusPanel(); } else { renderPartyTab(); }
+ if(isShopOpen()) renderIngameShop();
+ showSaveToast(`${isPC?'':t.name+'の'}${label}を捨てた`+(isPC?'':`（${t.name}の信頼度が下がった）`));
+}
+// 矢を捨てる（対価なし・ショップ外でも使用可）
+function discardArrows(){
+ const have = PC.arrows||0;
+ if(have <= 0) return;
+ const n = _askArrowCount(have, '捨てる');
+ if(!n) return;
+ PC.arrows = have - n;
+ updateHUD(); checkWeightPenalty(); renderStatusPanel();
+ if(isShopOpen()) renderIngameShop();
+ showSaveToast(`矢${n}本を捨てた`);
 }
 
 // 松明を1本売る
@@ -50419,6 +50513,12 @@ function renderIgsList(townId){
   }
  }
 
+ // 矢（買い物中の本人の分）
+ if((_shopA.arrows||0) > 0){
+  sec(' 矢');
+  row('', `矢 ×${_shopA.arrows}本（売値は1本あたり）`, arrowSellCP(1), ()=>sellArrows());
+ }
+
  // 特産品
  if((PC.invSpecialties||[]).length){
   sec(' 特産品');
@@ -50445,16 +50545,16 @@ function renderIgsList(townId){
  }
 
  // 宝飾品
- if((PC.invJewels||[]).length){
+ if(((_shopActor||PC).invJewels||[]).length){
   sec(' 宝飾品');
-  PC.invJewels.forEach((j)=>{
+  (_shopActor||PC).invJewels.forEach((j)=>{
    const priceCP = Math.floor(j.priceGP*100*0.5);
    const _j = j;
-   row('', j.name, priceCP, ()=>{ const _i=PC.invJewels.indexOf(_j); if(_i>=0) sellJewel(_i); });
+   row('', j.name, priceCP, ()=>{ const _i=(_shopActor||PC).invJewels.indexOf(_j); if(_i>=0) sellJewel(_i); });
   });
  }
 
- if(!hasAny && !(PC.invJewels||[]).length){
+ if(!hasAny && !((_shopActor||PC).invJewels||[]).length){
   el.innerHTML = '<div style="font-size:var(--font-sm);color:#c8b8a0;padding:12px 0;text-align:center">売れるものがありません</div>';
  }
  return;
@@ -50616,7 +50716,7 @@ function renderIgsList(townId){
  } else {
   stock.forEach((it,idx)=>{
    if(idx >= jewelVisible) return;
-   const canAfford = totalCP() >= it.priceGP*100;
+   const canAfford = totalCP(_shopActor||PC) >= it.priceGP*100;
    const div = document.createElement('div'); div.className='shop-item';
    div.innerHTML = `<h4>${it.icon} ${it.name}</h4>
    <p style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${it.desc}</p>
@@ -50636,9 +50736,12 @@ function renderIgsList(townId){
   note.textContent = _logiStage>=3 ? '最低限の品しか残っていない。' : '仕入れが滞っていて、品数が減っている。';
   el.appendChild(note);
  }
+ const _foodNotForActor = !!(_shopActor && _shopActor !== PC); // 食料は主人公のみ購入（仲間の入店時は並べない）
  equipTableShown.forEach(it=>{
  if(it.wizard && PC.type!=='wizard') return;
  if(it._isFood && mareaNoFood) return; // マレア地方の村では食料販売なし
+ if(it._isFood && _shopActor && _shopActor !== PC) return; // 食料は主人公が管理するため、仲間の入店時は並べない
+ if(it._isFood && _foodNotForActor) return; // 仲間は食料を買えない
  const dispWeight = it._isFood ? (it._foodAmt||1)*5 : it.weight;
  const effectiveCost = it._isFood ? foodPrice(it.cost) : it.cost;
  const div = document.createElement('div'); div.className='shop-item';
@@ -50648,7 +50751,7 @@ function renderIgsList(townId){
  div.innerHTML = `<h4>${it._isFood ? ' '+it.name : it.name}</h4>
  <p>${it._isFood ? `食料ポイント+${it._foodAmt||1}　Wgt:${(it._foodAmt||1)*5}` : `Wgt:${dispWeight}`}</p>
  ${priceLabel}
- <button class="buy-btn" ${totalCP()<effectiveCost*100?'disabled':''} onclick="igsBuyEquip(${EQUIP_TABLE.indexOf(it)})">BUY</button>`;
+ <button class="buy-btn" ${totalCP(_shopActor||PC)<effectiveCost*100?'disabled':''} onclick="igsBuyEquip(${EQUIP_TABLE.indexOf(it)})">BUY</button>`;
  el.appendChild(div);
  });
  }
@@ -50708,7 +50811,7 @@ function igsForgeWeapon(idx){
  if(totalCP(sa) < cost * 100){ showSaveToast('所持金が足りない'); return; }
  payPrice(cost, sa);
  w.adds += 1;
- sa.equippedWeapons = (sa.equippedWeapons||[]).map(e=>{ if((e._baseName||e.name)===(w._baseName||w.name)) return {...e, adds:w.adds, _baseAdds:w._baseAdds}; return e; });
+ // 装備中の武器は所持品と同じ実体なので、w.addsの加算がそのまま反映される（同名の別の武器には影響しない）
  updateHUD();
  renderIgsList(_igsTownId);
  showSaveToast(` 鍛錬完了！${w.name} → ${w.dice}D+${w.adds}（+${_getForgeLevel(w)}/+6）`);
@@ -50793,6 +50896,8 @@ function igsBuyArmor(i, townId){
 function igsBuyEquip(i){
  const _sa = _shopActor || PC;
  const it=EQUIP_TABLE[i];
+ if(it._isFood && _sa !== PC) return; // 食料は主人公のみが買う
+ if(it._isFood && _sa !== PC) return; // 食料は主人公のみ購入（仲間の金では買わない）
  const effectiveCost = it._isFood ? foodPrice(it.cost) : it.cost;
  if(totalCP(_sa)<effectiveCost*100)return;
  payPrice(effectiveCost, _sa);
@@ -51679,9 +51784,9 @@ function renderNPCDetail(el, n, idx){
  const _nWtColor = _nWtOver ? 'var(--red)' : _nWtCur > _nWtMax * 0.8 ? 'var(--ora)' : 'var(--grn)';
  const npcWtHtml = `<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:6px 8px;margin-bottom:12px"><div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:3px">所持重量</div><div style="font-size:calc(var(--font-sm) + 1px);color:${_nWtColor}">${_nWtCur} / ${_nWtMax} wu</div>${_nWtOver ? `<div style="font-size:calc(var(--font-sm) - 2px);margin-top:3px;color:#e0d0d0">過積載！一行の徒歩の移動日数が2倍になる</div>` : ''}</div>`;
  // 衣服・履物：仲間は着脱の操作がないので、持っていれば着ている（履いている）扱い
- const _wearRow = (has, name, onLabel) => `<div style="background:${has?'var(--info-bg)':'var(--panel)'};border:1px solid ${has?'#004444':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px"><div style="font-size:var(--font-sm);color:${has?'#ece8e0':'#c8b8a0'}">${has ? name + ' [' + onLabel + ']' : name + '：なし'}</div></div>`;
- const npcWearHtml = _wearRow(!!(n.invClothing || n.equippedClothing), n.invClothingName || '防寒着と荷物袋', '着用中')
-  + _wearRow(!!(n.invBoots || n.equippedBoots), n.invBootsName || '履物', '履いている');
+ const _wearRow = (has, name, onLabel, kind) => `<div style="background:${has?'var(--info-bg)':'var(--panel)'};border:1px solid ${has?'#004444':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div style="font-size:var(--font-sm);color:${has?'#ece8e0':'#c8b8a0'}">${has ? name + ' [' + onLabel + ']' : name + '：なし'}</div>${has ? discBtn(kind, idx) : ''}</div>`;
+ const npcWearHtml = _wearRow(!!(n.invClothing || n.equippedClothing), n.invClothingName || '防寒着と荷物袋', '着用中', 'clothing')
+  + _wearRow(!!(n.invBoots || n.equippedBoots), n.invBootsName || '履物', '履いている', 'boots');
  const coldHtml = n._cold > 0 ? `<div style="font-size:calc(var(--font-sm) - 1px);color:#e0b0a0;margin-bottom:8px">風邪を引いている（強さ・体力 ${coldPenaltyText(n)}／宿屋で1〜3泊すれば治る）</div>` : '';
  const trustHtml = coldHtml + '<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:8px;margin-bottom:12px">'
   + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">'
@@ -51729,7 +51834,7 @@ function renderNPCDetail(el, n, idx){
  <div style="font-size:var(--font-sm);color:#f0ece0"> ${w.name}</div>
  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
  </div>
- <button onclick="npcUnequipWeapon(${idx},${wi})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>
+ <span style="display:flex;gap:4px"><button onclick="npcUnequipWeapon(${idx},${wi})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>${discBtn('wEq',idx,wi)}</span>
  </div>`).join('');
 
  const invWpRows = (n.invWeapons||[]).filter(w=>!w.isRanged).map((w,wi)=>{
@@ -51739,7 +51844,7 @@ function renderNPCDetail(el, n, idx){
  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name}${canUse?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※要件未満</span>'}</div>
  <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
  </div>
- <button onclick="npcEquipWeapon(${idx},${wi})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>
+ <span style="display:flex;gap:4px"><button onclick="npcEquipWeapon(${idx},${n.invWeapons.indexOf(w)})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>${discBtn('wInv',idx,n.invWeapons.indexOf(w))}</span>
  </div>`;
  }).join('');
 
@@ -51750,7 +51855,7 @@ function renderNPCDetail(el, n, idx){
  <div style="font-size:var(--font-sm);color:#ece8e0">${a.isShield?'':''} ${a.name}</div>
  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits${n.type==='warrior'?` (×2→${a.hits*2})`:''}</div>
  </div>
- <button onclick="npcUnequipArmor(${idx},${ai})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>
+ <span style="display:flex;gap:4px"><button onclick="npcUnequipArmor(${idx},${ai})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>${discBtn('aEq',idx,ai)}</span>
  </div>`).join('');
 
  const invArRows = (n.invArmors||[]).map((a,ai)=>{
@@ -51760,7 +51865,7 @@ function renderNPCDetail(el, n, idx){
  <div style="font-size:var(--font-sm);color:#c8b8a0">${a.isShield?'':''} ${a.name}${canUse?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※強さ不足</span>'}</div>
  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits</div>
  </div>
- <button onclick="npcEquipArmor(${idx},${ai})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>
+ <span style="display:flex;gap:4px"><button onclick="npcEquipArmor(${idx},${ai})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>${discBtn('aInv',idx,ai)}</span>
  </div>`;
  }).join('');
 
@@ -51867,7 +51972,7 @@ function renderNPCDetail(el, n, idx){
     <div style="font-size:var(--font-sm);color:#e0d8c8"> ${rw.name}</div>
     <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rw.dice}D+${rw.adds||0}　${rw.isRanged?'弓':'投擲'}</div>${weaponDescHtml(rw)}
    </div>
-   <button onclick="npcUnequipRanged(${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>
+   <span style="display:flex;gap:4px"><button onclick="npcUnequipRanged(${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>${discBtn('ranged',idx)}</span>
    </div>`;
   } else {
    rHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--white2);padding:6px;margin-bottom:4px">（なし）</div>`;
@@ -51877,7 +51982,7 @@ function renderNPCDetail(el, n, idx){
    const widx = (n.invWeapons||[]).indexOf(w);
    rHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
    <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds||0}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
-   <button onclick="npcEquipRanged(${idx},${widx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:var(--info-bg);border:1px solid #484848;color:var(--white2);font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">遠距離装備</button>
+   <span style="display:flex;gap:4px"><button onclick="npcEquipRanged(${idx},${widx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:var(--info-bg);border:1px solid #484848;color:var(--white2);font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">遠距離装備</button>${discBtn('wInv',idx,widx)}</span>
    </div>`;
   });
   return rHtml;
@@ -51897,17 +52002,19 @@ function renderNPCDetail(el, n, idx){
  ${(()=>{
   const items = [];
   // その他装備品
-  (n.invEquip||[]).forEach(name=>{ items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text)"> ${name}</div>`); });
+  (n.invEquip||[]).forEach((name,ei)=>{ items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> ${name}</span>${discBtn('equip',idx,ei)}</div>`); });
   // 松明
   const torches = (n._torchStock||0);
-  if(torches > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text)"> 松明 ×${torches}本</div>`);
+  if(torches > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> 松明 ×${torches}本</span>${discBtn('torch',idx)}</div>`);
+  // 矢
+  if((n.arrows||0) > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> 矢 ×${n.arrows}本</span>${discBtn('arrows',idx)}</div>`);
   // 食料
   const food = (n._food||0);
-  if(food > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text)"> 食料 ${food}日分</div>`);
+  if(food > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> 食料 ${food}日分</span>${discBtn('food',idx)}</div>`);
   // 宝飾品
-  (n.invJewels||[]).forEach(j=>{ items.push(`<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:7px 8px;margin-bottom:4px"><div style="font-size:var(--font-sm);color:#f0ece0"> ${j.name}</div><div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">売値 ${Math.floor(j.priceGP*0.5)}GP</div></div>`); });
+  (n.invJewels||[]).forEach((j,ji)=>{ items.push(`<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:7px 8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:var(--font-sm);color:#f0ece0"> ${j.name}</div><div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">売値 ${Math.floor(j.priceGP*0.5)}GP</div></div>${discBtn('jewel',idx,ji)}</div>`); });
   // 特産品
-  (n.invSpecialties||[]).forEach(sp=>{ items.push(`<div style="background:var(--panel);border:1px solid #505050;border-radius:3px;padding:7px 8px;margin-bottom:4px"><div style="font-size:var(--font-sm);color:var(--white)">${sp.icon||''} ${sp.name}</div><div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">仕入 ${sp.boughtAt}GP</div></div>`); });
+  (n.invSpecialties||[]).forEach((sp,si)=>{ items.push(`<div style="background:var(--panel);border:1px solid #505050;border-radius:3px;padding:7px 8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:var(--font-sm);color:var(--white)">${sp.icon||''} ${sp.name}</div><div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">仕入 ${sp.boughtAt}GP</div></div>${discBtn('spec',idx,si)}</div>`); });
   if(!items.length) return '';
   return '<div style="font-size:calc(var(--font-sm) - 2px);color:#e8e0d8;margin-bottom:6px;border-bottom:1px solid var(--shadow);padding-bottom:3px"> 所持品</div><div style="margin-bottom:12px">' + items.join('') + '</div>';
  })()}
@@ -52244,7 +52351,7 @@ function renderStatusPanel(){
    ? `<button onclick="unequipClothing()" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>`
    : `<button onclick="equipClothing()" ${btnStyle('var(--nature2)','#0e1006','var(--rust)')}>装備</button>`
   }
-  ${sellBtn}
+  ${sellBtn}${equipped?'':discBtn('clothing',-1)}
   </div>
   </div>`;
  }
@@ -52265,7 +52372,7 @@ function renderStatusPanel(){
  ? `<button onclick="unequipBoots()" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>`
  : `<button onclick="equipBoots()" ${btnStyle('var(--nature2)','#0e1006','var(--rust)')}>装備</button>`
  }
- ${sellBtn}
+ ${sellBtn}${equipped?'':discBtn('boots',-1)}
  </div>
  </div>`;
  }
@@ -52278,7 +52385,7 @@ function renderStatusPanel(){
   const sSell = isShopOpen() && sDef ? `<button onclick="sellSpareFootwear('${n}')" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(sDef.cost)}</button>` : '';
   eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
   <div><div style="font-size:var(--font-sm);color:var(--dim)"> 予備の${n} ×${cnt}</div></div>
-  <div style="display:flex;gap:4px">${wearBtn}${sSell}</div>
+  <div style="display:flex;gap:4px">${wearBtn}${sSell}${discBtn('spare',-1,FOOTWEAR_NAMES.indexOf(n))}</div>
   </div>`;
  });
  // その他所持品
@@ -52290,7 +52397,7 @@ function renderStatusPanel(){
  : '';
  eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div style="font-size:var(--font-sm);color:var(--text)"> ${e}</div>
- ${sellBtn}
+ <div style="display:flex;gap:4px">${sellBtn}${discBtn('equip',-1,idx)}</div>
  </div>`;
  });
  }
@@ -52303,7 +52410,24 @@ function renderStatusPanel(){
  : '';
  eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div style="font-size:var(--font-sm);color:var(--text)"> 松明 ×${total}本</div>
- ${sellBtn}
+ <div style="display:flex;gap:4px">${sellBtn}${discBtn('torch',-1)}</div>
+ </div>`;
+ }
+ // 食料
+ if((PC._food || 0) > 0){
+ eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+ <div style="font-size:var(--font-sm);color:var(--text)"> 食料 ${PC._food}日分</div>
+ ${discBtn('food',-1)}
+ </div>`;
+ }
+ // 矢
+ if((PC.arrows || 0) > 0){
+ const sellBtn = isShopOpen()
+ ? `<button onclick="sellArrows()" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${arrowSellLabel(1)}/本</button>`
+ : '';
+ eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+ <div style="font-size:var(--font-sm);color:var(--text)"> 矢 ×${PC.arrows}本</div>
+ <div style="display:flex;gap:4px">${sellBtn}<button onclick="discardArrows()" style="background:#150808;border:1px solid #5a3030;color:#c89090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:5px 8px;cursor:pointer;border-radius:3px">捨てる</button></div>
  </div>`;
  }
  eqEl.innerHTML = eqHtml || '<div style="font-size:var(--font-sm);color:#c8b8a0">なし</div>';
@@ -52336,7 +52460,7 @@ function renderStatusPanel(){
      <div style="font-size:var(--font-sm);color:#f0ece0"> ${j.name}</div>
      <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">売値 ${sellVal}GP</div>
     </div>
-    ${sellBtn}
+    <div style="display:flex;gap:4px">${sellBtn}${discBtn('jewel',-1,i)}</div>
     </div>`;
    }).join('');
   } else {
@@ -52357,6 +52481,7 @@ function renderStatusPanel(){
      <div style="font-size:var(--font-sm);color:var(--white)">${sp.icon||''} ${sp.name}</div>
      <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">仕入 ${sp.boughtAt}GP　重 ${sp.weight}wu</div>
     </div>
+    ${discBtn('spec',-1,i)}
     </div>`;
    }).join('');
   } else {
@@ -59324,6 +59449,17 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026103101', sections:[
+  { heading:'新規実装項目', items:[
+   'STATUSの所持品に、持っている矢の本数が表示されるようにした。矢は、捨てることも、ショップで売ることもできる（売値は1本あたり5CP）。',
+   '主人公と仲間の装備・所持品（衣類・履物、松明、食料、矢、宝飾品、特産品など）を、STATUSから捨てられるようにした。仲間の持ち物を捨てさせると、捨てさせた品目ごとに、その仲間の信頼度が下がる。',
+  ]},
+  { heading:'調整', items:[
+   '食料は主人公のみが購入するようにした。仲間は、食料を購入できない（仲間は自分で管理している）。',
+   '仲間は、仲間自身の所持金で装備品の購入可否を判定するようにした。',
+   '宝飾品を、入店した仲間の金で買い、仲間の持ち物にできるようにした。売却も、入店している本人の分を売る形にした。',
+  ]},
+ ]},
  { version:'ver.2026103002', sections:[
   { heading:'新規実装項目', items:[
    'Adventureモード: キャラクター作成時にチェックを入れて選べる、カジュアルなプレイ向けのモードを追加した。チェックを入れない場合は従来どおりの設定になる。ゲーム開始後は変更できない。<ul style="margin:2px 0 0;padding-left:1.2em"><li>能力値テストのダイス目に+5のボーナスが付く。</li><li>戦闘時に、敵の攻撃ヒットが2/3になる。</li></ul>',
