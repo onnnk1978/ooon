@@ -644,7 +644,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103101</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103102</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -5735,6 +5735,12 @@ function _showPropertyMain(townId){
    renderChoices([
     {label:' 拠点で休養する（店番を続ける）', fn:()=>propertyRest(townId)},
     {label:' 店を営む（店番を変更できます）', fn:()=>propertyShop(townId)},
+    {label:' 店番をやめる（店を閉めて外出できるようにする）', fn:()=>{
+     _calcShopSales(townId); // やめるまでの販売を清算してから閉める
+     if(prop.shop) prop.shop.keeperId = null;
+     showSaveToast('店番をやめた（店は閉まっている）');
+     goPropertyNode(townId);
+    }},
    ]);
    return;
   }
@@ -7407,6 +7413,8 @@ function propertyShopSetKeeper(townId){
    label:`${c.name}（魅力${c.chr}）${shop.keeperId===c.id?'　※現在の店番':''}`,
    fn:()=>{ shop.keeperId = c.id; showSaveToast(`${c.name}を店番にした`); propertyShop(townId); }
   })),
+  // 主人公しかいない場合などに店番をやめられるよう、店番なし（店を閉める）を選べるようにする
+  ...(shop.keeperId ? [{label:' 店番を置かない（店を閉める）', fn:()=>{ _calcShopSales(townId); shop.keeperId = null; showSaveToast('店番を置かないことにした（店は閉まっている）'); propertyShop(townId); }}] : []),
   {label:'← 戻る', fn:()=>propertyShop(townId)},
  ]);
 }
@@ -30793,7 +30801,53 @@ const DISTRICT_HARBOR_INCIDENTS = [
 ];
 
 // ── 大市場・隊商地区専用の共通事件イベント（全拠点で使い回す） ──
+// ── さすらいの料理人ナブト（市場地区の低確率イベント）──
+// 世界に1人。初遭遇から20〜30年ごとに代替わりする（ナブト → ナブト2世 → ナブト3世…）。代の長さは最初に必要になった時点で抽選して保存する
+const CHEF_LINES = [
+ '「アル・ラシードの香辛料は確かに高価だけど、干し肉の臭みを消し、長旅の疲労を和らげるには最高の代物なんです。どんな過酷な道中であっても、美味いものを食えば人は生き残れます。」',
+ '「廃坑の奥深くにしか生えないという『紫斑茸』……一度でいいから出汁をとってみたいです。冒険者にはただの不気味なキノコにしか見えないみたいだけど、料理人にとっては宝の山です。」',
+ '「ウルフの肉も、下処理とハーブの漬け込みさえ間違えなければ絶品に化けます。」',
+ '「この大陸の煮込み料理はワイルドなんですけど、味はどれも大雑把すぎるんです。」',
+];
+function chefGeneration(){
+ const c = PC._chef;
+ if(!c || c.first == null) return 1;
+ c.ends = c.ends || [];
+ let end = c.ends.length ? c.ends[c.ends.length-1] : c.first;
+ while(end <= GAME_TIME.totalDays){
+  end += (20 + Math.floor(Math.random()*11)) * 360; // 20〜30年（1年=360日）
+  c.ends.push(end);
+ }
+ return 1 + c.ends.filter(e=>e<=GAME_TIME.totalDays).length;
+}
+function chefCurrentName(){
+ const g = chefGeneration();
+ return g <= 1 ? 'ナブト' : `ナブト${g}世`;
+}
+// 市場で遭遇として選ばれたとき：初遭遇の日と、その町での最終遭遇日を記録する
+function chefRegisterEncounter(townId){
+ if(!PC._chef) PC._chef = {first: GAME_TIME.totalDays, ends: []};
+ if(PC._chef.first == null) PC._chef.first = GAME_TIME.totalDays;
+ PC._chef.towns = PC._chef.towns || {};
+ PC._chef.towns[townId] = GAME_TIME.totalDays;
+}
+function chefRecentlyHere(townId){
+ const t = PC._chef?.towns?.[townId];
+ return t != null && (GAME_TIME.totalDays - t) < 30;
+}
+
 const DISTRICT_MARKET_INCIDENTS = [
+ {
+  id:'market_wandering_chef',
+  phases:['morning','noon','afternoon','night'],
+  title:' さすらいの料理人',
+  weight:0.3,
+  names:['ナブト'],
+  flavorFn:(name, phase, line, place)=> phase==='morning'
+   ? `${place||'広場の一角'}で、旅の料理人${name}が大鍋を振るっている。香ばしい匂いが漂い、客たちが長い行列を作っていた。<br><br>${name}${line}`
+   : `${place||'広場の一角'}で、旅の料理人${name}が鍋や食器を片付けている。今日の店は仕舞いらしく、名残の香りだけが漂っていた。<br><br>${name}${line}`,
+  flavor:'',
+ },
  {
   id:'market_counterfeit_goods',
   phases:['dawn','morning','noon','afternoon','night','midnight'],
@@ -30813,6 +30867,13 @@ const DISTRICT_MARKET_INCIDENTS = [
   flavor:'二人の商人が、同じ客を巡って値切り合戦を繰り広げている。「そっちこそ粗悪品を売る気か！」怒号が響き渡っていた。',
  },
 ];
+
+// 大市場・隊商地区がない拠点では、さすらいの料理人は旧市街地区に現れる
+DISTRICT_OLDTOWN_INCIDENTS.push({
+ ...DISTRICT_MARKET_INCIDENTS.find(e=>e.id==='market_wandering_chef'),
+ place:'旧市街の通りの一角',
+ requiresNoMarket:true,
+});
 
 // ── 軍営・練兵地区専用の共通事件イベント（全拠点で使い回す） ──
 const DISTRICT_GARRISON_INCIDENTS = [
@@ -34863,15 +34924,20 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
    const heroEligible = !!dung.districtType && getTrust(dung.villageId) >= 75;
    // 「地方の英雄」限定イベント（requiresRegionHero）は、PCがその地方の英雄になっている場合のみ抽選対象に含める
    const regionHeroEligible = !!dung.districtType && (()=>{ const rk = getRegionKey(dung.villageId); return !!(rk && PC._heroRegions && PC._heroRegions[rk]); })();
-   const allIncidents = villageCfg(dung).incidents.filter(ev=>(!ev.requiresHeroTrust || heroEligible) && (!ev.requiresRegionHero || regionHeroEligible) && !(/bandit/.test(ev.id||'') && hfortBanditsSuppressed(getRegionKey(dung.villageId))));
-   const pool = allIncidents.filter(ev=>ev.phases.includes(phase));
-   const choices = pool.length ? pool : allIncidents;
+   const allIncidents = villageCfg(dung).incidents.filter(ev=>!(ev.requiresNoMarket && SMALL_TOWN_DISTRICTS[dung.villageId]?.market) && (!ev.requiresHeroTrust || heroEligible) && (!ev.requiresRegionHero || regionHeroEligible) && !(/bandit/.test(ev.id||'') && hfortBanditsSuppressed(getRegionKey(dung.villageId))));
+   const pool = allIncidents.filter(ev=>ev.phases.includes(phase) && !(ev.id==='market_wandering_chef' && chefRecentlyHere(dung.villageId)));
+   const choices = pool.length ? pool : allIncidents.filter(ev=>!(ev.id==='market_wandering_chef' && chefRecentlyHere(dung.villageId)));
    const chosen = ydWeightedPick(choices);
    node.type = 'village_incident';
    node.incidentId = chosen.id;
    // 個人名がある事件は、遭遇のたびランダムに1人を選んで固定表示する
    if(chosen.names && chosen.names.length){
     node.npcName = chosen.names[Math.floor(Math.random()*chosen.names.length)];
+   }
+   if(chosen.id === 'market_wandering_chef'){
+    chefRegisterEncounter(dung.villageId);
+    node.npcName = chefCurrentName();
+    node.chefLine = CHEF_LINES[Math.floor(Math.random()*CHEF_LINES.length)];
    }
    node.eventKey = 'yd_vi_' + id;
    node.pending = ['forward'];
@@ -35853,8 +35919,12 @@ function ydNodeTxt(node, floor){
   case 'village_incident':{
    const ev = villageCfg(dung).incidents.find(e=>e.id===node.incidentId) || villageCfg(dung).incidents[0];
    const done = PC[node.eventKey];
-   const flavorTxt = (node.npcName ? ev.flavor.replace(/\{name\}/g, node.npcName) : ev.flavor).replace(/\{hero\}/g, PC.name);
-   const titleTxt = node.npcName ? `${ev.title}「${node.npcName}」` : ev.title;
+   const _isChef = ev.id === 'market_wandering_chef';
+   const _nm = _isChef ? chefCurrentName() : node.npcName;
+   const flavorTxt = _isChef
+    ? ev.flavorFn(_nm, villagePhase(getGameHour()).key, node.chefLine || CHEF_LINES[0], ev.place)
+    : (_nm ? ev.flavor.replace(/\{name\}/g, _nm) : ev.flavor).replace(/\{hero\}/g, PC.name);
+   const titleTxt = _nm ? `${ev.title}「${_nm}」` : ev.title;
    return `${tBar}${fLabel}<br><br>
     <span style="color:#e0d8c8">${titleTxt}</span><br><br>
     <span style="color:#e8e0d0">${!done ? flavorTxt : '（この出来事は解決した）'}</span>
@@ -38029,6 +38099,39 @@ function ydActionChoices(node, floor){
      ch.push({label:' 断る', fn:()=>{
       finish(`<span style="color:#d0c8b8"> 厄介事に巻き込まれたくなく、丁重に断った。</span>`);
      }});
+     break;
+    }
+
+    // ── 市場地区：さすらいの料理人 ──
+    case 'market_wandering_chef':{
+     const _phase = villagePhase(getGameHour()).key;
+     const _cn = chefCurrentName();
+     if(_phase === 'morning'){
+      ch.push({label:' 行列に並んで食べる（1SP）', fn:()=>{
+       if(totalCP() < 10){
+        finish(`<span style="color:#d0c8b8"> 代金の1SPが足りず、列を離れるしかなかった。</span>`);
+        return;
+       }
+       payPrice(0.1);
+       const _stats = ['st','iq','lk','con','dex','chr'];
+       const _names = {st:'強さ',iq:'知力',lk:'運',con:'体力',dex:'器用さ',chr:'魅力'};
+       const _a = _stats[Math.floor(Math.random()*_stats.length)];
+       PC[_a] = (PC[_a]||0) + 1;
+       if(_a==='st') PC.maxSt = Math.max(PC.maxSt||0, PC.st);
+       if(_a==='con') PC.maxCon = Math.max(PC.maxCon||0, PC.con);
+       updateHUD();
+       PC[node.eventKey] = true;
+       if(advanceVillageTime(90)) return; // 行列に並んで1時間半ほど過ぎる
+       finish(`<span style="color:#f0ece0"> 行列に並び、順番が来ると${_cn}が熱々の一皿をよそってくれた。体の芯から力が湧いてくる。（${_names[_a]}+1／-1SP）</span>`);
+      }});
+      ch.push({label:' 行列を横目に通り過ぎる', fn:()=>{
+       finish(`<span style="color:#d0c8b8"> 匂いに後ろ髪を引かれつつ、その場を後にした。</span>`);
+      }});
+     } else {
+      ch.push({label:' 邪魔をせず立ち去る', fn:()=>{
+       finish(`<span style="color:#d0c8b8"> 片付けの邪魔をしないよう、そっとその場を後にした。</span>`);
+      }});
+     }
      break;
     }
 
@@ -59449,6 +59552,11 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026103102', sections:[
+  { heading:'調整', items:[
+   '拠点の店番に主人公を設定すると、店番をやめられず拠点から出られなくなる不具合を修正した。店番をやめる（店を閉める）選択肢を追加した。',
+  ]},
+ ]},
  { version:'ver.2026103101', sections:[
   { heading:'新規実装項目', items:[
    'STATUSの所持品に、持っている矢の本数が表示されるようにした。矢は、捨てることも、ショップで売ることもできる（売値は1本あたり5CP）。',
@@ -73767,6 +73875,8 @@ try{ arcDInstallGoalRooms(); }catch(e){ console.error('arcD install', e); }
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVillageIncident('stonehiem','admin','admin_radical_orator');})" class="dbg-btn" style="border-color:#664488;color:#cc99ff">街頭弁士イベント強制表示</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVillageIncident('stonehiem','admin','admin_cleaning_volunteer');})" class="dbg-btn" style="border-color:#664488;color:#cc99ff">清掃員イベント強制表示</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVillageIncident('stonehiem','admin','admin_delivery_request_oldtown');})" class="dbg-btn" style="border-color:#664488;color:#cc99ff">宅配依頼(行政→旧市街)強制表示</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVillageIncident('khazan','market','market_wandering_chef');})" class="dbg-btn" style="border-color:#664488;color:#cc99ff">さすらいの料理人(市場・現在の時間帯)強制表示</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVillageIncident('stonehiem','oldtown','market_wandering_chef');})" class="dbg-btn" style="border-color:#664488;color:#cc99ff">さすらいの料理人(旧市街・市場なしの町)強制表示</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVillageIncident('stonehiem','oldtown','oldtown_delivery_request_admin');})" class="dbg-btn" style="border-color:#664488;color:#cc99ff">宅配依頼(旧市街→行政)強制表示</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVillageIncident('stonehiem','oldtown','oldtown_toll_thug');})" class="dbg-btn" style="border-color:#664488;color:#cc99ff">通行料チンピラ強制表示</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgForceVillageIncident('stonehiem','oldtown','oldtown_cult_soup');})" class="dbg-btn" style="border-color:#664488;color:#cc99ff">新興宗教スープ強制表示</button>
