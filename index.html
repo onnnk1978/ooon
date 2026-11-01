@@ -644,7 +644,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026103103</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026110101</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -7821,6 +7821,9 @@ function goOtherActions(townId){
  }
 
 
+ // 知己型サーガの山場（町のその他の行動から入る）
+ sagaClimaxButtons(townId).forEach(b=>choices.push(b));
+
  // ダンジョン（街ごとに対応するものを表示）
  const dungeonMap = {
   khazan:    {label:' 王城地下牢へ',           go:'CRYPT_ENTRANCE'},
@@ -14354,6 +14357,7 @@ function talkToPatron(townId){
  checkWorldTickBundle();
 
  // 連続クエスト（アーク）：後日譚の噂／新しい発端の噂
+ if(sagaTryPrologue(townId) || sagaTryEpisode(townId)) return;   // 知己型サーガ：序の場面／事件
  if(arcShowEpilogue(townId)) return;
  if(arcTryRumor(townId)) return;
  const harvestRumor = getHarvestRumor();
@@ -14759,11 +14763,13 @@ function _renderItemTransfer(npcIdx, direction){
 
  // 未装備の武器
  (src.invWeapons||[]).forEach((w,i)=>{
+  if((src.equippedWeapons||[]).includes(w)) return; // 装備中の武器は、外してから渡す
   items.push({type:'weapon', idx:i, icon:'', label:w.name,
    sub:`${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}${w._desc?'　'+w._desc:''}`});
  });
  // 未装備の防具
  (src.invArmors||[]).forEach((a,i)=>{
+  if((src.equippedArmors||[]).includes(a)) return; // 装備中の防具は、外してから渡す
   items.push({type:'armor', idx:i, icon: a.isShield?'':'', label:a.name,
    sub:`防護${a.hits}hits`});
  });
@@ -14836,15 +14842,18 @@ function _transferItem(npcIdx, direction, type, itemIdx){
  let item, itemName;
 
  if(type === 'weapon'){
-  item = (src.invWeapons||[].splice(0))[itemIdx];
+  item = (src.invWeapons||[])[itemIdx];
   if(!item) return;
+  if((src.equippedWeapons||[]).includes(item)){ showSaveToast('装備中の武器は、先に装備から外してください'); return; }
   src.invWeapons.splice(itemIdx, 1);
+
   dest.invWeapons = dest.invWeapons || [];
   dest.invWeapons.push(item);
   itemName = item.name;
  } else if(type === 'armor'){
   item = (src.invArmors||[])[itemIdx];
   if(!item) return;
+  if((src.equippedArmors||[]).includes(item)){ showSaveToast('装備中の防具は、先に装備から外してください'); return; }
   src.invArmors.splice(itemIdx, 1);
   dest.invArmors = dest.invArmors || [];
   dest.invArmors.push(item);
@@ -14864,7 +14873,7 @@ function _transferItem(npcIdx, direction, type, itemIdx){
   itemName = item.name;
  }
 
- updateHUD();
+ updateHUD(); checkWeightPenalty(src); checkWeightPenalty(dest);
  showSaveToast(`${itemName} を渡した`);
  _renderItemTransfer(npcIdx, direction);
 }
@@ -16119,7 +16128,7 @@ function loadAutoSave(){
  PC._tavernThanks = {}; // 酒場のお礼（受け取り待ち）も、ロード前のセッションの残留を防ぐためリセットしてから代入する
  PC._formerCompanions = []; // かつての仲間の名簿も、ロード前のセッションの残留を防ぐためリセットしてから代入する
  _fcVisitLastDay = null;     // 来訪判定の基準日も、ロード後の最初の判定で現在日に合わせ直す
- delete PC._wild; delete PC._wildMaps; delete PC._wildCamps; delete PC._wildCastles; delete PC._troupes; delete PC._troupeContract; delete PC._arcs; delete PC._arcLog; delete PC._arcEpilogues; delete PC._arcLastStart; delete PC._arcLastType; delete PC._arcSeeds; delete PC._arcLetters; delete PC._arcReunions; delete PC._arcTravelerDone; // 旅芸人の一座・護衛契約も、ロード前のセッションの残留を防ぐため消してから代入する
+ delete PC._wild; delete PC._wildMaps; delete PC._wildCamps; delete PC._wildCastles; delete PC._troupes; delete PC._troupeContract; delete PC._arcs; delete PC._arcLog; delete PC._arcEpilogues; delete PC._arcLastStart; delete PC._arcLastType; delete PC._arcSeeds; delete PC._arcLetters; delete PC._arcReunions; delete PC._arcTravelerDone; delete PC._sagas; // 旅芸人の一座・護衛契約も、ロード前のセッションの残留を防ぐため消してから代入する
  Object.assign(PC, data.pc);
  Object.assign(GAME_TIME, data.gameTime);
  if(PC.invEquip){
@@ -16566,7 +16575,7 @@ function loadGame(slot){
  PC._tavernThanks = {}; // 酒場のお礼（受け取り待ち）も、ロード前のセッションの残留を防ぐためリセットしてから代入する
  PC._formerCompanions = []; // かつての仲間の名簿も、ロード前のセッションの残留を防ぐためリセットしてから代入する
  _fcVisitLastDay = null;     // 来訪判定の基準日も、ロード後の最初の判定で現在日に合わせ直す
- delete PC._wild; delete PC._wildMaps; delete PC._wildCamps; delete PC._wildCastles; delete PC._troupes; delete PC._troupeContract; delete PC._arcs; delete PC._arcLog; delete PC._arcEpilogues; delete PC._arcLastStart; delete PC._arcLastType; delete PC._arcSeeds; delete PC._arcLetters; delete PC._arcReunions; delete PC._arcTravelerDone; // 旅芸人の一座・護衛契約も、ロード前のセッションの残留を防ぐため消してから代入する
+ delete PC._wild; delete PC._wildMaps; delete PC._wildCamps; delete PC._wildCastles; delete PC._troupes; delete PC._troupeContract; delete PC._arcs; delete PC._arcLog; delete PC._arcEpilogues; delete PC._arcLastStart; delete PC._arcLastType; delete PC._arcSeeds; delete PC._arcLetters; delete PC._arcReunions; delete PC._arcTravelerDone; delete PC._sagas; // 旅芸人の一座・護衛契約も、ロード前のセッションの残留を防ぐため消してから代入する
  Object.assign(PC, data.pc);
  Object.assign(GAME_TIME, data.gameTime);
  // 旧版で魔法使いの仲間が持っていた弓などの遠距離武器は外す（魔法使いは飛び道具を使えない）
@@ -17996,6 +18005,7 @@ function fcTavernAskChoices(townId){
  if(fcTavernMsgAvailable()) out.push({label:' 主人から伝言を聞く', fn:()=>fcTavernMsgMenu(townId, currentNodeId)});
  out.push(...troupeTavernChoices(townId)); // 旅芸人の宣伝係（公演中の一座がいる町）
  out.push(...arcTavernChoices(townId));    // 連続クエスト（アーク）の場面
+ out.push(...sagaTavernChoices(townId));   // 知己型サーガ：孫娘を連れて、老楽師のもとへ
  out.push(...arcReunionChoices(townId));    // 助けた人物との再会
  return out;
 }
@@ -20056,6 +20066,14 @@ const ARC_MAX_ACTIVE = 3;
 const ARC_RUMOR_CHANCE = 0.10;       // 酒場で客に話しかけたとき、噂が出る確率
 const ARC_RUMOR_GAP_DAYS = 20;       // 前回の発端から最低この日数は空ける
 const ARC_ENEMY_LV = [3, 5];
+// 続編の段ごとの敵レベル（段1＝前編、段2＝続編、段3＝終章）
+const ARC_ENEMY_LV_BY_DEPTH = {1:[3, 5], 2:[5, 7], 3:[7, 10]};
+// 続編の段ごとの報酬倍率
+const ARC_REWARD_MULT_BY_DEPTH = {1:1.0, 2:1.5, 3:2.0};
+function arcDepth(a){ return Math.max(1, Math.min(3, (a && a.chain && a.chain.depth) || 1)); }
+function arcEnemyLvRange(a){ return ARC_ENEMY_LV_BY_DEPTH[arcDepth(a)] || ARC_ENEMY_LV; }
+function arcEnemyLv(a){ const r = arcEnemyLvRange(a); return arcRand(r[0], r[1]); }
+function arcRewardMult(a){ return ARC_REWARD_MULT_BY_DEPTH[arcDepth(a)] || 1; }
 const ARC_EPILOGUE_KEEP_DAYS = 240;  // 後日譚の噂を酒場で聞ける期間
 const ARC_CARGO = ['塩','絹織物','香辛料','鉄のインゴット','葡萄酒','毛皮','薬草','陶器','穀物','染料'];
 const ARC_WITNESS_ROLES = ['生き残った御者','隊商の護衛','荷運びの少年','隊商に同行していた行商人'];
@@ -20155,6 +20173,7 @@ function arcFinish(a, kind){
  PC._arcEpilogues.push({region:a.region, text:arcEpilogueText(a, kind), day:GAME_TIME.totalDays});
  if(PC._arcEpilogues.length > 8) PC._arcEpilogues.shift();
  if(a.type === 'bodyguard') arcDOnFinish(a, kind);
+ if(a.saga) sagaOnEpisodeFinish(a, kind);
  if(a.type === 'runaway') arcEOnFinish(a, kind);
  arcMakeSeed(a, kind);   // 連なり：続編の種
 }
@@ -20173,6 +20192,7 @@ function arcLapse(a){
 function checkArcTick(){
  const now = GAME_TIME.totalDays;
  arcSeedClean();
+ sagaTick();
  arcActive().forEach(a=>{ if(now > a.by) arcLapse(a); });
 }
 // 酒場の客の話から、後日譚の噂を聞く（聞いたら true）
@@ -20181,10 +20201,13 @@ function arcShowEpilogue(townId){
  const now = GAME_TIME.totalDays;
  PC._arcEpilogues = PC._arcEpilogues.filter(e=>now - e.day <= ARC_EPILOGUE_KEEP_DAYS);
  const region = getRegionKey(townId);
- const i = PC._arcEpilogues.findIndex(e=>e.region === region && (!e.from || now >= e.from));
+ const _ok = e=>e.region === region && (!e.from || now >= e.from);
+ let i = PC._arcEpilogues.findIndex(e=>e.must && _ok(e));   // 必ず聞かせる噂（サーガの手がかりなど）を先に
+ if(i < 0) i = PC._arcEpilogues.findIndex(_ok);
  if(i < 0) return false;
  if(!PC._arcEpilogues[i].must && Math.random() >= 0.5) return false;
  const e = PC._arcEpilogues.splice(i, 1)[0];
+ if(e.saga) sagaClueHeard(e.saga);
  if(e.life) addLifeEvent('', e.life);
  const header = e.master
   ? `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の主人</div>
@@ -20205,7 +20228,7 @@ function arcCreateLostCaravan(townId, forcedTruth){
  const pool = NPC_NAMES.slice();
  const takeName = ()=>pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
  const merchant = takeName(), master = takeName(), wname = takeName();
- const ready = now + arcRand(30, 90);
+ const ready = now + arcRand(7, 14);
  const a = {
   id: 'arc' + now + '_' + arcRand(1000, 9999),
   type: 'lost_caravan', state: 'active',
@@ -20237,9 +20260,10 @@ function arcRumorPanel(a){
  if(a.type === 'stolen_goods'){ arcRumorPanelC(a); return; }
  const T = arcTown(a.home), W = arcTown(a.witnessTown);
  const header = arcRumorHeaderHtml();
- const text = `「${arcLeadText(a)}${a.merchant}商会の隊商が、${a.cargo}を積んで出たきり戻らないそうだ。荷馬車が${a.wagons}台、人も${a.missing}人。`
+ const again = a.chain && a.chain.hook === 'caravan_again';
+ const text = `「${arcLeadText(a)}${a.merchant}商会の隊商が、${again ? 'またしても、' : ''}${a.cargo}を積んで出たきり戻らないそうだ。荷馬車が${a.wagons}台、人も${a.missing}人。`
   + `${a.witness.role}の${a.witness.name}だけが命からがら逃げ延びて、いまは${W}で療養しているらしい。`
-  + `怪我が癒えて、まともに話せるようになるまで、ひと月かふた月はかかるそうだがな。`
+  + `怪我が癒えて、まともに話せるようになるまで、一週間か二週間はかかるそうだがな。`
   + `……商会は、腕の立つ者に礼を出すと言っている。気になるなら、${W}の酒場を覗いてみるといい」`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
@@ -20591,7 +20615,7 @@ function arcSiteDecline(id, back){
  renderChoices([{label:' 町へ引き返す', fn:()=>arcReturn(a, back)}]);
 }
 function arcBuildEnemies(a){
- const lv = ()=>arcRand(ARC_ENEMY_LV[0], ARC_ENEMY_LV[1]);
+ const lv = ()=>arcEnemyLv(a);
  const mk = (name)=>{ const e = generateNPC(lv()); e.type = 'warrior'; e.name = name; e.curCon = e.con; return e; };
  if(a.truth === 'bandits'){
   const list = [];
@@ -20606,8 +20630,8 @@ function arcBuildEnemies(a){
  }
 }
 // 獣：目安レベル（Lv3〜5）×100を、CRの合計の目標にする。1種類の獣を最大4体まで、合計が目標に最も近くなるように割り振る
-function arcBuildBeasts(){
- const level = arcRand(ARC_ENEMY_LV[0], ARC_ENEMY_LV[1]);
+function arcBuildBeasts(a){
+ const level = arcEnemyLv(a);
  const budget = level * 100;
  const options = [];
  ARC_BEASTS.forEach(t=>{
@@ -20637,7 +20661,7 @@ function arcBuildBeasts(){
 }
 // 獣との戦闘：CR（MR）型。戦利品（宝）は戦闘の勝利処理で自動的に生成される
 function arcFightBeasts(a, back){
- const beasts = arcBuildBeasts();
+ const beasts = arcBuildBeasts(a);
  const id = a.id;
  startCombat({
   name: beasts.enemies.length > 1 ? `${beasts.name}×${beasts.enemies.length}` : beasts.name,
@@ -20701,7 +20725,7 @@ function arcSceneReport(a, back){
  const mult = regionConditionRewardMult(a.region, 'unrest');
  let base = 150 + d6() * 20;                 // 150〜270GP
  if(a.truth === 'staged') base = Math.round(base * 1.2);  // 積み荷を取り戻した分
- const reward = Math.round(base * mult * (cleared ? 1 : 0.3));
+ const reward = Math.round(base * mult * (cleared ? 1 : 0.3) * arcRewardMult(a));
  const lines = {
   bandits: cleared ? '野盗は片づき、荷の一部も戻ってまいりました。' : '野盗の根城が分かっただけでも、大きな手がかりです。',
   monster: cleared ? '化け物は退治され、遺品も返ってまいりました。' : '化け物の巣が分かりましたので、討伐の人手を募ることになるでしょう。',
@@ -20760,7 +20784,7 @@ function arcCreateFalseRequest(townId, forcedTruth){
  const takeName = ()=>pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
  const clientTown = arcPick(towns);
  const targetTown = arcPick(towns.filter(t=>t !== clientTown));
- const ready = now + arcRand(20, 60);
+ const ready = now + arcRand(7, 14);
  const a = {
   id: 'arc' + now + '_' + arcRand(1000, 9999),
   type: 'false_request', state: 'active',
@@ -20779,9 +20803,10 @@ function arcCreateFalseRequest(townId, forcedTruth){
 function arcRumorPanelB(a){
  const C = arcTown(a.clientTown);
  const header = arcRumorHeaderHtml();
- const text = `「${arcLeadText(a)}ここだけの話だがな。${C}の${a.client.title}、${a.client.name}が、ある人物を始末してくれる者を探しているらしい。`
-  + `表向きは大した理由じゃないと言っているが、まともな頼みごとじゃないのは確かだ。`
-  + `使いはまだ出払っているそうで、話ができるのはひと月かふた月先になるだろう。……関わるなら、${C}の酒場で、${a.client.name}の使いに声をかけてみるといい。ただし、自己責任でな」`;
+ const core = arcChainRumorCoreB(a);
+ const text = `「${arcLeadText(a)}ここだけの話だがな。` + (core || `${C}の${a.client.title}、${a.client.name}が、ある人物を始末してくれる者を探しているらしい。`)
+  + (core ? `まともな頼みごとじゃないのは、確かだろう。` : `表向きは大した理由じゃないと言っているが、まともな頼みごとじゃないのは確かだ。`)
+  + `使いはまだ出払っているそうで、話ができるのは一週間か二週間先になるだろう。……関わるなら、${C}の酒場で、${a.client.name}の使いに声をかけてみるといい。ただし、自己責任でな」`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -20804,7 +20829,8 @@ function arcBOk(back){ renderChoices([{label:'▶ OK', fn:()=>go(back)}]); scrol
 function arcBOffer(a, back){
  arcStory(arcHeader('内密の依頼')
   + `<span style="color:#c0b098">使いの案内で、酒場の奥の個室に通された。${a.client.title}の${a.client.name}が、椅子に深く腰を下ろして待っていた。</span><br><br>`
-  + `<span style="color:#e8e4d8">「${arcTown(a.targetTown)}にいる、${a.target.title}の${a.target.name}という男だ。あの男は、${arcLieText(a)}。始末してほしい。報酬は${a.reward}GP。……手配度は、お前の問題だ」</span><br><br>`
+  + arcChainOfferLine(a)
+  + `<span style="color:#e8e4d8">「${arcTown(a.targetTown)}にいる、${a.target.title}の${a.target.name}という者だ。あの者は、${arcLieText(a)}。始末してほしい。報酬は${a.reward}GP。……手配度は、お前の問題だ」</span><br><br>`
   + `<span style="color:#a8a090;font-size:var(--font-sm)">（暗殺を遂行した場合、手配度が上がる）</span>`, true);
  renderChoices([
   {label:` 依頼を引き受ける（報酬${a.reward}GP）`, fn:()=>arcBAccept(a.id, back)},
@@ -20887,8 +20913,8 @@ function arcBDecideKill(id, back){
 }
 
 // ── ④選択 ──
-function arcBMk(name){
- const e = generateNPC(arcRand(ARC_ENEMY_LV[0], ARC_ENEMY_LV[1]));
+function arcBMk(name, a){
+ const e = generateNPC(arcEnemyLv(a));
  e.type = 'warrior'; e.name = name; e.curCon = e.con;
  return e;
 }
@@ -20896,8 +20922,8 @@ function arcBKill(id, back){
  const a = arcFindById(id); if(!a){ go(back); return; }
  renderChoices([]);
  scrollToTop();
- const enemies = [arcBMk(a.target.name)];
- for(let i = 0, n = arcRand(0, 2); i < n; i++) enemies.push(arcBMk('標的の用心棒'));
+ const enemies = [arcBMk(a.target.name, a)];
+ for(let i = 0, n = arcRand(0, 2); i < n; i++) enemies.push(arcBMk('標的の用心棒', a));
  startCombatNPC({
   enemies, canFlee: true, fleeTo: back, win: '__noop__', lose: 'DEAD',
   onWin: ()=>{
@@ -20976,14 +21002,14 @@ function arcBConfrontFight(id, back){
  const a = arcFindById(id); if(!a){ go(back); return; }
  renderChoices([]);
  scrollToTop();
- const enemies = [arcBMk(a.client.name)];
- for(let i = 0, n = arcRand(1, 3); i < n; i++) enemies.push(arcBMk('雇われた荒くれ者'));
+ const enemies = [arcBMk(a.client.name, a)];
+ for(let i = 0, n = arcRand(1, 3); i < n; i++) enemies.push(arcBMk('雇われた荒くれ者', a));
  startCombatNPC({
   enemies, canFlee: true, fleeTo: back, win: '__noop__', lose: 'DEAD',
   onWin: ()=>{
    const cur = arcFindById(id) || a;
    let gold = 0; enemies.forEach(e=>{ gold += (e.gold||0); });
-   const stash = arcRand(150, 300);
+   const stash = Math.round(arcRand(150, 300) * arcRewardMult(a));
    gold += stash;
    gainGPAll(gold);
    const power = enemies.reduce((t, e)=>t + ((e.st||10) + (e.lk||10) + (e.dex||10)), 0);
@@ -21572,7 +21598,7 @@ function arcCreateStolenGoods(townId, forcedTruth){
  const askTown = arcPick(askCands);
  const endCands = towns.filter(t=>t !== clientTown && t !== askTown);
  const endTown = arcPick(endCands.length ? endCands : askCands);
- const ready = now + arcRand(20, 50);
+ const ready = now + arcRand(7, 14);
  const truth = forcedTruth || arcWeighted(ARC_C_TRUTH_WEIGHTS);
  const a = {
   id: 'arc' + now + '_' + arcRand(1000, 9999),
@@ -21599,7 +21625,7 @@ function arcRumorPanelC(a){
  const header = arcRumorHeaderHtml();
  const text = `「${arcLeadText(a)}${C}の${a.client.title}、${a.client.name}の屋敷から、${a.item.name}が盗まれたらしい。`
   + `衛兵には届けず、内々に取り戻してくれる者を探していると聞く。`
-  + `使いが人を集めに出ているそうで、話を聞けるのはひと月かふた月先だろう。……気になるなら、${C}の酒場で、${a.client.name}の使いに声をかけてみるといい」`;
+  + `使いが人を集めに出ているそうで、話を聞けるのは一週間か二週間先だろう。……気になるなら、${C}の酒場で、${a.client.name}の使いに声をかけてみるといい」`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -21627,6 +21653,7 @@ function arcCOk(back){ renderChoices([{label:'▶ OK', fn:()=>go(back)}]); scrol
 function arcCOffer(a, back){
  arcStory(arcHeader('内々の依頼')
   + `<span style="color:#c0b098">使いの案内で、${a.client.title}の${a.client.name}の屋敷の応接間に通された。主人は、疲れた顔で椅子に沈んでいた。</span><br><br>`
+  + arcChainOfferLine(a)
   + `<span style="color:#e8e4d8">「${a.item.name}が、先日の夜に盗まれたのだ。値の問題ではない。……あれは、私の家にとって大事な品なのだ。衛兵に届ければ、家の恥が町中に知れる。内々に取り戻してくれた者には、${a.reward}GPを出そう。家の者は皆、信用している。盗んだのは、外の人間のはずだ」</span>`, true);
  renderChoices([
   {label:` 依頼を引き受ける（報酬${a.reward}GP）`, fn:()=>arcCAccept(a.id, back)},
@@ -21697,8 +21724,8 @@ function arcCRecovered(a, deed){
  a.deed = deed; a.stage = 'report'; a.ready = now; a.by = now + arcRand(60, 90);
  updateHUD();
 }
-function arcCMk(name){
- const e = generateNPC(arcRand(ARC_ENEMY_LV[0], ARC_ENEMY_LV[1]));
+function arcCMk(name, a){
+ const e = generateNPC(arcEnemyLv(a));
  e.type = 'warrior'; e.name = name; e.curCon = e.con;
  return e;
 }
@@ -21774,8 +21801,8 @@ function arcCThievesFight(id, back){
  renderChoices([]);
  scrollToTop();
  const enemies = [];
- for(let i = 0, n = arcRand(2, 4); i < n; i++) enemies.push(arcCMk('盗賊'));
- enemies.push(arcCMk('盗賊の頭'));
+ for(let i = 0, n = arcRand(2, 4); i < n; i++) enemies.push(arcCMk('盗賊', a));
+ enemies.push(arcCMk('盗賊の頭', a));
  startCombatNPC({
   enemies, canFlee: true, fleeTo: back, win: '__noop__', lose: 'DEAD',
   onWin: ()=>{
@@ -21837,7 +21864,7 @@ function arcCKinForce(id, back){
  const a = arcFindById(id); if(!a){ go(back); return; }
  renderChoices([]);
  scrollToTop();
- const enemies = [arcCMk(a.culprit.name)];
+ const enemies = [arcCMk(a.culprit.name, a)];
  startCombatNPC({
   enemies, canFlee: true, fleeTo: back, win: '__noop__', lose: 'DEAD',
   onWin: ()=>{
@@ -21892,8 +21919,8 @@ function arcCFenceFight(id, back){
  const a = arcFindById(id); if(!a){ go(back); return; }
  renderChoices([]);
  scrollToTop();
- const enemies = [arcCMk(`故買商${a.fence.name}`)];
- for(let i = 0, n = arcRand(1, 3); i < n; i++) enemies.push(arcCMk('店の用心棒'));
+ const enemies = [arcCMk(`故買商${a.fence.name}`, a)];
+ for(let i = 0, n = arcRand(1, 3); i < n; i++) enemies.push(arcCMk('店の用心棒', a));
  startCombatNPC({
   enemies, canFlee: true, fleeTo: back, win: '__noop__', lose: 'DEAD',
   onWin: ()=>{
@@ -22043,6 +22070,619 @@ function arcEpilogueTextC(a, kind){
 }
 
 // ══════════════════════════════════════════
+// 連続クエスト（アーク）— 知己型サーガ（序）
+// 酒場で「客に話しかける」と、その町に居る知己と短い場面を重ねる（序・3〜5回）。事件はまだ起きない。
+// ・知己の町は生成時に1つ決めて固定。序の場面は、その町の酒場でしか出ない
+// ・序は前回から7日以上空けて進む。条件を満たせば必ず出る（抽選なし）
+// ・序が始まって3年（1080日）以内に終わらなければ、その知己は消える（リセット）
+// ・序が終わると state='episodes' になる（事件への接続は次の段階）
+// ・SAGA_ENABLED が true の間、通常のプレイでも酒場で新しい知己が現れる（false にするとデバッグボタンからのみ）
+// ══════════════════════════════════════════
+let SAGA_ENABLED = true;
+const SAGA_APPEAR_CHANCE = 0.04;          // 客に話しかけたとき、新しい知己が現れる確率（有効時）
+const SAGA_PROLOGUE_GAP_DAYS = 7;         // 序と序の間に最低空ける日数
+const SAGA_PROLOGUE_LIMIT_DAYS = 3 * 360; // 序が始まってから、この日数以内に終わらなければリセット（1年=360日）
+const SAGA_PROLOGUE_N = [3, 5];
+// 知己の性別（m＝${G.gaffer}／f＝婆さん）。言葉づかい・呼び名を切り替える
+const SAGA_NAMES_M = ['ガルム','ドルク','ベック','トーレ','ウルフ','バルド','グンナル','オスカル','ブランド','ケルト','ジョルン','ラグナル','ビョルン','エイリーク','ハーラル','ヨルン','レイフ','マグニ','ニャル','オーラフ','スカルド','トールステイン','アルヴィド','グリム','ダーグ','ゴルム','コルン','ケティル','スヴェイン','エルリング','ホルム','シグルズ','アースムンド','ゲイルン','フリョート','アトリ','ゲスタ','イーヴァル','トルケル','アルフ','グドニ','カリム','ハムザ','アブドゥル','ラシード','ヤシン','タリク','ユスフ','オマル','サリム','イブラヒム','ザヒル','ファルフ','ダウード','ハルン','カイス','バシール','ガサン','ジャリール','カマール','ラフィーク','マフムード','ワリード','ザカリヤ','アフマド','ビラール'];
+const SAGA_NAMES_F = ['ソーニャ','レイナ','マリオン','ハンナ','エスター','セリア','ミラ','リーラ','ヘルガ','ティナ','エヴァ','アルマ','カタリン','フレイア','シグリッド','グズルン','インガ','ウルリカ','フリーダ','ヴィグディス','ボルグヒルド','ケルナ','ウンヌ','ブランタ','シルヴァ','アエリン','タリア','ネンヤ','エレンウェン','ヴィルヤ','ルシエン','イドリル','ミルダ','アルウェン','ガルドリエル','ニエルナ','ヴァイレ','エステ','ヴァナ','ヤヴァンナ','ニエンナ','ヴァルダ','ザイナブ','ファリダ','ヌール','サミラ','ハニーン','レイラ','ナジーラ','ハビバ','マイムーナ','ラウダ','バリカ','アスマー','ジャミーラ','ルバーバ','アミーラ','ダーニア','ファーティマ','ハディージャ','イマーン','ルカイヤ','サファー','ヤスミン'];
+function sagaG(person){ return (person && person.sex === 'f') ? {old:'老女', gaffer:'婆さん', grand:'祖母'} : {old:'老人', gaffer:'${G.gaffer}', grand:'祖父'}; }
+function sagaQ(person){ const f = !!(person && person.sex === 'f'); return (m, fm)=>f ? fm : m; }
+function sagaList(){ if(!Array.isArray(PC._sagas)) PC._sagas = []; return PC._sagas; }
+function sagaActive(){ return sagaList().filter(s=>s.state === 'prologue' || s.state === 'episodes' || s.state === 'climax' || s.state === 'escort'); }
+function sagaInTown(townId){ return sagaList().find(s=>s.town === townId && s.state === 'prologue') || null; }
+
+// 序の場面（老楽師）。beats は5つ。n=3 なら [0,1,4]、n=4 なら [0,1,3,4]、n=5 なら全部を使う
+// 老楽師の楽器と曲（生成時に1つずつ決める）。弦楽器と笛。動詞は P（弾／吹）で切り替える
+const SAGA_INSTRUMENTS = {
+ lute:  {name:'リュート', P:'弾', held:'古びたリュートを抱えていた', touchBack:'弦に指を戻した', search:'弦を探すのに時間がかかっていた',
+         handOn:'リュートに手をかけたまま', start:'弦を弾き始めた', stop:'指が、弦の上で止まった', again:'リュートを抱え直す'},
+ harp:  {name:'竪琴', P:'弾', held:'古びた竪琴を抱えていた', touchBack:'弦に指を戻した', search:'弦を探すのに時間がかかっていた',
+         handOn:'竪琴に手をかけたまま', start:'弦を弾き始めた', stop:'指が、弦の上で止まった', again:'竪琴を抱え直す'},
+ fiddle:{name:'フィドル', P:'弾', held:'使い込まれたフィドルを肩に載せていた', touchBack:'弓を弦に戻した', search:'弦を探すのに時間がかかっていた',
+         handOn:'フィドルを構えたまま', start:'弓を引き始めた', stop:'弓が、弦の上で止まった', again:'フィドルを構え直す'},
+ flute: {name:'笛', P:'吹', held:'使い込まれた木の笛を手にしていた', touchBack:'笛を唇に戻した', search:'指孔を探すのに時間がかかっていた',
+         handOn:'笛を口に当てたまま', start:'笛を吹き始めた', stop:'笛を持つ指が、止まった', again:'笛を持ち直す'},
+};
+const SAGA_SONGS = ['麦の唄', '渡り鳥の唄', '灯台守の唄', '夕凪の唄', '帰り船の唄'];
+function sagaInst(person){ return SAGA_INSTRUMENTS[(person && person.inst) || 'lute'] || SAGA_INSTRUMENTS.lute; }
+function sagaSong(person){ return (person && person.song) || '麦の唄'; }
+const SAGA_BEAT_SETS = {3:[0, 1, 4], 4:[0, 1, 3, 4], 5:[0, 1, 2, 3, 4]};
+const SAGA_PERSONAS = {
+ lutenist: {
+  job: '老楽師',
+  quirk: '毎晩同じ曲を奏で、最後の一節だけは奏でない',
+  beats: (N, I, P, SONG, G, Q)=>[
+   { // 0：初対面
+    intro: `酒場の隅の席で、${N}という${G.old}が、${I.held}。${P}いているのは、いつも同じ曲らしい。周りの客は、慣れたように聞き流している。`,
+    say:   `${Q(`「……騒がしいところで悪いな。わしは${N}という。この曲しか${P}けんのだ。${SONG}という」`,`「……騒がしいところで悪いね。あたしは${N}っていうんだよ。この曲しか${P}けなくてね。${SONG}っていうのさ」`)}`,
+    replies:[
+     {label:' 「いい曲ですね」と声をかける', react:`${N}は、手を止めて、少し目を細めた。${Q(`「そうか。そう言うてくれる客は、久しぶりじゃ」`,`「そうかい。そう言ってくれる客は、久しぶりだよ」`)}`, tag:'praise'},
+     {label:' 何も言わず、しばらく聴いていく', react:`${N}は、あなたに気づくと、小さく頷いて、また${I.touchBack}。曲は、最後の一節の手前で、ふいに途切れた。`, tag:'listen'},
+    ],
+   },
+   { // 1：最後の一節
+    intro: `${N}は、今夜も同じ隅の席にいた。${SONG}が、あの途切れるところに差しかかる。`,
+    say:   `${Q(`「……この先は、${P}かんのだ。そこは、あの子が歌う所でな。孫娘じゃ。今は、遠い町で働いておる」`,`「……この先は、${P}かないんだよ。そこは、あの子が歌う所でね。孫娘さ。今は、遠い町で働いているよ」`)}`,
+    replies:[
+     {label:' 「どんな方ですか」と尋ねる', react:`${Q(`「声のよい子でな。わしの下手な伴奏でも、客が足を止めたもんじゃ」`,`「声のいい子でね。あたしの下手な伴奏でも、客が足を止めたもんさ」`)}。${N}は、遠くを見るように笑った。`, tag:'ask'},
+     {label:' 黙って、杯を傾ける', react:`${N}は、何も言わずに頷いた。聞かれないことに、安心したようにも見えた。`, tag:'quiet'},
+    ],
+   },
+   { // 2：手の震え
+    intro: `${N}の指は、前に見たときより、${I.search}。曲の終わりに、手が小さく震えている。`,
+    say:   `${Q(`「年じゃな。もう、思うように動かん。……なに、${P}ける間は${P}くさ」`,`「年だねえ。もう、思うように動かないよ。……なに、${P}ける間は${P}くさ」`)}`,
+    replies:[
+     {label:' 「無理はなさらないでください」と声をかける', react:`${Q(`「無理なものか。これを${P}かん日は、一日が長うてかなわん」`,`「無理なもんかい。これを${P}かない日は、一日が長くてかなわないよ」`)}。${N}は、そう言って苦笑した。`, tag:'care'},
+     {label:' 何も言わず、一曲ぶんの酒をおごる', react:`${N}は、杯を見て、あなたを見て、${Q(`「すまんな」`,`「すまないね」`)}とだけ言った。`, tag:'drink'},
+    ],
+   },
+   { // 3：手紙
+    intro: `${N}が、懐から折りたたんだ紙を取り出して、じっと眺めていた。何度も開いたらしく、角が擦り切れている。`,
+    say:   `${Q(`「孫娘からの便りじゃ。年に一度、来るか来ないかでな。……字は、読めるのじゃが、目がかすんでの」`,`「孫娘からの便りでね。年に一度、来るか来ないかなんだよ。……字は読めるんだけど、目がかすんでねえ」`)}`,
+    replies:[
+     {label:' 「読みましょうか」と申し出る', react:`あなたが読み上げると、${N}は目を閉じて聞いていた。「元気でやっている」とだけ書かれた短い手紙だった。${Q(`「……それで十分じゃ」`,`「……それで十分さ」`)}`, tag:'read'},
+     {label:' 見なかったことにして、席を外す', react:`あなたが席を外すと、${N}は、しばらく手紙を見つめていた。曲は、その晩、いつもより静かだった。`, tag:'leave'},
+    ],
+   },
+   { // 4：最後の序
+    intro: `${N}は、いつもの席にいた。だが、${I.handOn}、曲を始めようとしない。`,
+    say:   `${Q(`「……近ごろ、あの子からの便りが途絶えておる。去年の秋から、一通も来んのじゃ。何かあったのでなければよいが」`,`「……近ごろ、あの子からの便りが途絶えているんだよ。去年の秋から、一通も来なくてね。何かあったのでなければいいけど」`)}`,
+    replies:[
+     {label:' 「手伝えることがあれば言ってください」と告げる', react:`${N}は、驚いたようにあなたを見て、深く頷いた。${Q(`「……その言葉だけで、ありがたい。頼むかもしれん」`,`「……その言葉だけで、ありがたいよ。頼むかもしれないね」`)}`, tag:'offer'},
+     {label:' 「きっと無事ですよ」とだけ答える', react:`${Q(`「そうじゃな。そうだとよいのう」`,`「そうだね。そうだといいんだけど」`)}。${N}は、そう言って、ようやく${I.start}。${SONG}は、いつもより遅かった。`, tag:'hope'},
+    ],
+   },
+  ],
+ },
+};
+function sagaBeatKeys(n){ return SAGA_BEAT_SETS[n] || SAGA_BEAT_SETS[3]; }
+
+// 事件の根（黒幕型）：元締めと、孫娘と、その居場所。生成時に決めて保存する
+const SAGA_BOSS_TITLES = ['商会の主', '顔役', '船問屋の主', '金貸し'];
+const SAGA_BOSS_PLACES = ['屋敷', '倉庫', '別邸'];
+const SAGA_BOSS_MOTIVES = ['隊商の荷を横流しして、財を成している', '知りすぎた者を、金で遠ざけている', '借金のかたに、人を働かせている'];
+const SAGA_GRANDDAUGHTERS = ['ミレイ', 'セラ', 'アンナ', 'リゼ', 'ユーリ'];
+// 事件を4つ。既存の型を、真相を指定して使う。1つ目は黒幕と無関係（知己とその町のつながりを見せる）、2〜4つ目が手がかりの事件
+const SAGA_EPISODES = [
+ {type:'stolen_goods',  truth:'thieves', clue:null,     depth:1},
+ {type:'lost_caravan',  truth:'bandits', clue:'name',   depth:1},
+ {type:'stolen_goods',  truth:'fence',   clue:'motive', depth:2},
+ {type:'false_request', truth:'guilty',  clue:'place',  depth:3},
+];
+const SAGA_EPISODE_GAP = [10, 20];      // 序が終わってから最初の事件／前の事件の報告を済ませてから次の事件、までの日数
+const SAGA_EPISODE_IDLE_LIMIT = 1080;   // 事件の途中で、この日数動きがなければ消える
+const SAGA_NOCLUE_KINDS = ['lapsed', 'left'];   // 手がかりが得られない結末
+function sagaMakeRoot(townId, region, personName){
+ const others = (REGIONS[region] || []).filter(t=>t !== townId);
+ const used = [personName];
+ const pickName = (arr)=>{ const c = arr.filter(n=>!used.includes(n)); const n = arcPick(c.length ? c : arr); used.push(n); return n; };
+ return {
+  boss: {name: pickName(NPC_NAMES), title: arcPick(SAGA_BOSS_TITLES), place: arcPick(SAGA_BOSS_PLACES)},
+  motive: arcPick(SAGA_BOSS_MOTIVES),
+  hideTown: others.length ? arcPick(others) : townId,
+  kin: pickName(SAGA_GRANDDAUGHTERS),
+ };
+}
+// 知己を作る（町は、いまいる町で固定）
+function sagaCreate(townId){
+ const region = getRegionKey(townId);
+ if(!region) return null;
+ const now = GAME_TIME.totalDays;
+ const sex = Math.random() < 0.5 ? 'f' : 'm';
+ const _pool = (sex === 'f' ? SAGA_NAMES_F : SAGA_NAMES_M).filter(n=>NPC_NAMES.includes(n));
+ const name = arcPick(_pool.length ? _pool : NPC_NAMES);
+ const n = arcRand(SAGA_PROLOGUE_N[0], SAGA_PROLOGUE_N[1]);
+ const s = {
+  id: 'saga' + now + '_' + arcRand(1000, 9999),
+  kind: 'chichi', persona: 'lutenist', centerType: 'villain',
+  town: townId, region,
+  person: {name, sex, job: SAGA_PERSONAS.lutenist.job, quirk: SAGA_PERSONAS.lutenist.quirk, inst: arcPick(Object.keys(SAGA_INSTRUMENTS)), song: arcPick(SAGA_SONGS)},
+  prologue: {n, done: 0, startDay: now, lastDay: null},
+  state: 'prologue', choices: [], cast: [],
+  root: sagaMakeRoot(townId, region, name),
+  ep: null, eps: [], clues: [], report: null, lastProgress: now,
+ };
+ sagaList().push(s);
+ return s;
+}
+// 序の条件：知己の町であること、序が終わっていないこと、前回から7日以上空いていること
+function sagaPrologueReady(s, townId){
+ if(!s || s.state !== 'prologue' || s.town !== townId) return false;
+ if(s.prologue.done >= s.prologue.n) return false;
+ const now = GAME_TIME.totalDays;
+ return s.prologue.lastDay == null || now - s.prologue.lastDay >= SAGA_PROLOGUE_GAP_DAYS;
+}
+function sagaCanAppear(townId){
+ const region = getRegionKey(townId);
+ if(!region) return false;
+ if(sagaActive().length >= 1) return false;
+ if(arcActive().some(a=>a.region === region)) return false;
+ return true;
+}
+// 酒場で「客に話しかける」の入口から呼ぶ。序の場面を出したら true
+function sagaTryPrologue(townId, force){
+ let s = sagaInTown(townId);
+ if(!s && (force || (SAGA_ENABLED && sagaCanAppear(townId) && Math.random() < SAGA_APPEAR_CHANCE))){
+  if(sagaCanAppear(townId)) s = sagaCreate(townId);
+ }
+ if(!s || !sagaPrologueReady(s, townId)) return false;
+ sagaPrologueScene(s, currentNodeId);
+ return true;
+}
+// 知己の語りは、ほかの酒場の噂と同じパネルに出す（選択肢もパネルの中）
+function sagaPanelOpen(storyHtml){
+ const m = storyHtml.match(/^<span style="color:#e0d8c8">(.*?)<\/span><br><br>/);
+ const title = m ? m[1] : '';
+ const body = m ? storyHtml.slice(m[0].length) : storyHtml;
+ _showPatronPanel(`<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> ${title}</div>`
+  + `<div id="saga-panel-body" style="font-size:var(--font-sm);line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${body}</div>`
+  + `<div id="saga-panel-btns" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>`, ()=>{ updateHUD(); });
+}
+function sagaPanelButtons(items){
+ const box = document.getElementById('saga-panel-btns');
+ if(!box) return;
+ box.innerHTML = '';
+ items.forEach(it=>{
+  const b = document.createElement('button');
+  b.textContent = it.label;
+  b.style.cssText = 'text-align:left;background:var(--info-bg);border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:2px';
+  b.onclick = it.fn;
+  box.appendChild(b);
+ });
+}
+function sagaPrologueScene(s, back){
+ const keys = sagaBeatKeys(s.prologue.n);
+ const _I = sagaInst(s.person);
+ const beats = SAGA_PERSONAS[s.persona].beats(s.person.name, _I, _I.P, sagaSong(s.person), sagaG(s.person), sagaQ(s.person));
+ const beat = beats[keys[Math.min(s.prologue.done, keys.length - 1)]];
+ const id = s.id;
+ sagaPanelOpen(arcHeader(`${s.person.job}${s.person.name}`)
+  + `<span style="color:#c0b098">${beat.intro}</span><br><br>`
+  + `<span style="color:#e8e4d8">${beat.say}</span>`);
+ sagaPanelButtons(beat.replies.map(r=>({label:r.label, fn:()=>sagaPrologueReply(id, r.tag, r.react, back)})));
+}
+function sagaFindById(id){ return sagaList().find(s=>s.id === id) || null; }
+function sagaPrologueReply(id, tag, react, back){
+ const s = sagaFindById(id);
+ if(!s){ closePatronPanel(); return; }
+ s.choices.push({beat: s.prologue.done, tag});
+ s.prologue.done++;
+ s.prologue.lastDay = GAME_TIME.totalDays;
+ if(s.prologue.done >= s.prologue.n){
+  s.state = 'episodes';
+  s.ep = {n:1, ready: GAME_TIME.totalDays + arcRand(SAGA_EPISODE_GAP[0], SAGA_EPISODE_GAP[1]), arcId:null};
+  s.lastProgress = GAME_TIME.totalDays;
+ }
+ const body = document.getElementById('saga-panel-body');
+ if(body) body.innerHTML += `<br><br><span style="color:#e8e4d8">${react}</span>`;
+ sagaPanelButtons([]);
+}
+// ── 事件（序のあと）──
+function sagaRegionBusy(region){ return sagaActive().some(s=>s.region === region); }
+// 事件の噂は、ふつうの酒場の客の口から出る（老楽師が事件を持ち込むのではなく、客が老人の噂に絡めて語る）
+function sagaEpLead(s){
+ const N = s.person.name, I = sagaInst(s.person), P = I.P, G = sagaG(s.person);
+ return [
+  `隅で${I.name}を${P}いている${N}という${G.gaffer}がいるだろう。昔は、あちこちの屋敷の祝いの席に呼ばれていたそうでな。その${G.gaffer}が昔、${I.name}を${P}きに通っていた家で、盗みがあったそうだ。`,
+  `隅で${I.name}を${P}いている${N}という${G.gaffer}がいるだろう。孫娘から便りが来なくなったとかで、ずいぶん気落ちしているが。……その孫娘が便りをよこさなくなった頃から、街道が物騒になってな。こんな話がある。`,
+  `${N}${G.gaffer}の孫娘の件は、まだ音沙汰がないらしい。……それとは別の話だが、こんなことがあったそうだ。`,
+  `${N}${G.gaffer}は、近ごろ、曲もろくに${P}かなくなった。……そんな折に、気になる話が回ってきてな。`,
+ ][s.ep.n - 1];
+}
+function sagaCanStartEpisode(s, townId){
+ if(!s || s.state !== 'episodes' || s.town !== townId || !s.ep || s.ep.arcId || s.report) return false;
+ if(GAME_TIME.totalDays < s.ep.ready) return false;
+ if(arcActive().length >= ARC_MAX_ACTIVE) return false;
+ if(arcActive().some(a=>a.region === s.region)) return false;
+ return true;
+}
+function sagaStartEpisode(s){
+ const def = SAGA_EPISODES[s.ep.n - 1];
+ const mk = {lost_caravan:arcCreateLostCaravan, false_request:arcCreateFalseRequest, stolen_goods:arcCreateStolenGoods}[def.type];
+ const a = mk(s.town, def.truth);
+ if(!a) return null;
+ a.chain = {depth: def.depth, hook: 'saga', lead: sagaEpLead(s), cast: []};
+ a.saga = {id: s.id, ep: s.ep.n};
+ if(a.reward) a.reward = Math.round(a.reward * arcRewardMult(a));
+ s.ep.arcId = a.id;
+ s.lastProgress = GAME_TIME.totalDays;
+ return a;
+}
+// 事件が決着したとき（arcFinish から）。手がかりを得たかを記録し、次に知己と話すときの報告にする
+function sagaOnEpisodeFinish(a, kind){
+ const s = sagaFindById(a.saga.id);
+ if(!s || s.state !== 'episodes') return;
+ const def = SAGA_EPISODES[a.saga.ep - 1];
+ const got = !SAGA_NOCLUE_KINDS.includes(kind);
+ const clue = (got && def.clue) ? def.clue : null;
+ s.eps.push({ep:a.saga.ep, kind, got});
+ if(clue) s.clues.push(clue);
+ s.report = {ep:a.saga.ep, got, kind, clue, heard:false, src:null};
+ if(clue){
+  // 手がかりは、事件の関係者がこぼした話として、その地方の酒場の噂に出す（聞いてから、知己に伝えに行く）
+  const r = s.root, b = r.boss;
+  const bn = s.clues.includes('name') ? b.name : `${b.title}の${b.name}という男`;
+  let src, text;
+  if(clue === 'name'){
+   src = `生き残りの${a.witness.name}`;
+   text = `「${a.merchant}商会の隊商の件、片づいたそうだな。${src}が、酒の席でこぼしていたよ。襲った連中の頭目が、『${b.name}の旦那から話は通っている』と口にしていたのを聞いた、とな。${b.title}の${b.name}といえば、あまりいい噂は聞かないが」`;
+  } else if(clue === 'motive'){
+   src = `${a.client.name}の屋敷の者`;
+   text = `「${a.client.name}の屋敷の${a.item.name}が戻ったそうだな。屋敷の者が言うには、盗品が流れた先を辿ると、${bn}に行き着くらしい。${r.motive}男だと聞く。……あまり深入りしないほうがいい相手だ」`;
+  } else {
+   src = `${a.client.name}の件を調べていた者`;
+   text = `「${a.client.name}の件を調べていた者が漏らしていたよ。糸を引いているのは、やはり${bn}らしい。いまは${arcTown(r.hideTown)}の${b.place}にいて、そこに歌わされている若い娘が一人いるそうだ」`;
+  }
+  s.report.src = src;
+  if(!Array.isArray(PC._arcEpilogues)) PC._arcEpilogues = [];
+  PC._arcEpilogues.push({region:a.region, text, day:GAME_TIME.totalDays, must:true, saga:s.id});
+  if(PC._arcEpilogues.length > 8) PC._arcEpilogues.shift();
+ }
+ s.ep.arcId = null;
+ s.lastProgress = GAME_TIME.totalDays;
+}
+// 手がかりの噂を聞いた（arcShowEpilogue から）
+function sagaClueHeard(id){
+ const s = sagaFindById(id);
+ if(s && s.report) s.report.heard = true;
+}
+// 事件のあと、知己のもとを訪ねたときの場面。老人は情報を持ってこない。プレイヤーが聞いたことを伝え、老人はそれに応える
+function sagaReportHtml(s, rp){
+ const ep = rp.ep, got = rp.got;
+ const N = s.person.name, r = s.root, b = r.boss, I = sagaInst(s.person), P = I.P, SONG = sagaSong(s.person), Q = sagaQ(s.person);
+ const bn = s.clues.includes('name') ? b.name : `${b.title}の${b.name}という男`;   // 名の手がかりを逃していたら、ここで名乗らせる
+ const intro = `${N}は、いつもの席で曲を${P}いていたが、あなたに気づくと手を止めた。`;
+ const head = arcHeader(`${s.person.job}${s.person.name}`) + `<span style="color:#c0b098">${intro}</span><br><br>`;
+ if(ep === 1){
+  // 黒幕と無関係の事件：知己とその町のつながりを見せる。手がかりは出さない
+  const said = (tag)=>(s.choices || []).some(c=>c.tag === tag);
+  if(!got) return head + `<span style="color:#e8e4d8">${Q(`「……そうか、戻らんかったか。いや、あんたのせいではない。あの家のことを気にかけてくれた、それだけで十分じゃ」`,`「……そうかい、戻らなかったかい。いや、あんたのせいじゃないよ。あの家のことを気にかけてくれた、それだけで十分さ」`)}</span>`;
+  const memo = said('praise') ? `${Q(`「あんたは、最初にこの曲を褒めてくれたな。……あれは、嬉しかった」`,`「あんたは、最初にこの曲を褒めてくれたねえ。……あれは、嬉しかったよ」`)}`
+   : said('listen') ? `${Q(`「あんたは、黙って聴いてくれた。……ああいう客が、一番ありがたい」`,`「あんたは、黙って聴いてくれたね。……ああいう客が、一番ありがたいよ」`)}`
+   : `${Q(`「あんたのような客がおるから、この歳まで${P}いておれる」`,`「あんたのような客がいるから、この歳まで${P}いていられるのさ」`)}`;
+  return head + `<span style="color:#e8e4d8">${Q(`「……聞いたぞ。あの家の品が戻ったそうじゃな。昔、さんざん世話になった家でな。礼を言う」`,`「……聞いたよ。あの家の品が戻ったそうだね。昔、さんざん世話になった家でね。礼を言うよ」`)}</span><br><br>`
+   + `<span style="color:#c0b098">${N}は、${I.again}と、${SONG}を${P}き始めた。いつものところまで来ると、指が止まった。</span><br><br>`
+   + `<span style="color:#e8e4d8">${memo}</span>`;
+ }
+ const k = ep - 2;   // 手がかりの事件の番号（0〜2）
+ const say = [
+  `${Q(`「……例の件、聞いたぞ。大変じゃったな」`,`「……例の件、聞いたよ。大変だったね」`)}`,
+  `${Q(`「……あんたの噂は、ここまで届いておる。無理をしておらんか」`,`「……あんたの噂は、ここまで届いてるよ。無理をしてないかい」`)}`,
+  `${Q(`「……ようやっと、顔を見せてくれたか。あんたの噂は、聞いておる」`,`「……ようやく、顔を見せてくれたね。あんたの噂は、聞いてるよ」`)}`,
+ ][k];
+ let mid, react;
+ if(!got){
+  mid = `あなたが、これといった手がかりは得られなかったと伝えると、`;
+  react = [
+   `${N}は、静かに頷いた。${Q(`「そうか。……いや、気にせんでよい。あんたが無事ならそれでよい」`,`「そうかい。……いや、気にしなくていいよ。あんたが無事ならそれでいい」`)}`,
+   `${N}は、しばらく杯を見つめていた。${Q(`「……うまくは運ばんかったか。なに、わしが勝手に気にしておっただけのことじゃ」`,`「……うまくは運ばなかったかい。なに、あたしが勝手に気にしていただけのことさ」`)}`,
+   `${N}は、深く息を吐いた。${Q(`「そうか。……これも、わしの運じゃろう。……じゃが、あの子の行方だけは、どうか探してやってくれんか」`,`「そうかい。……これも、あたしの運さ。……でも、あの子の行方だけは、どうか探してやってくれないかい」`)}`,
+  ][k];
+ } else {
+  const src = rp.src || '事件の関係者';
+  mid = [
+   `あなたは、${src}から聞いた、${b.title}の${b.name}という名を伝えた。`,
+   `あなたは、${src}から聞いた、${bn}の噂を伝えた。`,
+   `あなたは、${src}から聞いた、${bn}が${arcTown(r.hideTown)}の${b.place}にいて、そこで歌わされている娘がいるらしい、という話を伝えた。`,
+  ][k];
+  react = [
+   `${N}の${I.stop}。${Q(`「……その名は、孫娘の便りが途絶えた頃から、あちこちで聞くようになった名じゃ。そうか、あんたもか」`,`「……その名は、孫娘の便りが途絶えた頃から、あちこちで聞くようになった名だよ。そうかい、あんたもかい」`)}`,
+   `${N}は、しばらく黙っていた。${Q(`「……${r.kin}は、歌い手でな。大きな屋敷に呼ばれては歌っておった。……そういう男の目に留まったのかもしれん」`,`「……${r.kin}は、歌い手でね。大きな屋敷に呼ばれては歌っていたよ。……そういう男の目に留まったのかもしれないね」`)}`,
+   `${N}は、目を閉じた。${Q(`「……${r.kin}じゃろう。わしはもう、足が動かん。……こんなことを頼める筋ではないが、どうか」`,`「……${r.kin}だろうね。あたしはもう、足が動かないんだ。……こんなことを頼める筋じゃないけど、どうか」`)}`,
+  ][k];
+ }
+ return head + `<span style="color:#e8e4d8">${say}</span><br><br>`
+  + `<span style="color:#c0b098">${mid}</span><span style="color:#e8e4d8">${react}</span>`;
+}
+// 酒場で客に話しかけたとき：知己の報告／次の事件の噂。出したら true
+function sagaTryEpisode(townId){
+ const s = sagaList().find(x=>x.state === 'episodes' && x.town === townId);
+ if(!s) return false;
+ if(s.report){
+  const rp = s.report;
+  if(rp.clue && !rp.heard){
+   // 手がかりの噂を、まだ聞いていない。噂が失われていたら（期限・枠あふれ）、聞いたことにして先へ進める
+   if((PC._arcEpilogues || []).some(e=>e.saga === s.id)) return false;
+   rp.heard = true;
+  }
+  const back = currentNodeId;
+  s.report = null; s.lastProgress = GAME_TIME.totalDays;
+  if(rp.ep >= SAGA_EPISODES.length){ s.state = 'climax'; s.ep = null; s.climaxReady = GAME_TIME.totalDays; }   // 山場は、報告のあとすぐに行ける
+  else s.ep = {n: rp.ep + 1, ready: GAME_TIME.totalDays + arcRand(SAGA_EPISODE_GAP[0], SAGA_EPISODE_GAP[1]), arcId:null};
+  sagaPanelOpen(sagaReportHtml(s, rp));
+  return true;
+ }
+ if(!sagaCanStartEpisode(s, townId)) return false;
+ const a = sagaStartEpisode(s);
+ if(!a) return false;
+ arcRumorPanel(a);
+ return true;
+}
+// 毎日の判定：序が始まってから3年以内に終わらなかった知己は消える（リセット）
+function sagaTick(){
+ const now = GAME_TIME.totalDays;
+ // 事件の最中：アークが他の経路で消えていたら、決着しなかったものとして扱う／長く動きがなければ消える
+ sagaList().forEach(s=>{
+  if(s.state === 'episodes' && s.ep && s.ep.arcId && !arcFindById(s.ep.arcId) && !s.report){
+   s.eps.push({ep:s.ep.n, kind:'lapsed', got:false}); s.report = {ep:s.ep.n, got:false, kind:'lapsed'}; s.ep.arcId = null;
+  }
+ });
+ sagaList().filter(s=>s.state === 'climax' && s.climaxReady != null && now - s.climaxReady > SAGA_CLIMAX_LAPSE_DAYS).forEach(sagaClimaxLapse);
+ const stale = sagaList().filter(s=>(s.state === 'episodes' || s.state === 'climax' || s.state === 'escort') && now - (s.lastProgress == null ? now : s.lastProgress) > SAGA_EPISODE_IDLE_LIMIT);
+ if(stale.length) PC._sagas = sagaList().filter(s=>!stale.includes(s));
+ const gone = sagaList().filter(s=>s.state === 'prologue' && now - s.prologue.startDay > SAGA_PROLOGUE_LIMIT_DAYS);
+ if(!gone.length) return;
+ gone.forEach(s=>{
+  if(!Array.isArray(PC._arcEpilogues)) PC._arcEpilogues = [];
+  PC._arcEpilogues.push({region:s.region, text:`「そういえば、隅の席で${sagaInst(s.person).name}を${sagaInst(s.person).P}いていた${s.person.name}の姿を、このところ見ないな。……どこかへ行ったのだろう」`, day:now});
+  if(PC._arcEpilogues.length > 8) PC._arcEpilogues.shift();
+ });
+ PC._sagas = sagaList().filter(s=>!gone.includes(s));
+}
+
+// ══════════════════════════════════════════
+// 知己型サーガ — 山場と結び
+// 事件が4つ済むと山場に進む。元締めの居場所を訪ねて、4つのやり方から選ぶ（捕らえる／告発する／取引する／娘だけ連れ出す）。
+// ・集めた手がかりの数で、選べる手と、戦闘の敵の数が変わる
+// ・結末は、孫娘の救出と、老楽師の行く末（残る／去る／亡くなる）、地方状態（黒幕型のみ）に反映する
+// ・老楽師の行く末は、酒場の主人の噂（後日譚）と、後日の手紙で知らせる
+// ・山場に240日行かなければ、老楽師は亡くなる
+// ══════════════════════════════════════════
+const SAGA_CLIMAX_LAPSE_DAYS = 240;
+// 符号は arcRegionShift の定義に従う（正が悪化）
+const SAGA_REGION_FX = {
+ captured:{unrest:10, logi:6}, accused:{unrest:6, logi:3}, accused_escaped:{unrest:2},
+ bargain:{unrest:-6, logi:-2}, sneaked:{unrest:-4, logi:-2}, lapsed:{unrest:-5, logi:-3},
+};
+function sagaClimaxButtons(townId){
+ const now = GAME_TIME.totalDays, out = [];
+ sagaList().forEach(s=>{
+  if(s.state === 'escort') return;
+  if(s.state !== 'climax' || s.climaxReady == null || now < s.climaxReady) return;
+  if(!(REGIONS[s.region] || []).includes(townId)) return;
+  const known = s.clues.includes('place') || s.found;
+  if(known && townId !== s.root.hideTown) return;
+  if(!known && s.searchDay === now) return;
+  const id = s.id, b = s.root.boss;
+  out.push(known
+   ? {label:` ${b.name}の${b.place}を訪ねる（${s.person.name}の孫娘の件）`, fn:()=>sagaClimaxScene(id, currentNodeId)}
+   : {label:` ${s.person.name}の孫娘の行方を探す`, fn:()=>sagaClimaxSearch(id, currentNodeId)});
+ });
+ return out;
+}
+// 居場所の手がかりがないとき：聞き込みで探す（失敗しても、翌日またやり直せる）
+function sagaClimaxSearch(id, back){
+ const s = sagaFindById(id);
+ if(!s || s.state !== 'climax'){ go(back); return; }
+ s.searchDay = GAME_TIME.totalDays;
+ const b = s.root.boss;
+ arcStory(arcHeader('孫娘の行方')
+  + `<span style="color:#c0b098">あなたは、町の人々に声をかけ、${s.person.name}の孫娘の行方を尋ねて回った。</span>`, true);
+ renderChoices([]);
+ setupSavingRoll({attr:'chr', level:2, label:'行方を尋ねる',
+  onSuccess(){
+   arcHideDice(); s.found = true;
+   arcStory(`<br><br><span style="color:#e8e4d8">古くからの住人の一人が、声を落として教えてくれた。${b.title}の${b.name}が、${arcTown(s.root.hideTown)}の${b.place}に、歌のうまい娘を閉じ込めているらしい、と。</span>`);
+   renderChoices([{label:'▶ 向かう', fn:()=>sagaClimaxScene(id, back)}]); scrollToTop();
+  },
+  onFail(){
+   arcHideDice();
+   arcStory(`<br><br><span style="color:#e8e4d8">誰も、はっきりしたことは知らなかった。明日、また別の人に当たってみよう。</span>`);
+   renderChoices([{label:'▶ OK', fn:()=>go(back)}]); scrollToTop();
+  }});
+}
+function sagaClimaxScene(id, back){
+ const s = sagaFindById(id);
+ if(!s || s.state !== 'climax'){ go(back); return; }
+ const r = s.root, b = r.boss, N = s.person.name, n = s.clues.length;
+ arcStory(arcHeader(`${arcTown(r.hideTown)}の外れ`)
+  + `<span style="color:#c0b098">${b.title}の${b.name}の${b.place}は、${arcTown(r.hideTown)}の外れにあった。高い塀の向こうから、かすかに歌声が聞こえてくる。</span><br><br>`
+  + `<span style="color:#e8e4d8">……${N}が毎晩${sagaInst(s.person).P}いていた、あの曲の、最後の一節だった。</span>`, true);
+ const ch = [{label:' 押し入って、元締めを討つ', fn:()=>sagaCapture(id, back, false)}];
+ if(n >= 2) ch.push({label:' 集めた話を携えて、衛兵のもとへ向かう', fn:()=>sagaAccuse(id, back)});
+ if(s.clues.includes('motive')) ch.push({label:` ${b.name}と直接、話をつける`, fn:()=>sagaBargain(id, back)});
+ ch.push({label:' 娘だけを、そっと連れ出す（器用さ Lv3）', fn:()=>sagaSneak(id, back)});
+ ch.push({label:' 今は引き返す', fn:()=>go(back)});
+ renderChoices(ch); scrollToTop();
+}
+function sagaMkFoe(name){ const e = generateNPC(arcRand(7, 10)); e.type = 'warrior'; e.name = name; e.curCon = e.con; return e; }
+// 押し入る：戦闘の前に1場面（騒がれて始まる場合は、すでに場面があるので省く）
+function sagaCapture(id, back, alarmed){
+ const s = sagaFindById(id); if(!s){ go(back); return; }
+ if(alarmed){ sagaCaptureFight(id, back, true); return; }
+ const b = s.root.boss;
+ arcStory(`<span style="color:#e8e4d8">あなたは、塀の門を蹴り開けた。</span><br><br>`
+  + `<span style="color:#c0b098">歌声が、ふっと止んだ。屋敷の中から、荒くれ者たちが駆け出してくる。その奥で、${b.name}が、ゆっくりと立ち上がった。</span><br><br>`
+  + `<span style="color:#e8e4d8">「……客人にしては、騒がしいな」</span>`
+  + (s.clues.length >= 3 ? `<br><br><span style="color:#c0b098">手がかりを辿って選んだ刻限は、見張りの手薄な頃合いだった。</span>` : ''), true);
+ renderChoices([{label:'▶ 迎え撃つ', fn:()=>sagaCaptureFight(id, back, false)}]); scrollToTop();
+}
+function sagaCaptureFight(id, back, alarmed){
+ const s = sagaFindById(id); if(!s){ go(back); return; }
+ const b = s.root.boss, n = s.clues.length;
+ let m = arcRand(3, 4);
+ if(alarmed) m++; else { if(n >= 2) m--; if(n >= 3) m--; }   // 手がかりが多いほど、見張りの薄い刻を選べる
+ const enemies = [sagaMkFoe(b.name)];
+ for(let i = 0; i < Math.max(1, m); i++) enemies.push(sagaMkFoe('雇われた荒くれ者'));
+ renderChoices([]); scrollToTop();
+ startCombatNPC({
+  enemies, canFlee: true, fleeTo: back, win: '__noop__', lose: 'DEAD',
+  onWin: ()=>{ sagaFinish(s, 'captured', back, enemies); },
+ });
+}
+function sagaAccuse(id, back){
+ const s = sagaFindById(id); if(!s){ go(back); return; }
+ sagaFinish(s, s.clues.length >= 3 ? 'accused' : 'accused_escaped', back);
+}
+function sagaBargain(id, back){
+ const s = sagaFindById(id); if(!s){ go(back); return; }
+ sagaFinish(s, 'bargain', back);
+}
+function sagaSneak(id, back){
+ const s = sagaFindById(id); if(!s){ go(back); return; }
+ renderChoices([]);
+ setupSavingRoll({attr:'dex', level:3, label:'忍び込む',
+  onSuccess(){ arcHideDice(); sagaFinish(s, 'sneaked', back); },
+  onFail(){
+   arcHideDice();
+   arcStory(`<br><br><span style="color:#e8e4d8">塀を越えたところで、見張りに気づかれた。笛が鳴り、${s.root.boss.place}の中から、人が駆け出してくる。</span>`);
+   renderChoices([{label:'▶ 迎え撃つ', fn:()=>sagaCapture(s.id, back, true)}]); scrollToTop();
+  }});
+}
+// 結末：地方状態、報酬、孫娘の救出の場面、老楽師の行く末の知らせ（噂と手紙）
+function sagaFinish(s, kind, back, enemies){
+ const r = s.root, b = r.boss, N = s.person.name, K = r.kin, now = GAME_TIME.totalDays;
+ const P = sagaInst(s.person).P, SONG = sagaSong(s.person), G = sagaG(s.person), Q = sagaQ(s.person);
+ const home = arcTown(s.town);
+ let gold = 0, treasure = '';
+ if(enemies && enemies.length){
+  enemies.forEach(e=>{ gold += (e.gold||0); });
+  const power = enemies.reduce((t, e)=>t + ((e.st||10) + (e.lk||10) + (e.dex||10)), 0);
+  treasure = generateTreasure(power);
+ }
+ gold += ({captured:Math.round(arcRand(300, 500) * 2), accused:Math.round(arcRand(250, 400) * 2), accused_escaped:Math.round(arcRand(120, 220) * 2),
+  bargain:arcRand(600, 900), sneaked:arcRand(100, 200)})[kind] || 0;
+ if(gold > 0) gainGPAll(gold);
+ const _al = {captured:3, accused:3, accused_escaped:2, sneaked:1, bargain:-3}[kind];
+ if(_al) changeAlignment(_al, 0);
+ arcRegionShift(s.region, SAGA_REGION_FX[kind]);
+ const body = ({
+  captured:`${b.name}は床に倒れ、そのまま動かなくなった。手下たちも、ひとり残らず倒れていた。静まり返った屋敷の奥の部屋から、痩せた若い娘が姿を見せた。`,
+  accused:`あなたは、集めた話をまとめて、衛兵の詰所に持ち込んだ。証言も、手がかりも揃っていた。衛兵は夜のうちに${b.place}を取り囲み、${b.name}は縄を打たれた。奥の部屋から、痩せた若い娘が姿を見せた。`,
+  accused_escaped:`話は集めたが、決め手には欠けた。衛兵が${b.place}に踏み込んだとき、${b.name}はすでに裏口から姿を消していた。それでも、奥の部屋で、痩せた若い娘が保護された。`,
+  bargain:`あなたは、${b.name}と向かい合った。元締めは、${r.motive}ことを隠そうともせず、金を差し出して言った。「娘は返そう。その代わり、この件は忘れてもらう」。あなたは、その条件を呑んだ。やがて、痩せた若い娘が連れてこられた。`,
+  sneaked:`あなたは、夜の闇に紛れて${b.place}に忍び込み、歌わされていた痩せた若い娘を、そっと連れ出した。気づいた者は誰もいない。`,
+ })[kind];
+ const kin = kind === 'bargain'
+  ? `${K}は、${G.grand}が待っていると聞くと、小さく頷いただけだった。その細い背中を、一人で街道に出すわけにはいかない。あなたは、${K}を${home}まで送り届けることにした。`
+  : `「……${N}の、孫です。${K}と申します」。娘は、${G.grand}が待っていると聞くと、何度も頭を下げた。一人で街道を行かせるわけにはいかない。あなたは、${K}を${home}まで送り届けることにした。`;
+ const after = ({
+  captured:`元締めを失った裏の稼業は、しばらく荒れるだろう。`,
+  accused:`元締めを失った裏の稼業は、しばらく荒れるだろう。`,
+  accused_escaped:`だが、${b.name}は、いまも野放しのままだ。`,
+  bargain:`${b.name}は、これまでどおりの稼業を続けるだろう。`,
+  sneaked:`${b.name}は、娘が消えたことに気づいても、事を荒立てはしないだろう。`,
+ })[kind];
+ s.state = 'escort'; s.endKind = kind; s.lastProgress = now; s.found = false;
+ updateHUD();
+ const gain = `所持金 +${gold}GP` + (treasure ? `／見つけた品：${treasure}` : '');
+ arcStory(`<span style="color:#f0ece0">${b.name}の${b.place}で</span><br><br>`
+  + `<span style="color:#e8e4d8">${body}</span><br><br><span style="color:#e8e4d8">${kin}</span><br><br>`
+  + `<span style="color:#c0b098">${after}</span><br><br><span style="color:#e8e4d8">${gain}</span>`, true);
+ renderChoices([{label:' ▶ 町へ戻る', fn:()=>go(back)}]); scrollToTop();
+}
+// 老楽師の行く末の知らせ（酒場の主人の噂と、後日の手紙）
+function sagaAftermathTexts(s, kind){
+ const N = s.person.name, P = sagaInst(s.person).P, SONG = sagaSong(s.person), G = sagaG(s.person), Q = sagaQ(s.person);
+ const stays = (kind === 'captured' || kind === 'accused' || kind === 'sneaked');
+ const rumor = stays
+  ? `「${N}${G.gaffer}の席から、また曲が聞こえてな。それも、二人分だ。……あの最後の一節を、若い娘が歌っておった。店の客は、みな黙って聴き入っておったよ」`
+  : (kind === 'accused_escaped'
+   ? `「${N}${G.gaffer}の孫娘が、戻ったそうだ。だが、あの元締めはまだ捕まっておらん。${G.gaffer}は、夜になると戸に閂を掛けるようになったと聞く。……それでも、隅の席から、曲は聞こえてくるがな」`
+   : `「${N}${G.gaffer}が、孫娘と一緒に町を出ていった。遠い親戚を頼るそうだ。……隅の席は、空いたままだよ」`);
+ const letter = stays
+  ? `${Q(`あの子と二人で、${SONG}を${P}いておる。最後の一節まで、通してな。……あんたの席は、いつでも空けておく。`,`あの子と二人で、${SONG}を${P}いてるよ。最後の一節まで、通してね。……あんたの席は、いつでも空けておくよ。`)}`
+  : (kind === 'accused_escaped'
+   ? `${Q(`孫娘は戻った。じゃが、あの男はまだ野放しじゃ。夜は戸に閂をかけておる。……それでも、あの子が隣におる。それだけで、わしは十分じゃ。`,`孫娘は戻ったよ。でも、あの男はまだ野放しでね。夜は戸に閂をかけてる。……それでも、あの子が隣にいる。それだけで、あたしは十分さ。`)}`
+   : `${Q(`遠い町に落ち着いた。あの子は、もう歌わん。わしの曲を、黙って聴いておる。……何があったかは、聞かんことにした。あんたのしてくれたことは、忘れん。`,`遠い町に落ち着いたよ。あの子は、もう歌わない。あたしの曲を、黙って聴いてる。……何があったかは、聞かないことにしたよ。あんたのしてくれたことは、忘れないよ。`)}`);
+ return {rumor, letter, stays};
+}
+// 孫娘を、老楽師のいる町まで送る（移動のあと、再会の場面）
+function sagaEscort(id, back){
+ const s = sagaFindById(id);
+ if(!s || s.state !== 'escort' || PC.town === s.town){ go(back); return; }
+ // 町と町のあいだの実際の道のりで移動する（通常の徒歩移動）。着いたら、酒場に入って再会する
+ const route = getRoute(PC.town, s.town);
+ if(route && route.days.walk != null){ travelTo(s.town, 'walk'); return; }
+ // 直通の道がないときは、経由する道のりの合計日数で移動する
+ let days = calcMinWalkDays(PC.town, s.town);
+ if(days == null) days = calcMinTravelDays(PC.town, s.town);
+ if(days == null){ showSaveToast('その町へは、歩いて行ける道がない'); go(back); return; }
+ const wp = checkPartyWeight();
+ if(wp && wp.over) days *= 2;
+ arcTravel(arcTown(s.town) + 'の酒場', days, ` ${s.root.kin}と${arcTown(s.town)}に着く`, ()=>{ PC.town = s.town; go('TOWN_' + s.town.toUpperCase()); });
+}
+// 老楽師の町の酒場：孫娘を連れて、隅の席へ向かう
+function sagaTavernChoices(townId){
+ const out = [];
+ sagaList().forEach(s=>{
+  if(s.state === 'escort' && s.town === townId){
+   const id = s.id;
+   out.push({label:` 隅の席の${s.person.name}のもとへ、${s.root.kin}を連れて行く`, fn:()=>sagaReunion(id, currentNodeId)});
+  }
+ });
+ return out;
+}
+function sagaReunion(id, back){
+ const s = sagaFindById(id);
+ if(!s){ if(back) go(back); return; }
+ const kind = s.endKind, N = s.person.name, K = s.root.kin, now = GAME_TIME.totalDays;
+ const I = sagaInst(s.person), P = I.P, SONG = sagaSong(s.person), G = sagaG(s.person), Q = sagaQ(s.person);
+ const home = arcTown(s.town), townNode = 'TOWN_' + s.town.toUpperCase();
+ const open = `酒場の戸をくぐると、隅の席で、${N}が、${I.handOn}、入口の方を見ていた。`;
+ let body;
+ if(kind === 'bargain'){
+  body = `<span style="color:#c0b098">${open}</span><br><br>`
+   + `<span style="color:#c0b098">${K}は、入口で足を止めたまま、しばらく動かなかった。やがて、${N}がゆっくりと立ち上がり、腕を広げた。${K}は、その中に、小さく身を預けた。言葉は、なかった。</span><br><br>`
+   + `<span style="color:#e8e4d8">${Q(`「……何があったかは、聞かん。……ありがとうよ、連れて帰ってくれて」`,`「……何があったかは、聞かないよ。……ありがとうね、連れて帰ってくれて」`)}</span><br><br>`
+   + `<span style="color:#c0b098">その晩、隅の席の曲は、最後の一節の手前で、やんだ。</span>`;
+ } else {
+  const extra = kind === 'accused_escaped'
+   ? `<br><br><span style="color:#e8e4d8">${Q(`「あの男は、まだ野放しじゃろう。……じゃが、今夜だけは、何も考えんでおこう」`,`「あの男は、まだ野放しだろうね。……でも、今夜だけは、何も考えないでおくよ」`)}</span>`
+   : '';
+  body = `<span style="color:#c0b098">${open}</span><br><br>`
+   + `<span style="color:#c0b098">${K}が駆け寄ると、${N}の手から、${I.name}が滑り落ちそうになった。</span><br><br>`
+   + `<span style="color:#e8e4d8">「……${K}。${K}か」</span><br><br>`
+   + `<span style="color:#c0b098">${K}は、何も言わず、${G.grand}の胸に顔をうずめた。しばらくして、${N}は、あなたに向き直った。</span><br><br>`
+   + `<span style="color:#e8e4d8">${Q(`「……あんたが、連れて帰ってくれたのか。礼の言いようもない」`,`「……あんたが、連れて帰ってくれたんだね。礼の言いようもないよ」`)}</span>` + extra + `<br><br>`
+   + `<span style="color:#c0b098">その晩、酒場には、久しぶりに${SONG}が流れた。最後の一節まで、二人分の音で。</span>`;
+ }
+ const t = sagaAftermathTexts(s, kind);
+ if(!Array.isArray(PC._arcEpilogues)) PC._arcEpilogues = [];
+ PC._arcEpilogues.push({region:s.region, day:now, from:now + arcRand(5, 15), must:true, master:true, text:t.rumor});
+ if(PC._arcEpilogues.length > 8) PC._arcEpilogues.shift();
+ if(!Array.isArray(PC._arcLetters)) PC._arcLetters = [];
+ PC._arcLetters.push({npcName:N, custom:t.letter, due:now + arcRand(45, 90), pending:false, done:false, count:0});
+ if(PC._arcLetters.length > 12) PC._arcLetters.shift();
+ PC._sagas = sagaList().filter(x=>x !== s);
+ updateHUD();
+ arcStory(arcHeader(`${home}の酒場`) + body, true);
+ renderChoices([{label:'▶ OK', fn:()=>go(back || townNode)}]); scrollToTop();
+}
+// 山場に行かないまま長く経ったとき：老楽師は亡くなる
+function sagaClimaxLapse(s){
+ const now = GAME_TIME.totalDays, N = s.person.name, P = sagaInst(s.person).P, G = sagaG(s.person);
+ arcRegionShift(s.region, SAGA_REGION_FX.lapsed);
+ if(!Array.isArray(PC._arcEpilogues)) PC._arcEpilogues = [];
+ PC._arcEpilogues.push({region:s.region, day:now, from:now + arcRand(1, 5), must:true, master:true,
+  text:`「${N}${G.gaffer}が、亡くなった。最後まで、あの曲を${P}いておったそうだ。……最後の一節だけは、とうとう${P}かなかったがな。孫娘の消息は、ついに分からずじまいだ」`,
+  life:`${N}の訃報を聞いた。`});
+ if(PC._arcEpilogues.length > 8) PC._arcEpilogues.shift();
+ PC._sagas = sagaList().filter(x=>x !== s);
+}
+
+// ══════════════════════════════════════════
 // 連続クエスト（アーク）— 連なり（続編）
 // アークが終わると、結末に応じて「続編の種」を同じ地方に残す。種ができてから30〜90日後に、酒場の噂として続編が出る。
 // ・段は最大3（前編＝1、続編＝2、終章＝3）。終章は種を残さない
@@ -22059,7 +22699,13 @@ const ARC_SEED_P_SUCCESS = 0.7, ARC_SEED_P_FAIL = 1.0;
 let ARC_SEED_FORCE = false;           // デバッグ用：確率を無視して必ず種を残す
 
 // 結末 → 続編の規則。null なら種なし
+// 知己型サーガに置き換えた、つながりの弱い続編は種を残さない（コードは残す）
+const ARC_SEED_DISABLED_HOOKS = ['exposed_house', 'kin_missing', 'slain_kin', 'loss_aftermath', 'lie_exposed'];
 function arcSeedRule(a, kind){
+ const r = arcSeedRuleRaw(a, kind);
+ return (r && ARC_SEED_DISABLED_HOOKS.includes(r.hook)) ? null : r;
+}
+function arcSeedRuleRaw(a, kind){
  const S = ARC_SEED_P_SUCCESS, F = ARC_SEED_P_FAIL, tr = a.truth;
  if(a.type === 'lost_caravan'){
   if(kind === 'cleared'){
@@ -22109,11 +22755,11 @@ function arcSeedLead(a, hook){
   npc1_exposed:   `${N1}の件の余波か、町の空気がざわついている。`,
   bodyguard_fail: `${N1}の依頼が片づかなかったせいで、話がこじれているらしい。`,
   bandit_patron:  `例の${m}の件、野盗どもを片づけたのはあんただったな。あの頭目には、雇い主がいたという噂が出ている。`,
-  caravan_again:  `この辺りの街道は、前の隊商の件が片づかないままだ。`,
+  caravan_again:  `この辺りの街道は、${m ? m + 'の件' : '前の隊商の件'}が、あれから片づかないままだ。`,
   firm_ruin:      `${m ? '例の' + m + 'の件の余波か、' : ''}町の商人たちが妙にざわついている。`,
   exposed_house:  `${C}の悪事が暴かれて以来、町の有力者たちは落ち着かない。`,
-  spared_returns: `見逃された${T}の噂が、また耳に入ってきた。`,
-  unsettled:      `${C}が人を探していた件は、結局うやむやのままだ。`,
+  spared_returns: `あんたが見逃した${T}の噂が、また耳に入ってきた。見逃されたあと、隊商に身を寄せて暮らしていたそうだ。`,
+  unsettled:      `${C}がある人物を始末してくれる者を探していた件は、結局うやむやのまま流れたそうだ。それ以来、${a.client ? a.client.name : ''}の商いには、妙なことが続いているらしい。`,
   slain_kin:      `殺された${T}を、悼む者がいるらしい。`,
   thieves_boss:   `${C}の家宝を盗んだ盗賊の頭を倒したのは、あんただったな。あの頭の上に、元締めがいたという話だ。`,
   kin_missing:    `${C}の家を出た${K}が、行方知れずになったそうだ。`,
@@ -22122,8 +22768,137 @@ function arcSeedLead(a, hook){
   loss_aftermath: `${C}の家宝の件が片づかなかったせいで、裏の世界が動いているらしい。`,
  }[hook] || '';
 }
+// ── 続編への人物の引き継ぎ（名前と「どう扱ったか」だけ）──
+// fate：spared＝見逃した／slain＝殺した（続編には生きた姿で出さない）／accused＝告発した／helped＝助けた・取り戻した・和解した／
+//       ignored＝放置・期限切れ／deceived＝偽りを告げた／exposed＝露見させた
+function arcBuildCast(a, kind){
+ const out = [];
+ const add = (role, name, fate, title, town)=>{ if(name) out.push({role, name, fate, title:title || null, town:town || null}); };
+ const t = a.type, tr = a.truth;
+ if(t === 'lost_caravan'){
+  if(kind === 'cleared'){
+   add('merchant', a.merchant, 'helped');
+   if(a.witness) add('witness', a.witness.name, 'helped', a.witness.role);
+   if(tr === 'staged') add('master', a.master, 'exposed');
+  } else if(kind === 'bought'){
+   add('master', a.master, 'spared'); add('merchant', a.merchant, 'ignored');
+  } else add('merchant', a.merchant, 'ignored');
+ } else if(t === 'false_request'){
+  const c = a.client, g = a.target;
+  if(kind === 'exposed'){ add('client', c && c.name, 'accused', c && c.title); add('target', g && g.name, 'helped', g && g.title); }
+  else if(kind === 'spared'){ add('client', c && c.name, 'ignored', c && c.title); add('target', g && g.name, 'spared', g && g.title); }
+  else if(kind === 'killed'){ add('client', c && c.name, 'helped', c && c.title); add('target', g && g.name, 'slain', g && g.title); }
+  else { add('client', c && c.name, 'ignored', c && c.title); add('target', g && g.name, 'ignored', g && g.title); }
+ } else if(t === 'stolen_goods'){
+  const c = a.client, k = a.culprit, f = a.fence;
+  const ct = a.clientTown;
+  if(kind === 'cleared'){ add('client', c && c.name, 'helped', c && c.title, ct); add('fence', f && f.name, 'ignored'); }
+  else if(kind === 'kin_disown' || kind === 'kin_silent'){ add('client', c && c.name, kind === 'kin_disown' ? 'ignored' : 'deceived', c && c.title, ct); add('culprit', k && k.name, 'spared', k && k.rel); }
+  else if(kind === 'kin_lied'){ add('client', c && c.name, 'deceived', c && c.title, ct); add('culprit', k && k.name, 'helped', k && k.rel); }
+  else if(kind === 'kin_exposed'){ add('client', c && c.name, 'ignored', c && c.title, ct); add('culprit', k && k.name, 'exposed', k && k.rel); }
+  else { add('client', c && c.name, 'ignored', c && c.title, ct); add('fence', f && f.name, 'ignored'); }
+ } else if(t === 'bodyguard'){
+  const n1 = a.npc1;
+  const f = ({proxy_chase:'helped', proxy_done:'helped', blocked:'accused', exposed:'exposed'})[kind] || 'ignored';
+  add('npc1', n1 && n1.name, f, n1 && n1.title);
+  add('patron', a.patron, 'ignored');
+ }
+ // 前編までの引き継ぎも持ち越す（終章で、これまでの人物を引くため）
+ const prev = (a.chain && Array.isArray(a.chain.cast)) ? a.chain.cast : [];
+ return out.concat(prev).slice(0, 10);
+}
+// 続編の役に、前編の人物の名前を割り当てる。slain の人物は割り当てない。
+function arcCastFind(cast, role){ return (cast || []).find(c=>c.role === role && c.fate !== 'slain') || null; }
+function arcApplyCast(a, seed){
+ const cast = seed.cast || [];
+ if(!cast.length) return;
+ const C = (role)=>arcCastFind(cast, role);
+ const hook = seed.hook;
+ const used = ()=>{
+  const names = [];
+  [a.client, a.target, a.culprit, a.fence, a.witness, a.npc1, a.npc2].forEach(x=>{ if(x && x.name) names.push(x.name); });
+  [a.merchant, a.master, a.other, a.patron].forEach(x=>{ if(typeof x === 'string') names.push(x); });
+  return names;
+ };
+ let applied = null;
+ // 前編の人物と同じ名前が、続編の新規の役に偶然当たらないようにする（引き継ぎの割り当ては、この後で行う）
+ const castNames = new Set(cast.map(c=>c.name));
+ {
+  const taken0 = new Set(used());
+  const fresh0 = ()=>{ const pool = NPC_NAMES.filter(n=>!taken0.has(n) && !castNames.has(n)); return pool.length ? pool[Math.floor(Math.random()*pool.length)] : null; };
+  ['client','target','culprit','fence','witness','npc1','npc2'].forEach(k=>{ if(a[k] && castNames.has(a[k].name)){ const f = fresh0(); if(f){ a[k].name = f; taken0.add(f); } } });
+  ['merchant','master','other','patron'].forEach(k=>{ if(typeof a[k] === 'string' && castNames.has(a[k])){ const f = fresh0(); if(f){ a[k] = f; taken0.add(f); } } });
+ }
+ const A = (role)=>{ const c = C(role); if(c){ applied = c.name; return c; } return null; };
+ if(hook === 'spared_returns'){ const c = A('target'); if(c && a.witness){ a.witness.name = c.name; if(c.title) a.witness.role = c.title.startsWith('元') ? c.title : `元${c.title}`; } }
+ else if(hook === 'kin_missing'){ const c = A('client'); if(c) a.merchant = c.name; }
+ else if(hook === 'caravan_again'){ const c = A('merchant'); if(c) a.merchant = c.name; }
+ else if(hook === 'unsettled'){ const c = A('client'); if(c) a.merchant = c.name; }
+ else if(hook === 'firm_ruin'){ const c = A('merchant') || A('master'); if(c && a.client){ a.client.name = c.name; a.client.title = '商人'; } }
+ else if(hook === 'exposed_house'){ const c = A('client'); if(c && a.fence) a.fence.name = c.name; }
+ else if(hook === 'thieves_boss' || hook === 'loss_aftermath'){ const c = A('fence'); if(c && a.client) a.client.name = c.name; }
+ else if(hook === 'lie_exposed'){ const c = A('culprit'); if(c && a.target) a.target.name = c.name; }
+ else if(hook === 'kin_exposed'){
+  // 屋敷の主が、家の恥となった身内を始末してほしいと頼む（前編の依頼人と標的がそのまま続編の依頼人と標的になる）
+  const k = A('culprit');
+  if(k && a.target){ a.target.name = k.name; if(k.title) a.target.title = `家の${k.title}`; }
+  const c = cast.find(x=>x.role === 'client');
+  if(c && a.client){
+   a.client.name = c.name; if(c.title) a.client.title = c.title;
+   if(c.town && (REGIONS[a.region] || []).includes(c.town)){
+    a.clientTown = c.town;
+    if(a.targetTown === a.clientTown){ const alt = (REGIONS[a.region] || []).filter(t=>t !== a.clientTown); if(alt.length) a.targetTown = alt[Math.floor(Math.random()*alt.length)]; }
+   }
+   applied = c.name;
+  }
+ }
+ else if(hook === 'patron_named' || hook === 'thwarted'){ const c = A('patron'); if(c && a.client) a.client.name = c.name; }
+ else if(hook === 'bodyguard_fail'){ const c = A('npc1'); if(c && a.client) a.client.name = c.name; }
+ else if(hook === 'npc1_exposed'){ const c = A('npc1'); if(c && a.client) a.client.name = c.name; }
+ if(!applied) return;
+ // 名前が他の役と重なったら、そちらを別の名前に替える
+ const dup = (nm)=>used().filter(x=>x === nm).length > 1;
+ if(dup(applied)){
+  const taken = new Set(used());
+  const fresh = ()=>{ const pool = NPC_NAMES.filter(n=>!taken.has(n)); return pool.length ? pool[Math.floor(Math.random()*pool.length)] : null; };
+  // 引き継ぎ先の役は hook で決まっているので、同名の他の役を別の名前に替える
+  const keepKey = ({spared_returns:'witness', kin_missing:'merchant', caravan_again:'merchant', unsettled:'merchant', firm_ruin:'client', exposed_house:'fence', thieves_boss:'client', loss_aftermath:'client', lie_exposed:'target', kin_exposed:'client', patron_named:'client', thwarted:'client', bodyguard_fail:'client', npc1_exposed:'client'})[hook];
+  ['client','target','culprit','fence','witness','npc1','npc2'].forEach(k=>{ if(k !== keepKey && a[k] && a[k].name === applied){ const f = fresh(); if(f){ a[k].name = f; taken.add(f); } } });
+  ['merchant','master','other','patron'].forEach(k=>{ if(k !== keepKey && a[k] === applied){ const f = fresh(); if(f){ a[k] = f; taken.add(f); } } });
+ }
+}
+// ── 続編の噂と依頼の場面：前編とのつながり ──
+// 噂の中身（「ある人物を始末してくれる者を探している」の部分）を、前編の結末につなげて差し替える（型B）
+function arcChainRumorCoreB(a){
+ const h = a.chain && a.chain.hook;
+ if(!h) return null;
+ const C = arcTown(a.clientTown), t = a.client.title, n = a.client.name, T = a.target ? a.target.name : '';
+ return ({
+  bandit_patron:`野盗どもが片づいてから、${C}の${t}、${n}が、妙に落ち着かない様子だと聞く。頭目の雇い主は${n}だったのではないか、と囁く者もいる。その${n}が、野盗の生き残りを一人、始末してくれる者を探しているらしい。口封じだろう、というのがもっぱらの噂だ。`,
+  thieves_boss:`その元締めとされているのが、${C}の${t}、${n}だ。${n}が、頭の下にいた盗賊の生き残りを、始末してくれる者を探しているらしい。足がつくのを恐れているのだろう。`,
+  loss_aftermath:`故買の筋で名の挙がる${C}の${t}、${n}が、ある人物を始末してくれる者を探しているらしい。`,
+  kin_exposed:`${t}の${n}は、家の恥となった身内の${T}を、どうにかしてくれる者を探しているらしい。人目につかないように、という注文つきだ。`,
+  lie_exposed:`その疑いを口にした${C}の${t}、${n}が、事情を知るはずの${T}を黙らせたがっている、と聞く。ある人物を始末してくれる者を探しているそうだ。`,
+ })[h] || null;
+}
+// 依頼人と会う場面の冒頭に足す一文（型B・C）
+function arcChainOfferLine(a){
+ const h = a.chain && a.chain.hook;
+ if(!h) return '';
+ const n = a.client ? a.client.name : '';
+ const t = ({
+  bandit_patron:`${n}は、あなたの顔を見るなり、ごくりと喉を鳴らした。野盗を片づけた者の話は、すでに耳に入っているらしい。`,
+  thieves_boss:`${n}は、あなたが盗賊の頭を倒したことを知っている様子で、目を合わせようとしない。`,
+  loss_aftermath:`${n}は、先の家宝の件の余波に、ひどく神経を尖らせているようだ。`,
+  kin_exposed:`${n}は、屋敷の騒動の疲れが顔に出ている。あの件であなたが何を知っているか、探るような目をしていた。`,
+  lie_exposed:`${n}は、あなたが先の家宝の件に関わったことを知っているらしく、言葉を選びながら切り出した。`,
+  firm_ruin:`${n}は、例の商会の件で身代が傾いたと、自嘲気味に語った。`,
+ })[h];
+ return t ? `<span style="color:#c0b098">${t}</span><br><br>` : '';
+}
 function arcSeeds(){ if(!Array.isArray(PC._arcSeeds)) PC._arcSeeds = []; return PC._arcSeeds; }
 function arcMakeSeed(a, kind){
+ if(a.saga || sagaRegionBusy(a.region)) return null;   // 知己のサーガが進行中の地方では、続編の種を残さない
  const depth = (a.chain && a.chain.depth) || 1;
  if(depth >= ARC_CHAIN_MAX_DEPTH) return null;
  const rule = arcSeedRule(a, kind);
@@ -22134,7 +22909,7 @@ function arcMakeSeed(a, kind){
  const now = GAME_TIME.totalDays;
  const due = now + arcRand(ARC_SEED_DELAY[0], ARC_SEED_DELAY[1]);
  const seed = {region:a.region, type:rule.type, hook:rule.hook, truth:rule.truth || null, targetTitle:rule.targetTitle || null,
-  lead:arcSeedLead(a, rule.hook), depth:depth + 1, from:a.type, fromKind:kind, day:now, due, expire:due + ARC_SEED_KEEP_DAYS};
+  lead:arcSeedLead(a, rule.hook), cast:arcBuildCast(a, kind), depth:depth + 1, from:a.type, fromKind:kind, day:now, due, expire:due + ARC_SEED_KEEP_DAYS};
  seeds.push(seed);
  if(seeds.length > ARC_SEED_MAX) seeds.shift();
  return seed;
@@ -22147,6 +22922,7 @@ function arcSeedClean(){
 // その地方で、いま噂に出せる種
 function arcDueSeed(townId){
  const region = getRegionKey(townId);
+ if(sagaRegionBusy(region)) return null;
  const now = GAME_TIME.totalDays;
  return arcSeeds().find(s=>s.region === region && now >= s.due && now <= s.expire) || null;
 }
@@ -22157,7 +22933,9 @@ function arcCreateFromSeed(townId, seed){
  const a = mk(townId, seed.truth || undefined);
  if(!a) return null;
  if(seed.targetTitle && a.target) a.target.title = seed.targetTitle;
- a.chain = {depth:seed.depth, hook:seed.hook, lead:seed.lead};
+ a.chain = {depth:seed.depth, hook:seed.hook, lead:seed.lead, cast:seed.cast || []};
+ if(a.reward) a.reward = Math.round(a.reward * arcRewardMult(a));   // 型B・Cの礼金は生成時に決まっているので、段に応じて掛ける
+ arcApplyCast(a, seed);
  PC._arcSeeds = arcSeeds().filter(s=>s !== seed);
  PC._arcLastType = seed.type;
  return a;
@@ -22273,7 +23051,7 @@ function arcCreateBodyguard(townId, forcedTruth){
  const motive = arcPick(ARC_D_MOTIVES);
  const skill = special ? arcPick(['鍵師','学者']) : arcPick(ARC_D_SKILLS);
  const assaulter = arcPick(ARC_D_ASSAULT_BY_TRUTH[truth]);
- const ready = now + arcRand(20, 60);
+ const ready = now + arcRand(7, 14);
  const a = {
   id: 'arc' + now + '_' + arcRand(1000, 9999),
   type: 'bodyguard', state: 'active', truth, region, home: townId, town1, town2: dg.town,
@@ -22311,7 +23089,7 @@ function arcRumorPanelD(a){
  const H = arcTown(a.home);
  const text = `「${arcLeadText(a)}${a.npc1.title}の${a.npc1.name}という者が、腕の立つ用心棒を探しているそうだ。`
   + `なんでも、人探しから始まって、危ない場所にも入る仕事らしい。前金は弾むと聞く。腕っぷしだけでなく、口の堅い者を望んでいるそうだ。身元の確かな者より、むしろ事情を詮索しない者がいいらしい。変わった話だが、報酬は悪くないという。`
-  + `ただ、手配に手間取っているとかで、話ができるのは、ひと月かふた月先だろう。……気になるなら、${H}の酒場で、${a.npc1.name}に声をかけてみるといい」`;
+  + `ただ、手配に手間取っているとかで、話ができるのは、一週間か二週間先だろう。……気になるなら、${H}の酒場で、${a.npc1.name}に声をかけてみるといい」`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -22416,8 +23194,8 @@ function arcDFindFight(id, back){
  const a = arcFindById(id); if(!a){ go(back); return; }
  renderChoices([]);
  scrollToTop();
- const enemies = [arcDMk(a.npc2.name)];
- for(let i = 0, n = arcRand(0, 2); i < n; i++) enemies.push(arcDMk(`${a.npc2.name}の用心棒`));
+ const enemies = [arcDMk(a.npc2.name, a)];
+ for(let i = 0, n = arcRand(0, 2); i < n; i++) enemies.push(arcDMk(`${a.npc2.name}の用心棒`, a));
  arcStory(arcHeader(`${a.npc2.skill}の${a.npc2.name}`)
   + `<span style="color:#e8e4d8">${arcTown(a.town1)}の外れの住まいで、${a.npc2.name}は待っていた。${a.npc1.name}の名を聞くなり、表情が変わった。「……${a.npc1.name}の使いか。帰ってくれ。話すことは何もない」。戸口から射す光の中で、${a.npc2.name}の肩は小さく震えていた。怯えか、怒りか、あなたには分からなかった。部屋の隅には、使い込まれた道具と、まとめかけの荷が置かれている。どうやら、逃げ出す支度をしていたらしい。窓の外には、裏口へ通じる細い路地が見えた。逃がすわけにはいかない。</span><br><br>`
   + `<span style="color:#e8e4d8">話に応じる気配はない。${a.npc2.name}は壁の武器に手を伸ばした。部屋の空気が、ぴんと張りつめる。もはや、言葉で収まる段階ではないらしい。</span>`, true);
@@ -22442,8 +23220,8 @@ function arcDFindFightGo(id, back, enemies){
   },
  });
 }
-function arcDMk(name){
- const e = generateNPC(arcRand(ARC_ENEMY_LV[0], ARC_ENEMY_LV[1]));
+function arcDMk(name, a){
+ const e = generateNPC(arcEnemyLv(a));
  e.type = 'warrior'; e.name = name; e.curCon = e.con;
  return e;
 }
@@ -22631,7 +23409,7 @@ function arcDTreat(id, back){
 function arcDNight(a, back){
  const info = arcDAssaultInfo(a), T2 = arcTown(a.town2);
  const enemies = [];
- for(let i = 0, n = arcRand(3, 5); i < n; i++) enemies.push(arcDMk(info.name));
+ for(let i = 0, n = arcRand(3, 5); i < n; i++) enemies.push(arcDMk(info.name, a));
  arcStory(arcHeader(`${T2}の夜`)
   + arcDMad(a, 3, 1)
   + `<span style="color:#e8e4d8">夜も更けた頃、宿に戻る道すがら、路地の暗がりに、いくつもの気配があった。足を止めると、風が止み、酒場の喧騒も遠のいた。……宿の前で、待ち伏せている。${a.npc1.name}と${a.npc2.name}は、宿の中だ。窓の明かりが、闇の中でぽつんと揺れている。足音を殺して近づく影が、ひとつ、またひとつと数を増やした。</span>`
@@ -22886,7 +23664,7 @@ function arcDGoal(id, back){
 function arcDSacrifice(id, back){
  const a = arcFindById(id); if(!a){ go(back); return; }
  const P = a.npc2.name, N = a.npc1.name;
- const enemies = [arcDMk(P)];
+ const enemies = [arcDMk(P, a)];
  arcStory(arcHeader(a.dung.room)
   + `<span style="color:#e8e4d8">あなたは、祭壇の前に${P}を呼んだ。最後の印は、その手前に刻まれている。祭壇の前に立つと、足元の床がかすかに冷えた。</span><br><br>`
   + `<span style="color:#e8e4d8">${a.coop >= 2 ? `${P}は、あなたの目を見て、すべてを察した。「……信じていたのに」` : `${P}は、あなたの目を見て、すべてを察した。「やはり、そうか。……${N}と同じ目をしている」`}`
@@ -23017,7 +23795,7 @@ function arcDKeyUse(id, back){
 }
 
 // ── ⑦報告 ──
-function arcDBase(a){ if(!a.rewardBase) a.rewardBase = a.truth === 'traveler' ? arcRand(250, 300) : arcRand(250, 450); return a.rewardBase; }
+function arcDBase(a){ if(!a.rewardBase) a.rewardBase = Math.round((a.truth === 'traveler' ? arcRand(250, 300) : arcRand(250, 450)) * arcRewardMult(a)); return a.rewardBase; }
 function arcDReward(a, kind){
  const mult = a.truth === 'traveler' ? 1 : regionConditionRewardMult(a.region, 'unrest');
  return Math.round(arcDBase(a) * ARC_D_END[kind].reward * mult);
@@ -23215,6 +23993,7 @@ function arcLetterTick(){
  if(!Array.isArray(list) || !list.length) return;
  const now = GAME_TIME.totalDays;
  list.forEach(l=>{
+  if(l.custom){ if(!l.done && !l.pending && now >= l.due) l.pending = true; return; }   // 知己型サーガの手紙：決めた日に1通だけ届く
   if(l.chk == null || now < l.chk){ l.chk = now; return; }
   const el = Math.min(now - l.chk, 3650); l.chk = now;
   if(l.pending || l.count >= ARC_D_LETTER_MAX || el <= 0) return;
@@ -23223,6 +24002,7 @@ function arcLetterTick(){
   const rate = l.coop >= 3 ? 0.0025 : 0.0012;
   if(Math.random() < 1 - Math.pow(1 - rate, el)) l.pending = true;
  });
+ if(list.some(l=>l.custom && l.done)) PC._arcLetters = list.filter(l=>!(l.custom && l.done));
 }
 function arcLetterText(l){
  const n = l.count + 1, here = arcTown(l.town), N = l.npc1;
@@ -23247,6 +24027,11 @@ function arcLetterText(l){
 function arcLettersHtmlParts(){
  const now = GAME_TIME.totalDays;
  return arcLetterPending().map(l=>{
+  if(l.custom){
+   l.pending = false; l.done = true;
+   addLifeEvent('', `${l.npcName}からの手紙を受け取った。`);
+   return `<span style="color:#f0ece0">${l.npcName}からの手紙</span><br><span style="color:#c0b098">「${l.custom}　——${l.npcName}」</span>`;
+  }
   const text = arcLetterText(l);
   l.pending = false; l.count++; l.lastDay = now;
   addLifeEvent('', `${l.npcName}からの手紙を受け取った。`);
@@ -23315,7 +24100,7 @@ function arcCreateRunaway(townId, forced){
  const askTown = arcPick(askCands);
  const endCands = towns.filter(t=>t !== ownerTown && t !== askTown);
  const endTown = arcPick(endCands.length ? endCands : askCands);
- const ready = now + arcRand(20, 50);
+ const ready = now + arcRand(7, 14);
  const body = f.body || arcWeighted(ARC_E_BODY_W);
  const a = {
   id: 'arc' + now + '_' + arcRand(1000, 9999),
@@ -23343,7 +24128,7 @@ function arcERumorPanel(a){
  const header = arcRumorHeaderHtml();
  const text = `「${arcLeadText(a)}${C}の${a.owner.title}、${a.owner.name}の下で働いていた${a.holder.role}が、預かりものを持ったまま姿を消したらしい。`
   + `${a.owner.name}は、騒ぎにはしたくないと言っている。ただ、あれが他人の手に渡るのは困る、とも漏らしたそうだ。`
-  + `人を集めに使いが出ているようで、話を聞けるのは、ひと月かふた月先だろう。……気になるなら、${C}の酒場で、${a.owner.name}の使いに声をかけてみるといい」`;
+  + `人を集めに使いが出ているようで、話を聞けるのは、一週間か二週間先だろう。……気になるなら、${C}の酒場で、${a.owner.name}の使いに声をかけてみるといい」`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -24046,6 +24831,27 @@ function dbgArcStartC(truth){
  if(!a){ showSaveToast('この町の地方には、アークを作れる別の町がない'); return; }
  showSaveToast(`アーク発端：${a.client.name}の${a.item.short}（真相=${a.truth}／依頼人=${arcTown(a.clientTown)}／聞き込み=${arcTown(a.askTown)}／終点=${arcTown(a.endTown)}）`);
  arcRumorPanelC(a);
+}
+// ── 知己型サーガ（デバッグ）──
+function dbgSagaStart(){
+ SAGA_ENABLED = true;
+ const s = sagaInTown(PC.town) || (sagaCanAppear(PC.town) ? sagaCreate(PC.town) : null);
+ showSaveToast(s ? `知己「${s.person.name}」を発生（この町・序${s.prologue.n}回）。酒場で客に話しかけると序が進む` : 'この地方では発生できない（進行中の連続クエストがある）');
+}
+function dbgSagaSkipPrologue(){
+ const s = sagaList().find(x=>x.state === 'prologue');
+ if(!s){ showSaveToast('序の途中の知己がいない'); return; }
+ s.prologue.done = s.prologue.n; s.prologue.lastDay = GAME_TIME.totalDays; s.state = 'episodes';
+ s.ep = {n:1, ready:GAME_TIME.totalDays, arcId:null}; s.lastProgress = GAME_TIME.totalDays;
+ showSaveToast(`序を終えた。酒場で客に話しかけると、事件1の噂が出る（知己の町：${arcTown(s.town)}）`);
+}
+function dbgSagaToClimax(nClues){
+ const s = sagaList().find(x=>x.state !== 'done');
+ if(!s){ showSaveToast('知己がいない（先に「サーガ：発生」）'); return; }
+ s.state = 'climax'; s.ep = null; s.report = null; s.found = false; s.searchDay = null;
+ s.clues = ['name', 'motive', 'place'].slice(0, nClues);
+ s.climaxReady = GAME_TIME.totalDays; s.lastProgress = GAME_TIME.totalDays;
+ showSaveToast(`山場の直前にした（手がかり${nClues}つ）。${nClues >= 3 ? arcTown(s.root.hideTown) : '地方内の町'}の「その他の行動」にボタンが出る`);
 }
 function dbgArcSeedShow(){
  const now = GAME_TIME.totalDays;
@@ -59554,6 +60360,11 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026110101', sections:[
+  { heading:'調整', items:[
+   '仲間とのアイテムの受け渡しで、装備中の武器・防具を渡しても、渡した側の装備が外れずに残ってしまう不具合を修正した。装備中の品は渡せないようにし、先に装備から外してから渡す形にした。',
+  ]},
+ ]},
  { version:'ver.2026103103', sections:[
   { heading:'新規実装項目', items:[
    '街歩きで、ときどき旅の料理人に出会うことがある。出会った時間帯によって、様子が変わる。',
@@ -74297,6 +75108,11 @@ try{ arcDInstallGoalRooms(); }catch(e){ console.error('arcD install', e); }
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgArcStart('monster');})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">発端：魔獣</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgArcStart('staged');})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">発端：偽装</button>
    <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgArcStart();})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">A発端：ランダム</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgSagaStart();})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">サーガ：知己を発生</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgSagaSkipPrologue();})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">サーガ：序を終える</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgSagaToClimax(3);})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">サーガ：山場（手がかり3）</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgSagaToClimax(2);})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">サーガ：山場（手がかり2）</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';dbgSagaToClimax(0);})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">サーガ：山場（手がかり0）</button>
    <button onclick="dbg(()=>{dbgCold('pc');})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">風邪：PCが風邪を引く</button>
    <button onclick="dbg(()=>{dbgCold('party');})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">風邪：仲間が風邪を引く</button>
    <button onclick="dbg(()=>{dbgCold('all');})" class="dbg-btn" style="border-color:#886622;color:#ffbb55">風邪：全員が風邪を引く</button>
