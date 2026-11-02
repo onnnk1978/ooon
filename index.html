@@ -644,7 +644,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026110101</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026110201</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -754,17 +754,28 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <h3> 体格</h3>
  <div class="cg-row">
   <label>身長</label>
+  <select id="a-height-type" onchange="onBodyTypeChange('height')" style="margin-right:6px"><option value="original">オリジナル</option><option value="short">短軀</option><option value="normal">普通</option><option value="tall">長身</option></select>
   <input type="number" id="a-height" value="" placeholder="?" readonly style="width:80px">
   <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-left:4px">cm</span>
   <button onclick="rollHeight()" style="background:none;border:1px solid #444;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 6px;cursor:pointer;border-radius:2px;margin-left:8px">振る</button>
  </div>
  <div class="cg-row" style="margin-top:6px">
   <label>体重</label>
+  <select id="a-weight-type" onchange="onBodyTypeChange('weight')" style="margin-right:6px"><option value="original">オリジナル</option><option value="light">軽い</option><option value="normal">普通</option><option value="heavy">重い</option></select>
   <input type="number" id="a-weight" value="" placeholder="?" readonly style="width:80px">
   <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-left:4px">kg</span>
   <button onclick="rollWeight()" style="background:none;border:1px solid #444;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 6px;cursor:pointer;border-radius:2px;margin-left:8px">振る</button>
  </div>
- <div class="cg-hint" style="margin-top:6px">人間基準（身長125〜210cm・体重35〜170kg）でランダムに決め、種族補正をかけます。それぞれ何度でも振り直せます。</div>
+ <div class="cg-row" style="margin-top:6px">
+  <label>年齢</label>
+  <select id="a-age-type" onchange="onAgeTypeChange()" style="margin-right:6px"><option value="original">オリジナル</option><option value="input">入力</option></select>
+  <input type="number" id="a-age" value="" placeholder="?" readonly min="18" max="27" step="1" style="width:80px">
+  <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-left:4px">歳</span>
+  <button id="a-age-roll" onclick="rollAge()" style="background:none;border:1px solid #444;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 6px;cursor:pointer;border-radius:2px;margin-left:8px">振る</button>
+ </div>
+ <div class="cg-hint" id="a-height-hint" style="margin-top:6px;font-size:calc(var(--font-sm) - 2px)"></div>
+ <div class="cg-hint" id="a-weight-hint" style="font-size:calc(var(--font-sm) - 2px)"></div>
+ <div class="cg-hint" style="margin-top:6px">おおよその体型を選ぶか、「オリジナル」でランダムに決めるかを選んでください。体型を選ぶと、その範囲の中でランダムに決まります。それぞれ何度でも振り直せます。年齢は、「入力」で18〜27歳の間の好きな年齢を決められます。「オリジナル」はランダムです。</div>
  </div>
 
  <div class="cg-section">
@@ -15543,7 +15554,10 @@ function makeRecruitNodes(){
  (PC.party||[]).forEach((n,i)=>{
   choices.push({
    label:` ${n.name}を解散させる`,
-   fn:()=>{ addLifeEvent('', `${n.name}がパーティを離れた。`); addFormerCompanion(n); PC.party.splice(i,1); showSaveToast(`${n.name}が去った。`); },
+   fn:()=>{
+    if(!confirm(`${n.name}と別れますか？\nパーティを離れます。`)) return;   // 取り消したときは、何も起こさない
+    addLifeEvent('', `${n.name}がパーティを離れた。`); addFormerCompanion(n); PC.party.splice(i,1); showSaveToast(`${n.name}が去った。`);
+   },
    go: key,
   });
  });
@@ -16240,7 +16254,7 @@ function archiveCurrentPC(reason){
  if(PC._heroTowns) ws.heroTowns = JSON.parse(JSON.stringify(PC._heroTowns));
  // 地方伝説の英雄（歴代）を保存。既存の記録を引き継ぎつつ、今回死亡した代がその地方の英雄なら記録を更新する
  ws.regionLegends = Object.assign({}, PC._regionLegends || {});
- if(reason === 'dead' && PC._heroRegions){
+ if((reason === 'dead' || reason === 'retire' || reason === 'retire_to_property') && PC._heroRegions){   // 引退した地方英雄も、伝説として残す（deathDay は、亡くなった日／引退した日）
   Object.keys(PC._heroRegions).forEach(regionKey=>{
    if(PC._heroRegions[regionKey]){
     ws.regionLegends[regionKey] = { name: PC.name, deathDay: GAME_TIME.totalDays };
@@ -47633,6 +47647,55 @@ function renderDepartureChoices(choices){
   };
  });
 }
+// 仲間の離脱を実行する。mode='arrival'：引き止めに失敗し、目的地に着いて別れる／'sendoff'：打ち明けられて、その場で送り出す
+function performPartyDeparture(npcId, reason, mode){
+ const idx = (PC.party||[]).findIndex(n=>n._npcId===npcId);
+ if(idx === -1) return false;
+ const npc = PC.party[idx];
+ const settledTown = pickDepartureSettleTown();
+ const settledTownName = (TOWNS[settledTown]||{}).name || settledTown;
+ PC.party.splice(idx,1);
+ addFormerCompanion(npc, { settledTown, leaveReason:reason.type });
+ if(mode === 'sendoff'){
+  addLifeEvent('', `${npc.name}の旅立ちを送り出した。${npc.name}は${settledTownName}へ向かった。`);
+  travelLog(`<span style="color:#e8e4d8"> ${departureSendoffLine(npc, reason, settledTownName)}</span>`);
+ } else {
+  addLifeEvent('', `${npc.name}が「${settledTownName}に行こうと思っている」と別れを告げ、パーティを離れた。`);
+  travelLog(`<span style="color:#e8e4d8"> ${npc.name}は最後にこう言い残した。「世話になった、${PC.name}。俺は${settledTownName}に行こうと思っている」</span>`);
+ }
+ updateHUD(); renderPartyTab();
+ // パーティ内結婚の場合、相手も一緒に離脱する
+ if(reason.type === 'party_marriage' && reason.partnerId){
+  const pIdx = (PC.party||[]).findIndex(n=>n._npcId===reason.partnerId);
+  if(pIdx !== -1){
+   const partner = PC.party[pIdx];
+   PC.party.splice(pIdx,1);
+   addFormerCompanion(partner, { settledTown, leaveReason:'party_marriage' });
+   addLifeEvent('', `${partner.name}も${npc.name}と共にパーティを離れた。`);
+   travelLog(`<span style="color:#e8e4d8"> ${partner.name}も、${npc.name}と共に旅立っていった。</span>`);
+   updateHUD(); renderPartyTab();
+  }
+ }
+ return true;
+}
+// 送り出したときの、本人の別れの言葉（理由ごと。仲間の台詞は性別を問わない言い回しにする）
+function departureSendoffLine(npc, reason, townName){
+ const N = npc.name;
+ switch(reason.type){
+  case 'independence':
+   return `あなたは、${N}の背中を押した。${N}は、少し照れたように笑った。「ありがとう。いつか、自分の仲間を連れて、あなたに会いに行くよ。……${townName}で、まずは仲間を探してみる」`;
+  case 'marriage_age':
+   return `あなたは、${N}の門出を祝った。${N}は、目を潤ませて頭を下げた。「ありがとう。……落ち着いたら、顔を見せに来てほしい。${townName}で待っているよ」`;
+  case 'party_marriage':
+   return `あなたは、二人の門出を祝った。${N}は、嬉しそうに頷いた。「ありがとう。幸せになるよ。……${townName}で、新しい暮らしを始める。いつでも訪ねてきてほしい」`;
+  case 'ideal_partner':
+   return `あなたは、${N}の背中を押した。${N}は、晴れやかな顔をした。「ありがとう。……会えるかどうかは分からないけれど、${townName}へ行ってみるよ」`;
+  case 'apprenticeship':
+   return `あなたは、${N}の決意を尊重した。${N}は、深く頭を下げた。「ありがとう。……${townName}で、一から学び直してくる。腕を上げて、また会おう」`;
+  default:
+   return `あなたは、${N}の決心を受け入れた。${N}は、静かに頷いた。「ありがとう。……${townName}で、やり直してみるよ」`;
+ }
+}
 function startPartyDepartureEvent(ts){
  const cand = checkPartyDepartureCandidate();
  if(!cand){
@@ -47649,6 +47712,7 @@ function startPartyDepartureEvent(ts){
 function runPartyDepartureEvent(ts, npc, reason){
  travelLog(`<span style="color:#b8a890"> ${ts.daysDone}日目：${npc.name}が神妙な面持ちで話しかけてきた。</span>`);
  travelLog(`<span style="color:#e0d8c8"> ${departureConfideLine(npc, reason)}</span>`);
+ const _contTravel = ()=>{ ts._resumeWithoutIncrement=true; setTimeout(_travelTickSched(), ts.interval); };
  renderDepartureChoices([{label:` ${npc.name}を引き止める（魅力 能力値テスト）`, fn:()=>{
   setupSavingRoll({
    attr:'chr', level:1, targetAdjust:Math.floor((npc.trust||0)/20),
@@ -47663,6 +47727,10 @@ function runPartyDepartureEvent(ts, npc, reason){
     renderDepartureChoices([{label:'▶ 旅を続ける', fn:()=>{ ts._resumeWithoutIncrement=true; setTimeout(_travelTickSched(), ts.interval); }}]);
    },
   });
+ }},
+ {label:` ${npc.name}を送り出す`, fn:()=>{
+  performPartyDeparture(npc._npcId, reason, 'sendoff');
+  renderDepartureChoices([{label:'▶ 旅を続ける', fn:_contTravel}]);
  }}]);
 }
 
@@ -48445,29 +48513,7 @@ function travelTick(){
  if(PC._pendingDeparture){
   const pd = PC._pendingDeparture;
   PC._pendingDeparture = null;
-  const idx = (PC.party||[]).findIndex(n=>n._npcId===pd.npcId);
-  if(idx !== -1){
-   const npc = PC.party[idx];
-   const settledTown = pickDepartureSettleTown();
-   const settledTownName = (TOWNS[settledTown]||{}).name || settledTown;
-   PC.party.splice(idx,1);
-   addFormerCompanion(npc, { settledTown, leaveReason:pd.reason.type });
-   addLifeEvent('', `${npc.name}が「${settledTownName}に行こうと思っている」と別れを告げ、パーティを離れた。`);
-   travelLog(`<span style="color:#e8e4d8"> ${npc.name}は最後にこう言い残した。「世話になった、${PC.name}。俺は${settledTownName}に行こうと思っている」</span>`);
-   updateHUD(); renderPartyTab();
-   // パーティ内結婚の場合、相手も一緒に離脱する
-   if(pd.reason.type === 'party_marriage' && pd.reason.partnerId){
-    const pIdx = (PC.party||[]).findIndex(n=>n._npcId===pd.reason.partnerId);
-    if(pIdx !== -1){
-     const partner = PC.party[pIdx];
-     PC.party.splice(pIdx,1);
-     addFormerCompanion(partner, { settledTown, leaveReason:'party_marriage' });
-     addLifeEvent('', `${partner.name}も${npc.name}と共にパーティを離れた。`);
-     travelLog(`<span style="color:#e8e4d8"> ${partner.name}も、${npc.name}と共に旅立っていった。</span>`);
-     updateHUD(); renderPartyTab();
-    }
-   }
-  }
+  performPartyDeparture(pd.npcId, pd.reason, 'arrival');
  }
  // 自動遷移せず、旅ログを確認してから「町に入る」ボタンで進めるようにする
  const choices = document.getElementById('choices');
@@ -50087,7 +50133,7 @@ function updateRaceInfo(){
 }
 
 // ── キャラクター作成：身長・体重 ──
-// 人間を基準にした範囲（身長125〜210cm・体重35〜170kg）でランダムに決め、種族係数をかけて表示する
+// 身長・体重の決め方：「オリジナル」（TnTのチャート）か、おおよその体型を選んでその範囲から決める
 const RACE_SIZE_MODS = {
  human:      { height:1,    weight:1 },
  dwarf:      { height:2/3,  weight:7/8 },
@@ -50100,23 +50146,72 @@ const RACE_SIZE_MODS = {
  ogre:       { height:3/2,  weight:2 },
  goblin:     { height:3/4,  weight:3/4 },
 };
-// 人間基準（身長125〜210cm・体重35〜170kg）でランダムに決め、種族係数をかける共通処理
+// 人間基準の値を決め、種族係数をかける共通処理
 // PCのキャラ作成・仲間NPCの生成・子どもの仲間入り時に共通で使う
+// 「オリジナル」＝TnTのルールブックのチャート（身長・体重をそれぞれ3D6で決める。係数なし）。
+// 出目ごとの値のあいだは直線でなめらかにつなぎ、値が数通りに固まらないようにする
+const TNT_HEIGHT_CM = [121.9,129.5,134.6,142.2,147.3,154.9,160.0,167.6,172.7,180.3,185.4,193.0,198.1,205.7,210.8,218.4];   // 3D6 = 3〜18
+const TNT_WEIGHT_KG = [34.0,40.8,47.6,54.4,61.2,68.0,72.6,77.1,81.6,86.2,90.7,102.1,113.4,127.0,140.6,158.8];
+function _tntChartRoll(table){
+ const r = d6()+d6()+d6();
+ const x = Math.max(3, Math.min(18, r + (Math.random()-0.5)));
+ const i = Math.floor(x) - 3, f = x - Math.floor(x);
+ return i >= 15 ? table[15] : table[i] + (table[i+1]-table[i])*f;
+}
+// おおよその体型（人間基準の範囲。この中から均等な乱数で決める）
+const BODY_HEIGHT_TYPES = { short:{label:'短軀', min:125, max:150}, normal:{label:'普通', min:150, max:180}, tall:{label:'長身', min:180, max:210} };
+const BODY_WEIGHT_TYPES = { light:{label:'軽い', min:40, max:55}, normal:{label:'普通', min:55, max:75}, heavy:{label:'重い', min:75, max:110} };
+function rollBodyHeightBase(mode){
+ const d = BODY_HEIGHT_TYPES[mode];
+ return d ? d.min + Math.random()*(d.max-d.min) : _tntChartRoll(TNT_HEIGHT_CM);
+}
+function rollBodyWeightBase(mode){
+ const d = BODY_WEIGHT_TYPES[mode];
+ return d ? d.min + Math.random()*(d.max-d.min) : _tntChartRoll(TNT_WEIGHT_KG);
+}
 function rollBodySize(race){
  const mod = RACE_SIZE_MODS[race] || RACE_SIZE_MODS.human;
- const hBase = 125 + Math.random()*(210-125);
- const wBase = 35 + Math.random()*(170-35);
  return {
-  height: Math.round(hBase*mod.height*10)/10,
-  weight: Math.round(wBase*mod.weight*100)/100,
+  height: Math.round(rollBodyHeightBase('original')*mod.height*10)/10,
+  weight: Math.round(rollBodyWeightBase('original')*mod.weight*100)/100,
  };
 }
+function _bodyMode(id){ const el = document.getElementById(id); return el ? el.value : 'original'; }
 function rollHeight(){
- window._pcHeightBase = 125 + Math.random()*(210-125);
+ window._pcHeightBase = rollBodyHeightBase(_bodyMode('a-height-type'));
  updateSizeDisplay();
 }
 function rollWeight(){
- window._pcWeightBase = 35 + Math.random()*(170-35);
+ window._pcWeightBase = rollBodyWeightBase(_bodyMode('a-weight-type'));
+ updateSizeDisplay();
+}
+// 体型を選び直したときは、決めた値を消す（もう一度「振る」で決める）
+// 年齢：「オリジナル」＝今までどおりのランダム（15〜30歳）／「入力」＝18〜27歳の間で自由に入力
+const AGE_INPUT_MIN = 18, AGE_INPUT_MAX = 27;
+function rollOriginalAge(){ return 15 + Math.floor(Math.random() * 16); }
+function onAgeTypeChange(){
+ const input = document.getElementById('a-age-type').value === 'input';
+ const el = document.getElementById('a-age'), btn = document.getElementById('a-age-roll');
+ el.value = '';
+ el.readOnly = !input;
+ el.placeholder = input ? `${AGE_INPUT_MIN}〜${AGE_INPUT_MAX}` : '?';
+ if(btn) btn.style.display = input ? 'none' : '';
+}
+function rollAge(){
+ const el = document.getElementById('a-age');
+ if(el) el.value = rollOriginalAge();
+}
+// 開始年齢を返す。「入力」で範囲外・未入力なら null（呼び出し側で案内して中断する）
+function readStartAge(){
+ const input = document.getElementById('a-age-type').value === 'input';
+ const raw = document.getElementById('a-age').value;
+ if(!input) return raw !== '' ? Math.round(+raw) : rollOriginalAge();
+ const n = Math.round(+raw);
+ if(raw === '' || !isFinite(n) || n < AGE_INPUT_MIN || n > AGE_INPUT_MAX) return null;
+ return n;
+}
+function onBodyTypeChange(which){
+ if(which === 'height') window._pcHeightBase = null; else window._pcWeightBase = null;
  updateSizeDisplay();
 }
 function updateSizeDisplay(){
@@ -50124,6 +50219,12 @@ function updateSizeDisplay(){
  const mod = RACE_SIZE_MODS[race] || RACE_SIZE_MODS.human;
  const hEl = document.getElementById('a-height');
  const wEl = document.getElementById('a-weight');
+ // 選んだ体型の範囲を、種族補正をかけて目安として表示する（オリジナルは表示しない）
+ const hHint = document.getElementById('a-height-hint'), wHint = document.getElementById('a-weight-hint');
+ const hd = BODY_HEIGHT_TYPES[_bodyMode('a-height-type')], wd = BODY_WEIGHT_TYPES[_bodyMode('a-weight-type')];
+ const fmt = (v)=> v>=100 ? Math.round(v) : Math.round(v*10)/10;
+ if(hHint) hHint.textContent = hd ? `目安：${fmt(hd.min*mod.height)}〜${fmt(hd.max*mod.height)}cm` : '';
+ if(wHint) wHint.textContent = wd ? `目安：${fmt(wd.min*mod.weight)}〜${fmt(wd.max*mod.weight)}kg` : '';
  if(hEl) hEl.value = (window._pcHeightBase!=null) ? (Math.round(window._pcHeightBase*mod.height*10)/10) : '';
  if(wEl) wEl.value = (window._pcWeightBase!=null) ? (Math.round(window._pcWeightBase*mod.weight*100)/100) : '';
 }
@@ -50149,6 +50250,8 @@ function startGame(){
  warn.classList.remove('hidden');return;
  }
  warn.classList.add('hidden');
+ const _startAge = readStartAge();
+ if(_startAge == null){ alert(`年齢は、${AGE_INPUT_MIN}〜${AGE_INPUT_MAX}歳の間で入力してください。`); return; }
 
 
  // Build PC
@@ -50156,8 +50259,8 @@ function startGame(){
  if(document.getElementById('a-mode')?.checked) PC._adventurer = true; else delete PC._adventurer;
  PC.race=race;PC.type=selectedType;
  // 身長・体重（未入力なら振っていなかったものとしてこの場でランダムに決定する）
- if(window._pcHeightBase==null) window._pcHeightBase = 125 + Math.random()*(210-125);
- if(window._pcWeightBase==null) window._pcWeightBase = 35 + Math.random()*(170-35);
+ if(window._pcHeightBase==null) window._pcHeightBase = rollBodyHeightBase(_bodyMode('a-height-type'));
+ if(window._pcWeightBase==null) window._pcWeightBase = rollBodyWeightBase(_bodyMode('a-weight-type'));
  const sizeMod = RACE_SIZE_MODS[race] || RACE_SIZE_MODS.human;
  PC.height = Math.round(window._pcHeightBase*sizeMod.height*10)/10;
  PC.weight = Math.round(window._pcWeightBase*sizeMod.weight*100)/100;
@@ -50183,7 +50286,7 @@ function startGame(){
  PC.spdBase = PC.spd; // 重量ペナルティ計算用の基準素早さ
 
  // 年齢・誕生日の初期化（開始年齢20歳）
- PC.age = 15 + Math.floor(Math.random() * 16); // 15〜30歳
+ PC.age = _startAge; // 「オリジナル」は15〜30歳のランダム／「入力」は18〜27歳
  PC.lifespan = rollLifespan(race);
  PC.alignment_ethics = Math.floor((Math.random()-0.5)*60);
  PC.alignment_order  = Math.floor((Math.random()-0.5)*60);
@@ -50270,7 +50373,9 @@ function startGame(){
  const startDate = getCurrentDate();
  const birthMonth = Math.floor(Math.random() * 12) + 1; // 1〜12月
  const birthDay = Math.floor(Math.random() * 30) + 1; // 1〜30日
- PC.birthYear = startDate.year - PC.age;
+ // 誕生日がまだ来ていない場合は1年さかのぼり、開始時の年齢が選んだ年齢と一致するようにする
+ const _birthPending = birthMonth > startDate.month || (birthMonth === startDate.month && birthDay > startDate.day);
+ PC.birthYear = startDate.year - PC.age - (_birthPending ? 1 : 0);
  PC.birthMonth = birthMonth;
  PC.birthDay = birthDay;
 
@@ -51062,14 +51167,14 @@ function sellWeapon(idx){
  if(w._isMagic && w._priceGP){
   const price = gemWeaponSellGP(w._priceGP) * 100;
   if(price>0) gainPriceCP(price, _sa);
-  updateHUD(); checkWeightPenalty(); renderIngameShop();
+  updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
   showSaveToast(` ${w.name}を売った（${gemWeaponSellGP(w._priceGP)}GP）`);
   return;
  }
  const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(w._baseName||w.name));
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
- updateHUD(); checkWeightPenalty(); renderIngameShop();
+ updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
  showSaveToast(` ${w.name}を売った（${sellPriceLabel(def?.cost||0)}）`);
 }
 
@@ -51083,7 +51188,7 @@ function sellArmor(idx){
  const def = [...ARMOR_TABLE,...(ARMOR_TABLE_KHAZAN||[])].find(t=>t.name===a.name);
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
- updateHUD(); checkWeightPenalty(); renderIngameShop();
+ updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
  showSaveToast(` ${a.name}を売った（${sellPriceLabel(def?.cost||0)}）`);
 }
 
@@ -51133,7 +51238,7 @@ function sellBoots(){
  const def = EQUIP_TABLE.find(t=>t.name===bootsName);
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
- updateHUD(); checkWeightPenalty(); renderIngameShop();
+ updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
  showSaveToast(` ${bootsName}を売った（${sellPriceLabel(def?.cost||0)}）`);
 }
 
@@ -51146,7 +51251,7 @@ function sellEquip(idx){
  const def = EQUIP_TABLE.find(t=>t.name===name);
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
- updateHUD(); checkWeightPenalty(); renderIngameShop();
+ updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
  showSaveToast(` ${name}を売った（${sellPriceLabel(def?.cost||0)}）`);
 }
 
@@ -51177,7 +51282,7 @@ function sellArrows(){
  _sa.arrows = have - n;
  const cp = arrowSellCP(n);
  if(cp>0) gainPriceCP(cp, _sa);
- updateHUD(); checkWeightPenalty(); renderIngameShop();
+ updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
  showSaveToast(` 矢${n}本を売った（${arrowSellLabel(n)}）`);
 }
 // 所持品・装備を捨てる（対価なし・ショップ外でも使用可）。who: -1=主人公, 0以上=仲間の番号
@@ -51252,7 +51357,7 @@ function sellTorch(){
  const def = EQUIP_TABLE.find(t=>t.name==='松明');
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price);
- updateHUD(); checkWeightPenalty(); renderIngameShop();
+ updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
  showSaveToast(` Torchを売った（${sellPriceLabel(def?.cost||0)}）`);
 }
 
@@ -51588,12 +51693,13 @@ function renderIgsList(townId){
  // 現在の所持金表示
  const moneyDiv = document.createElement('div');
  moneyDiv.style.cssText = 'font-size:calc(var(--font-sm) + 1px);margin-bottom:12px;padding:8px;background:var(--ink);border:1px solid #334;border-radius:3px;text-align:center';
- moneyDiv.innerHTML = `所持金：${formatMoney()}`;
+ const _exA = _shopActor || PC;
+ moneyDiv.innerHTML = `所持金：${formatMoney(_exA)}`;
  el.appendChild(moneyDiv);
 
  // CP→SP両替（10CP = 1SP）
  const cpToSp = document.createElement('div'); cpToSp.className='shop-item';
- const cpAmt = PC.cp||0;
+ const cpAmt = _exA.cp||0;
  const cpCanEx = cpAmt >= 10;
  const cpGain = Math.floor(cpAmt/10);
  const cpRem = cpAmt % 10;
@@ -51605,7 +51711,7 @@ function renderIgsList(townId){
 
  // SP→GP両替（10SP = 1GP）
  const spToGp = document.createElement('div'); spToGp.className='shop-item';
- const spAmt = PC.sp||0;
+ const spAmt = _exA.sp||0;
  const spCanEx = spAmt >= 10;
  const spGain = Math.floor(spAmt/10);
  const spRem = spAmt % 10;
@@ -51736,7 +51842,7 @@ function renderIngameShop(townId){
  const villageTitles = {verda:' ヴェルダ村の道具屋',rimholm:' リムホルムの武具屋',marakai:' マラカイの武器商',oasis_fort:' オアシス砦の道具屋',saroon:' サルーンの道具屋',duna:' デュナの道具屋',neria:' ネリアの武器屋',dorua:' ドルアの道具屋',kalvo:' カルヴォ砦の武具庫'};
  const shopTitle = townId==='__merchant__' ? ' 旅商人の荷台' : isKhazan ? ' カザーヌ武器屋（全品揃え）' : townId==='al_rashid' ? ' アル・ラシードの武器屋' : isElsia2 ? ' エルマリアの道具屋' : villageTitles[townId] || ' 装備屋';
 
- const {cur, max} = checkWeightPenalty();
+ const {cur, max} = checkWeightPenalty(_shopActor || PC);   // 装備屋に入店している本人（仲間なら仲間）の重量
  const regionFlavor = townId === '__merchant__' ? '' : shopRegionConditionFlavor(townId);
  document.getElementById('igs-title').innerHTML = shopTitle + (_shopActor && _shopActor !== PC ? ` [${_shopActor.name}]` : '') + regionFlavor;
  const _sa = _shopActor || PC;
@@ -54896,7 +55002,8 @@ function confirmRetire(){
   // 拠点あり：選択肢を表示
   const story = document.getElementById('story');
   story.innerHTML = `<span style="color:#f0ece0"> ${PC.name}を引退させますか？</span><br><br>`
-   +`<span style="color:#c0b098">拠点を持っています。次の冒険者に引き継ぐことができます。</span>`;
+   +`<span style="color:#c0b098">拠点を持っています。次の冒険者に引き継ぐことができます。</span>`
+   +(((PC.party||[]).some(n=>n.con>0)) ? `<br><br><span style="color:#c0b098">世代交代のあとは、引き継ぎ相手に選んだ一人だけで再出発します。引き続きパーティを組みたい仲間は、引退の前に、拠点の「留守番を置く」で預けておくと、世代交代のあとに「留守番を引き取る」で呼び戻せます。</span>` : '');
   renderChoices([
    {label:' 拠点に住んで引退（拠点・住人として登録）', fn:()=>{
     if(!confirm(`${PC.name}を拠点に住まわせて引退しますか？`)) return;
@@ -58585,6 +58692,7 @@ function doFlee(){
    valdheim:'TOWN_VALDHEIM',nifurvik:'TOWN_NIFURVIK',iskald:'TOWN_ISKALD',
   }).find(([k])=>k===q.fromTownId)?.[1]||'TOWN_KHAZAN') : 'TOWN_KHAZAN';
   PC._yeldunDungeon = null;
+  hideDungeonImage();   // 洞穴の画像（探索中の表示）を消す
   renderChoices([{label:'← 町に戻る', go: backNode}]);
  } else {
   const entryId = dung?.floors?.[dung.currentFloor]?.entryNodeId || (dung ? ('YD_F' + dung.currentFloor + '_entrance') : null);
@@ -58636,6 +58744,7 @@ function doFlee(){
  } else if(savedState.isHunt){
  // 討伐クエスト中の逃走成功 → 中断して町に戻る
  _huntState = null;
+ hideDungeonImage();   // 洞穴の画像（探索中の表示）を消す
  const huntStory = document.getElementById('story');
  huntStory.innerHTML += `<div style="color:#f0ece0;font-size:var(--font-sm);margin-top:8px"> 洞穴から逃げ出した。討伐依頼は受託したままだ。</div>`;
  renderChoices([{label:'← 町に戻る', go: currentNodeId}]);
@@ -60360,6 +60469,19 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026110201', sections:[
+  { heading:'新規実装項目', items:[
+   'キャラクター作成で、身長と体重を、おおよその体型から選べるようにした。身長は「短軀・普通・長身」、体重は「軽い・普通・重い」から選ぶと、その範囲の中でランダムに決まる。「オリジナル」を選ぶと、従来のランダムの決め方になる。',
+   'キャラクター作成で、年齢を選べるようにした。「入力」を選ぶと、18〜27歳の間で好きな年齢を決められる。「オリジナル」は、従来どおりランダム。',
+   '仲間が離脱を打ち明けてきたとき、引き止めるほかに、送り出すことを選べるようにした。',
+  ]},
+  { heading:'調整', items:[
+   '酒場で仲間と別れるとき、確認が出るようにした。',
+   '装備屋に仲間が入店しているとき、両替タブの所持金・両替の可否を、仲間本人の分で表示・判定するようにした。',
+   '装備屋に仲間が入店しているとき、重量の表示と、購入後の過積載の判定を、仲間本人の分で行うようにした。',
+   '討伐依頼の洞穴で、逃走に成功して町に戻っても、洞穴の画像が消えない不具合を修正した。',
+  ]},
+ ]},
  { version:'ver.2026110101', sections:[
   { heading:'調整', items:[
    '仲間とのアイテムの受け渡しで、装備中の武器・防具を渡しても、渡した側の装備が外れずに残ってしまう不具合を修正した。装備中の品は渡せないようにし、先に装備から外してから渡す形にした。',
