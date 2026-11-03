@@ -65322,8 +65322,14 @@ const NODES = {
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、柱に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、柱に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'SHRINE_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -65783,8 +65789,14 @@ const NODES = {
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"> 暗闇の中で迷い続けた……</span>`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"> 暗闇の中で迷い続けた……</span><br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' 再度出口を探す（運 Lv3 能力値テスト）', go:'ISKALD_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74344,8 +74356,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74367,8 +74385,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR2_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74390,8 +74414,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR3_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74413,8 +74443,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR3_B2_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74436,8 +74472,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR3_B3_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74459,8 +74501,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR4_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74482,8 +74530,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR5_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74505,8 +74559,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR5_B2_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74528,8 +74588,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR5_B3_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74551,8 +74617,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR5_B4_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74574,8 +74646,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR6_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74597,8 +74675,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'LAIR7_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74620,8 +74704,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'OUTPOST_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
@@ -74643,8 +74733,14 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
    },
    onFail:()=>{
     const s = document.getElementById('story');
-    s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+    PC.con -= 5; updateHUD();
+    if(PC.con <= 0){
+     s.innerHTML = `<span class="red"></span><br><br>闇の中で足を踏み外し、硬い床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。<br><br>足を取られて転倒した。<br>体力-5（${PC.con}/${PC.maxCon}）`;
     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'NIFLAIR_DARK_ESCAPE'}]);
+    }
     scrollToTop();
    },
   });
