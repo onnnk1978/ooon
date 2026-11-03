@@ -241,7 +241,16 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 .magic-result{font-size:calc(var(--font-base) + 1px);color:#f0ece0;line-height:2.3;margin-top:6px;min-height:30px}
 
 /* ── CHOICES ── */
-#choices{margin:8px 8px 10px;display:flex;flex-direction:column;gap:7px;flex-shrink:0;max-height:55vh;overflow-y:auto}
+#choices{margin:8px 8px 10px;display:flex;flex-direction:column;gap:7px;flex-shrink:0;max-height:40vh;overflow-y:auto;
+ /* コマンドが多いときは画面の4割までで頭打ちにしてスクロールさせ、まだ続きがあるときは上下端に影を出す */
+ --cbg:var(--screen);
+ background:
+  linear-gradient(var(--cbg) 30%, transparent) center top / 100% 36px no-repeat local,
+  linear-gradient(transparent, var(--cbg) 70%) center bottom / 100% 36px no-repeat local,
+  radial-gradient(farthest-side at 50% 0, rgba(210,190,150,.30), transparent) center top / 100% 14px no-repeat scroll,
+  radial-gradient(farthest-side at 50% 100%, rgba(210,190,150,.30), transparent) center bottom / 100% 14px no-repeat scroll;
+ background-color:var(--cbg)}
+@supports (height:1dvh){ #choices{max-height:40dvh} }
 .choice-btn{
  background:#140e08;border:2px solid var(--border2);color:#f0ece0;
  font-family:system-ui,sans-serif;font-size:var(--font-base);
@@ -332,6 +341,14 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  background:#130e08;border:2px solid #6b4c2a;border-radius:4px;flex-shrink:0;
 }
 #inv-panel h3{color:#f0ece0;margin-bottom:8px;font-size:calc(var(--font-lg) + 4px)}
+/* スマホ：STATUS画面を開いている間は、本文・コマンドを隠してSTATUSだけを全面に出す（閉じると元に戻る） */
+@media (max-width: 859px){
+ #scroll-area:has(> #inv-panel:not(.hidden)) > :not(#inv-panel){display:none !important}
+ #game:has(#scroll-area > #inv-panel:not(.hidden)) #choices{display:none !important}
+ #scroll-area.in-combat:has(> #inv-panel:not(.hidden)){overflow-y:auto !important}
+ /* タブが5つになったので、スマホでは文字を小さくして折り返さないようにする */
+ .stat-tab-btn{white-space:nowrap !important;font-size:calc(var(--font-sm) - 3px) !important;padding:8px 2px !important;min-width:0}
+}
 .inv-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
 .inv-item{background:#180e06;border:1px solid #4a3018;border-radius:3px;padding:7px;font-size:calc(var(--font-lg) + 4px);line-height:2}
 .inv-item .ii-name{color:#f0ece0}
@@ -506,7 +523,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  padding: 5px 2px !important;
  }
 
- #stpanel-status, #stpanel-equip, #stpanel-party, #stpanel-log {
+ #stpanel-status, #stpanel-equip, #stpanel-magic, #stpanel-party, #stpanel-log {
  padding: 8px !important;
  border-radius: 0 !important;
  border-left: none !important;
@@ -579,7 +596,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  flex-shrink: 0;
  border-top: 2px solid var(--earth);
  padding: 6px 8px;
- background: #08080f;
+ --cbg: #08080f;
  margin: 0 !important;
  gap: 5px !important;
  }
@@ -644,7 +661,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026110201</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026110301</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -859,6 +876,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div style="display:flex;gap:4px;margin-bottom:8px">
  <button class="stat-tab-btn active" id="tab-status" onclick="switchStatTab('status')" style="flex:1;background:var(--panel);border:2px solid var(--gold);color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px 3px 0 0"> ステータス</button>
  <button class="stat-tab-btn" id="tab-equip" onclick="switchStatTab('equip')" style="flex:1;background:var(--panel);border:2px solid var(--bark);color:#c8b8a0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px 3px 0 0"> 装備</button>
+ <button class="stat-tab-btn" id="tab-magic" onclick="switchStatTab('magic')" style="flex:1;background:var(--panel);border:2px solid var(--bark);color:#c8b8a0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px 3px 0 0"> 魔法</button>
  <button class="stat-tab-btn" id="tab-party" onclick="switchStatTab('party')" style="flex:1;background:var(--panel);border:2px solid var(--bark);color:#c8b8a0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px 3px 0 0"> 仲間</button>
  <button class="stat-tab-btn" id="tab-log" onclick="switchStatTab('log')" style="flex:1;background:var(--panel);border:2px solid var(--bark);color:#c8b8a0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px 3px 0 0"> 記録</button>
  <button id="sp-close-btn" onclick="closeInventory()" style="background:#0a0a0a;border:2px solid var(--bark);color:#c8b8a0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px 10px;cursor:pointer;border-radius:3px 3px 0 0" title="閉じる">X</button>
@@ -897,9 +915,6 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 冒険 ──</div>
  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:10px" id="sp-adv"></div>
 
- <!-- 装備中アイテム -->
- <div id="sp-worn-items"></div>
-
  <!-- 性格 -->
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px;margin-top:10px">── 性格 ──</div>
  <div id="sp-alignment" style="margin-bottom:10px"></div>
@@ -923,6 +938,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div id="sp-armor" style="margin-bottom:10px"></div>
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 所持品 ──</div>
  <div id="sp-equip" style="margin-bottom:10px"></div>
+ <div id="sp-worn-items" style="margin-bottom:10px"></div>
  <div id="sp-equip-money" style="margin-bottom:10px"></div>
  <div id="sp-jewels-wrap">
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 宝飾品 ──</div>
@@ -939,6 +955,11 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  </div>
 
  <!-- 記録タブ -->
+ <!-- 魔法タブ -->
+ <div id="stpanel-magic" style="display:none;background:var(--ink);border:2px solid var(--border);border-radius:0 4px 4px 4px;padding:12px">
+ <div id="sp-magic-content"></div>
+ </div>
+
  <!-- パーティタブ -->
  <div id="stpanel-party" style="display:none;background:var(--ink);border:2px solid var(--border);border-radius:0 4px 4px 4px;padding:12px">
  <div id="sp-party-content"></div>
@@ -2618,16 +2639,8 @@ function checkSpecialMissionValdheimBoard(){
 
 
 function _checkSpecialMissionCount(){
+ // 特命依頼の達成回数を数えるだけ（以前あった「独立遊撃小隊」の称号付与は廃止）
  PC._specialMissionCount = (PC._specialMissionCount || 0) + 1;
- const count = PC._specialMissionCount;
- if(count >= 5 && !PC._isRaidUnit){
-  PC._isRaidUnit = true;
-  const msg = '混沌との戦いに5度生き残った。上層部から正式に「独立遊撃小隊」の名が与えられた。';
-  addLifeEvent('', msg);
-  // 到着時に表示するメッセージをキューに積む
-  PC._pendingRaidUnitMsg = true;
-  showSaveToast(' 称号獲得：独立遊撃小隊');
- }
 }
 
 
@@ -5526,6 +5539,7 @@ function goPropertyNode(townId){
    return true;
   });
   deadResidents.forEach(r=>{
+   r.epitaph = RESIDENT_EPITAPHS[Math.floor(Math.random()*RESIDENT_EPITAPHS.length)];   // 墓に刻む文言（亡くなったときに決めて保存する）
    prop.graveyard.push(r);
    addLifeEvent('', `${r.name}が老衰で亡くなった。${propName(townId)}の墓地に埋葬された。（享年${r.diedAge}歳）`);
    html += `<div style="color:var(--white);font-size:calc(var(--font-sm) - 1px);margin:4px 0"> ${r.name}（享年${r.diedAge}歳）が老衰で亡くなり、墓地に埋葬された。</div>`;
@@ -5827,6 +5841,31 @@ function _showPropertyMain(townId){
   `;
  }
 
+// 拠点で老衰で亡くなった引退冒険者の墓に刻む文言（亡くなったときに1つ選ぶ）
+const RESIDENT_EPITAPHS = [
+ '引退冒険者。この地で穏やかな余生を送った。',
+ '数多の冒険を胸に、穏やかに目を閉じた。',
+ '最後まで、武具を磨く手を止めなかった。',
+ '旅の話を語り聞かせながら、静かに逝った。',
+ '拠点の窓から、いつも街道を眺めていた。',
+ 'かつての仲間の名を、最後に呟いた。',
+ '戦場よりも、炉端の火を愛した。',
+ '老いてなお、冒険の夢を見ていた。',
+ '旅路の果てに、ここを終の住処とした。',
+ '数え切れぬ道を歩き、ここで足を休めた。',
+ '傷跡のひとつひとつが、物語だった。',
+ '最後の冒険は、静かな眠りだった。',
+ '武具を壁に掛け、安らかな日々を過ごした。',
+ '訪れる旅人に、昔話を聞かせた。',
+ '冒険者として生き、冒険者として眠る。',
+ '晩年は、庭の手入れを楽しんだ。',
+ '遠い空の下で出会った友を、懐かしんでいた。',
+ 'かつて恐れられた剣は、錆びるに任せた。',
+ 'この地の風と共に、旅を続けている。',
+ 'ここに眠る者は、確かに世界を歩いた。',
+ '名を知る者がいなくなっても、道はこの者を覚えている。',
+ '最後の夜、窓辺に旅の灯りを置いて眠った。',
+];
 // ── 墓地ノード ────────────────────────────────────────────
 function propertyViewGraves(townId){
  const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
@@ -5847,7 +5886,7 @@ function propertyViewGraves(townId){
    html += `<div style="border-left:2px solid #554455;padding:6px 10px;margin-bottom:8px">`
     +`<span style="color:var(--white)"> <b>${g.name}</b></span>`
     +`<span style="color:var(--white2);font-size:calc(var(--font-sm) - 1px)">　享年${g.diedAge}歳・元${g.typeJa||g.type}</span><br>`
-    +`<span style="color:#d8d0c0;font-size:calc(var(--font-sm) - 1px)"><i>引退冒険者。この地で穏やかな余生を送った。</i></span>`
+    +`<span style="color:#d8d0c0;font-size:calc(var(--font-sm) - 1px)"><i>${g.epitaph || '引退冒険者。この地で穏やかな余生を送った。'}</i></span>`
     +`</div>`;
   });
   graves.forEach(g=>{
@@ -8424,6 +8463,9 @@ function formatItemCost(costGP){
 }
 
 // 通貨の重量（枚数合計）
+const wtLbl = (w)=> (w==null||isNaN(w)) ? '' : `　重 ${w}wu`;
+function itemWt(name){ const d=EQUIP_TABLE.find(t=>t.name===name); return d? d.weight : null; }
+function arrowsWeight(n){ return Math.ceil((n||0)*10/24); }
 function coinWeight(pc=PC){ return (pc.gold||0)+(pc.sp||0)+(pc.cp||0); }
 
 // ══════════════════════════════════════════
@@ -8831,6 +8873,11 @@ function _npcSpellsForLevel(level){
 }
 
 function generateNPC(level=1){
+ const _npc = _generateNPCRaw(level);
+ if(PC._npcEquipWeight) fitNPCGearToWeight(_npc);
+ return _npc;
+}
+function _generateNPCRaw(level=1){
  // 通常はNPC_RACESから、ごく低確率（0.5%）でモンスター種族が紛れ込む
  const race = (Math.random() < 0.005)
   ? NPC_MONSTER_RACES[Math.floor(Math.random()*NPC_MONSTER_RACES.length)]
@@ -12387,6 +12434,129 @@ function buildFileImportNPC(saveData){
  };
 }
 
+// ── 武器ごとのバフ（Keen Blade＝ダイス2倍／Whammy＝ダイス3倍）──
+// かけた武器を記録する。効果は「かけた次のラウンド」の近接ロールで使われ、そのラウンドが終われば（使わなくても）解除される
+function wbStore(actor){ return actor === PC ? cbtState : actor; }
+function wbKeys(actor, kind){ return actor === PC ? {on:kind+'Active', w:kind+'Weapon', age:kind+'Age'} : {on:'_'+kind+'Next', w:'_'+kind+'Weapon', age:'_'+kind+'Age'}; }
+// Enchant Weapon：かけた武器だけ、ヒットダイスが3倍（かけた武器の記録がない古いデータは、全武器）
+function wbEnchantOn(wi, equipped, actor){
+ actor = actor || PC;
+ if(!((actor._enchantWeaponTurns||0) > 0)) return false;
+ const sel = actor._enchantWeapon;
+ if(!sel) return true;
+ const j = (equipped[sel.idx] && equipped[sel.idx].name === sel.name) ? sel.idx : equipped.findIndex(w=>w.name === sel.name);
+ return j === wi;
+}
+// 戦闘の外で呪文を唱えたあと、今いる場所の画面に戻る
+function wbBackToNode(){
+ if(PC._yeldunDungeon && _ydState && _ydState.nodeId){ ydGoNode(_ydState.nodeId, _ydState.floor); }
+ else if(window._currentHuntNode){ _huntGoNode(window._currentHuntNode._idx); }
+ else if(_huntState && _huntState.nodeId){ _huntGoNode(_huntState.nodeId); }
+ else { go(currentNodeId); }
+}
+// 重ねがけはできない：Keen Blade / Battle Surge / Enchant Weapon のどれかがかかった武器には、さらにかけられない
+function wbSelIdx(sel, eq){
+ if(sel){
+  if(eq[sel.idx] && eq[sel.idx].name === sel.name) return sel.idx;
+  const j = eq.findIndex(w=>w.name === sel.name);
+  if(j >= 0) return j;
+ }
+ return 0;
+}
+function wbBusySet(actor){
+ const eq = actor.equippedWeapons || [];
+ const busy = new Set();
+ if((actor._enchantWeaponTurns||0) > 0) eq.forEach((w,i)=>{ if(wbEnchantOn(i, eq, actor)) busy.add(i); });
+ const st = wbStore(actor);
+ ['vorpal','whammy'].forEach(kind=>{
+  const k = wbKeys(actor, kind);
+  if(st && st[k.on]) busy.add(eq.length ? wbSelIdx(st[k.w], eq) : -1);
+ });
+ if(actor === PC) ['_vorpalOut','_whammyOut'].forEach(key=>{ if(PC[key]) busy.add(eq.length ? wbSelIdx(PC[key], eq) : -1); });   // 戦闘の外でかけた分
+ return busy;
+}
+// 新たにかけられる武器の番号（武器なしのときは [-1]）
+function wbAvail(actor){
+ const eq = actor.equippedWeapons || [];
+ const busy = wbBusySet(actor);
+ const all = eq.length ? eq.map((w,i)=>i) : [-1];
+ return all.filter(i=>!busy.has(i));
+}
+// 装備中の武器のうちダイスが最も多いもの（同数なら先頭）。かけられる武器がなければ false、武器なしなら null
+function wbDefaultSel(actor){
+ const eq = actor.equippedWeapons || [];
+ const av = wbAvail(actor);
+ if(!av.length) return false;
+ if(!eq.length) return null;
+ let bi = av[0]; av.forEach(i=>{ if((eq[i].dice||1) > (eq[bi].dice||1)) bi = i; });
+ return {idx:bi, name:eq[bi].name};
+}
+// 重ねがけで不発になったとき：強さを返し、魔法フェーズを先へ進める
+function wbCastFail(spell, caster, result){
+ caster.st += _applyStaffDiscount(caster, Math.max(1, spell.cost));
+ updateHUD();
+ if(result) result.innerHTML = ` <span class="wizard-c">${spell.name}</span>: すでに魔法がかかった武器にはかけられない。（強さは消費されない）`;
+ if(typeof cbtState !== 'undefined' && cbtState && cbtState._magicPhaseNext){ cbtState._magicPhaseNext(); }
+}
+// 呪文が使えない理由（使えるなら空）
+function wbSpellBlock(sp, caster){
+ const NO = 'すでに魔法がかかった武器にはかけられない';
+ if(sp.fn === 'vorpal' || sp.fn === 'whammy'){
+  const cands = (sp.fn === 'whammy' && caster === PC) ? [PC] : [PC, ...(PC.party||[]).filter(n=>n.con>0)];
+  if(!cands.some(a=>wbAvail(a).length)) return NO;
+ } else if(sp.fn === 'enchantWeapon'){
+  const cands = [PC, ...(PC.party||[]).filter(n=>n.con>0)].filter(a=>(a.equippedWeapons||[]).length);
+  if(!cands.length) return '武器を装備していない';
+  if(!cands.some(a=>wbAvail(a).length)) return NO;
+ }
+ return '';
+}
+function wbArm(actor, kind, sel){
+ const st = wbStore(actor); if(!st) return;
+ const k = wbKeys(actor, kind);
+ st[k.on] = true; st[k.w] = sel || null; st[k.age] = 0;
+}
+function wbClear(actor, kind){
+ const st = wbStore(actor); if(!st) return;
+ const k = wbKeys(actor, kind);
+ st[k.on] = false; st[k.w] = null; delete st[k.age];
+}
+// かけた武器が装備の何番目か（外れた・手放した場合は、先頭の武器にかけ直す）
+function wbTargetIdx(actor, kind, equipped){
+ const st = wbStore(actor); const sel = st && st[wbKeys(actor, kind).w];
+ return wbSelIdx(sel, equipped);
+}
+// ラウンドの始め：かけて1ラウンド過ぎた分を解除する（戦闘の外でかけた分は、次の戦闘の最初のラウンドだけ有効）
+function wbRoundStart(){
+ if(typeof cbtState === 'undefined' || !cbtState) return;
+ ['vorpal','whammy'].forEach(kind=>{
+  [PC, ...(PC.party||[])].forEach(a=>{
+   const st = wbStore(a), k = wbKeys(a, kind);
+   if(!st || !st[k.on] || typeof st[k.age] !== 'number') return;
+   if(st[k.age] < 0) st[k.age] = 1;                                // 戦闘の外でかけた分が、ここから有効
+   else if(st[k.age] >= 1) wbClear(a, kind); else st[k.age] = 1;
+  });
+ });
+ // PCが戦闘の外でかけた分：この戦闘の最初のラウンドだけ有効（age=1 で始め、次のラウンドの頭で解除される）
+ ['vorpal','whammy'].forEach(kind=>{ const key = '_'+kind+'Out'; if(PC[key]){ wbArm(PC,kind,PC[key].name ? PC[key] : null); cbtState[kind+'Age'] = 1; PC[key] = null; } });
+}
+// どの武器にかけるかを選ばせる（かけられる武器が1本だけなら聞かずに決める。すでに魔法がかかった武器は選べない）
+function wbPickWeapon(actor, kind, btnsEl, titleEl, done){
+ const eq = actor.equippedWeapons || [];
+ const av = wbAvail(actor);
+ if(av.length <= 1){ done(eq.length && av.length ? {idx:av[0], name:eq[av[0]].name} : null); return; }
+ if(titleEl) titleEl.innerHTML = `<span style="color:#e0d8c8;font-size:var(--font-sm)"> どの武器にかけますか？</span>`;
+ btnsEl.innerHTML = '';
+ av.forEach(i=>{
+  const w = eq[i];
+  const b = document.createElement('button');
+  b.className = 'choice-btn';
+  b.textContent = `${actor === PC ? '' : actor.name + '：'}${w.name}（${w.dice}D${(w.adds||0) ? (w.adds>0?'+':'')+w.adds : ''}）`;
+  b.onclick = ()=>done({idx:i, name:w.name});
+  btnsEl.appendChild(b);
+ });
+}
+
 // NPC戦闘ロール（プレイヤーと同じ算出方法）
 
 function calcNPCRoll(npc){
@@ -12398,8 +12568,10 @@ function calcNPCRoll(npc){
  const equipped = npc.equippedWeapons||[];
  const vorpal = npc._vorpalNext;
  const whammy = npc._whammyNext;
- if(vorpal) npc._vorpalNext = false;
- if(whammy) npc._whammyNext = false;
+ const _vi = vorpal ? wbTargetIdx(npc,'vorpal',equipped) : -1;
+ const _wi = whammy ? wbTargetIdx(npc,'whammy',equipped) : -1;
+ if(vorpal) wbClear(npc,'vorpal');
+ if(whammy) wbClear(npc,'whammy');
  const mult = (vorpal?2:1) * (whammy?3:1);
  if(!equipped.length){
   const rv=rollNd6(mult);
@@ -12407,7 +12579,7 @@ function calcNPCRoll(npc){
  }
  // 全装備武器のダイスを合計（addsは1回のみ）
  let totalDice=0, totalWeaponAdds=0;
- equipped.forEach((w,i)=>{ totalDice+=(i===0 ? (w.dice||1)*mult : w.dice||1); totalWeaponAdds+=(w.adds||0); });
+ equipped.forEach((w,i)=>{ totalDice+=(w.dice||1)*(i===_vi?2:1)*(i===_wi?3:1)*(wbEnchantOn(i,equipped,npc)?3:1); totalWeaponAdds+=(w.adds||0); });
  const rv=rollNd6(totalDice);
  return {total:rv.total+totalWeaponAdds+adds, dice:rv.dice};
 }
@@ -12968,6 +13140,11 @@ const PATRON_EVENTS_COMMON = [
    lines:['「今年の麦は不作だ。税だけは変わらんのに、まったく割に合わん」',
           '「畑を耕してたら変な石が出てきた。ぴかぴか光っとったけど、怖くて触れなんだ」',
           '「村の外れの森に子供たちが迷い込んで帰ってきたんだが、一人だけ何も覚えていなかった」'] },
+
+ { name:'旅慣れた魔法使い', icon:'',
+   intro:'使い込まれた杖を傍らに立てかけた魔法使いが、静かに杯を傾けている。',
+   type:'rumor',
+   lines:['「魔法使いの杖は術者が熟練するほど効果が上がる。ベテランの魔法使いが杖を持ってる理由がよく分かったよ。」'] },
 
  { name:'若い見習い魔法使い', icon:'',
    intro:'ローブを着た若者が分厚い本を読みながら飲んでいる。',
@@ -14946,58 +15123,6 @@ function learnSpell(spellName, lv){
 
 
 
-// ── NPC非戦闘時の呪文使用 ──
-function npcCastSpellOutside(npcIdx, spellIdx){
- const n = PC.party[npcIdx];
- if(!n) return;
- const spell = (n.spells||[])[spellIdx];
- if(!spell) return;
- const cost = spell.cost||0;
- const discCost = _applyStaffDiscount(n, cost);
- if((n.st||0) < discCost){ showSaveToast(`${n.name}の強さが足りない`); return; }
- n.st = Math.max(0, n.st - discCost);
- const fn = spell.fn||'';
- const story = document.getElementById('story');
- let msg = '';
-
- if(fn==='ttyf'||fn==='blasting'){
-  // 戦闘外TTYFは意味なし → 代わりにAPボーナス
-  const ap = (n.iq||10) * (spell.level||1);
-  gainAPAll(ap); updateHUD();
-  msg = ` ${n.name}が${spell.name}を唱えた。経験値+${ap}（戦闘外のため経験値として加算）`;
- } else if(fn==='knockKnock'){
-  msg = ` ${n.name}が${spell.name}を唱えた。施錠されたドアを開錠できる（このターン有効）`;
-  PC._npcKnockKnock = true;
- } else if(fn==='wisp'){
-  // 有効は1ターン。ただし次のノードへ移る際に松明の消費が先に1ターン分かかるため、実効1ターンにするには2を設定する
-  PC._torchTurns = Math.max(PC._torchTurns||0, 2);
-  msg = ` ${n.name}が${spell.name}を唱えた。次のノードを1ターン分照らせる`;
- } else if(fn==='cateyes'){
-  PC._torchTurns = Math.max(PC._torchTurns||0, 3);
-  msg = ` ${n.name}が${spell.name}を唱えた。暗視3ターン分を得た`;
- } else if(fn==='vorpal'){
-  n._vorpalNext = true;
-  msg = ` ${n.name}が${spell.name}を唱えた。次の戦闘で${n.name}の攻撃力が2倍になる`;
- } else if(fn==='ohGoAway'){
-  msg = ` ${n.name}が${spell.name}を唱えた。次の戦闘開始時にMR${n.iq+n.lk+n.chr}以下の敵を退散させる`;
-  n._ohGoAwayActive = true;
- } else if(fn==='poorBaby'){
-  const heal = (n.iq||10);
-  PC.con = Math.min(PC.maxCon, PC.con + heal);
-  updateHUD();
-  msg = ` ${n.name}が${spell.name}を唱えた。あなたの体力+${heal}（→${PC.con}/${PC.maxCon}）`;
- } else {
-  msg = ` ${n.name}が${spell.name}を唱えた（強さ-${cost}）`;
- }
-
- // 魔法の詠唱はライフイベントではないので記録しない
- showSaveToast(msg.substring(0,40));
- if(story) story.innerHTML += `<div style="margin-top:8px;padding:8px;background:var(--ink);border:1px solid #585858;border-radius:3px;font-size:var(--font-sm);color:#e0d8c8">${msg}</div>`;
- updateHUD();
- // パーティパネルを再描画
- renderNPCDetail(document.getElementById('sp-party-content'), n, npcIdx);
-}
-
 // 盗賊ギルドでの呪文習得（費用2倍・DEX10以上・rogueのみ）
 function learnSpellRogue(spellName, lv){
  const actor = _guildActor || PC;
@@ -16090,7 +16215,43 @@ function calcTotalWeight(pc=PC){
  w += (pc._food || 0) * 5;
  // 硬貨（GP+SP+CP 各1wu）
  w += coinWeight(pc);
+ // 矢（24本で10wu）。仲間NPCは新規データのみ
+ if(pc === PC || PC._npcEquipWeight) w += arrowsWeight(pc.arrows);
+ // 仲間NPCの装備中の品（新規データのみ。旧セーブは従来どおり0扱い）
+ if(pc !== PC && PC._npcEquipWeight) w += npcEquippedWeight(pc);
  return w;
+}
+
+// 仲間NPCが装備している品の重量（所持品側と同一の品は二重に数えない）
+function npcEquippedWeight(npc){
+ let w = 0;
+ const inv = new Set([...(npc.invWeapons||[]), ...(npc.invArmors||[])]);
+ [...(npc.equippedWeapons||[]), ...(npc.equippedArmors||[]), ...(npc.equippedRanged ? [npc.equippedRanged] : [])].forEach(it=>{
+  if(it && !inv.has(it)) w += it.weight||0;
+ });
+ return w;
+}
+
+// 新規データ用：作成直後のNPCが過積載にならないよう初期装備を軽くする
+function fitNPCGearToWeight(npc){
+ const over = ()=> calcTotalWeight(npc) > weightPossible(npc);
+ if(!over()) return npc;
+ const steps = [
+  ()=>{ if(npc.equippedRanged){ npc.equippedRanged=null; npc.arrows=0; return true; } },
+  ()=>{ const a=npc.equippedWeapons; if(a && a.length>1){ a.pop(); return true; } },
+  ()=>{ const a=npc.equippedArmors; const i=a.findIndex(x=>x.isShield); if(i>=0){ a.splice(i,1); return true; } },
+  ()=>{ const a=npc.equippedArmors; const b=a.find(x=>!x.isShield && x.weight>100); if(b){ Object.assign(b,{name:'布製の鎧',hits:3,stReq:1,weight:100}); return true; } },
+  ()=>{ const list=npc.equippedWeapons.length?npc.equippedWeapons:npc.invWeapons; const w=list[0];
+        if(w && w.weight>120){ Object.assign(w,{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120,stReq:15,dexReq:10}); return true; }
+        if(w && w.weight>30){ Object.assign(w,{name:'ショートソード',dice:3,adds:0,twoHand:false,weight:30,stReq:7,dexReq:3}); return true; } },
+  ()=>{ const a=npc.equippedArmors; if(a.length){ a.pop(); return true; } },
+ ];
+ for(let g=0; g<20 && over(); g++){
+  let did=false;
+  for(const st of steps){ if(st()){ did=true; break; } }
+  if(!did) break;
+ }
+ return npc;
 }
 
 // 重量オーバーチェック＆SPD半減を適用
@@ -17356,6 +17517,7 @@ const _GUIDE_PAGES = [
  {
   title:'4. 魔法とリソース',
   body:`<b>魔法使い（Wizard）</b><br>知力と器用さの条件を満たせば呪文が使えます。呪文を唱えると<b>強さを消費</b>します。強さが尽きると使えなくなります。<br><br>
+<b>魔法使いの杖</b><br>魔法使いが装備していると、呪文を唱える時の強さの消費が軽くなります。軽くなる量は術者のレベルと同じで、熟練するほど効果が上がります（消費は最低1）。魔法使い以外が持っても効果はありません。<br><br>
 <b>食料</b><br>街から街へ移動する際に消費されます。食料が尽きると毎日強さ・体力・器用さが減少し、体力が0になると死亡します。<br><br>
 <b>松明</b><br>ダンジョン探索に必要です。松明がなくなると暗闇でのペナルティが発生します。<br><br>
 <b>重量（WT）</b><br>持ち物には重さがあります。最大運搬量は<b>強さ×100点</b>ですが、これは背負袋を装備している場合の数値で、<b>背負袋がないと最大運搬量は本来の半分</b>（強さ×50点）になります。最大運搬量を超えると<b>素早さが半分</b>になります。定期的に整理しましょう。`
@@ -44662,13 +44824,9 @@ function popRegionEvalMsg(){
 }
 
 function popRaidUnitMsg(){
- if(!PC._pendingRaidUnitMsg) return '';
+ // 称号の廃止に伴い何も表示しない（古いセーブに残った未表示フラグだけ片付ける）
  PC._pendingRaidUnitMsg = false;
- return `<br><br><div style="background:var(--ink);border:2px solid var(--white2);border-radius:4px;padding:12px;margin-top:6px">
-  <div style="color:#e0d8c8;font-size:var(--font-base);margin-bottom:8px"> 称号授与：独立遊撃小隊</div>
-  <div style="color:var(--white);font-size:var(--font-sm);line-height:1.8">混沌との戦いに5度生き残った。上層部からパーティーに正式な名が与えられた。<br><br>「独立遊撃小隊」——特定の指揮系統に属さず、混沌の脅威に単独で対処することを許された少数精鋭。これはその証だ。</div>
-  <div style="color:#e0d8c8;font-size:calc(var(--font-sm) - 2px);margin-top:6px">ライフイベントに記録された。</div>
- </div>`;
+ return '';
 }
 
 // 町メニューに現在の時間帯を表示する（街区・裏路地探索で進んだGAME_TIME.hourをそのまま反映する。保持のみで進行はさせない）
@@ -50284,6 +50442,7 @@ function startGame(){
  PC.spouse = []; // 前の代の配偶者記録は引き継がない
  PC._questPenalties = {}; // 前の代の依頼期限切れ罰金は引き継がない
  PC.spdBase = PC.spd; // 重量ペナルティ計算用の基準素早さ
+ PC._npcEquipWeight = true; // 新規データ：仲間NPCの装備品も重量に含める
 
  // 年齢・誕生日の初期化（開始年齢20歳）
  PC.age = _startAge; // 「オリジナル」は15〜30歳のランダム／「入力」は18〜27歳
@@ -50620,6 +50779,7 @@ function sellClothing(){
  const _sa = _shopActor||PC;
  const name = _sa.invClothingName||'防寒着と荷物袋';
  const def = EQUIP_TABLE.find(t=>t.name===name)||EQUIP_TABLE.find(t=>t.name==='防寒着と荷物袋');
+ if(!_sellConfirm(`${name}を売りますか？（${sellPriceLabel(def?def.cost:0)}）`)) return;
  if(def) gainPriceCP(sellPriceCP(def.cost), _sa);
  _sa.invClothing=false; _sa.invClothingName=null; _sa.equippedClothing=false;
  updateHUD(); renderStatusPanel(); showSaveToast('衣服を売った');
@@ -50656,8 +50816,9 @@ function wearSpareFootwearUI(name){
 }
 function sellSpareFootwear(name){
  if(spareFootwearCount(name) <= 0) return;
- PC._spareFootwear[name]--;
  const def = EQUIP_TABLE.find(t=>t.name===name);
+ if(!_sellConfirm(`予備の${name}を売りますか？（${sellPriceLabel(def?def.cost:0)}）`)) return;
+ PC._spareFootwear[name]--;
  if(def) gainPriceCP(sellPriceCP(def.cost), PC);
  updateHUD(); checkWeightPenalty(); renderStatusPanel();
  if(typeof renderIngameShop === 'function' && isShopOpen()) renderIngameShop();
@@ -50667,7 +50828,7 @@ function sellSpareFootwear(name){
 // ブーツ・サンダルの摩耗（移動1日ごとに蓄積し、365日±30日で壊れる）
 // ══════════════════════════════════════════
 // 風邪（PCと仲間のNPC）
-// ・冬の移動中は毎日1%（飢え・凍傷で倍、防寒具で半分）／雨・嵐・吹雪の日は25%（防寒具で半分）。町にいる間は発症しない
+// ・冬の移動中は毎日1%（飢え・凍傷で倍、防寒具で半分）／雨・嵐・吹雪の日は12.5%（防寒具で半分）。町にいる間は発症しない
 // ・かかると強さ・体力が10%下がる（最大値も。器用さは凍傷と干渉するので対象外）。5〜10日で自然に治る
 // ・宿屋に泊まると、1〜3泊で完治する。Purifyで即治る。戦闘への影響はなし
 // ・旅の途中で引いたら「治るまでその場で休む」を選べる（旅程は進まず、日と食料だけが過ぎる）。
@@ -50886,7 +51047,7 @@ function coldWeather(ts, desc){
  if(!/雨|嵐|吹雪/.test(desc || '')) return;
  coldActors().forEach(x=>{
   if(x._cold > 0) return;
-  if(Math.random() < ((x.equippedClothing || x.invClothing) ? 0.125 : 0.25) && coldCatch(x)){ coldNotify(coldCatchMsg(x), true); coldAskSet(); }
+  if(Math.random() < ((x.equippedClothing || x.invClothing) ? 0.0625 : 0.125) && coldCatch(x)){ coldNotify(coldCatchMsg(x), true); coldAskSet(); }
  });
 }
 // 宿屋の1泊：風邪の者は、あと何泊かで完治する
@@ -51030,6 +51191,7 @@ function sellJewel(idx){
  _sa.invJewels = _sa.invJewels || [];
  const j = _sa.invJewels[idx];
  if(!j) return;
+ if(!_sellConfirm(`${j.name}を売りますか？（${formatItemCost(Math.floor(j.priceGP*100*0.5)/100)}）`)) return;
  _sa.invJewels.splice(idx,1);
  const priceCP = Math.floor(j.priceGP * 100 * 0.5);
  gainPriceCP(priceCP, _sa);
@@ -51039,6 +51201,17 @@ function sellJewel(idx){
 // ── END JEWEL SHOP ──────────────────────────────────────────────
 // 現在ショップに入っているキャラ（PC or パーティNPC）
 let _shopActor = null;
+// CP換算の金額をGP/SP(/CP)表記にする（例：8775CP → 87GP 7SP 5CP）
+function fmtCPasGPSP(cp){
+ cp = Math.max(0, Math.round(cp||0));
+ const g = Math.floor(cp/100), sp = Math.floor((cp%100)/10), c = cp%10;
+ const parts = [];
+ if(g) parts.push(g+'GP'); if(sp) parts.push(sp+'SP'); if(c) parts.push(c+'CP');
+ return parts.length ? parts.join(' ') : '0GP';
+}
+let _bulkSelling = false;   // まとめて売却の実行中は個別の確認を出さない
+let _igsBulk = false;       // まとめて売るモード
+function _sellConfirm(msg){ return _bulkSelling || confirm(msg); }
 
 // キャラ選択画面を表示してからショップへ
 function showIngameShop(townId){
@@ -51086,6 +51259,7 @@ function _openIngameShop(townId){
 }
 
 function closeIngameShop(){
+ _igsBulk = false;
  document.getElementById('ingame-shop').classList.add('hidden');
  document.getElementById('text-win').style.display = '';
  _shopActor = null;
@@ -51161,6 +51335,11 @@ function sellWeapon(idx){
  const _sa = _shopActor||PC;
  const w = (_sa.invWeapons||[])[idx];
  if(!w) return;
+ {
+  const _def0 = (w._isMagic && w._priceGP) ? null : [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(w._baseName||w.name));
+  const _pl = (w._isMagic && w._priceGP) ? gemWeaponSellGP(w._priceGP)+'GP' : sellPriceLabel(_def0?.cost||0);
+  if(!_sellConfirm(`${w.name}を売りますか？（${_pl}）`)) return;
+ }
  _sa.equippedWeapons = (_sa.equippedWeapons||[]).filter(e=>e!==w);
  _sa.invWeapons.splice(idx,1);
  // 魔法武器は_priceGPの半額
@@ -51183,6 +51362,8 @@ function sellArmor(idx){
  const _sa = _shopActor||PC;
  const a = (_sa.invArmors||[])[idx];
  if(!a) return;
+ { const _d0 = [...ARMOR_TABLE,...(ARMOR_TABLE_KHAZAN||[])].find(t=>t.name===a.name);
+   if(!_sellConfirm(`${a.name}を売りますか？（${sellPriceLabel(_d0?.cost||0)}）`)) return; }
  _sa.equippedArmors = (_sa.equippedArmors||[]).filter(e=>e!==a);
  _sa.invArmors.splice(idx,1);
  const def = [...ARMOR_TABLE,...(ARMOR_TABLE_KHAZAN||[])].find(t=>t.name===a.name);
@@ -51234,8 +51415,9 @@ function discardCurrency(currency){
 function sellBoots(){
  const _sa = _shopActor||PC;
  const bootsName = _sa.invBootsName || 'ブーツ';
- _sa.invBoots=false; _sa.invBootsName=null; _sa.equippedBoots=false;
  const def = EQUIP_TABLE.find(t=>t.name===bootsName);
+ if(!_sellConfirm(`${bootsName}を売りますか？（${sellPriceLabel(def?.cost||0)}）`)) return;
+ _sa.invBoots=false; _sa.invBootsName=null; _sa.equippedBoots=false;
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
@@ -51247,8 +51429,9 @@ function sellEquip(idx){
  const _sa = _shopActor||PC;
  const name = (_sa.invEquip||[])[idx];
  if(!name) return;
- _sa.invEquip.splice(idx,1);
  const def = EQUIP_TABLE.find(t=>t.name===name);
+ if(!_sellConfirm(`${name}を売りますか？（${sellPriceLabel(def?.cost||0)}）`)) return;
+ _sa.invEquip.splice(idx,1);
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
@@ -51277,7 +51460,7 @@ function sellArrows(){
  const _sa = _shopActor||PC;
  const have = _sa.arrows||0;
  if(have <= 0) return;
- const n = _askArrowCount(have, '売る');
+ const n = _bulkSelling ? have : _askArrowCount(have, '売る');   // まとめて売る時は全本数
  if(!n) return;
  _sa.arrows = have - n;
  const cp = arrowSellCP(n);
@@ -51352,6 +51535,7 @@ function discardArrows(){
 function sellTorch(){
  const total = (PC._torchStock||0) + (PC._torchTurns>0?1:0);
  if(total<=0) return;
+ { const _d = EQUIP_TABLE.find(t=>t.name==='松明'); if(!_sellConfirm(`松明を売りますか？（${sellPriceLabel(_d?_d.cost:0)}）`)) return; }
  if(PC._torchTurns>0){ PC._torchTurns=0; }
  else { PC._torchStock--; }
  const def = EQUIP_TABLE.find(t=>t.name==='松明');
@@ -51361,12 +51545,35 @@ function sellTorch(){
  showSaveToast(` Torchを売った（${sellPriceLabel(def?.cost||0)}）`);
 }
 
+// 松明をまとめて売る（ショップ用）。通常は本数を聞き、まとめて売るモードでは全本数
+function sellTorches(){
+ const total = (PC._torchStock||0) + (PC._torchTurns>0?1:0);
+ if(total<=0) return;
+ let n = total;
+ if(!_bulkSelling){
+  const input = prompt(`売る松明の本数を入力してください（所持：${total}本）`, String(total));
+  if(input === null) return;
+  n = parseInt(input, 10);
+  if(!n || n <= 0){ showSaveToast('正しい本数を入力してください'); return; }
+  if(n > total){ showSaveToast('所持している松明が足りません'); return; }
+ }
+ const def = EQUIP_TABLE.find(t=>t.name==='松明');
+ const unit = def ? sellPriceCP(def.cost) : 0;
+ for(let i=0;i<n;i++){
+  if(PC._torchTurns>0){ PC._torchTurns=0; } else if(PC._torchStock>0){ PC._torchStock--; } else break;
+  if(unit>0) gainPriceCP(unit);
+ }
+ updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
+ showSaveToast(` 松明${n}本を売った（${formatItemCost(unit*n/100)}）`);
+}
+
 // 現在のタブ
 let _igsTab = 'weapon';
 let _igsTownId = null;
 
 function igsSetTab(tab){
  _igsTab = tab;
+ if(tab !== 'sell') _igsBulk = false;
  // タブボタンのスタイル更新
  document.querySelectorAll('.igs-tab').forEach(btn=>{
  const active = btn.dataset.tab === tab;
@@ -51452,17 +51659,68 @@ function renderIgsList(townId){
  h.textContent = label; el.appendChild(h);
  };
 
- const row = (icon, name, priceCP, onSellFn) => {
-  hasAny = true;
-  const div = document.createElement('div'); div.className='shop-item';
-  const priceLabel = formatItemCost(priceCP/100);
+ // まとめて売るモード：SELLボタンの代わりにチェックボックスを付け、選択状況を集計する
+ const _bulkBar = document.createElement('div');
+ el.appendChild(_bulkBar);
+ const _bulkRows = [];
+ const sellCtl = (div, priceCP, onSellFn, noBulk) => {
+  if(_igsBulk && !noBulk){
+   const lab = document.createElement('label');
+   lab.style.cssText = 'display:inline-flex;align-items:center;vertical-align:middle;margin-right:8px;cursor:pointer';
+   const cb = document.createElement('input'); cb.type='checkbox';
+   cb.style.cssText = 'width:22px;height:22px;cursor:pointer';
+   cb.addEventListener('change', ()=>{ _renderBulkBar(); });
+   lab.appendChild(cb);
+   const _h = div.querySelector('h4');
+   if(_h) _h.insertBefore(lab, _h.firstChild); else div.insertBefore(lab, div.firstChild);
+   _bulkRows.push({cb, priceCP, fn:onSellFn});
+   return;
+  }
   const sellBtn = document.createElement('button');
   sellBtn.className = 'buy-btn';
   sellBtn.style.cssText = 'border-color:#e8e0d0;color:#f0ece0;background:var(--coal)';
   sellBtn.textContent = 'SELL';
   sellBtn.addEventListener('click', ()=>{ onSellFn(); });
-  div.innerHTML = `<h4>${icon} ${name}</h4><span class="price" style="color:#f0ece0">売値: ${priceLabel}</span>`;
   div.appendChild(sellBtn);
+ };
+ const _renderBulkBar = () => {
+  _bulkBar.innerHTML = '';
+  _bulkBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px';
+  const mk = (label, fn, accent) => {
+   const b = document.createElement('button'); b.className='buy-btn';
+   b.style.cssText = (accent ? 'border-color:var(--gold4);color:var(--reward);background:#201000' : 'border-color:#e8e0d0;color:#f0ece0;background:var(--coal)') + ';float:none;margin-top:0;font-size:var(--font-sm);padding:6px 10px';
+   b.textContent = label; b.addEventListener('click', fn); _bulkBar.appendChild(b); return b;
+  };
+  if(!_igsBulk){
+   if(_bulkRows.length === 0 && !hasAny) return;
+   mk('まとめて売る', ()=>{ _igsBulk = true; renderIngameShop(_igsTownId); });
+   return;
+  }
+  const sel = _bulkRows.filter(r=>r.cb.checked);
+  const total = sel.reduce((a,r)=>a+r.priceCP,0);
+  mk('全て選択', ()=>{ _bulkRows.forEach(r=>r.cb.checked=true); _renderBulkBar(); });
+  mk('全て解除', ()=>{ _bulkRows.forEach(r=>r.cb.checked=false); _renderBulkBar(); });
+  const go = mk(`選んだ品を売る（${sel.length}点・${fmtCPasGPSP(total)}）`, ()=>{
+   if(!sel.length){ showSaveToast('売る品が選ばれていません'); return; }
+   if(!confirm(`選んだ${sel.length}点を売りますか？\n合計 ${fmtCPasGPSP(total)}`)) return;
+   const fns = sel.map(r=>r.fn);
+   _bulkSelling = true;
+   try{ fns.forEach(fn=>{ try{ fn(); }catch(e){ console.error(e); } }); }
+   finally{ _bulkSelling = false; }
+   _igsBulk = false;
+   renderIngameShop(_igsTownId);
+   showSaveToast(`${fns.length}点を売った`);
+  }, true);
+  if(!sel.length) go.style.opacity = '0.5';
+  mk('やめる', ()=>{ _igsBulk = false; renderIngameShop(_igsTownId); });
+ };
+
+ const row = (icon, name, priceCP, onSellFn, noBulk) => {
+  hasAny = true;
+  const div = document.createElement('div'); div.className='shop-item';
+  const priceLabel = formatItemCost(priceCP/100);
+  div.innerHTML = `<h4>${icon} ${name}</h4><span class="price" style="color:#f0ece0">売値: ${priceLabel}</span>`;
+  sellCtl(div, priceCP, onSellFn, noBulk);
   el.appendChild(div);
  };
 
@@ -51524,15 +51782,16 @@ function renderIgsList(townId){
  if(torchTotal > 0){
   if(!_shopA.invEquip?.length && !_shopA.invBoots) sec(' 消耗品');
   const def = EQUIP_TABLE.find(t=>t.name==='松明');
-  for(let i=0; i<torchTotal; i++){
-   row('', '松明', def ? sellPriceCP(def.cost) : 0, ()=>sellTorch());
-  }
+  const _tu = def ? sellPriceCP(def.cost) : 0;
+  if(_igsBulk) row('', `松明 ×${torchTotal}本（全て売る）`, _tu*torchTotal, ()=>sellTorches());
+  else row('', `松明 ×${torchTotal}本（売値は1本あたり）`, _tu, ()=>sellTorches());
  }
 
  // 矢（買い物中の本人の分）
  if((_shopA.arrows||0) > 0){
   sec(' 矢');
-  row('', `矢 ×${_shopA.arrows}本（売値は1本あたり）`, arrowSellCP(1), ()=>sellArrows());
+  if(_igsBulk) row('', `矢 ×${_shopA.arrows}本（全て売る）`, arrowSellCP(_shopA.arrows), ()=>sellArrows());
+  else row('', `矢 ×${_shopA.arrows}本（売値は1本あたり）`, arrowSellCP(1), ()=>sellArrows());
  }
 
  // 特産品
@@ -51545,16 +51804,11 @@ function renderIgsList(townId){
    const n = (fromKey&&toKey) ? getRegionDistance(fromKey,toKey) : 0;
    const profitInfo = n===0
     ? '<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 3px)">（地元：利益少）</span>'
-    : `<span style="color:var(--white);font-size:calc(var(--font-sm) - 3px)">（+${n}地方離れ → ×${1+n}倍）</span>`;
+    : `<span style="color:var(--white);font-size:calc(var(--font-sm) - 3px)">（+${n}地方離れ → ×${n>=2?1.5:1.25}倍）</span>`;
    const div = document.createElement('div'); div.className='shop-item';
    const _sp = sp;
-   const spBtn = document.createElement('button');
-   spBtn.className = 'buy-btn';
-   spBtn.style.cssText = 'border-color:#e8e0d0;color:#f0ece0;background:var(--coal)';
-   spBtn.textContent = 'SELL';
-   spBtn.addEventListener('click', ()=>{ const _i=PC.invSpecialties.indexOf(_sp); if(_i>=0) sellSpecialty(_i); });
    div.innerHTML = `<h4>${sp.icon} ${sp.name} ${profitInfo}</h4><span class="price" style="color:#f0ece0">売値: ${sellPrice}GP</span>`;
-   div.appendChild(spBtn);
+   sellCtl(div, sellPrice*100, ()=>{ const _i=PC.invSpecialties.indexOf(_sp); if(_i>=0) sellSpecialty(_i); });
    el.appendChild(div);
    hasAny = true;
   });
@@ -51570,6 +51824,7 @@ function renderIgsList(townId){
   });
  }
 
+ _renderBulkBar();
  if(!hasAny && !((_shopActor||PC).invJewels||[]).length){
   el.innerHTML = '<div style="font-size:var(--font-sm);color:#c8b8a0;padding:12px 0;text-align:center">売れるものがありません</div>';
  }
@@ -51985,6 +52240,7 @@ function sellSpecialty(idx){
  const spec = (PC.invSpecialties||[])[idx];
  if(!spec) return;
  const sellPrice = calcSpecialtySellPrice(spec, PC.town);
+ if(!_sellConfirm(`${spec.name}を売りますか？（${sellPrice}GP）`)) return;
  PC.invSpecialties.splice(idx,1);
  gainGP(sellPrice);
  updateHUD(); renderIngameShop();
@@ -52573,6 +52829,7 @@ function gainIQ(amount, pc=PC){
 // HUD
 // ──────────────────────────────────────
 function updateHUD(){
+ try{ const _mp = document.getElementById('stpanel-magic'); if(_mp && _mp.style.display !== 'none' && typeof renderMagicTab === 'function') renderMagicTab(); }catch(e){}
  // Overdrive未リセット救済：戦闘が終了しているのに能力値が倍のままなら元に戻す
  if(!cbtState){
   [PC, ...(PC.party||[])].forEach(a=>{
@@ -52591,7 +52848,7 @@ function updateHUD(){
  const adds=calcAdds();
  const armor=effectiveArmor();
  const {cur, max, over} = checkWeightPenalty();
- document.getElementById('d-st').textContent=PC.st;
+ document.getElementById('d-st').textContent=PC.st+'/'+Math.max(PC.maxSt||PC.st, PC.st);
  document.getElementById('d-con').textContent=PC.con+'/'+PC.maxCon;
  document.getElementById('d-lk').textContent=PC.lk;
  document.getElementById('d-dex').textContent=PC.dex;
@@ -52704,7 +52961,7 @@ function updateMiniHUD(){
 // INVENTORY
 // ──────────────────────────────────────
 function switchStatTab(tab){
- ['status','equip','party','log'].forEach(t=>{
+ ['status','equip','magic','party','log'].forEach(t=>{
  document.getElementById('stpanel-'+t).style.display = t===tab ? '' : 'none';
  const btn = document.getElementById('tab-'+t);
  if(btn){
@@ -52713,6 +52970,41 @@ function switchStatTab(tab){
  }
  });
  if(tab==='party') renderPartyTab();
+ if(tab==='magic') renderMagicTab();
+}
+
+// ── 魔法タブ：パーティ全員の習得魔法を、キャラクター別・レベル別に表示する（折りたたみ可）──
+let _magicFold = {};   // 折りたたんだ項目の記録（キー→true で閉じている）
+function _magicFoldSet(key, open){ if(open) delete _magicFold[key]; else _magicFold[key] = true; }
+function renderMagicTab(){
+ const el = document.getElementById('sp-magic-content');
+ if(!el) return;
+ const typeJa = t=>({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[t]||t);
+ const members = [PC, ...(PC.party||[])];   // 自分を先頭にする
+ const esc = x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+ const det = (key, summaryHtml, bodyHtml, style, sumStyle)=>{
+  const open = !_magicFold[key];
+  return `<details ${open?'open':''} ontoggle="_magicFoldSet(decodeURIComponent('${encodeURIComponent(key)}'), this.open)" style="${style}"><summary style="cursor:pointer;${sumStyle}">${summaryHtml}</summary>${bodyHtml}</details>`;
+ };
+ el.innerHTML = members.map((m, mi)=>{
+  const key = 'c:' + (mi === 0 ? 'PC' : (m._npcId || m.name));
+  const spells = (m.spells || []).slice();
+  const label = (mi === 0 ? `${esc(m.name)}（あなた）` : esc(m.name)) + ` <span style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${typeJa(m.type)}　強さ ${m.st}/${typeof m.maxSt === 'number' ? m.maxSt : m.st}</span>`;
+  let body;
+  if(!spells.length){
+   body = '<div style="font-size:var(--font-sm);color:#c8b8a0;padding:6px 4px">習得している魔法はありません。</div>';
+  } else {
+   const byLv = {};
+   spells.forEach(sp=>{ const lv = sp.level || 1; (byLv[lv] = byLv[lv] || []).push(sp); });
+   body = Object.keys(byLv).map(Number).sort((a,b)=>a-b).map(lv=>{
+    const rows = byLv[lv].map(sp=>`<div style="background:#100c06;border:1px solid #585858;border-radius:3px;padding:7px 8px;margin:4px 0">
+     <div style="font-size:var(--font-sm);color:#f0ece0">${esc(sp.name)} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span></div>
+     <div style="font-size:calc(var(--font-sm) - 1px);color:#e8e0d0">${esc(sp.desc || '')}</div></div>`).join('');
+    return det(key + ':L' + lv, `Lv${lv}（${byLv[lv].length}）`, rows, 'margin:4px 0 4px 8px', 'font-size:calc(var(--font-sm) - 1px);color:#e8e0d8;padding:3px 0');
+   }).join('');
+  }
+  return det(key, label, body, 'background:var(--panel);border:1px solid var(--bark);border-radius:4px;padding:8px 10px;margin-bottom:8px', 'font-size:calc(var(--font-sm) + 1px);color:var(--gold3);padding:2px 0');
+ }).join('');
 }
 
 let _partyDetailIdx = null; // null=一覧, 0〜=個別
@@ -52754,7 +53046,7 @@ function renderPartyList(el, party){
  </div>
  <span style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">詳細 ▶</span>
  </div>
- <div style="font-size:calc(var(--font-sm) - 1px);color:#e8e0d0">体力 ${n.con}/${n.maxCon}</div>
+ <div style="font-size:calc(var(--font-sm) - 1px);color:#e8e0d0">体力 ${n.con}/${n.maxCon}　強さ ${n.st}/${Math.max(n.maxSt||n.st, n.st)}　${(()=>{ const _c=calcTotalWeight(n), _m=weightPossible(n); const _col=_c>_m?'var(--red)':_c>_m*0.8?'var(--ora)':'inherit'; return `所持重量 <span style="color:${_col}">${_c}/${_m}</span>`; })()}</div>
  ${alive?`<div style="height:3px;background:#050505;border-radius:2px;margin-top:4px"><div style="width:${barW}%;height:100%;background:${col};border-radius:2px"></div></div>`:''}
  ${alive?`<div style="display:flex;align-items:center;gap:5px;margin-top:5px">
   <div style="flex:1;height:3px;background:#050505;border-radius:2px"><div style="width:${trust}%;height:100%;background:${trustCol};border-radius:2px"></div></div>
@@ -52801,7 +53093,7 @@ function renderNPCDetail(el, n, idx){
  const _nWtColor = _nWtOver ? 'var(--red)' : _nWtCur > _nWtMax * 0.8 ? 'var(--ora)' : 'var(--grn)';
  const npcWtHtml = `<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:6px 8px;margin-bottom:12px"><div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:3px">所持重量</div><div style="font-size:calc(var(--font-sm) + 1px);color:${_nWtColor}">${_nWtCur} / ${_nWtMax} wu</div>${_nWtOver ? `<div style="font-size:calc(var(--font-sm) - 2px);margin-top:3px;color:#e0d0d0">過積載！一行の徒歩の移動日数が2倍になる</div>` : ''}</div>`;
  // 衣服・履物：仲間は着脱の操作がないので、持っていれば着ている（履いている）扱い
- const _wearRow = (has, name, onLabel, kind) => `<div style="background:${has?'var(--info-bg)':'var(--panel)'};border:1px solid ${has?'#004444':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div style="font-size:var(--font-sm);color:${has?'#ece8e0':'#c8b8a0'}">${has ? name + ' [' + onLabel + ']' : name + '：なし'}</div>${has ? discBtn(kind, idx) : ''}</div>`;
+ const _wearRow = (has, name, onLabel, kind) => `<div style="background:${has?'var(--info-bg)':'var(--panel)'};border:1px solid ${has?'#004444':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div style="font-size:var(--font-sm);color:${has?'#ece8e0':'#c8b8a0'}">${has ? name + ' [' + onLabel + ']' + (itemWt(name)!=null ? wtLbl(itemWt(name)) : '') : name + '：なし'}</div>${has ? discBtn(kind, idx) : ''}</div>`;
  const npcWearHtml = _wearRow(!!(n.invClothing || n.equippedClothing), n.invClothingName || '防寒着と荷物袋', '着用中', 'clothing')
   + _wearRow(!!(n.invBoots || n.equippedBoots), n.invBootsName || '履物', '履いている', 'boots');
  const coldHtml = n._cold > 0 ? `<div style="font-size:calc(var(--font-sm) - 1px);color:#e0b0a0;margin-bottom:8px">風邪を引いている（強さ・体力 ${coldPenaltyText(n)}／宿屋で1〜3泊すれば治る）</div>` : '';
@@ -52849,7 +53141,7 @@ function renderNPCDetail(el, n, idx){
  <div style="background:var(--ink);border:1px solid #440044;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#f0ece0"> ${w.name}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
  </div>
  <span style="display:flex;gap:4px"><button onclick="npcUnequipWeapon(${idx},${wi})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>${discBtn('wEq',idx,wi)}</span>
  </div>`).join('');
@@ -52859,7 +53151,7 @@ function renderNPCDetail(el, n, idx){
  return `<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name}${canUse?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※要件未満</span>'}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
  </div>
  <span style="display:flex;gap:4px"><button onclick="npcEquipWeapon(${idx},${n.invWeapons.indexOf(w)})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>${discBtn('wInv',idx,n.invWeapons.indexOf(w))}</span>
  </div>`;
@@ -52870,7 +53162,7 @@ function renderNPCDetail(el, n, idx){
  <div style="background:var(--info-bg);border:1px solid #004444;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#ece8e0">${a.isShield?'':''} ${a.name}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits${n.type==='warrior'?` (×2→${a.hits*2})`:''}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits${n.type==='warrior'?` (×2→${a.hits*2})`:''}${wtLbl(a.weight)}</div>
  </div>
  <span style="display:flex;gap:4px"><button onclick="npcUnequipArmor(${idx},${ai})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>${discBtn('aEq',idx,ai)}</span>
  </div>`).join('');
@@ -52880,7 +53172,7 @@ function renderNPCDetail(el, n, idx){
  return `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0">${a.isShield?'':''} ${a.name}${canUse?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※強さ不足</span>'}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits${wtLbl(a.weight)}</div>
  </div>
  <span style="display:flex;gap:4px"><button onclick="npcEquipArmor(${idx},${ai})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>${discBtn('aInv',idx,ai)}</span>
  </div>`;
@@ -52889,17 +53181,11 @@ function renderNPCDetail(el, n, idx){
  // 呪文（使うボタン付き）
  const spellRows = (n.spells||[]).length
  ? (n.spells||[]).map((s,si)=>{
-  const canCast = (n.st||0) >= (s.cost||0);
-  const inCombat = !!cbtState;
-  const useBtn = !inCombat ? `<button onclick="npcCastSpellOutside(${idx},${si})"
-   style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:var(--ink);border:1px solid ${canCast?'var(--white2)':'var(--void)'};color:${canCast?'var(--info2)':'var(--info-border)'};font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canCast?'':';opacity:0.5'}"
-   ${canCast?'':'disabled'}> 使う</button>` : '';
   return `<div style="background:#100c06;border:1px solid #585858;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
   <div>
    <div style="font-size:var(--font-sm);color:#f0ece0"> ${s.name} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${s.cost}</span></div>
    <div style="font-size:calc(var(--font-sm) - 1px);color:#e8e0d0">${s.desc}</div>
   </div>
-  ${useBtn}
   </div>`;
  }).join('')
  : '<div style="font-size:var(--font-sm);color:#c8b8a0">呪文なし</div>';
@@ -52987,7 +53273,7 @@ function renderNPCDetail(el, n, idx){
    rHtml += `<div style="background:var(--ink);border:1px solid #484848;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
    <div>
     <div style="font-size:var(--font-sm);color:#e0d8c8"> ${rw.name}</div>
-    <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rw.dice}D+${rw.adds||0}　${rw.isRanged?'弓':'投擲'}</div>${weaponDescHtml(rw)}
+    <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rw.dice}D+${rw.adds||0}　${rw.isRanged?'弓':'投擲'}${wtLbl(rw.weight)}</div>${weaponDescHtml(rw)}
    </div>
    <span style="display:flex;gap:4px"><button onclick="npcUnequipRanged(${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>${discBtn('ranged',idx)}</span>
    </div>`;
@@ -52998,7 +53284,7 @@ function renderNPCDetail(el, n, idx){
   candidates.forEach((w,wi)=>{
    const widx = (n.invWeapons||[]).indexOf(w);
    rHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
-   <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds||0}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds||0}${wtLbl(w.weight)}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
    <span style="display:flex;gap:4px"><button onclick="npcEquipRanged(${idx},${widx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:var(--info-bg);border:1px solid #484848;color:var(--white2);font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">遠距離装備</button>${discBtn('wInv',idx,widx)}</span>
    </div>`;
   });
@@ -53019,15 +53305,15 @@ function renderNPCDetail(el, n, idx){
  ${(()=>{
   const items = [];
   // その他装備品
-  (n.invEquip||[]).forEach((name,ei)=>{ items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> ${name}</span>${discBtn('equip',idx,ei)}</div>`); });
+  (n.invEquip||[]).forEach((name,ei)=>{ items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> ${name}${itemWt(name)!=null?wtLbl(itemWt(name)):''}</span>${discBtn('equip',idx,ei)}</div>`); });
   // 松明
   const torches = (n._torchStock||0);
-  if(torches > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> 松明 ×${torches}本</span>${discBtn('torch',idx)}</div>`);
+  if(torches > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> 松明 ×${torches}本${itemWt('松明')!=null?wtLbl(itemWt('松明')*torches):''}</span>${discBtn('torch',idx)}</div>`);
   // 矢
-  if((n.arrows||0) > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> 矢 ×${n.arrows}本</span>${discBtn('arrows',idx)}</div>`);
+  if((n.arrows||0) > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> 矢 ×${n.arrows}本${wtLbl(arrowsWeight(n.arrows))}</span>${discBtn('arrows',idx)}</div>`);
   // 食料
   const food = (n._food||0);
-  if(food > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> 食料 ${food}日分</span>${discBtn('food',idx)}</div>`);
+  if(food > 0) items.push(`<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:7px 8px;margin-bottom:4px;font-size:var(--font-sm);color:var(--text);display:flex;justify-content:space-between;align-items:center"><span> 食料 ${food}日分${wtLbl(food*5)}</span>${discBtn('food',idx)}</div>`);
   // 宝飾品
   (n.invJewels||[]).forEach((j,ji)=>{ items.push(`<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:7px 8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:var(--font-sm);color:#f0ece0"> ${j.name}</div><div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">売値 ${Math.floor(j.priceGP*0.5)}GP</div></div>${discBtn('jewel',idx,ji)}</div>`); });
   // 特産品
@@ -53090,7 +53376,7 @@ function renderStatusPanel(){
 
  // ── ステータスタブ ──
  document.getElementById('sp-name').textContent = (PC._nobilityTitle?PC._nobilityTitle+' ':'')+PC.name;
- document.getElementById('sp-epithet').textContent = PC._isRaidUnit ? ' 独立遊撃小隊' : '';
+ document.getElementById('sp-epithet').textContent = '';
  document.getElementById('sp-subtitle').textContent =
  `${PC.race.toUpperCase()} ${PC.type==='warrior'?' WARRIOR':PC.type==='rogue'?' ROGUE':' WIZARD'} Lv${PC.level}`;
 
@@ -53238,7 +53524,7 @@ function renderStatusPanel(){
  wpHtml += `<div style="background:var(--ink);border:1px solid #550055;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#f0ece0"> ${w.name}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
  </div>
  <div style="display:flex;gap:4px"><button onclick="unequipWeapon(${i})" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>${discBtn('wEq',-1,i)}</div>
  </div>`;
@@ -53264,7 +53550,7 @@ function renderStatusPanel(){
  <div style="display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${displayName} ${baseLabel}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}</div>${weaponDescHtml(w)}
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
  </div>
  <div style="display:flex;gap:4px">
  <button onclick="equipWeapon(${idx})" ${check.ok?btnStyle('var(--nature2)','#0e1006','var(--rust)'):`disabled ${btnStyle('#444','#111','#a0a0a0')}`}>${check.ok?'装備':'不可'}</button>
@@ -53285,7 +53571,7 @@ function renderStatusPanel(){
   rngHtml += `<div style="background:var(--ink);border:1px solid #484848;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
   <div>
   <div style="font-size:var(--font-sm);color:#e0d8c8"> ${rngW.name}</div>
-  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rngW.dice}D+${rngW.adds}　${rngW.isRanged?'弓':'投擲'}</div>${weaponDescHtml(rngW)}
+  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rngW.dice}D+${rngW.adds}　${rngW.isRanged?'弓':'投擲'}${wtLbl(rngW.weight)}</div>${weaponDescHtml(rngW)}
   </div>
   <div style="display:flex;gap:4px"><button onclick="unequipRanged()" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>${discBtn('ranged',-1)}</div>
   </div>`;
@@ -53297,7 +53583,7 @@ function renderStatusPanel(){
  rangedCandidates.forEach(w=>{
   const idx = PC.invWeapons.indexOf(w);
   rngHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
-  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
+  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds}${wtLbl(w.weight)}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
   <div style="display:flex;gap:4px"><button onclick="equipRanged(${idx})" ${btnStyle('var(--white2)','var(--info-bg)','var(--info-border)')}>遠距離装備</button>${discBtn('wInv',-1,idx)}</div>
   </div>`;
  });
@@ -53317,7 +53603,7 @@ function renderStatusPanel(){
  arHtml += `<div style="background:var(--ink);border:1px solid #585858;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#ece8e0">${a.isShield?'':''} ${a.name}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${a.hits}hits${isWarrior?` →${eff}hits(×2)`:''}${a.isShield?' [シールド]':''}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${a.hits}hits${isWarrior?` →${eff}hits(×2)`:''}${a.isShield?' [シールド]':''}${wtLbl(a.weight)}</div>
  </div>
  <div style="display:flex;gap:4px"><button onclick="unequipArmor(${i})" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>${discBtn('aEq',-1,i)}</div>
  </div>`;
@@ -53338,7 +53624,7 @@ function renderStatusPanel(){
  arHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0">${a.isShield?'':''} ${a.name}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${a.hits}hits${a.isShield?' [シールド]':''}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${a.hits}hits${a.isShield?' [シールド]':''}${wtLbl(a.weight)}</div>
  </div>
  <div style="display:flex;gap:4px">
  <button onclick="equipArmor(${idx})" ${check.ok?btnStyle('var(--nature2)','#0e1006','var(--rust)'):`disabled ${btnStyle('#444','#111','#a0a0a0')}`}>${check.ok?'装備':check.reason.length>6?'不可':check.reason}</button>
@@ -53361,7 +53647,7 @@ function renderStatusPanel(){
    ? `<button onclick="sellClothing()" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(cDef.cost)}</button>` : '';
   eqHtml += `<div style="background:${equipped?'var(--info-bg)':'var(--panel)'};border:1px solid ${equipped?'var(--info-border)':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
   <div>
-  <div style="font-size:var(--font-sm);color:${equipped?'var(--cyn)':'var(--dim)'}"> ${cName}${equipped?' [装備中]':''}</div>
+  <div style="font-size:var(--font-sm);color:${equipped?'var(--cyn)':'var(--dim)'}"> ${cName}${equipped?' [装備中]':''}</div><div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${wtLbl(cDef?cDef.weight:10).replace('　','')}</div>
   </div>
   <div style="display:flex;gap:4px">
   ${equipped
@@ -53382,7 +53668,7 @@ function renderStatusPanel(){
  : '';
  eqHtml += `<div style="background:${equipped?'var(--info-bg)':'var(--panel)'};border:1px solid ${equipped?'#004444':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
- <div style="font-size:var(--font-sm);color:${equipped?'var(--cyn)':'var(--dim)'}"> ${bootsDisplayName}${equipped?' [装備中]':''}</div>
+ <div style="font-size:var(--font-sm);color:${equipped?'var(--cyn)':'var(--dim)'}"> ${bootsDisplayName}${equipped?' [装備中]':''}</div><div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${wtLbl(bootsDef?bootsDef.weight:40).replace('　','')}</div>
  </div>
  <div style="display:flex;gap:4px">
  ${equipped
@@ -53401,7 +53687,7 @@ function renderStatusPanel(){
   const wearBtn = !PC.invBoots ? `<button onclick="wearSpareFootwearUI('${n}')" ${btnStyle('var(--nature2)','#0e1006','var(--rust)')}>履く</button>` : '';
   const sSell = isShopOpen() && sDef ? `<button onclick="sellSpareFootwear('${n}')" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(sDef.cost)}</button>` : '';
   eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
-  <div><div style="font-size:var(--font-sm);color:var(--dim)"> 予備の${n} ×${cnt}</div></div>
+  <div><div style="font-size:var(--font-sm);color:var(--dim)"> 予備の${n} ×${cnt}</div>${sDef?`<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${wtLbl(sDef.weight*cnt).replace('　','')}</div>`:''}</div>
   <div style="display:flex;gap:4px">${wearBtn}${sSell}${discBtn('spare',-1,FOOTWEAR_NAMES.indexOf(n))}</div>
   </div>`;
  });
@@ -53413,7 +53699,7 @@ function renderStatusPanel(){
  ? `<button onclick="sellEquip(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(def.cost)}</button>`
  : '';
  eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
- <div style="font-size:var(--font-sm);color:var(--text)"> ${e}</div>
+ <div><div style="font-size:var(--font-sm);color:var(--text)"> ${e}</div>${def?`<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${wtLbl(def.weight).replace('　','')}</div>`:''}</div>
  <div style="display:flex;gap:4px">${sellBtn}${discBtn('equip',-1,idx)}</div>
  </div>`;
  });
@@ -53426,14 +53712,14 @@ function renderStatusPanel(){
  ? `<button onclick="sellTorch()" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(torchDef.cost)}</button>`
  : '';
  eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
- <div style="font-size:var(--font-sm);color:var(--text)"> 松明 ×${total}本</div>
+ <div><div style="font-size:var(--font-sm);color:var(--text)"> 松明 ×${total}本</div>${torchDef?`<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${wtLbl(torchDef.weight*total).replace('　','')}</div>`:''}</div>
  <div style="display:flex;gap:4px">${sellBtn}${discBtn('torch',-1)}</div>
  </div>`;
  }
  // 食料
  if((PC._food || 0) > 0){
  eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
- <div style="font-size:var(--font-sm);color:var(--text)"> 食料 ${PC._food}日分</div>
+ <div><div style="font-size:var(--font-sm);color:var(--text)"> 食料 ${PC._food}日分</div><div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${wtLbl(PC._food*5).replace('　','')}</div></div>
  ${discBtn('food',-1)}
  </div>`;
  }
@@ -53443,7 +53729,7 @@ function renderStatusPanel(){
  ? `<button onclick="sellArrows()" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${arrowSellLabel(1)}/本</button>`
  : '';
  eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
- <div style="font-size:var(--font-sm);color:var(--text)"> 矢 ×${PC.arrows}本</div>
+ <div><div style="font-size:var(--font-sm);color:var(--text)"> 矢 ×${PC.arrows}本</div><div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${wtLbl(arrowsWeight(PC.arrows)).replace('　','')}</div></div>
  <div style="display:flex;gap:4px">${sellBtn}<button onclick="discardArrows()" style="background:#150808;border:1px solid #5a3030;color:#c89090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:5px 8px;cursor:pointer;border-radius:3px">捨てる</button></div>
  </div>`;
  }
@@ -55119,6 +55405,7 @@ function startAsNPC(npcIdx){
 
  // NPCのデータをPCに転写
  Object.assign(PC, JSON.parse(JSON.stringify(npc)));
+ PC._npcEquipWeight = true; // 世代交代：旧セーブからの引き継ぎでも仲間NPCの装備重量を反映する
  PC.town = lastTown;
  // PCとして不要なNPC固有フィールドをクリア
  PC.party = [];
@@ -56581,6 +56868,7 @@ function _startNewRound(){
   updateHUD();
  }
  // 前ラウンドのフラグをリセット
+ wbRoundStart();   // Keen Blade / Whammy：かけて1ラウンド過ぎたら解除
  cbtState._pcDidCast   = false;
  cbtState._pcDidRanged = false;
  cbtState._pcRangedSkipped = false;
@@ -56651,9 +56939,19 @@ function _handlePCZeroCon(cl){
 // 現在、討伐同行者募集ダンジョン内かどうかを直接判定する（cbtState.autoNPCの受け渡し漏れに備えた保険）
 // Enchant Weapon / Fortify Armorの持続ターンを減らす（PC._torchTurns--と同じタイミングで呼ぶ）
 function _decrementWizardBuffTurns(){
+ (PC.party||[]).forEach(n=>{
+  if((n._enchantWeaponTurns||0) > 0){
+   n._enchantWeaponTurns--;
+   if(n._enchantWeaponTurns === 0){
+    n._enchantWeapon = null;
+    PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-bottom:8px"> ${n.name}のEnchant Weaponの効果が切れた。</div>`;
+   }
+  }
+ });
  if((PC._enchantWeaponTurns||0) > 0){
   PC._enchantWeaponTurns--;
   if(PC._enchantWeaponTurns === 0){
+   PC._enchantWeapon = null;
    PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#c8b8a0;font-size:var(--font-sm);margin-bottom:8px"> Enchant Weaponの効果が切れた。</div>`;
   }
  }
@@ -56956,17 +57254,6 @@ function _magicPhaseStepNPC(){
  skipBtn.onclick=()=>{ cbtState._npcMagicIdx = idx+1; _magicPhaseStepNPC(); };
  btns.appendChild(skipBtn);
 
- const skipAllBtn = document.createElement('button');
- skipAllBtn.className='choice-btn';
- skipAllBtn.style.cssText='border-color:var(--white2);color:var(--white);font-size:calc(var(--font-sm) - 1px)';
- skipAllBtn.textContent='近接攻撃フェーズへ';
- skipAllBtn.onclick=()=>{
-  panel.style.display='none';
-  // PC・パーティNPCの残りはスキップするが、敵（wizard型）の残り分は自動処理を継続する
-  cbtState._magicSkipRemainingPcParty = true;
-  _magicPhaseStepNPC();
- };
- btns.appendChild(skipAllBtn);
 }
 
 function _magicPhaseSpellSelectNPC(){
@@ -56981,8 +57268,9 @@ function _magicPhaseSpellSelectNPC(){
   const b = document.createElement('button');
   b.className='choice-btn';
   b.style.cssText='border-color:#d8d0c0;color:'+(canAfford?'var(--info2)':'var(--info-border)');
-  b.innerHTML=`${sp.name} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>`;
-  b.disabled=!canAfford;
+  const _blk = wbSpellBlock(sp, PC);
+  b.innerHTML=`${sp.name} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>${_blk ? `<br><span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">${_blk}</span>` : ''}`;
+  b.disabled=!canAfford || !!_blk;
   b.onclick=()=>{
    document.getElementById('npc-action-panel').style.display='none';
    cbtState._pcDidCast = true;
@@ -57152,12 +57440,6 @@ function _magicPhaseStep(npcIdx, magicParty, pcDone){
   skipBtn.onclick=()=>{ panel.style.display='none'; _magicPhaseStep(0, magicParty, true); };
   btns.appendChild(skipBtn);
 
-  const skipAllBtn = document.createElement('button');
-  skipAllBtn.className='choice-btn';
-  skipAllBtn.style.cssText='border-color:var(--white2);color:var(--white);font-size:calc(var(--font-sm) - 1px)';
-  skipAllBtn.textContent='近接攻撃フェーズへ';
-  skipAllBtn.onclick=()=>{ panel.style.display='none'; _skipToMeleePhase(); };
-  btns.appendChild(skipAllBtn);
   return;
  }
 
@@ -57221,12 +57503,6 @@ function _magicPhaseStep(npcIdx, magicParty, pcDone){
  skipBtn.onclick=()=>{ _magicPhaseStep(npcIdx+1, magicParty); };
  btns.appendChild(skipBtn);
 
- const skipAllBtn = document.createElement('button');
- skipAllBtn.className='choice-btn';
- skipAllBtn.style.cssText='border-color:var(--white2);color:var(--white);font-size:calc(var(--font-sm) - 1px)';
- skipAllBtn.textContent='近接攻撃フェーズへ';
- skipAllBtn.onclick=()=>{ document.getElementById('npc-action-panel').style.display='none'; _skipToMeleePhase(); };
- btns.appendChild(skipAllBtn);
 }
 
 function _skipToMeleePhase(){
@@ -57248,8 +57524,9 @@ function _magicPhaseSpellSelect(npcIdx, magicParty){
   const b = document.createElement('button');
   b.className='choice-btn';
   b.style.cssText='border-color:#d8d0c0;color:'+(canAfford?'var(--info2)':'var(--info-border)');
-  b.innerHTML=`${sp.name} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>`;
-  b.disabled=!canAfford;
+  const _blk = wbSpellBlock(sp, PC);
+  b.innerHTML=`${sp.name} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>${_blk ? `<br><span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">${_blk}</span>` : ''}`;
+  b.disabled=!canAfford || !!_blk;
   b.onclick=()=>{
    document.getElementById('npc-action-panel').style.display='none';
    cbtState._pcDidCast = true;
@@ -57281,8 +57558,9 @@ function _magicPhaseNPCSpellSelect(npc, npcIdx, magicParty){
   const b=document.createElement('button');
   b.className='choice-btn';
   b.style.cssText='border-color:#d8d0c0;color:'+(canAfford?'var(--info2)':'var(--info-border)');
-  b.innerHTML=`${sp.name} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>`;
-  b.disabled=!canAfford;
+  const _blk = wbSpellBlock(sp, npc);
+  b.innerHTML=`${sp.name} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>${_blk ? `<br><span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">${_blk}</span>` : ''}`;
+  b.disabled=!canAfford || !!_blk;
   b.onclick=()=>{
    cbtState[`_npcDidCast_${partyIdx}`]=true;
    _npcCastSpellInPhase(npc, npcIdx, magicParty, sp);
@@ -57328,8 +57606,8 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp, customOnDone){
  if(sp.fn === 'vorpal' || sp.fn === 'whammy'){
   npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
   const cfg = sp.fn==='vorpal'
-   ? {pcFlagKey:'vorpalActive', npcFlagKey:'_vorpalNext', effectLabel:'次のラウンド武器ダイス2倍！'}
-   : {pcFlagKey:'whammyActive', npcFlagKey:'_whammyNext', effectLabel:'次のラウンド武器ダイス3倍！'};
+   ? {kind:'vorpal', effectLabel:'次のラウンド武器ダイス2倍！'}
+   : {kind:'whammy', effectLabel:'次のラウンド武器ダイス3倍！'};
   _npcBuffTargetSelect(npc, npcIdx, magicParty, sp, onDone, cfg);
   return;
  }
@@ -57477,7 +57755,12 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp, customOnDone){
 // ── NPC詠唱：バフ系呪文の対象選択（Keen Blade / Battle Surge） ──
 function _npcBuffTargetSelect(npc, npcIdx, magicParty, sp, onDone, cfg){
  const aliveOthers = (PC.party||[]).filter(n=>n.con>0 && n!==npc);
- const targets = [npc, PC, ...aliveOthers];
+ const targets = [npc, PC, ...aliveOthers].filter(a=>wbAvail(a).length);   // すでに魔法がかかった武器しかない人は選べない
+ if(!targets.length){
+  npc.st = (npc.st||0) + _applyStaffDiscount(npc, sp.cost);   // 不発：強さを返す
+  document.getElementById('clog').innerHTML += `<span style="color:#e0d8c8"> ${npc.name}の${sp.name}は、すでに魔法がかかった武器にはかけられず、不発だった。</span><br>`;
+  onDone(); return;
+ }
  const panel = document.getElementById('npc-action-panel');
  const title = document.getElementById('npc-action-title');
  const btns  = document.getElementById('npc-action-btns');
@@ -57490,8 +57773,7 @@ function _npcBuffTargetSelect(npc, npcIdx, magicParty, sp, onDone, cfg){
   b.style.cssText='border-color:#d8d0c0;color:#e0d8c8';
   b.textContent = actor===npc ? `${npc.name}（自分）` : actor===PC ? `${PC.name}（あなた）` : actor.name;
   b.onclick=()=>{
-   if(actor===PC){ cbtState[cfg.pcFlagKey]=true; }
-   else { actor[cfg.npcFlagKey]=true; }
+   wbArm(actor, cfg.kind, wbDefaultSel(actor));   // 仲間が自分でかけるときは、ダイスが一番多い武器にかかる
    const cl=document.getElementById('clog');
    const targetLabel = actor===npc ? '自分' : actor===PC ? PC.name : actor.name;
    cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を${targetLabel}にかけた！${cfg.effectLabel}</span><br>`;
@@ -58005,7 +58287,7 @@ function _rangedPhaseStep(npcIdx, rangedParty){
  if(cbtState.autoNPC || _isCompanionHuntCombat()){
   const w = npc.equippedRanged;
   const needsArrow = w && w.isRanged && !w.rangedOk;
-  const daggerUsed = w && w.rangedOk && cbtState[`_npcDaggerUsed_${npcIdx}`];
+  const daggerUsed = w && w.rangedOk && cbtState[`_npcDaggerUsed_${(PC.party||[]).indexOf(npc)}`];   // 記録はパーティ内の番号で付ける（遠距離組の中の順番ではない）
   const hasArrow = !needsArrow || (npc.arrows||0) > 0;
   const alive = cbtState.enemies.filter(e=>(cbtState.isNPC?e.curCon:e.curMR)>0);
   if(w && hasArrow && !daggerUsed && alive.length>0){
@@ -58028,7 +58310,7 @@ function _rangedPhaseStep(npcIdx, rangedParty){
  // 弓の場合は矢チェック、短剣は投擲済みチェック
  const _nW = npc.equippedRanged;
  const _nNeedsArrow = _nW.isRanged && !_nW.rangedOk;
- const _nDaggerUsed = _nW.rangedOk && (cbtState[`_npcDaggerUsed_${npcIdx}`]);
+ const _nDaggerUsed = _nW.rangedOk && (cbtState[`_npcDaggerUsed_${(PC.party||[]).indexOf(npc)}`]);
  const _nHasArrow = !_nNeedsArrow || (npc.arrows||0) > 0;
  const _nCanRanged = _nHasArrow && !_nDaggerUsed;
  const doRanged = document.createElement('button');
@@ -58076,10 +58358,11 @@ function _npcRangedAttack(npc, target, npcIdx, rangedParty, customOnDone){
  const onDone = customOnDone || (()=>{ _rangedPhaseStep(npcIdx+1, rangedParty); });
  const w = npc.equippedRanged;
  const cl = document.getElementById('clog');
+ const _pIdx = (PC.party||[]).indexOf(npc);   // 攻撃済みの記録は、パーティ内の番号で付ける（呼び出し元の添字は遠距離組の中の順番のことがある）
  // 弓の場合は矢を1本消費、短剣は投擲済みフラグ
  if(w.isRanged && !w.rangedOk){ npc.arrows = Math.max(0,(npc.arrows||0)-1); }
- else if(w.rangedOk){ cbtState[`_npcDaggerUsed_${npcIdx}`] = true; }
- cbtState[`_npcDidRanged_${npcIdx}`] = true;
+ else if(w.rangedOk){ cbtState[`_npcDaggerUsed_${_pIdx}`] = true; }
+ cbtState[`_npcDidRanged_${_pIdx}`] = true;
  const sr = savingRoll('dex', 2, npc);
  if(sr.success){
   const diceRoll = Nd6(w.dice);
@@ -58399,16 +58682,18 @@ function _doFightNPCCore(cs){
  else {
   // 全装備武器のダイスを合計（二刀流対応。addsは武器ごとに合算）
   let totalDice = 0; let totalWeaponAdds = 0;
+  const _vi = (cs.vorpalActive && !cs._pcDidCast) ? wbTargetIdx(PC,'vorpal',equipped) : -1;   // かけた武器だけ倍になる
+  const _wi = (cs.whammyActive && !cs._pcDidCast) ? wbTargetIdx(PC,'whammy',equipped) : -1;
   equipped.forEach((w,wi)=>{
    let dice = w.dice;
-   if(wi===0 && cs.vorpalActive && !cs._pcDidCast){ dice*=2; }
-   if(wi===0 && cs.whammyActive && !cs._pcDidCast){ dice*=3; }
-   if((PC._enchantWeaponTurns||0) > 0){ dice*=3; }
+   if(wi===_vi){ dice*=2; }
+   if(wi===_wi){ dice*=3; }
+   if(wbEnchantOn(wi, equipped)){ dice*=3; }
    totalDice += dice;
    totalWeaponAdds += (w.adds||0);
   });
-  if(cs.vorpalActive && !cs._pcDidCast) cs.vorpalActive=false;
-  if(cs.whammyActive && !cs._pcDidCast) cs.whammyActive=false;
+  if(cs.vorpalActive && !cs._pcDidCast) wbClear(PC,'vorpal');
+  if(cs.whammyActive && !cs._pcDidCast) wbClear(PC,'whammy');
   const rv=rollNd6(totalDice); pRoll=rv.total+totalWeaponAdds+adds; pDice=rv.dice;
  }
  cs._pDiceThisTurn=pDice; cs._pRollThisTurn=pRoll;
@@ -58453,7 +58738,7 @@ function resolveRoundNPC(pRoll, npcActions){
   else if(action==='chaos_miss'){ r=0; } // カオス能力値テスト失敗による空振り
   else if(action==='spell' && bonus){
    if(bonus.type==='ttyf') r=bonus.value;
-   else if(bonus.type==='vorpal'){ npc._vorpalNext=true; r=0; }
+   else if(bonus.type==='vorpal'){ { const _s = wbDefaultSel(npc); if(_s !== false) wbArm(npc,'vorpal',_s); } r=0; }
    else r=bonus.value;
   }
   partyRoll += r;
@@ -58949,8 +59234,9 @@ function _showSpellChoices(){
   const b = document.createElement('button');
   b.className = 'choice-btn';
   b.style.cssText = 'border-color:#d8d0c0;color:' + (canAfford ? 'var(--info2)' : 'var(--info-border)');
-  b.innerHTML = `${sp.name} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>`;
-  b.disabled = !canAfford;
+  const _blk = wbSpellBlock(sp, PC);
+  b.innerHTML = `${sp.name} <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px)">強さ-${sp.cost}</span>${_blk ? `<br><span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px)">${_blk}</span>` : ''}`;
+  b.disabled = !canAfford || !!_blk;
   b.onclick = ()=>{
    _hidePCActionChoices();
    document.getElementById('npc-action-panel').style.display = 'none';
@@ -59041,16 +59327,18 @@ function doFight(){
  } else {
   // 全装備武器のダイスを合計（adds は1回のみ）
   let totalDice = 0; let totalWeaponAdds = 0;
+  const _vi = (cs.vorpalActive && !cs._pcDidCast) ? wbTargetIdx(PC,'vorpal',equipped) : -1;   // かけた武器だけ倍になる
+  const _wi = (cs.whammyActive && !cs._pcDidCast) ? wbTargetIdx(PC,'whammy',equipped) : -1;
   equipped.forEach((w,wi)=>{
    let dice = w.dice;
-   if(wi===0 && cs.vorpalActive && !cs._pcDidCast){ dice*=2; }
-   if(wi===0 && cs.whammyActive && !cs._pcDidCast){ dice*=3; }
-   if((PC._enchantWeaponTurns||0) > 0){ dice*=3; }
+   if(wi===_vi){ dice*=2; }
+   if(wi===_wi){ dice*=3; }
+   if(wbEnchantOn(wi, equipped)){ dice*=3; }
    totalDice += dice;
    totalWeaponAdds += (w.adds||0);
   });
-  if(cs.vorpalActive && !cs._pcDidCast) cs.vorpalActive=false;
-  if(cs.whammyActive && !cs._pcDidCast) cs.whammyActive=false;
+  if(cs.vorpalActive && !cs._pcDidCast) wbClear(PC,'vorpal');
+  if(cs.whammyActive && !cs._pcDidCast) wbClear(PC,'whammy');
   const rv=rollNd6(totalDice); pDice=rv.dice; pRoll=rv.total+totalWeaponAdds+adds;
  }
  if(cs.littleFeetsRounds>0){ cs.littleFeetsRounds--; const totalD=equipped.reduce((s,w)=>s+(w.dice||1),0)||1; const rv2=rollNd6(totalD); pDice.push(...rv2.dice); pRoll+=rv2.total; }
@@ -59136,7 +59424,7 @@ function showNPCActionPhase(idx, aliveParty){
       document.getElementById('dice-area').classList.add('hidden');
       document.getElementById('text-win').style.display = 'none';
       cl.innerHTML += `<span style="color:#f0ece0"> 歪みを見切った！</span><br>`;
-      _cbtNPCActions.push({npc, action:'fight'});
+      _cbtNPCActions.push({npc, action:'attack'});
       if(idx+1 < aliveParty.length) _pendingCombatResume = ()=>showNPCActionPhase(idx+1, aliveParty);
       showNPCActionPhase(idx+1, aliveParty);
      },
@@ -59266,7 +59554,7 @@ function resolveRound(pRoll, npcActions){
   if(bonus.type==='ttyf'){
    r = bonus.value; // Magic Boltは直接ヒット値として加算
   } else if(bonus.type==='vorpal'){
-   npc._vorpalNext = true; r = 0;
+   { const _s = wbDefaultSel(npc); if(_s !== false) wbArm(npc,'vorpal',_s); } r = 0;
   } else {
    r = bonus.value;
   }
@@ -59536,12 +59824,13 @@ function _openSpellModalFor(caster, context, nodeSpellEffects, nodeId){
   const effect = nodeSpellEffects && nodeSpellEffects[sp.fn];
   const btn = document.createElement('button');
   btn.className = 'sm-spell-btn';
-  btn.disabled = !canAfford;
+  const _blk = wbSpellBlock(sp, caster);
+  btn.disabled = !canAfford || !!_blk;
 
   btn.innerHTML = `
    <span class="sm-name">${sp.name}</span>
    <span class="sm-desc">${isUnlockTrap ? '気づいている罠を解除する（レベルを選択）' : sp.desc}</span>
-   <span class="sm-cost">${isUnlockTrap ? '強さ -2×レベル' : `強さ -${sp.cost}`}　（現在強さ ${caster.st}）</span>`;
+   <span class="sm-cost">${isUnlockTrap ? '強さ -2×レベル' : `強さ -${sp.cost}`}　（現在強さ ${caster.st}）${_blk ? '　' + _blk : ''}</span>`;
 
   btn.addEventListener('click', () => {
    if(isUnlockTrap){
@@ -59713,7 +60002,89 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
   }
   return;
  }
+ // Keen Blade：戦闘の外でもかけられる（誰の・どの武器にかけるかを選ぶ）。効果は次の戦闘の最初のラウンドだけ
+ if(spell.fn === 'vorpal' || spell.fn === 'whammy'){
+  const _kind = spell.fn, _mult = _kind === 'vorpal' ? 2 : 3;
+  const box = (inner)=>`<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px"><div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>${inner}</div>`;
+  const _back = ()=>{
+   if(PC._yeldunDungeon && _ydState && _ydState.nodeId){ ydGoNode(_ydState.nodeId, _ydState.floor); }
+   else if(window._currentHuntNode){ _huntGoNode(window._currentHuntNode._idx); }
+   else if(_huntState && _huntState.nodeId){ _huntGoNode(_huntState.nodeId); }
+   else { go(currentNodeId); }
+  };
+  const done = (actor, sel)=>{
+   if(actor === PC){ PC['_'+_kind+'Out'] = sel || {idx:-1, name:''}; }
+   else { const k = wbKeys(actor, _kind); actor[k.on] = true; actor[k.w] = sel || null; actor[k.age] = -1; }
+   const who = actor === PC ? PC.name : actor.name;
+   const wLabel = (sel && (actor.equippedWeapons||[]).length >= 2) ? `${sel.name}が` : '';
+   story.innerHTML += box(`<div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${casterLabel}${who}の${wLabel}魔力を帯びた！次の戦闘の最初のラウンド、武器ダイスが${_mult}倍になる。</div><div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">強さ -${spell.cost}　経験値+${spell.cost}</div>`);
+   updateHUD(); scrollToTop();
+   renderChoices([{label:'▶ OK', fn:_back}]);
+  };
+  const pickWeapon = (actor)=>{
+   const eq = actor.equippedWeapons || [];
+   const av = wbAvail(actor);   // すでに魔法がかかった武器は選べない
+   if(av.length <= 1){ done(actor, wbDefaultSel(actor) || null); return; }
+   story.innerHTML += box(`<div style="color:var(--white);font-size:var(--font-sm)">${actor === PC ? PC.name : actor.name}のどの武器にかけますか？</div>`);
+   scrollToTop();
+   renderChoices(av.map(i=>{ const w = eq[i]; return {label:` ${w.name}（${w.dice}D${(w.adds||0) ? (w.adds>0?'+':'')+w.adds : ''}）`, fn:()=>done(actor, {idx:i, name:w.name})}; }));
+  };
+  const targets = [PC, ...(PC.party||[]).filter(n=>n.con > 0)].filter(a=>wbAvail(a).length);   // すでに魔法がかかった武器しかない人は選べない
+  if(!targets.length){
+   caster.st += discCost;   // 不発：強さを返す
+   gainAPAll(-spell.cost);
+   updateHUD();
+   story.innerHTML += box(`<div style="color:var(--white2);font-size:var(--font-sm)">すでに魔法がかかった武器にはかけられない。（強さは消費されない）</div>`);
+   scrollToTop();
+   renderChoices([{label:'▶ OK', fn:_back}]);
+   return;
+  }
+  if(targets.length === 1){ pickWeapon(targets[0]); }
+  else {
+   story.innerHTML += box(`<div style="color:var(--white);font-size:var(--font-sm)">誰にかけますか？</div>`);
+   scrollToTop();
+   renderChoices(targets.map(a=>({label: a === PC ? ` ${PC.name}（あなた）` : ` ${a.name}`, fn:()=>pickWeapon(a)})));
+  }
+  return;
+ }
  // Enchant Weapon / Fortify Armor：戦闘外でPC自身に恒久バフをかける（ノード固有の反応ではなく常時発動）
+ // Enchant Weapon：誰の・どの武器にかけるかを選ぶ（PCから仲間、仲間からPC、自分自身にもかけられる。かけた武器だけ、ヒットダイスが3倍）
+ if(spell.fn === 'enchantWeapon'){
+  const box = (inner)=>`<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px"><div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>${inner}</div>`;
+  const targets = [PC, ...(PC.party||[]).filter(n=>n.con>0)].filter(a=>(a.equippedWeapons||[]).length && wbAvail(a).length);   // すでに魔法がかかった武器しかない人は選べない
+  if(!targets.length){
+   caster.st += discCost; gainAPAll(-spell.cost); updateHUD();   // 不発：強さを返す
+   story.innerHTML += box(`<div style="color:var(--white2);font-size:var(--font-sm)">魔法をかけられる武器がない。（強さは消費されない）</div>`);
+   scrollToTop();
+   return;
+  }
+  const turns = 6 + Math.floor(Math.random()*19); // 6〜24
+  let ui = false;   // 選択肢を出したら、最後に「▶ OK」で元の画面へ戻す
+  const apply = (actor, i)=>{
+   const eq = actor.equippedWeapons;
+   actor._enchantWeaponTurns = turns;
+   actor._enchantWeapon = {idx:i, name:eq[i].name};
+   const who = actor === PC ? PC.name : actor.name;
+   story.innerHTML += box(`<div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${casterLabel}${who}の${eq[i].name}が魔力を帯びて輝いた！${turns}ターンの間、ヒットダイスが3倍になる。</div><div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 2px);margin-top:4px">強さ -${spell.cost}　経験値+${spell.cost}</div>`);
+   updateHUD(); scrollToTop();
+   if(ui) renderChoices([{label:'▶ OK', fn:wbBackToNode}]);
+  };
+  const pickWeapon = (actor)=>{
+   const eq = actor.equippedWeapons;
+   const av = wbAvail(actor);   // すでに魔法がかかった武器は選べない
+   if(av.length === 1){ apply(actor, av[0]); return; }
+   ui = true;
+   story.innerHTML += box(`<div style="color:var(--white);font-size:var(--font-sm)">${actor === PC ? PC.name : actor.name}のどの武器にかけますか？</div>`);
+   scrollToTop();
+   renderChoices(av.map(i=>{ const w = eq[i]; return {label:` ${w.name}（${w.dice}D${(w.adds||0) ? (w.adds>0?'+':'')+w.adds : ''}）`, fn:()=>apply(actor, i)}; }));
+  };
+  if(targets.length === 1){ pickWeapon(targets[0]); return; }
+  ui = true;
+  story.innerHTML += box(`<div style="color:var(--white);font-size:var(--font-sm)">誰の武器にかけますか？</div>`);
+  scrollToTop();
+  renderChoices(targets.map(a=>({label: a === PC ? ` ${PC.name}（あなた）` : ` ${a.name}`, fn:()=>pickWeapon(a)})));
+  return;
+ }
  if(spell.fn === 'enchantWeapon' || spell.fn === 'fortifyArmor'){
   const turns = 6 + Math.floor(Math.random()*19); // 6〜24
   if(spell.fn === 'enchantWeapon'){
@@ -60048,7 +60419,9 @@ function renderSpellList(ctx){
  const canAfford=PC.st>sp.cost;
  const btn=document.createElement('button');btn.className='spell-btn';
  btn.innerHTML=`${sp.name} <span class="sp-cost">強さ-${sp.cost}</span><br><span style="color:var(--white2);font-size:calc(var(--font-lg) + 4px)">${sp.desc}</span>`;
- btn.disabled=!canAfford;
+ const _blk = wbSpellBlock(sp, PC);
+ btn.disabled=!canAfford || !!_blk;
+ if(_blk) btn.title=_blk;
  btn.onclick=()=>castSpell(sp,ctx);
  el.appendChild(btn);
  });
@@ -60086,15 +60459,26 @@ function castSpell(spell,ctx){
  } else {result.textContent='戦闘中のみ使用可';}break;
  case 'vorpal':
  if(cbtState){
+  if(wbSpellBlock(spell, PC)){ wbCastFail(spell, PC, result); break; }
   const aliveParty = (PC.party||[]).filter(n=>n.con>0);
   if(!aliveParty.length){
-   // ソロ：PCに適用
-   cbtState.vorpalActive=true;
+   // ソロ：PCに適用（武器を2本以上持っていれば、どの武器かを選ぶ）
+   const choicesEl = document.getElementById('choices');
    result.innerHTML=' <span class="wizard-c">Keen Blade</span>: 次のラウンド武器ダイス2倍！';
+   if((PC.equippedWeapons||[]).length >= 2){
+    wbPickWeapon(PC, 'vorpal', choicesEl, null, sel=>{
+     wbArm(PC,'vorpal',sel);
+     result.innerHTML=` <span class="wizard-c">Keen Blade</span>: ${PC.name}の${sel.name}が、次のラウンド武器ダイス2倍！`;
+     choicesEl.innerHTML = '';
+     if(cbtState._magicPhaseNext){ cbtState._magicPhaseNext(); }
+    });
+    return;
+   }
+   wbArm(PC,'vorpal',wbDefaultSel(PC));
   } else {
    // パーティあり：対象を選ぶ
    result.innerHTML=' <span class="wizard-c">Keen Blade</span>: 誰にかけますか？';
-   const targets = [PC, ...aliveParty];
+   const targets = [PC, ...aliveParty].filter(a=>wbAvail(a).length);   // すでに魔法がかかった武器しかない人は選べない
    const oldChoices = document.getElementById('choices').innerHTML;
    const choicesEl = document.getElementById('choices');
    choicesEl.innerHTML = '';
@@ -60103,15 +60487,15 @@ function castSpell(spell,ctx){
     btn.className = 'choice-btn';
     btn.textContent = actor === PC ? `${PC.name}（あなた）` : actor.name;
     btn.onclick = ()=>{
-     if(actor === PC){
-      cbtState.vorpalActive = true;
-     } else {
-      actor._vorpalNext = true;
-     }
-     result.innerHTML=` <span class="wizard-c">Keen Blade</span>: ${actor===PC?PC.name:actor.name}の次のラウンド武器ダイス2倍！`;
-     choicesEl.innerHTML = '';
-     // 魔法フェーズ継続
-     if(cbtState._magicPhaseNext){ cbtState._magicPhaseNext(); }
+     const finish = (sel)=>{
+      wbArm(actor,'vorpal',sel);
+      result.innerHTML=` <span class="wizard-c">Keen Blade</span>: ${actor===PC?PC.name:actor.name}${sel && (actor.equippedWeapons||[]).length>=2 ? 'の'+sel.name+'が' : 'の'}次のラウンド武器ダイス2倍！`;
+      choicesEl.innerHTML = '';
+      // 魔法フェーズ継続
+      if(cbtState._magicPhaseNext){ cbtState._magicPhaseNext(); }
+     };
+     // 武器を2本以上装備していれば、どの武器にかけるかを選ぶ
+     wbPickWeapon(actor, 'vorpal', choicesEl, null, finish);
     };
     choicesEl.appendChild(btn);
    });
@@ -60250,7 +60634,20 @@ function castSpell(spell,ctx){
  }
  break;
  case 'whammy':
- if(cbtState){ cbtState.whammyActive=true; result.innerHTML=' <span class="wizard-c">打撃増加</span>: 武器が魔力で輝いた！次のラウンド武器ダイス3倍！'; }
+ if(cbtState){
+  if(wbSpellBlock(spell, PC)){ wbCastFail(spell, PC, result); break; }
+  const _wDone = (sel)=>{
+   wbArm(PC,'whammy',sel);
+   result.innerHTML=` <span class="wizard-c">打撃増加</span>: ${sel && (PC.equippedWeapons||[]).length>=2 ? sel.name+'が' : '武器が'}魔力で輝いた！次のラウンド武器ダイス3倍！`;
+  };
+  if((PC.equippedWeapons||[]).length >= 2){
+   const choicesEl = document.getElementById('choices');
+   result.innerHTML=' <span class="wizard-c">打撃増加</span>: どの武器にかけますか？';
+   wbPickWeapon(PC, 'whammy', choicesEl, null, sel=>{ _wDone(sel); choicesEl.innerHTML=''; if(cbtState._magicPhaseNext){ cbtState._magicPhaseNext(); } });
+   return;
+  }
+  _wDone(wbDefaultSel(PC));
+ }
  else result.textContent='戦闘中のみ使用可';
  break;
  case 'littleFeets':
@@ -60305,9 +60702,22 @@ function castSpell(spell,ctx){
  // ── Level 4 ──────────────────────────
  case 'enchantWeapon':
  if(!cbtState){
+  const _eq = PC.equippedWeapons || [], _av = wbAvail(PC);
+  if(!_eq.length || !_av.length){
+   PC.st += _applyStaffDiscount(PC, Math.max(1, spell.cost)); updateHUD();   // 不発：強さを返す
+   result.textContent = _eq.length ? 'すでに魔法がかかった武器にはかけられない' : '武器を装備していない';
+   break;
+  }
   const turns = 6 + Math.floor(Math.random()*19); // 6〜24
-  PC._enchantWeaponTurns = turns;
-  result.innerHTML = ` <span class="wizard-c">Enchant Weapon</span>: 武器が魔力を帯びて輝いた！${turns}ターンの間、ヒットダイスが3倍になる。`;
+  const _ap = (i)=>{
+   PC._enchantWeaponTurns = turns; PC._enchantWeapon = {idx:i, name:_eq[i].name};
+   result.innerHTML = ` <span class="wizard-c">Enchant Weapon</span>: ${_eq[i].name}が魔力を帯びて輝いた！${turns}ターンの間、ヒットダイスが3倍になる。`;
+  };
+  if(_av.length === 1){ _ap(_av[0]); }
+  else {
+   result.innerHTML = ' <span class="wizard-c">Enchant Weapon</span>: どの武器にかけますか？';
+   wbPickWeapon(PC, 'enchant', document.getElementById('choices'), null, sel=>{ _ap(sel.idx); wbBackToNode(); });
+  }
  } else {
   PC.st += spell.cost; // 強さ返還
   result.textContent = '戦闘中は使用できない';
@@ -60469,6 +60879,30 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026110301', sections:[
+  { heading:'新規実装項目', items:[
+   'Keen Blade / Battle Surge / Enchant Weapon を、武器を選んでかけられる（複数の武器を装備している場合）。',
+   'STATUS に「魔法」タブを追加。パーティ全員の習得魔法を、キャラ別・レベル別に確認できる。',
+   '装備屋の売却タブに「まとめて売る」を追加。',
+   '仲間の装備品の重さも所持重量に数える（既存セーブデータは除く）。',
+   '装備・所持品の各品目と矢に、重さの表示を追加。',
+   '魔法使いの杖の効果を、ヘルプの「魔法とリソース」に追記。',
+  ]},
+  { heading:'調整', items:[
+   '探索画面のコマンド欄が画面の大部分を覆う場合に、スクロールできるようにした。',
+   'スマホで STATUS を開いている間は、STATUS だけを全面表示する。',
+   '仲間の STATUS 画面からの魔法詠唱ボタンを廃止。「魔法を使う」画面からの詠唱は、従来どおり。',
+   '魔法フェーズの「近接攻撃フェーズへ」ボタンを廃止し、各キャラの「スキップ」だけにした。',
+   '画面上部の強さを「現在値/最大値」で表示する。',
+   'STATUS の仲間タブに、各仲間の強さと所持重量（現在/限界）を表示する。',
+   '魔法の指輪の表示を、ステータスタブから装備タブへ移した。',
+   '装備品を売る時に、「○○を売りますか？（売値）」の確認を出す（矢を除く）。',
+   '特産品の売却倍率の表示を、実際の倍率に合わせた。',
+  ]},
+  { heading:'不具合修正', items:[
+   '遠距離武器を持たない仲間が、1ターン目に攻撃済みの扱いになって「様子を見る」になってしまう不具合を修正。',
+  ]},
+ ]},
  { version:'ver.2026110201', sections:[
   { heading:'新規実装項目', items:[
    'キャラクター作成で、身長と体重を、おおよその体型から選べるようにした。身長は「短軀・普通・長身」、体重は「軽い・普通・重い」から選ぶと、その範囲の中でランダムに決まる。「オリジナル」を選ぶと、従来のランダムの決め方になる。',
@@ -75026,6 +75460,12 @@ try{ arcDInstallGoalRooms(); }catch(e){ console.error('arcD install', e); }
     updateHUD();
     showSaveToast(actor.name+'にOverdriveを付与した');
    })" class="dbg-btn" style="border-color:#446688;color:#88aacc">Overdrive付与</button>
+   <button onclick="dbg(()=>{
+    PC._npcEquipWeight = !PC._npcEquipWeight;
+    (PC.party||[]).forEach(n=>{ if(typeof checkWeightPenalty==='function') checkWeightPenalty(n); });
+    updateHUD();
+    showSaveToast('仲間NPCの装備重量：'+(PC._npcEquipWeight?'ON':'OFF'));
+   })" class="dbg-btn" style="border-color:#446688;color:#88aacc">仲間の装備重量 ON/OFF</button>
    <button onclick="dbg(()=>{
     document.getElementById('debug-panel').style.display='none';
     _showNPCImportMenu();
