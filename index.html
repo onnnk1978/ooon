@@ -661,7 +661,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026110301</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026110302</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -15062,6 +15062,7 @@ function _transferItem(npcIdx, direction, type, itemIdx){
  }
 
  updateHUD(); checkWeightPenalty(src); checkWeightPenalty(dest);
+ renderStatusPanel(); // 装備タブの所持品表示も更新する（古い表示が残ると渡した物が複製されたように見える）
  showSaveToast(`${itemName} を渡した`);
  _renderItemTransfer(npcIdx, direction);
 }
@@ -16723,13 +16724,18 @@ function _reconcileEquipRefs(actor){
  const usedWIdx = new Set();
  (actor.equippedWeapons||[]).forEach(eq=>{
   if((actor.invWeapons||[]).includes(eq)){ usedWIdx.add((actor.invWeapons||[]).indexOf(eq)); return; }
-  const idx = (actor.invWeapons||[]).findIndex((w,i)=>w.name===eq.name && !usedWIdx.has(i));
+  // 同名の別の武器（鍛錬済みなど）を取り違えないよう、中身まで一致するものを優先して結び付ける
+  const _eqJ = JSON.stringify(eq);
+  let idx = (actor.invWeapons||[]).findIndex((w,i)=>!usedWIdx.has(i) && JSON.stringify(w)===_eqJ);
+  if(idx<0) idx = (actor.invWeapons||[]).findIndex((w,i)=>w.name===eq.name && !usedWIdx.has(i));
   if(idx>=0){ actor.invWeapons[idx] = eq; usedWIdx.add(idx); }
  });
  const usedAIdx = new Set();
  (actor.equippedArmors||[]).forEach(eq=>{
   if((actor.invArmors||[]).includes(eq)){ usedAIdx.add((actor.invArmors||[]).indexOf(eq)); return; }
-  const idx = (actor.invArmors||[]).findIndex((a,i)=>a.name===eq.name && !usedAIdx.has(i));
+  const _eqJ = JSON.stringify(eq);
+  let idx = (actor.invArmors||[]).findIndex((a,i)=>!usedAIdx.has(i) && JSON.stringify(a)===_eqJ);
+  if(idx<0) idx = (actor.invArmors||[]).findIndex((a,i)=>a.name===eq.name && !usedAIdx.has(i));
   if(idx>=0){ actor.invArmors[idx] = eq; usedAIdx.add(idx); }
  });
 }
@@ -53280,7 +53286,7 @@ function renderNPCDetail(el, n, idx){
   } else {
    rHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--white2);padding:6px;margin-bottom:4px">（なし）</div>`;
   }
-  const candidates = (n.invWeapons||[]).filter(w=>isRangedWeapon(w) && !(rw && rw.name===w.name));
+  const candidates = (n.invWeapons||[]).filter(w=>isRangedWeapon(w));
   candidates.forEach((w,wi)=>{
    const widx = (n.invWeapons||[]).indexOf(w);
    rHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
@@ -53579,7 +53585,7 @@ function renderStatusPanel(){
   rngHtml += `<div style="font-size:calc(var(--font-sm) - 2px);color:var(--white2);padding:6px">（なし）</div>`;
  }
  // 遠距離装備可能な所持武器を表示
- const rangedCandidates = PC.type === 'wizard' ? [] : PC.invWeapons.filter(w=>isRangedWeapon(w) && !(PC.equippedRanged && PC.equippedRanged.name===w.name));
+ const rangedCandidates = PC.type === 'wizard' ? [] : PC.invWeapons.filter(w=>isRangedWeapon(w));
  rangedCandidates.forEach(w=>{
   const idx = PC.invWeapons.indexOf(w);
   rngHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
@@ -60879,6 +60885,16 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026110302', sections:[
+  { heading:'調整', items:[
+   '仲間にアイテムを渡した直後に、STATUS の装備タブの表示が古いまま残り、渡した品が主人公の手元にも残っているように見える不具合を修正した。',
+   '同じ名前の遠距離武器を2つ持っているとき、1つを装備してももう1つが所持品に表示されない不具合を修正した。主人公・仲間の両方が対象。',
+  ]},
+  { heading:'不具合修正', items:[
+   '松明なしで暗い迷宮から逃げ出す判定に失敗しても何も起きず、さまよい続けて経験値を稼げてしまう不具合を修正した。失敗すると、転倒して体力が減る。',
+   'セーブデータを読み込んだとき、同じ名前で中身の違う武器・防具が取り違えられ、外すと増えてしまう不具合を修正した。',
+  ]},
+ ]},
  { version:'ver.2026110301', sections:[
   { heading:'新規実装項目', items:[
    'Keen Blade / Battle Surge / Enchant Weapon を、武器を選んでかけられる（複数の武器を装備している場合）。',
