@@ -670,7 +670,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  <div id="delete-save-btn" style="display:none"></div>
  <div style="margin-top:24px;text-align:center">
   <div style="width:min(360px,90vw);margin:0 auto 10px;padding:8px 10px;background:#2a1f08;border:1px solid #6a5220;border-radius:4px;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#e0c88a;text-align:center;line-height:1.5">
-   💡 しばらく開かないとセーブデータが消える場合があります（特にiPhone/iPad）。<br>スマホの「ホーム画面に追加」して遊ぶか、定期的なセーブデータ書き出しをおすすめします。
+   💡 しばらく開かないとセーブデータが消える場合があります（特にiPhone/iPad）。<br>スマホの「ホーム画面に追加」して遊ぶか、定期的なセーブデータ書き出しをおすすめします。<br><b>ブラウザをアップデートする前には、必ずセーブデータを書き出してください。</b>
   </div>
   <a href="https://docs.google.com/forms/d/e/1FAIpQLSeoGozIgwWyldsfqyWGXbRdu6wAB8MbqvFZngTFNChlg1d6GQ/viewform?usp=publish-editor" target="_blank" rel="noopener"
    style="color:#887860;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);text-decoration:underline;opacity:0.7">感想・バグ報告はこちら</a>
@@ -2661,7 +2661,7 @@ function renderSpecialMissionMareaBoard(){
  return `<div style="background:#060d0a;border:2px solid #505050;border-radius:4px;padding:12px;margin-bottom:10px">
   <div style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px"> 特命依頼</div>
   <div style="color:#f0ece0;font-size:var(--font-sm);margin-bottom:6px"> マレア地方の神殿　浄化作戦</div>
-  <div style="color:var(--white2);font-size:calc(var(--font-sm) - 1px);line-height:1.8;margin-bottom:10px">「奥地にある古代神殿が混沌に汚染された。調査隊が全滅、正規軍も足止めされている。浄化できる者を募っている」</div>
+  <div style="color:#e8e4d8;font-size:calc(var(--font-sm) - 1px);line-height:1.8;margin-bottom:10px">「奥地にある古代神殿が混沌に汚染された。調査隊が全滅、正規軍も足止めされている。浄化できる者を募っている」</div>
   <button onclick="acceptSpecialMissionMarea()" style="width:100%;background:#060d0a;border:1px solid #505050;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:9px;cursor:pointer;border-radius:3px"> 作戦に参加する</button>
  </div>`;
 }
@@ -17205,6 +17205,7 @@ function _showTransferPanel(){
 
  panel.innerHTML = `
   <div style="color:#e8e0d8;font-size:var(--font-sm);margin-bottom:12px;text-align:center"> セーブデータ 書き出し／読み込み</div>
+  <div style="margin-bottom:10px;padding:6px 8px;background:#2a1f08;border:1px solid #6a5220;border-radius:3px;font-size:calc(var(--font-sm) - 2px);color:#e0c88a;line-height:1.5;text-align:center">ブラウザをアップデートする前には、必ずセーブデータを書き出してください。</div>
   ${slotHtml}
   <div style="margin-bottom:10px">
    <button id="fsp-import-new" style="width:100%;background:#0a0a0a;border:1px solid #484848;color:#e0d8c8;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 1px);padding:8px;cursor:pointer;border-radius:3px;text-align:left"> ファイルから新規スロットへ読み込む</button>
@@ -17235,6 +17236,7 @@ function _showTransferPanel(){
    const a = document.createElement('a');
    a.href = url; a.download = filename; a.click();
    URL.revokeObjectURL(url);
+   try{ localStorage.setItem(EXPORT_LAST_KEY, String(Date.now())); }catch(e){}   // 書き出した日時を覚えておく（起動時の促し表示に使う）
    msg(` ${filename} をダウンロードしました`);
   };
  });
@@ -17721,6 +17723,37 @@ function checkSaveOnTitle(){
   }catch(e){}
  }
 
+ _renderExportReminder(hasAny);
+}
+
+// ── セーブデータ書き出しの促し：前回の書き出しから7日以上経っていたら、タイトル画面に案内を出す ──
+const EXPORT_LAST_KEY = 'tt5_last_export';
+const EXPORT_SNOOZE_KEY = 'tt5_export_snooze_day';
+const EXPORT_REMIND_DAYS = 7;
+function _renderExportReminder(hasAny){
+ const old = document.getElementById('export-reminder'); if(old) old.remove();
+ if(!hasAny) return;
+ let last = 0, snooze = '';
+ try{ last = +localStorage.getItem(EXPORT_LAST_KEY) || 0; snooze = localStorage.getItem(EXPORT_SNOOZE_KEY) || ''; }catch(e){}
+ const today = new Date().toDateString();
+ if(snooze === today) return;   // 「あとで」を押した日は出さない
+ if(last && Date.now() - last < EXPORT_REMIND_DAYS * 86400000) return;
+ const container = document.getElementById('save-slots-container');
+ if(!container || !container.parentNode) return;
+ const box = document.createElement('div');
+ box.id = 'export-reminder';
+ box.style.cssText = 'width:100%;max-width:320px;margin:8px 0;padding:10px;background:#2a1408;border:1px solid #8a4a2a;border-radius:4px;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#f0d0b0;line-height:1.6;text-align:center';
+ box.innerHTML = `${last ? `前回のセーブデータの書き出しから${EXPORT_REMIND_DAYS}日以上経っています。` : 'セーブデータを、まだ書き出していません。'}<br>万一に備えて、書き出しておきませんか？
+  <div style="display:flex;gap:6px;margin-top:8px">
+   <button id="export-reminder-go" style="flex:1;background:var(--ink);border:1px solid #8a4a2a;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px">今すぐ書き出す</button>
+   <button id="export-reminder-later" style="flex:1;background:none;border:1px solid #585858;color:#c8b8a0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px">あとで</button>
+  </div>`;
+ container.parentNode.insertBefore(box, container);
+ document.getElementById('export-reminder-go').onclick = ()=>{ _showTransferPanel(); };
+ document.getElementById('export-reminder-later').onclick = ()=>{
+  try{ localStorage.setItem(EXPORT_SNOOZE_KEY, today); }catch(e){}
+  box.remove();
+ };
 }
 
 // ページロード時にセーブ確認
@@ -20245,7 +20278,7 @@ function _travelTickSched(){
 // ・場面は各町の酒場メニューにボタンとして現れる（arcTavernChoices。fcTavernAskChoices から呼ぶ）
 // ══════════════════════════════════════════
 const ARC_MAX_ACTIVE = 3;
-const ARC_RUMOR_CHANCE = 0.10;       // 酒場で客に話しかけたとき、噂が出る確率
+const ARC_RUMOR_CHANCE = 0.07;       // 酒場で客に話しかけたとき、噂が出る確率
 const ARC_RUMOR_GAP_DAYS = 20;       // 前回の発端から最低この日数は空ける
 const ARC_ENEMY_LV = [3, 5];
 // 続編の段ごとの敵レベル（段1＝前編、段2＝続編、段3＝終章）
@@ -20443,10 +20476,18 @@ function arcRumorPanel(a){
  const T = arcTown(a.home), W = arcTown(a.witnessTown);
  const header = arcRumorHeaderHtml();
  const again = a.chain && a.chain.hook === 'caravan_again';
- const text = `「${arcLeadText(a)}${a.merchant}商会の隊商が、${again ? 'またしても、' : ''}${a.cargo}を積んで出たきり戻らないそうだ。荷馬車が${a.wagons}台、人も${a.missing}人。`
-  + `${a.witness.role}の${a.witness.name}だけが命からがら逃げ延びて、いまは${W}で療養しているらしい。`
-  + `怪我が癒えて、まともに話せるようになるまで、一週間か二週間はかかるそうだがな。`
-  + `……商会は、腕の立つ者に礼を出すと言っている。気になるなら、${W}の酒場を覗いてみるといい」`;
+ const lead = arcLeadText(a), ag = again ? 'またしても、' : '';
+ const body = arcRumorVariant([
+  `${a.merchant}商会の隊商が、${ag}${a.cargo}を積んで出たきり戻らないそうだ。荷馬車が${a.wagons}台、人も${a.missing}人。${a.witness.role}の${a.witness.name}だけが命からがら逃げ延びて、いまは${W}で療養しているらしい。怪我が癒えて、まともに話せるようになるまで、一週間か二週間はかかるそうだがな。`,
+  `${a.merchant}商会の隊商が、${ag}街道で消えた。荷馬車${a.wagons}台に、人が${a.missing}人。積み荷は${a.cargo}だ。戻ったのは${a.witness.role}の${a.witness.name}だけで、いまは${W}で傷を癒しているらしい。まだ、まともに話を聞ける様子じゃないそうだ。`,
+  `${a.merchant}商会といえば、${a.cargo}の取引で知られた商会だ。そこの隊商が、${ag}出たきり着いていないらしい。荷馬車${a.wagons}台、人が${a.missing}人。生き残りの${a.witness.role}、${a.witness.name}は、いま${W}にいるそうだ。話ができるようになるまで、しばらくかかるだろう。`,
+ ]);
+ const close = arcRumorVariant([
+  `……商会は、腕の立つ者に礼を出すと言っている。気になるなら、${W}の酒場を覗いてみるといい」`,
+  `……商会は礼を弾むそうだ。詳しく知りたいなら、${W}の酒場へ行ってみな」`,
+  `……商会は、腕の立つ者を探している。腕に覚えがあるなら、${W}の酒場を覗いてみるといい」`,
+ ]);
+ const text = `「${lead}${body}${close}`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -20536,12 +20577,12 @@ function arcReunion(id, back){
  if(r.swapped && r.fate === 'freed'){
   body = `<span style="color:#e8e4d8">隅の席から、見覚えのある顔が、そっと手を上げた。${r.dung}で助けた、あの人だ。${R}は、すっかり血色を取り戻していた。</span><br><br>`
    + `<span style="color:#e8e4d8">「……あのときの礼を、ずっと言いたかった」。${R}は、深く頭を下げた。「${N}が、なぜわたしを追っていたのか。お話ししておきます」</span><br><br>`
-   + `<span style="color:#c8b8d8">${why}</span><br><br>`
+   + `<span style="color:#e8e4d8">${why}</span><br><br>`
    + `<span style="color:#e8e4d8">「あなたが${N}の言うままに、わたしを渡していたら……。いえ、もう言うまい」。${R}は、小さな袋をあなたの前に置いた。「少ないが、礼です。受け取ってください。わたしは、もうこの町を出ます」</span>`;
  } else if(r.swapped){
   body = `<span style="color:#e8e4d8">隅の席から、見覚えのある顔が、そっと手を上げた。${r.dung}で助けた、あの人だ。${N}が捕まったと聞き、ようやく姿を現せたという。</span><br><br>`
    + `<span style="color:#e8e4d8">「${N}が、なぜわたしを追っていたのか。お話ししておきます」</span><br><br>`
-   + `<span style="color:#c8b8d8">${why}</span><br><br>`
+   + `<span style="color:#e8e4d8">${why}</span><br><br>`
    + `<span style="color:#e8e4d8">「あなたが衛兵に訴えてくださったおかげで、わたしはもう、隠れなくていい」。${R}は、小さな袋をあなたの前に置いた。「少ないが、礼です。受け取ってください」</span>`;
  } else if(r.fate === 'freed'){
   body = `<span style="color:#e8e4d8">隅の席から、見覚えのある顔が、そっと手を上げた。${r.dung}で助けた${R}だ。あのあと、町を離れて暮らしていたという。</span><br><br>`
@@ -20586,11 +20627,18 @@ function arcVagueAsk(id, townId, back){
 }
 // 酒場の噂を語る相手（毎回、主人とは限らない）
 const ARC_TELLERS = [
+ {who:'隅の席の客', acts:['隅の席の客が、杯を置いて、こちらの様子をうかがってから口を開いた。','ひとりで飲んでいた隅の席の客が、ふと顔を上げて、手招きしてきた。']},
+ {who:'非番の衛兵', acts:['兜を脱いだ非番の衛兵が、誰にともなく愚痴をこぼし始めた。','杯を重ねていた非番の衛兵が、周りに聞こえないように声を落とした。']},
+ {who:'吟遊詩人', acts:['弦の調子を直していた吟遊詩人が、手を止めてこちらを手招きした。','歌い終えた吟遊詩人が、杯を片手に隣の席へやってきた。']},
+ {who:'荷運びの男', acts:['樽を運び終えた荷運びの男が、汗を拭いながら声を落とした。','店の裏から戻ってきた荷運びの男が、ちょうどいい、という顔で話しかけてきた。']},
+ {who:'旅の巡礼者', acts:['相席になった巡礼者が、数珠を繰る手を止めて話しかけてきた。','旅の巡礼者が、茶をすすりながら、ぽつりと話し始めた。']},
  {who:'酒場の主人', acts:['主人は、周りを気にしながら、身を寄せてきた。','主人は皿を拭く手を止めて、ひそひそと話し始めた。','主人は声を落として、グラスを磨く手を止めた。','主人はカウンター越しに身を乗り出し、声を潜めた。']},
  {who:'常連の客', acts:['隣に座った常連の客が、杯を傾けながら声を落とした。','顔なじみらしい常連の客が、ふと思い出したように話しかけてきた。']},
  {who:'給仕の女', acts:['酒を運んできた給仕の女が、盆を抱えたまま、そっと耳打ちしてきた。','空いた皿を下げに来た給仕の女が、辺りをうかがってから話しかけてきた。']},
  {who:'旅商人', acts:['隣の席の旅商人が、身を乗り出して、小声で話しかけてきた。','酒をあおっていた旅商人が、ふとこちらを向いて口を開いた。']},
 ];
+// 噂文の言い回しを、候補から1つ選ぶ（話し手を問わず言える書き方にしてある）
+function arcRumorVariant(list){ return list[Math.floor(Math.random() * list.length)]; }
 function arcRumorHeaderHtml(){
  const t = ARC_TELLERS[Math.floor(Math.random() * ARC_TELLERS.length)];
  const act = t.acts[Math.floor(Math.random() * t.acts.length)];
@@ -20983,12 +21031,30 @@ function arcCreateFalseRequest(townId, forcedTruth){
  return a;
 }
 function arcRumorPanelB(a){
- const C = arcTown(a.clientTown);
+ const C = arcTown(a.clientTown), N = a.client.name, ct = a.client.title;
  const header = arcRumorHeaderHtml();
  const core = arcChainRumorCoreB(a);
- const text = `「${arcLeadText(a)}ここだけの話だがな。` + (core || `${C}の${a.client.title}、${a.client.name}が、ある人物を始末してくれる者を探しているらしい。`)
-  + (core ? `まともな頼みごとじゃないのは、確かだろう。` : `表向きは大した理由じゃないと言っているが、まともな頼みごとじゃないのは確かだ。`)
-  + `使いはまだ出払っているそうで、話ができるのは一週間か二週間先になるだろう。……関わるなら、${C}の酒場で、${a.client.name}の使いに声をかけてみるといい。ただし、自己責任でな」`;
+ let body;
+ if(core){
+  body = `ここだけの話だがな。${core}まともな頼みごとじゃないのは、確かだろう。`;
+ } else {
+  body = arcRumorVariant([
+   `ここだけの話だがな。${C}の${ct}、${N}が、ある人物を始末してくれる者を探しているらしい。表向きは大した理由じゃないと言っているが、まともな頼みごとじゃないのは確かだ。`,
+   `金払いのいい依頼が出回っているそうだ。${C}の${ct}、${N}の使いが、ある人物を消してくれる者を探しているとか。……どうにも、うさんくさい話でな。`,
+   `${C}の${ct}、${N}が、人目を避けて腕利きを集めているらしい。表向きは別の用事ということになっているが、中身は物騒な話だという。`,
+  ]);
+ }
+ const wait = arcRumorVariant([
+  `使いはまだ出払っているそうで、話ができるのは一週間か二週間先になるだろう。`,
+  `使いが戻るまで、十日かそこらはかかるそうだ。`,
+  `人が揃うまで、まだ少しかかるらしい。`,
+ ]);
+ const close = arcRumorVariant([
+  `……関わるなら、${C}の酒場で、${N}の使いに声をかけてみるといい。ただし、自己責任でな」`,
+  `……それでも知りたいなら、${C}の酒場で、${N}の使いを探してみな。後のことは知らんぞ」`,
+  `……関わるかどうかは、そっちの勝手だ。${C}の酒場に、${N}の使いが来るはずだがな」`,
+ ]);
+ const text = `「${arcLeadText(a)}${body}${wait}${close}`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -21305,10 +21371,18 @@ function arcCreateCarrier(townId){
  return a;
 }
 function arcCarrierRumorPanel(a){
- const header = arcRumorHeaderHtml(), c = a.carrier, D = arcTown(a.dest.capital);
- const text = `「${arcLeadText(a)}${a.client.title}の${a.client.name}という者が、ある${c.role}を、遠くの${D}まで送り届けてくれる者を探しているそうだ。`
-  + `なんでも、大事な使命を帯びていて、道中で命を狙われているらしい。腕が立って、しかも逃げずに最後まで付き合ってくれる者を望んでいる。長い旅になるが、前金も礼金も弾むそうだ。`
-  + `……気になるなら、${arcTown(a.home)}の酒場で、${a.client.name}に声をかけてみるといい」`;
+ const header = arcRumorHeaderHtml(), c = a.carrier, D = arcTown(a.dest.capital), H = arcTown(a.home), N = a.client.name;
+ const body = arcRumorVariant([
+  `${a.client.title}の${N}という者が、ある${c.role}を、遠くの${D}まで送り届けてくれる者を探しているそうだ。なんでも、大事な使命を帯びていて、道中で命を狙われているらしい。腕が立って、しかも逃げずに最後まで付き合ってくれる者を望んでいる。長い旅になるが、前金も礼金も弾むそうだ。`,
+  `長旅の護衛の口があるそうだ。送るのは${c.role}で、行き先は${D}。道中で命を狙われているので、腕が立つだけでなく、逃げずに最後まで付き合える者でないと務まらないらしい。依頼主は${a.client.title}の${N}で、前金も礼金も出すという。`,
+  `${a.client.title}の${N}が、道連れを探しているそうだ。ただの旅じゃない、${c.role}を守りながら${D}まで行く旅だ。長くなるし、追手もいるらしい。それでも付き合ってくれる者を望んでいる。`,
+ ]);
+ const close = arcRumorVariant([
+  `……気になるなら、${H}の酒場で、${N}に声をかけてみるといい」`,
+  `……詳しく知りたいなら、${H}の酒場で、${N}を探してみな」`,
+  `……腕に覚えがあるなら、${H}の酒場を覗いてみるといい。${N}がいるはずだ」`,
+ ]);
+ const text = `「${arcLeadText(a)}${body}${close}`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -21665,7 +21739,7 @@ function arcCarrierGate(a, back){
  arcStory(arcHeader(`${D}の門前`)
   + `<span style="color:#e8e4d8">${D}の城門が見える。ここまで来た。だが、門の前の街道に、${a.chaser.band}の影があった。先頭に立つのは、${T.label}追手の頭の${Ch}だ。</span><br><br>`
   + `<span style="color:#e8e4d8">${carrierTraitLine(a, 'gate')}</span><br><br><span style="color:#e8e4d8">「${c.item}は渡してもらう」</span><br><br>` + carrierStatusHtml(a)
-  + (a.trust >= 3 && a.chaser.trait !== 'turncoat' ? `<br><span style="color:#c8d8b8">${c.name}は、あなたの耳元でささやいた。「あの者たちは、数が足りないはずです。……あなたなら、きっと」</span>` : ''), true);
+  + (a.trust >= 3 && a.chaser.trait !== 'turncoat' ? `<br><span style="color:#e8e4d8">${c.name}は、あなたの耳元でささやいた。「あの者たちは、数が足りないはずです。……あなたなら、きっと」</span>` : ''), true);
  renderChoices([
   {label:` ${Ch}と対決する`, fn:()=>arcCarrierGateFight(a.id, back)},
   {label:'← 今は戻る', fn:()=>go(back)},
@@ -21803,11 +21877,19 @@ function arcCreateStolenGoods(townId, forcedTruth){
 }
 function arcCReasonText(a){ return ARC_C_KIN_REASONS.find(r=>r.k === a.reason).why; }
 function arcRumorPanelC(a){
- const C = arcTown(a.clientTown);
+ const C = arcTown(a.clientTown), N = a.client.name, ct = a.client.title, it = a.item.name;
  const header = arcRumorHeaderHtml();
- const text = `「${arcLeadText(a)}${C}の${a.client.title}、${a.client.name}の屋敷から、${a.item.name}が盗まれたらしい。`
-  + `衛兵には届けず、内々に取り戻してくれる者を探していると聞く。`
-  + `使いが人を集めに出ているそうで、話を聞けるのは一週間か二週間先だろう。……気になるなら、${C}の酒場で、${a.client.name}の使いに声をかけてみるといい」`;
+ const body = arcRumorVariant([
+  `${C}の${ct}、${N}の屋敷から、${it}が盗まれたらしい。衛兵には届けず、内々に取り戻してくれる者を探していると聞く。使いが人を集めに出ているそうで、話を聞けるのは一週間か二週間先だろう。`,
+  `${C}の${ct}、${N}のところで、${it}が見当たらなくなったそうだ。盗まれたのか、誰かが持ち出したのか、そこははっきりしない。衛兵には知らせず、内々に探しているらしい。話を聞けるのは、十日かそこら先だろう。`,
+  `${N}という${ct}が、${it}を探している。表沙汰にはしたくないらしく、使いが静かに人を集めているところだ。取り戻した者には、礼を出すと言っているそうだ。話を聞けるのは、少し先になるだろう。`,
+ ]);
+ const close = arcRumorVariant([
+  `……気になるなら、${C}の酒場で、${N}の使いに声をかけてみるといい」`,
+  `……詳しく知りたいなら、${C}の酒場で、${N}の使いを探してみな」`,
+  `……腕に覚えがあるなら、${C}の酒場を覗いてみるといい。${N}の使いがいるはずだ」`,
+ ]);
+ const text = `「${arcLeadText(a)}${body}${close}`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -23191,7 +23273,7 @@ function arcDMad(a, stage, n){
  const bank = ARC_D_MAD[Math.max(0, Math.min(4, stage))];
  const pool = bank.slice(); const out = [];
  for(let i = 0; i < (n || 1) && pool.length; i++) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
- return `<span style="color:#d8d0e8">${a.npc1.name}：${out.join('<br>')}</span><br><br>`;
+ return `<span style="color:#e8e4d8">${a.npc1.name}：${out.join('<br>')}</span><br><br>`;
 }
 
 // ── 生成 ──
@@ -23268,10 +23350,18 @@ function arcDGoalShort(a){
 }
 function arcRumorPanelD(a){
  const header = arcRumorHeaderHtml();
- const H = arcTown(a.home);
- const text = `「${arcLeadText(a)}${a.npc1.title}の${a.npc1.name}という者が、腕の立つ用心棒を探しているそうだ。`
-  + `なんでも、人探しから始まって、危ない場所にも入る仕事らしい。前金は弾むと聞く。腕っぷしだけでなく、口の堅い者を望んでいるそうだ。身元の確かな者より、むしろ事情を詮索しない者がいいらしい。変わった話だが、報酬は悪くないという。`
-  + `ただ、手配に手間取っているとかで、話ができるのは、一週間か二週間先だろう。……気になるなら、${H}の酒場で、${a.npc1.name}に声をかけてみるといい」`;
+ const H = arcTown(a.home), N = a.npc1.name, nt = a.npc1.title;
+ const body = arcRumorVariant([
+  `${nt}の${N}という者が、腕の立つ用心棒を探しているそうだ。なんでも、人探しから始まって、危ない場所にも入る仕事らしい。前金は弾むと聞く。腕っぷしだけでなく、口の堅い者を望んでいるそうだ。身元の確かな者より、むしろ事情を詮索しない者がいいらしい。変わった話だが、報酬は悪くないという。ただ、手配に手間取っているとかで、話ができるのは、一週間か二週間先だろう。`,
+  `${nt}の${N}が、荒事に慣れた用心棒を探している。仕事の中身は、会うまで言わないつもりらしい。人探しから始まって、危ない場所にも入るという話は聞いた。前金は弾むそうだ。まだ手配の途中で、話ができるのは、十日かそこら先だろう。`,
+  `口の堅い用心棒を探している者がいる。${nt}の${N}だ。身元の確かさより、事情を詮索しない者を望んでいるらしい。変わった話だが、報酬は悪くないと聞く。人が揃うまで、少しかかるそうだ。`,
+ ]);
+ const close = arcRumorVariant([
+  `……気になるなら、${H}の酒場で、${N}に声をかけてみるといい」`,
+  `……詳しく知りたいなら、${H}の酒場で、${N}を探してみな」`,
+  `……腕に覚えがあるなら、${H}の酒場を覗いてみるといい。${N}がいるはずだ」`,
+ ]);
+ const text = `「${arcLeadText(a)}${body}${close}`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -23730,7 +23820,7 @@ function arcDInstallGoalRooms(){
     const base = (typeof oTxt === 'function') ? oTxt.apply(this, arguments) : (oTxt || '');
     const a = arcDGoalFor(key, id);
     if(!a) return base;
-    return base + `<br><br><span style="color:#d8c8f0">${a.npc1.name}の言っていた「${a.dung.room}」は、この先の、普通には見つからない空間にあるはずだ。入口は見当たらない。ここまで来て、壁があるだけとは思えない。壁に耳を当てると、微かに空気の流れる音がする。${a.npc2.name}の出番だ。</span>`;
+    return base + `<br><br><span style="color:#e8e4d8">${a.npc1.name}の言っていた「${a.dung.room}」は、この先の、普通には見つからない空間にあるはずだ。入口は見当たらない。ここまで来て、壁があるだけとは思えない。壁に耳を当てると、微かに空気の流れる音がする。${a.npc2.name}の出番だ。</span>`;
    };
    if(oCh !== undefined){
     node.choices = function(){
@@ -23957,7 +24047,7 @@ function arcDKeyRoom(a, back){
  arcStory(arcHeader(a.dung.room) + arcDSpecialist(a)
   + `<span style="color:#e8e4d8">部屋の中央に、石の台座があった。台座の上に、小さな銀色の鍵が置かれている。台座には、鍵穴がない。鍵だけが、そこで静かに待っていたかのようだ。</span><br><br>`
   + `<span style="color:#e8e4d8">鍵に手を伸ばした、そのとき。——部屋の入口に、いつの間にか${N}が立っていた。宿で待っているはずの${N}が。どうやってここまで来たのか、誰にも分からない。足音も、気配もなかった。</span><br><br>`
-  + `<span style="color:#d8d0e8">${N}：「ああ。それです。……それです。どうか、こちらへ」</span><br>`
+  + `<span style="color:#e8e4d8">${N}：「ああ。それです。……それです。どうか、こちらへ」</span><br>`
   + `<span style="color:#c0b098">声が、二重に聞こえた。</span>`, true);
  renderChoices([{label:` 鍵を${N}に渡す`, fn:()=>arcDKeyUse(a.id, back)}]);
  scrollToTop();
@@ -24306,11 +24396,19 @@ function arcCreateRunaway(townId, forced){
 }
 
 function arcERumorPanel(a){
- const C = arcTown(a.clientTown);
+ const C = arcTown(a.clientTown), O = a.owner.name, ot = a.owner.title, hr = a.holder.role;
  const header = arcRumorHeaderHtml();
- const text = `「${arcLeadText(a)}${C}の${a.owner.title}、${a.owner.name}の下で働いていた${a.holder.role}が、預かりものを持ったまま姿を消したらしい。`
-  + `${a.owner.name}は、騒ぎにはしたくないと言っている。ただ、あれが他人の手に渡るのは困る、とも漏らしたそうだ。`
-  + `人を集めに使いが出ているようで、話を聞けるのは、一週間か二週間先だろう。……気になるなら、${C}の酒場で、${a.owner.name}の使いに声をかけてみるといい」`;
+ const body = arcRumorVariant([
+  `${C}の${ot}、${O}の下で働いていた${hr}が、預かりものを持ったまま姿を消したらしい。${O}は、騒ぎにはしたくないと言っている。ただ、あれが他人の手に渡るのは困る、とも漏らしたそうだ。人を集めに使いが出ているようで、話を聞けるのは、一週間か二週間先だろう。`,
+  `${C}の${ot}、${O}のところで、${hr}が一人、預かりものを持ったまま戻らないそうだ。あれが他人の手に渡るのは困る、とこぼしていたらしい。大ごとにはしたくないようで、使いが静かに人を集めている。話を聞けるのは、十日かそこら先だろう。`,
+  `ある${ot}が、人探しの手伝いを集めているそうだ。探されているのは、預かりものを持って出ていった${hr}らしい。依頼人は${O}。騒ぎにはしたくないと言っている。使いが人を集め終えるまで、少しかかるだろう。`,
+ ]);
+ const close = arcRumorVariant([
+  `……気になるなら、${C}の酒場で、${O}の使いに声をかけてみるといい」`,
+  `……関わる気があるなら、${C}の酒場で、${O}の使いを探してみな」`,
+  `……腕に覚えがあるなら、${C}の酒場を覗いてみるといい。${O}の使いがいるはずだ」`,
+ ]);
+ const text = `「${arcLeadText(a)}${body}${close}`;
  const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${text}</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
 }
@@ -24379,8 +24477,8 @@ function arcEOffer(a, back){
  let probeHtml = '';
  if(a.probed){
   probeHtml = a.right === 'unjust'
-   ? `<br><br><span style="color:#d8c8f0">${O}の言葉を吟味すると、いくつか引っかかる点があった。「盗人」と呼びながら、衛兵には届けない。品は自分で預けたと言いながら、中身については、どれだけ尋ねても話そうとしない。話は、どこか辻褄が合っていない。</span>`
-   : `<br><br><span style="color:#d8c8f0">${O}の言葉を吟味してみたが、話に筋は通っている。少なくとも、いま分かる範囲で、引っかかる点は見当たらなかった。</span>`;
+   ? `<br><br><span style="color:#e8e4d8">${O}の言葉を吟味すると、いくつか引っかかる点があった。「盗人」と呼びながら、衛兵には届けない。品は自分で預けたと言いながら、中身については、どれだけ尋ねても話そうとしない。話は、どこか辻褄が合っていない。</span>`
+   : `<br><br><span style="color:#e8e4d8">${O}の言葉を吟味してみたが、話に筋は通っている。少なくとも、いま分かる範囲で、引っかかる点は見当たらなかった。</span>`;
  }
  arcStory(arcHeader('内々の依頼')
   + `<span style="color:#c0b098">使いの案内で、${a.owner.title}の${O}の屋敷の一室に通された。主人は、落ち着かない様子で、何度も窓の外に目をやっている。</span><br><br>`
@@ -24434,7 +24532,7 @@ function arcELead(a){
   rightful:`「${H}は、金に困っていたわけじゃない。手癖が悪い、という噂もあった。いずれ何かやらかすと思っていたよ」`,
   ambiguous:`「${H}の人柄は、どうとも言えないな。いい噂も悪い噂も、同じくらい聞くよ」`,
  })[a.right];
- return {strong:`${where}<br><br><span style="color:#d8c8f0">${rep}</span>`, weak:arcPick([
+ return {strong:`${where}<br><br><span style="color:#e8e4d8">${rep}</span>`, weak:arcPick([
   `「詳しい行き先までは、誰も知らないな……。ただ、${a.holder.role}が人目を避けるように、この地方のどこかの町へ入ったらしい、という話は聞いた」`,
   `「この町では、何も出なかったよ……。ただ、酒場の客が、それらしい${a.holder.role}の噂を、よその町でも話していたと言っていた」`,
  ])};
@@ -25562,7 +25660,7 @@ function fcRunQuestion(npc, kind, baseHtml, excludeRejoin, onDone){
  if(story) story.innerHTML = base;
  renderChoices(q.c.map(ch=>({label:sub(ch[0]), fn:()=>{
   npc.trust = Math.max(0, Math.min(100, (npc.trust||0) + (ch[2] || 0)));
-  base += `<br><br><span style="color:#a8c8e0">あなた：「${sub(ch[0])}」</span><br><span style="color:#e0d8c8">「${sub(ch[1])}」</span>`;
+  base += `<br><br><span style="color:#e8e4d8">あなた：「${sub(ch[0])}」</span><br><span style="color:#e0d8c8">「${sub(ch[1])}」</span>`;
   onDone(base, ch[3] || '');
  }})));
  if(typeof scrollToTop === 'function') scrollToTop();
@@ -37367,7 +37465,7 @@ function ydActionChoices(node, floor){
       const line = Array.isArray(fieldLines) ? fieldLines[Math.floor(Math.random()*fieldLines.length)] : fieldLines;
       const leaderName = _companionQuest.leader ? _companionQuest.leader.name : 'リーダー';
       const s = document.getElementById('story');
-      if(s) s.innerHTML += `<br><span style="color:#c8e0a8">${leaderName}が声を張り上げた。${line}</span><br>`;
+      if(s) s.innerHTML += `<br><span style="color:#e8e4d8">${leaderName}が声を張り上げた。${line}</span><br>`;
      }
     };
     if(m.isNPCType){
@@ -42059,7 +42157,7 @@ function _rdungMakeEncounterData(quest, step){
    return [{label:` 戦う（${quest.monsterName} ×${enCount}）`, fn:()=>{
     if(quest.isCompanionHunt && quest.leaderPersonality){
      const s = document.getElementById('story');
-     if(s) s.innerHTML += `<br><span style="color:#c8e0a8">${quest.leaderPersonality.field}</span><br>`;
+     if(s) s.innerHTML += `<br><span style="color:#e8e4d8">${quest.leaderPersonality.field}</span><br>`;
     }
     startCombat({enemies, canFlee:true, isHunt:true, autoNPC:!!quest.isCompanionHunt,
      onWin:()=>{ PC[flagKey]=true; _huntShowRoom(); },
@@ -42226,7 +42324,7 @@ function _rdungMakeBossData(quest){
     {label:` 戦う（${quest.monsterName} ×${count}）`, fn:()=>{
      if(quest.isCompanionHunt && quest.leaderPersonality){
       const s = document.getElementById('story');
-      if(s) s.innerHTML += `<br><span style="color:#c8e0a8">${quest.leaderPersonality.field}</span><br>`;
+      if(s) s.innerHTML += `<br><span style="color:#e8e4d8">${quest.leaderPersonality.field}</span><br>`;
      }
      startCombat({enemies, canFlee:true, isHunt:true, autoNPC:!!quest.isCompanionHunt,
       onWin:()=>{ PC[flagKey]=true; _huntShowRoom(); },
@@ -44221,7 +44319,7 @@ function huntQuestComplete(q){
  if(q.isCompanionHunt){
   // 同行者募集の完了：一時パーティを解散し、リーダーの別れの台詞を添える
   story.innerHTML += `<div style="margin-top:8px;padding:10px;background:#0a0d08;border:1px solid #4a6a34;border-radius:4px">
-   <div style="color:#c8e0a8;font-size:var(--font-sm)">${q.leaderPersonality.farewell}</div>
+   <div style="color:#e8e4d8;font-size:var(--font-sm)">${q.leaderPersonality.farewell}</div>
    <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-top:4px">${q.leader.name}たちと別れ、再びひとりになった。</div>
   </div>`;
   PC.party = [];
@@ -44406,7 +44504,7 @@ function startCompanionDeliveryLeg(questId){
    checkAging();
    // go()呼び出し前に_pendingMsgへ積んでおく（町ノードのtxtの前に確実に表示される）
    PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
-    <span style="color:#a8d0e0">${to.name}に到着した。${leaderName}たちは宿を取り、一晩休むことにしたようだ。</span><br>
+    <span style="color:#e8e4d8">${to.name}に到着した。${leaderName}たちは宿を取り、一晩休むことにしたようだ。</span><br>
     <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">明日以降、この町の酒場に行けば旅を再開できる。</span>
    </div>`;
    go('TOWN_'+toId.toUpperCase());
@@ -44430,7 +44528,7 @@ function _finishCompanionDelivery(q){
  updateHUD();
  const leaderName = q.leader.name;
  PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
-  <span style="color:#a8d0e0">目的地に到着した。無事に荷物を届け終えた${leaderName}が礼を言う。</span><br>
+  <span style="color:#e8e4d8">目的地に到着した。無事に荷物を届け終えた${leaderName}が礼を言う。</span><br>
   <span style="color:#c8b8a0">「${q.leaderPersonality.farewell}」</span><br>
   <span style="color:#e8e4d8">報酬 ${share}GP を受け取った。</span>
  </div>`;
@@ -50835,8 +50933,8 @@ function sellSpareFootwear(name){
 // ══════════════════════════════════════════
 // 風邪（PCと仲間のNPC）
 // ・冬の移動中は毎日1%（飢え・凍傷で倍、防寒具で半分）／雨・嵐・吹雪の日は12.5%（防寒具で半分）。町にいる間は発症しない
-// ・かかると強さ・体力が10%下がる（最大値も。器用さは凍傷と干渉するので対象外）。5〜10日で自然に治る
-// ・宿屋に泊まると、1〜3泊で完治する。Purifyで即治る。戦闘への影響はなし
+// ・かかると強さ・体力が10%下がる（最大値も。器用さは凍傷と干渉するので対象外）。1〜3日で自然に治る
+// ・宿屋に泊まると、1〜2泊で完治する。Purifyで即治る。戦闘への影響はなし
 // ・旅の途中で引いたら「治るまでその場で休む」を選べる（旅程は進まず、日と食料だけが過ぎる）。
 //   休まず進むと、残り日数が1.25倍（一度だけ）になり、2日ごとにペナルティが重くなる（10%→18%→25%）。風邪の間は徒歩の移動日数が2倍
 // ══════════════════════════════════════════
@@ -50862,7 +50960,7 @@ function coldCatch(x){
  x._coldLost = {st: 0, con: 0, max: true};
  coldApplyLevel(x, 1);
  x._coldLevel = 1;
- x._cold = 5 + Math.floor(Math.random() * 6); x._coldInn = 1 + Math.floor(Math.random() * 3);
+ x._cold = 1 + Math.floor(Math.random() * 3); x._coldInn = 1 + Math.floor(Math.random() * 2);   // 自然回復は1〜3日、宿屋は1〜2泊
  x._coldPush = 0; x._coldExt = false;
  return true;
 }
@@ -50901,7 +50999,7 @@ function coldPurifyChoices(ts, redo){
     if((who.st||0) < cost){ travelLog(`<span style="color:#e0a060"> ${coldName(who)}は${sp.name}を唱えるだけの強さが残っていない。</span>`); redo(); return; }
     who.st = Math.max(0, who.st - cost);
     gainAPAll(sp.cost);
-    travelLog(`<span style="color:#c8d0e8"> ${coldName(who)}が${sp.name}を唱えた。${who === t ? '' : coldName(t) + 'の'}体内の病が浄化されていく。</span>`);
+    travelLog(`<span style="color:#e8e4d8"> ${coldName(who)}が${sp.name}を唱えた。${who === t ? '' : coldName(t) + 'の'}体内の病が浄化されていく。</span>`);
     coldCureNotify(t);
     updateHUD();
     if(coldActors().some(x=>x._cold > 0)){ redo(); return; }
@@ -52390,9 +52488,9 @@ function tutorialDeliveryTravel(){
    checkAging();
    const recipientName = pickNPC();
    PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
-    <span style="color:#a8d0e0">${to.name}に到着した。荷物の届け先を訪ねると、依頼主の${recipientName}が出迎えた。</span><br>
+    <span style="color:#e8e4d8">${to.name}に到着した。荷物の届け先を訪ねると、依頼主の${recipientName}が出迎えた。</span><br>
     <span style="color:#c8b8a0">${recipientName}「ああ、待っていたよ！　これで助かる。ここまで運んでくれてありがとう」</span><br><br>
-    <span style="color:#a8d0e0">用件を終えると、${t.escortNPC.name}は宿を取り、一晩休むことにしたようだ。</span><br>
+    <span style="color:#e8e4d8">用件を終えると、${t.escortNPC.name}は宿を取り、一晩休むことにしたようだ。</span><br>
     <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">明日以降、この町の酒場に行けば旅を再開できる。</span>
    </div>`;
    const townNode = 'TOWN_' + toId.toUpperCase();
@@ -52402,7 +52500,7 @@ function tutorialDeliveryTravel(){
    updateHUD();
    t.step = 'delivery_done';
    PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
-    <span style="color:#a8d0e0">${to.name}に帰着した。${t.escortNPC.name}が礼を言う。</span><br>
+    <span style="color:#e8e4d8">${to.name}に帰着した。${t.escortNPC.name}が礼を言う。</span><br>
     <span style="color:#c8b8a0">「送り届けてくれてありがとう。おかげで助かったよ」</span>
    </div>`;
    const townNode = 'TOWN_' + toId.toUpperCase();
@@ -52430,7 +52528,7 @@ function getTutorialDeliveryResumeChoice(townId){
     const story = document.getElementById('story');
     if(story){
      story.innerHTML = `<div style="border:1px solid #345a6a;border-radius:4px;padding:12px;background:#080a0d">
-      <span style="color:#a8d0e0">${t.escortNPC.name}「食料が心許ないようだね。私の分から少し分けてあげるよ」</span><br>
+      <span style="color:#e8e4d8">${t.escortNPC.name}「食料が心許ないようだね。私の分から少し分けてあげるよ」</span><br>
       <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">食料を30日分受け取った。</span>
      </div>`;
     }
@@ -52551,7 +52649,7 @@ function tutorialHomecomingTravel(){
    updateTimebar();
    checkAging();
    PC._pendingMsg = (PC._pendingMsg||'') + `<div style="border:1px solid #345a6a;border-radius:4px;padding:10px;background:#080a0d;margin-bottom:10px">
-    <span style="color:#a8d0e0">${to.name}に到着した。${t.oldNPC.name}は宿を取り、一晩休むことにしたようだ。</span><br>
+    <span style="color:#e8e4d8">${to.name}に到着した。${t.oldNPC.name}は宿を取り、一晩休むことにしたようだ。</span><br>
     <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">明日以降、この町の酒場に行けば旅を再開できる。</span>
    </div>`;
    const townNode = 'TOWN_' + toId.toUpperCase();
@@ -53102,7 +53200,7 @@ function renderNPCDetail(el, n, idx){
  const _wearRow = (has, name, onLabel, kind) => `<div style="background:${has?'var(--info-bg)':'var(--panel)'};border:1px solid ${has?'#004444':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div style="font-size:var(--font-sm);color:${has?'#ece8e0':'#c8b8a0'}">${has ? name + ' [' + onLabel + ']' + (itemWt(name)!=null ? wtLbl(itemWt(name)) : '') : name + '：なし'}</div>${has ? discBtn(kind, idx) : ''}</div>`;
  const npcWearHtml = _wearRow(!!(n.invClothing || n.equippedClothing), n.invClothingName || '防寒着と荷物袋', '着用中', 'clothing')
   + _wearRow(!!(n.invBoots || n.equippedBoots), n.invBootsName || '履物', '履いている', 'boots');
- const coldHtml = n._cold > 0 ? `<div style="font-size:calc(var(--font-sm) - 1px);color:#e0b0a0;margin-bottom:8px">風邪を引いている（強さ・体力 ${coldPenaltyText(n)}／宿屋で1〜3泊すれば治る）</div>` : '';
+ const coldHtml = n._cold > 0 ? `<div style="font-size:calc(var(--font-sm) - 1px);color:#e0b0a0;margin-bottom:8px">風邪を引いている（強さ・体力 ${coldPenaltyText(n)}／宿屋で1〜2泊すれば治る）</div>` : '';
  const trustHtml = coldHtml + '<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:8px;margin-bottom:12px">'
   + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">'
   + `<span style="font-size:calc(var(--font-sm) - 1px);color:#e8e0d0"> あなたへの信頼度</span>`
@@ -53423,7 +53521,7 @@ function renderStatusPanel(){
  if(PC._cold > 0){
   const cd = document.createElement('div');
   cd.style.cssText = 'grid-column:1/-1;background:var(--panel);border:1px solid #885544;border-radius:3px;padding:6px 8px;font-size:calc(var(--font-sm) - 1px);color:#e0b0a0';
-  cd.innerHTML = `風邪を引いている（強さ・体力 ${coldPenaltyText(PC)}／宿屋で1〜3泊すれば治る）`;
+  cd.innerHTML = `風邪を引いている（強さ・体力 ${coldPenaltyText(PC)}／宿屋で1〜2泊すれば治る）`;
   attrEl.appendChild(cd);
  }
 
@@ -56899,7 +56997,7 @@ function _startNewRound(){
    const line = Array.isArray(fieldLines) ? fieldLines[Math.floor(Math.random()*fieldLines.length)] : fieldLines;
    const leaderName = q.leader ? q.leader.name : 'リーダー';
    const cl0 = document.getElementById('clog');
-   if(cl0) cl0.innerHTML += `<span style="color:#c8e0a8">${leaderName}が指示を飛ばす。${line}</span><br>`;
+   if(cl0) cl0.innerHTML += `<span style="color:#e8e4d8">${leaderName}が指示を飛ばす。${line}</span><br>`;
   }
  }
  if(cbtState.isNPC) updateCombatUINPC(); else updateCombatUI();
@@ -57238,7 +57336,7 @@ function _magicPhaseStepNPC(){
   title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> 魔法フェーズ — ${PC.name}の詠唱</span>`;
   const castBtn = document.createElement('button');
   castBtn.className='choice-btn';
-  castBtn.style.cssText='border-color:var(--white2);color:#e0d8c8';
+  castBtn.style.cssText='border-color:var(--white2);color:#e0d8c8;min-width:17em';
   castBtn.textContent=' 魔法を詠唱する';
   castBtn.onclick=()=>{ _magicPhaseSpellSelectNPC(); };
   btns.appendChild(castBtn);
@@ -57248,7 +57346,7 @@ function _magicPhaseStepNPC(){
   title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> 魔法フェーズ — ${npc.name}（${typeJa}）の詠唱</span>`;
   const castBtn = document.createElement('button');
   castBtn.className='choice-btn';
-  castBtn.style.cssText='border-color:var(--white2);color:#e0d8c8';
+  castBtn.style.cssText='border-color:var(--white2);color:#e0d8c8;min-width:17em';
   castBtn.textContent=' 魔法を詠唱する';
   castBtn.onclick=()=>{ _magicPhaseNPCSpellSelectNPC(npc); };
   btns.appendChild(castBtn);
@@ -57435,7 +57533,7 @@ function _magicPhaseStep(npcIdx, magicParty, pcDone){
 
   const castBtn = document.createElement('button');
   castBtn.className='choice-btn';
-  castBtn.style.cssText='border-color:var(--white2);color:#e0d8c8';
+  castBtn.style.cssText='border-color:var(--white2);color:#e0d8c8;min-width:17em';
   castBtn.textContent=' 魔法を詠唱する';
   castBtn.onclick=()=>{ _magicPhaseSpellSelect(npcIdx, magicParty); };
   btns.appendChild(castBtn);
@@ -57498,7 +57596,7 @@ function _magicPhaseStep(npcIdx, magicParty, pcDone){
 
  const castBtn = document.createElement('button');
  castBtn.className='choice-btn';
- castBtn.style.cssText='border-color:var(--white2);color:#e0d8c8';
+ castBtn.style.cssText='border-color:var(--white2);color:#e0d8c8;min-width:17em';
  castBtn.textContent=' 魔法を詠唱する';
  castBtn.onclick=()=>{ _magicPhaseNPCSpellSelect(npc, npcIdx, magicParty); };
  btns.appendChild(castBtn);
@@ -57779,11 +57877,16 @@ function _npcBuffTargetSelect(npc, npcIdx, magicParty, sp, onDone, cfg){
   b.style.cssText='border-color:#d8d0c0;color:#e0d8c8';
   b.textContent = actor===npc ? `${npc.name}（自分）` : actor===PC ? `${PC.name}（あなた）` : actor.name;
   b.onclick=()=>{
-   wbArm(actor, cfg.kind, wbDefaultSel(actor));   // 仲間が自分でかけるときは、ダイスが一番多い武器にかかる
-   const cl=document.getElementById('clog');
-   const targetLabel = actor===npc ? '自分' : actor===PC ? PC.name : actor.name;
-   cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を${targetLabel}にかけた！${cfg.effectLabel}</span><br>`;
-   onDone();
+   // かけられる武器が2本以上あるときは、どの武器にかけるかを選ばせる
+   const _finish = (sel)=>{
+    wbArm(actor, cfg.kind, sel);
+    const cl=document.getElementById('clog');
+    const targetLabel = actor===npc ? '自分' : actor===PC ? PC.name : actor.name;
+    const wLabel = (sel && (actor.equippedWeapons||[]).length >= 2) ? `の${sel.name}` : '';
+    cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を${targetLabel}${wLabel}にかけた！${cfg.effectLabel}</span><br>`;
+    onDone();
+   };
+   wbPickWeapon(actor, cfg.kind, btns, title, _finish);
   };
   btns.appendChild(b);
  });
@@ -58118,7 +58221,7 @@ function _rangedPhaseStepNPC(){
   title.innerHTML = `<span style="color:#e0d8c8;font-size:var(--font-sm)"> 遠距離攻撃フェーズ — ${PC.name}</span>`;
   const doRanged = document.createElement('button');
   doRanged.className = 'choice-btn';
-  doRanged.style.cssText = `border-color:#d8d0c0;color:${hasArrow?'var(--info2)':'var(--info-border)'}`;
+  doRanged.style.cssText = `border-color:#d8d0c0;color:${hasArrow?'var(--info2)':'var(--info-border)'};min-width:17em`;
   doRanged.textContent = ` 遠距離攻撃（${w.name}）${needsArrow?` 矢:${PC.arrows||0}本`:daggerUsed?' （投擲済み）':''}`;
   doRanged.disabled = !canRanged;
   doRanged.onclick = ()=>{ _pcRangedSelectTarget(()=>{ cbtState._npcRangedIdx=(cbtState._npcRangedIdx||0)+1; _rangedPhaseStepNPC(); }); };
@@ -58140,7 +58243,7 @@ function _rangedPhaseStepNPC(){
   const nCanRanged = nHasArrow && !nDaggerUsed;
   const doRanged = document.createElement('button');
   doRanged.className = 'choice-btn';
-  doRanged.style.cssText = `border-color:#d8d0c0;color:${nHasArrow?'var(--info2)':'var(--info-border)'}`;
+  doRanged.style.cssText = `border-color:#d8d0c0;color:${nHasArrow?'var(--info2)':'var(--info-border)'};min-width:17em`;
   doRanged.textContent = ` 遠距離攻撃（${nW.name}）${nNeedsArrow?` 矢:${npc.arrows||0}本`:nDaggerUsed?' （投擲済み）':''}`;
   doRanged.disabled = !nCanRanged;
   doRanged.onclick = ()=>{ _npcRangedSelectTarget(npc, entry.idx, [], ()=>{ cbtState._npcRangedIdx=(cbtState._npcRangedIdx||0)+1; _rangedPhaseStepNPC(); }); };
@@ -58260,7 +58363,7 @@ function _rangedPhaseStep(npcIdx, rangedParty){
   const _pcCanRanged = _pcHasArrow && !_pcDaggerUsed;
   const doRanged = document.createElement('button');
   doRanged.className = 'choice-btn';
-  doRanged.style.cssText = `border-color:#d8d0c0;color:${_pcHasArrow?'var(--info2)':'var(--info-border)'}`;
+  doRanged.style.cssText = `border-color:#d8d0c0;color:${_pcHasArrow?'var(--info2)':'var(--info-border)'};min-width:17em`;
   doRanged.textContent = ` 遠距離攻撃（${_pcW.name}）${_pcNeedsArrow?` 矢:${PC.arrows||0}本`:_pcDaggerUsed?' （投擲済み）':''}`;
   doRanged.disabled = !_pcCanRanged;
   doRanged.onclick = ()=>{ _pcRangedSelectTarget(()=>_rangedPhaseStep(0, rangedParty, true)); };
@@ -58321,7 +58424,7 @@ function _rangedPhaseStep(npcIdx, rangedParty){
  const _nCanRanged = _nHasArrow && !_nDaggerUsed;
  const doRanged = document.createElement('button');
  doRanged.className = 'choice-btn';
- doRanged.style.cssText = `border-color:#d8d0c0;color:${_nHasArrow?'var(--info2)':'var(--info-border)'}`;
+ doRanged.style.cssText = `border-color:#d8d0c0;color:${_nHasArrow?'var(--info2)':'var(--info-border)'};min-width:17em`;
  doRanged.textContent = ` 遠距離攻撃（${_nW.name}）${_nNeedsArrow?` 矢:${npc.arrows||0}本`:_nDaggerUsed?' （投擲済み）':''}`;
  doRanged.disabled = !_nCanRanged;
  doRanged.onclick = ()=>{ _npcRangedSelectTarget(npc, npcIdx, rangedParty); };
@@ -61285,7 +61388,7 @@ function selectActorForSR(attr, level, callback){
   const leaderName = _companionQuest.leader ? _companionQuest.leader.name : 'リーダー';
   const bestName = best===PC ? PC.name : best.name;
   const story = document.getElementById('story');
-  if(story) story.innerHTML += `<br><span style="color:#c8e0a8">${leaderName}が${bestName}に指示した。「お前が適任だ、頼む」</span>`;
+  if(story) story.innerHTML += `<br><span style="color:#e8e4d8">${leaderName}が${bestName}に指示した。「お前が適任だ、頼む」</span>`;
   callback(best);
   return;
  }
@@ -62280,7 +62383,7 @@ const NODES = {
   <span style="color:#c0b098">酒場の片隅で一人、静かに酒を飲む老人がいた。旅装束は年季が入っているが、纏う空気はどこか只者ではない。ふと目が合うと、彼の方から声をかけてきた。</span><br><br>
   <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
    <div style="color:#f0ece0;font-size:var(--font-sm);margin-bottom:6px"> ${t.oldNPC.name}</div>
-   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「おお、見ん顔じゃな。旅立ったばかりのようじゃが……よし、わしが少しばかり手ほどきをしてやろうかの。まずは腹ごしらえより先に、装備を整えることじゃ」</div>
+   <div style="color:#e8e4d8;font-size:var(--font-sm);line-height:1.9">「おお、見ん顔じゃな。旅立ったばかりのようじゃが……よし、わしが少しばかり手ほどきをしてやろうかの。まずは腹ごしらえより先に、装備を整えることじゃ」</div>
   </div>`;
  },
  choices:[
@@ -62321,7 +62424,7 @@ const NODES = {
   const t = PC._tutorial;
   const nearName = (TOWNS[t.nearTownId]||{}).name || t.nearTownId;
   return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${t.oldNPC.name}の指南 ──</span><br><br>
-  <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「ほう、装備は揃ったようじゃな。次は<b>旅の基本</b>を教えてやろう。<br>
+  <div style="color:#e8e4d8;font-size:var(--font-sm);line-height:1.9">「ほう、装備は揃ったようじゃな。次は<b>旅の基本</b>を教えてやろう。<br>
   お前さんもこれから生きていくには、金を稼がにゃならん。冒険者として真っ当に暮らすなら、酒場に貼り出された依頼を受けて、その報酬をもらうのが一番じゃ。<br>
   中でも一番簡単なのが<b>宅配の依頼</b>じゃ。荷物を目的の町まで運ぶだけで、ちゃんと金になる。まずはそいつで慣らしていくとしよう。<br>
   ちょうど${nearName}まで荷を届けてほしいという者がおる。一人で行かせるのも忍びない、酒場で仲間を紹介してやろう」<br><br>
@@ -62341,7 +62444,7 @@ const NODES = {
   <span style="color:#c0b098">${t.oldNPC.name}に連れられて、一人の旅人が現れた。</span><br><br>
   <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
    <div style="color:#f0ece0;font-size:var(--font-sm);margin-bottom:6px"> ${t.escortNPC.name}</div>
-   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「よろしく頼むよ。${nearName}まで、一緒に行ってくれるんだってな。心強い」</div>
+   <div style="color:#e8e4d8;font-size:var(--font-sm);line-height:1.9">「よろしく頼むよ。${nearName}まで、一緒に行ってくれるんだってな。心強い」</div>
   </div>`;
  },
  choices:[
@@ -62355,7 +62458,7 @@ const NODES = {
   const t = PC._tutorial;
   const totalTorches = (PC._torchStock||0) + (PC._torchTurns>0?1:0);
   let msg = ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${t.oldNPC.name}の指南 ──</span><br><br>
-  <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「無事に届けられたようじゃな！　次は<b>戦いの基本</b>を教えてやろう。<br>
+  <div style="color:#e8e4d8;font-size:var(--font-sm);line-height:1.9">「無事に届けられたようじゃな！　次は<b>戦いの基本</b>を教えてやろう。<br>
   酒場にはさっきの宅配のような依頼だけでなく、<b>討伐依頼</b>ってのも貼り出されておる。何かしらの脅威が棲み着いた場所に乗り込んで、そいつを排除してくるって依頼じゃ。<br>
   ちょうど郊外の洞穴にゴブリンの一団が棲み着いたと聞く。わしが魔法で援護してやるから、一緒に片付けに行こうかの」</div>`;
   if(totalTorches <= 0){
@@ -62404,7 +62507,7 @@ const NODES = {
   return [{label:` 戦う（${q.monsterName} ×1）`, fn:()=>{
    if(q.leaderPersonality){
     const s = document.getElementById('story');
-    if(s) s.innerHTML += `<br><span style="color:#c8e0a8">${q.leaderPersonality.field}</span><br>`;
+    if(s) s.innerHTML += `<br><span style="color:#e8e4d8">${q.leaderPersonality.field}</span><br>`;
    }
    startCombat({enemies:_tutorialHuntEnemies(1), canFlee:true, isHunt:true, autoNPC:true,
     onWin:()=>{ PC._tutorialHunt2Cleared=true; },
@@ -62441,7 +62544,7 @@ const NODES = {
   return [{label:` 戦う（${q.monsterName} ×2）`, fn:()=>{
    if(q.leaderPersonality){
     const s = document.getElementById('story');
-    if(s) s.innerHTML += `<br><span style="color:#c8e0a8">${q.leaderPersonality.field}</span><br>`;
+    if(s) s.innerHTML += `<br><span style="color:#e8e4d8">${q.leaderPersonality.field}</span><br>`;
    }
    startCombat({enemies:_tutorialHuntEnemies(2), canFlee:true, isHunt:true, autoNPC:true,
     onWin:()=>{ PC._tutorialHunt4Cleared=true; },
@@ -62475,7 +62578,7 @@ const NODES = {
   const t = PC._tutorial;
   return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── 別れ ──</span><br><br>
   <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
-   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「装備の揃え方、旅の仕方、戦いの基本……これでひと通り教えられたはずじゃ。<br>
+   <div style="color:#e8e4d8;font-size:var(--font-sm);line-height:1.9">「装備の揃え方、旅の仕方、戦いの基本……これでひと通り教えられたはずじゃ。<br>
    あとはお前さん次第じゃな。気長に色んなところを見て回るといい。自分なりに好きなようにやってみることじゃ。<br>
    とにかく、生き延びればチャンスはある。じゃあ元気でな」</div>
   </div><br>
@@ -62492,10 +62595,10 @@ const NODES = {
   const t = PC._tutorial;
   const homeName = (TOWNS[t.homeRegionTownId]||{}).name || '故郷';
   let msg = ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${t.oldNPC.name}の頼み ──</span><br><br>
-  <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「ふう……歳のせいか、近頃はどうも故郷が恋しくてな。${homeName}まで、もう一度戻ってみたいんだ。<br>
+  <div style="color:#e8e4d8;font-size:var(--font-sm);line-height:1.9">「ふう……歳のせいか、近頃はどうも故郷が恋しくてな。${homeName}まで、もう一度戻ってみたいんだ。<br>
   すまんが、もう少しだけ付き合ってくれんか？　<b>地方をまたぐ長旅</b>になるが、良い経験になるはずだ」</div>`;
   if((PC._food||0) < 30){
-   msg += `<br><div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「おっと、その前に食料を見てみろ。長旅にはとても足りねぇな。ほら、これで買っておけ」</div>`;
+   msg += `<br><div style="color:#e8e4d8;font-size:var(--font-sm);line-height:1.9">「おっと、その前に食料を見てみろ。長旅にはとても足りねぇな。ほら、これで買っておけ」</div>`;
   }
   return msg;
  },
@@ -62522,7 +62625,7 @@ const NODES = {
   return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── ${homeName}にて ──</span><br><br>
   <span style="color:#c0b098">胸いっぱいに故郷の空気を吸い込み、${t.oldNPC.name}は目を細めた。</span><br><br>
   <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
-   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「ここまで付き合わせて悪かったな。装備も、旅も、戦いも、これでひと通り分かったはずだ。<br>
+   <div style="color:#e8e4d8;font-size:var(--font-sm);line-height:1.9">「ここまで付き合わせて悪かったな。装備も、旅も、戦いも、これでひと通り分かったはずだ。<br>
    お前ならもう大丈夫だろう。……達者でな」</div>
   </div><br>
   <span style="color:#c8b8a0">${t.oldNPC.name}は振り返ることなく、故郷の町へ歩いていった。</span>`;
@@ -62538,7 +62641,7 @@ const NODES = {
   const t = PC._tutorial;
   return ` <span class="gold" style="font-size:calc(var(--font-base) + 1px)">── 別れ ──</span><br><br>
   <div style="background:var(--panel);border:1px solid var(--panel2);border-radius:4px;padding:12px">
-   <div style="color:var(--white2);font-size:var(--font-sm);line-height:1.9">「これでひと通り、旅の基本は教えられたはずだ。……達者でな」</div>
+   <div style="color:#e8e4d8;font-size:var(--font-sm);line-height:1.9">「これでひと通り、旅の基本は教えられたはずだ。……達者でな」</div>
   </div><br>
   <span style="color:#c8b8a0">${t.oldNPC.name}はそう言って去っていった。</span>`;
  },
