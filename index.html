@@ -661,7 +661,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026110401</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026110601</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -1489,17 +1489,18 @@ function _ensureTrustObject(){
  }
 }
 
-function getTrust(townId){ _ensureTrustObject(); return (PC.trust||{})[townId] || 0; }
+function _r2(v){ return Math.round((+v||0)*100)/100; } // 小数の累積誤差を除く
+function getTrust(townId){ _ensureTrustObject(); return _r2((PC.trust||{})[townId] || 0); }
 
 // 信頼度変動
 // type='delivery' の場合は上限49
 function changeTrust(townId, delta, type){
  _ensureTrustObject();
- const cur = PC.trust[townId] || 0;
+ const cur = _r2(PC.trust[townId] || 0);
  // 宅配・護衛は信頼度49上限（ただし既に50以上なら変更しない）
  if(type==='delivery' && cur >= 50) return;
  const cap = type==='delivery' ? 49 : 100;
- const next = Math.min(cap, Math.max(0, cur + delta));
+ const next = _r2(Math.min(cap, Math.max(0, cur + delta)));
  PC.trust[townId] = next;
 
  // 初めて信頼度100に達したとき → 英雄イベント
@@ -1540,13 +1541,13 @@ function _ensureWantedObject(){
 
 function getWanted(townId){
  _ensureWantedObject();
- return PC.wanted[townId] || 0;
+ return _r2(PC.wanted[townId] || 0);
 }
 
 function changeWanted(townId, delta){
  _ensureWantedObject();
- const cur = PC.wanted[townId] || 0;
- const next = Math.max(0, Math.min(100, cur + delta));
+ const cur = _r2(PC.wanted[townId] || 0);
+ const next = _r2(Math.max(0, Math.min(100, cur + delta)));
  PC.wanted[townId] = next;
 
  // 初めて手配度100に達したとき → 極悪人の噂イベント
@@ -1590,7 +1591,7 @@ function tickWantedDecay(townId){
  if(days > 0){
   const cur = PC.wanted[townId] || 0;
   if(cur < WANTED_HIGH_THRESHOLD){
-   PC.wanted[townId] = Math.max(0, cur - days*WANTED_DECAY_PER_DAY);
+   PC.wanted[townId] = _r2(Math.max(0, cur - days*WANTED_DECAY_PER_DAY));
   }
  }
  PC._wantedLastTick[townId] = GAME_TIME.totalDays;
@@ -15001,7 +15002,19 @@ function _renderItemTransfer(npcIdx, direction){
 
  <div style="font-size:calc(var(--font-sm) - 2px);color:#e8e0d8;margin-bottom:8px">${srcName}の所持品 → ${destName}に渡す</div>`;
 
- if(items.length === 0){
+ const _arrN = src.arrows||0;
+ if(_arrN > 0){
+  const _ab = [1,10].filter(k=>k<_arrN).map(k=>`<button onclick="_transferArrows(${npcIdx},'${direction}',${k})" style="${btnStyle};margin-left:4px">${k}本</button>`).join('');
+  html += `
+   <div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">
+    <div>
+     <div style="font-size:var(--font-sm);color:var(--text)"> 矢 ×${_arrN}本</div>
+     <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">渡す本数を選ぶ</div>
+    </div>
+    <div>${_ab}<button onclick="_transferArrows(${npcIdx},'${direction}',${_arrN})" style="${btnStyle};margin-left:4px">全部</button></div>
+   </div>`;
+ }
+ if(items.length === 0 && _arrN <= 0){
   html += `<div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;text-align:center;padding:20px">渡せるアイテムがありません</div>`;
  } else {
   items.forEach(item=>{
@@ -15018,6 +15031,22 @@ function _renderItemTransfer(npcIdx, direction){
  }
 
  if(el) el.innerHTML = html;
+}
+
+function _transferArrows(npcIdx, direction, n){
+ const npc = PC.party[npcIdx];
+ if(!npc) return;
+ const isToNPC = direction === 'pc_to_npc';
+ const src  = isToNPC ? PC  : npc;
+ const dest = isToNPC ? npc : PC;
+ n = Math.min(n, src.arrows||0);
+ if(n <= 0) return;
+ src.arrows = (src.arrows||0) - n;
+ dest.arrows = (dest.arrows||0) + n;
+ updateHUD(); checkWeightPenalty(src); checkWeightPenalty(dest);
+ renderStatusPanel();
+ showSaveToast(`矢${n}本を渡した`);
+ _renderItemTransfer(npcIdx, direction);
 }
 
 function _transferItem(npcIdx, direction, type, itemIdx){
@@ -18323,12 +18352,16 @@ function troupeCatchUp(t){
 // その町に今いる一座（滞在中のもの）を返す。なければnull
 function troupeAtTown(townId){
  troupeEnsure();
+ let found = null;
  for(const rk of TROUPE_REGIONS){
   const t = PC._troupes[rk];
   troupeCatchUp(t);
-  if(t.phase === 'stay' && t.townId === townId) return t;
+  if(t.phase === 'stay' && t.townId === townId){
+   if(t.contract) return t;   // 護衛中の一座を優先する（地方またぎで別の地方の一座と同じ町になっても、こちらを表示）
+   if(!found) found = t;
+  }
  }
- return null;
+ return found;
 }
 
 // ── 町の表示（本文の一行・ボタン）──
@@ -35168,9 +35201,9 @@ function smallTownHub(townId){
  const dq = PC._villageBackalleyDelivery;
  const dqHint = (dq?.active && dq.villageId===townId)
   ? `<br><br><span style="color:#ffcc88"> 【届け物】${dq.recipient}へ${dq.item}を届ける約束がある（${districtTypeLabels[dq.toDistrict]||'届け先の地区'}で探そう／期限：あと${Math.max(0,dq.deadlineDay-GAME_TIME.totalDays)}日）</span>` : '';
- const captive = PC._localWantedCaptive;
- const captiveHint = (captive?.villageId===townId)
-  ? `<br><br><span style="color:#ff9977"> 【手配犯】${captive.name}（${captive.crime}）を確保している。衛兵に引き渡そう</span>` : '';
+ const captives = _localCaptivesAt(townId);
+ const captiveHint = captives.length
+  ? captives.map(c=>`<br><br><span style="color:#ff9977"> 【手配犯】${c.name}（${c.crime}）を確保している。衛兵に引き渡そう</span>`).join('') : '';
  const boardHtml = `<br><br><span style="color:#a89878;font-size:calc(var(--font-sm) - 1px)">━━ 掲示板 ━━</span>${_localWantedBoardListHtml(townId)}`;
  story.innerHTML = ` <span style="color:#e0d8c8">${town?.name || townId} 中央広場</span><br><br>`
   + `<span style="color:#c0b098">町の中心となる広場。ここから${districtListText}、それぞれの街路へ入ることができる。（現在：${ph.label}）</span>${dqHint}${captiveHint}${boardHtml}`;
@@ -35178,16 +35211,16 @@ function smallTownHub(townId){
   label:` ${districtTypeLabels[k]||k}へ入る`, fn:()=>enterVillageBackAlley(townId, k),
  }));
  if(REGION_CAPITAL_TOWNS.includes(townId)) choices.push({label:' 庁舎・宮殿へ入る', fn:()=>showRegionalPalace(townId)});
- if(captive?.villageId===townId){
+ captives.forEach(captive=>{
   choices.push({label:` 衛兵に${captive.name}を引き渡す（+${captive.reward}GP／街の評判+1）`, fn:()=>{
    gainGP(captive.reward);
    changeTrust(townId, 1, 'incident');
-   PC._localWantedCaptive = null;
+   PC._localWantedCaptives = _localCaptives().filter(c=>c!==captive && !(c.targetId===captive.targetId && c.villageId===captive.villageId));
    updateHUD();
    showSaveToast(`${captive.name}を引き渡した！+${captive.reward}GP`);
    smallTownHub(townId);
   }});
- }
+ });
  choices.push(...troupeFlyerChoices(townId, ()=>smallTownHub(townId))); // 旅芸人の一座のチラシ
  choices.push({label:'← 町に戻る', go:'TOWN_'+townId.toUpperCase()});
  renderChoices(choices);
@@ -35195,6 +35228,14 @@ function smallTownHub(townId){
 
 
 // 中央広場の掲示板：手配書の一覧を表示する（掲示板を見て初めて内容が分かる）
+// 確保した手配犯（複数人対応。旧セーブの単体形式は配列へ移行）
+function _localCaptives(){
+ if(!Array.isArray(PC._localWantedCaptives)) PC._localWantedCaptives = [];
+ if(PC._localWantedCaptive){ PC._localWantedCaptives.push(PC._localWantedCaptive); PC._localWantedCaptive = null; }
+ return PC._localWantedCaptives;
+}
+function _localCaptivesAt(townId){ return _localCaptives().filter(c=>c.villageId===townId); }
+
 function showLocalWantedBoard(townId){
  const town = TOWNS[townId];
  const story = document.getElementById('story');
@@ -37807,7 +37848,7 @@ function ydActionChoices(node, floor){
         renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
        }},
        {label:' 確保したまま広場へ引き渡しに向かう', fn:()=>{
-        PC._localWantedCaptive = { targetId:target.id, villageId:dung.villageId, name:target.name, crime:target.crime, reward:target.reward };
+        _localCaptives().push({ targetId:target.id, villageId:dung.villageId, name:target.name, crime:target.crime, reward:target.reward });
         document.getElementById('story').innerHTML = ` <span style="color:#e8e0d0">${target.name}を縛り上げ、広場まで連れて行くことにした。</span>`;
         renderChoices([{label:'▶ OK', fn:()=>ydGoNode(_nid, _fl)}]);
        }},
@@ -48982,7 +49023,9 @@ const KHAZAN_SCHOLAR_RELIC_LINE = '「……その石、少し見せていただ
 
 function pickTravelRumor(){
  const tag = PC.background?.motiveTag;
- const pool = tag && MOTIVE_RUMORS[tag];
+ // 仇討ちを果たしたあとは、紋章など仇の手がかりの噂は出さない
+ const _done = tag === 'revenge' && PC.background?.revengeResolved;
+ const pool = tag && !_done && MOTIVE_RUMORS[tag];
  if(pool && Math.random() < 0.25){
   return pick(pool)(PC.background);
  }
@@ -52952,7 +52995,7 @@ function updateHUD(){
  const adds=calcAdds();
  const armor=effectiveArmor();
  const {cur, max, over} = checkWeightPenalty();
- document.getElementById('d-st').textContent=PC.st+'/'+Math.max(PC.maxSt||PC.st, PC.st);
+ document.getElementById('d-st').textContent=PC.st+'/'+(PC.maxSt||PC.st);
  document.getElementById('d-con').textContent=PC.con+'/'+PC.maxCon;
  document.getElementById('d-lk').textContent=PC.lk;
  document.getElementById('d-dex').textContent=PC.dex;
@@ -53150,7 +53193,7 @@ function renderPartyList(el, party){
  </div>
  <span style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">詳細 ▶</span>
  </div>
- <div style="font-size:calc(var(--font-sm) - 1px);color:#e8e0d0">体力 ${n.con}/${n.maxCon}　強さ ${n.st}/${Math.max(n.maxSt||n.st, n.st)}　${(()=>{ const _c=calcTotalWeight(n), _m=weightPossible(n); const _col=_c>_m?'var(--red)':_c>_m*0.8?'var(--ora)':'inherit'; return `所持重量 <span style="color:${_col}">${_c}/${_m}</span>`; })()}</div>
+ <div style="font-size:calc(var(--font-sm) - 1px);color:#e8e0d0">体力 ${n.con}/${n.maxCon}　強さ ${n.st}/${n.maxSt||n.st}　${(()=>{ const _c=calcTotalWeight(n), _m=weightPossible(n); const _col=_c>_m?'var(--red)':_c>_m*0.8?'var(--ora)':'inherit'; return `所持重量 <span style="color:${_col}">${_c}/${_m}</span>`; })()}</div>
  ${alive?`<div style="height:3px;background:#050505;border-radius:2px;margin-top:4px"><div style="width:${barW}%;height:100%;background:${col};border-radius:2px"></div></div>`:''}
  ${alive?`<div style="display:flex;align-items:center;gap:5px;margin-top:5px">
   <div style="flex:1;height:3px;background:#050505;border-radius:2px"><div style="width:${trust}%;height:100%;background:${trustCol};border-radius:2px"></div></div>
@@ -55507,6 +55550,8 @@ function startAsNPC(npcIdx){
  // GAME_TIMEを引き継ぐ
  GAME_TIME.totalDays = ws.totalDays;
 
+ // 動機は一世代限り（子にも仲間の後継者にも、前の主人公の動機は引き継がない）
+ const _prevName = PC.name;
  // NPCのデータをPCに転写
  Object.assign(PC, JSON.parse(JSON.stringify(npc)));
  PC._npcEquipWeight = true; // 世代交代：旧セーブからの引き継ぎでも仲間NPCの装備重量を反映する
@@ -55555,13 +55600,25 @@ function startAsNPC(npcIdx){
   ];
   PC.background = {
    family: `冒険者「${parentName}」の子として生まれ育った。${parentGone ? '親の背中を追い、自らも剣を取ることを決めた。' : '親から冒険の心得を受け継ぎ、自らも旅立つことにした。'}`,
-   motive: (PC.background && PC.background.motive) || pick(parentGone ? HEIR_MOTIVE_DEAD : HEIR_MOTIVE_RETIRED)
+   motive: pick(parentGone ? HEIR_MOTIVE_DEAD : HEIR_MOTIVE_RETIRED)   // 親の動機は、どの種類でも引き継がない
   };
   // 爵位は血縁の子にのみ引き継がれる（ゲーム内世代交代でも家督として継承される扱い）
   if(inheritedNobilityTitle){
    PC._nobilityTitle = inheritedNobilityTitle;
    addLifeEvent('', `親より「${inheritedNobilityTitle}」の爵位を継いだ。`);
   }
+ } else if(!npc.background){
+  // 血縁でない後継者（旅の仲間）は、前の主人公の生い立ちや動機を引き継がない
+  const _succMotives = [
+   `${_prevName}と旅をした日々を胸に、これからは自分の足で冒険を続けたい。`,
+   `${_prevName}の背中を見てきた。その旅の続きを、自分の手で切り開きたい。`,
+   `${_prevName}と過ごした旅の記憶を、無駄にはしたくない。`,
+   `${_prevName}が残した道を、自分なりに歩いていきたい。`,
+  ];
+  PC.background = {
+   family: `冒険者「${_prevName}」の仲間として、旅を共にしてきた。`,
+   motive: pick(_succMotives),
+  };
  }
 
  // ワールドからこのNPCを除去
@@ -57292,7 +57349,26 @@ function _startMagicPhaseNPC(){
  casters.sort((a,b)=>(b.spd||0)-(a.spd||0));
  cbtState._npcMagicOrder = casters;
  cbtState._npcMagicIdx = 0;
+ cbtState._inMagicPhase = true;
  _magicPhaseStepNPC();
+}
+
+// 魔法フェーズ中に最後の敵が倒れても、まだ詠唱順が来ていない敵魔法使いは倒れる直前の魔法を放つ。
+// 放つ敵がいれば全員の詠唱を終えてからthenを呼び、trueを返す（呼び出し側はreturnする）。いなければfalse
+function _finalVolley(then){
+ const cs = cbtState;
+ if(!cs || !cs.isNPC || !cs._inMagicPhase) return false;
+ const pend = (cs._npcMagicOrder||[]).filter(en=>en.kind==='enemy' && !en._done && en.actor.curCon<=0 && !en.actor._shapeshifted);
+ if(!pend.length) return false;
+ cs._inMagicPhase = false; // 以後の再入を防ぐ
+ const run = (i)=>{
+  if(i >= pend.length){ then(); return; }
+  const en = pend[i]; en._done = true;
+  en.actor._dyingCast = true;
+  _enemyCastTtyfNPC(en.actor, ()=>run(i+1));
+ };
+ run(0);
+ return true;
 }
 
 function _magicPhaseStepNPC(){
@@ -57301,6 +57377,7 @@ function _magicPhaseStepNPC(){
  const entry = order[idx];
 
  if(!entry){
+  cbtState._inMagicPhase = false;
   document.getElementById('npc-action-panel').style.display='none';
   if(cbtState.turn === 0){ _startRangedPhase(); } else { _showPCActionChoices(); }
   return;
@@ -57308,6 +57385,9 @@ function _magicPhaseStepNPC(){
 
  if(entry.kind==='enemy'){
   cbtState._npcMagicIdx = idx+1;
+  // 魔法フェーズは一瞬の出来事：先に倒された敵魔法使いも、倒れる直前に詠唱した魔法として放つ
+  entry._done = true;
+  entry.actor._dyingCast = entry.actor.curCon <= 0;
   _enemyCastTtyfNPC(entry.actor, ()=>_magicPhaseStepNPC());
   return;
  }
@@ -57436,6 +57516,7 @@ function _enemyCastTtyfNPC(enemy, onDone){
  if(!picked){ onDone(); return; }
  enemy.st -= picked.cost;
  const cl = document.getElementById('clog');
+ if(enemy._dyingCast) cl.innerHTML += `<span style="color:#e0d8c8"> 倒れる間際、${enemy.name}が最後の力で魔法を放った！</span><br>`;
  const spDisplayName = {ttyf:'Magic Bolt', blastingPower:'Detonate', freezePleeze:'Ice Bind', turnToStone:'Turn to Stone', atomization:'Atomization'}[picked.fn] || picked.name;
 
  // Detonate/Ice Bind：詠唱者のレベル数を攻撃ダイスとして近接判定の合計に上乗せするだけ（防護値無視の直接ダメージなし・PC側の回避判定も不要）
@@ -58010,7 +58091,9 @@ function _npcTtyfApply(npc, sp, lv, stCost, target, onDone){
   // HPバーのみ更新（_showPCActionChoicesは呼ばない）
   _updateCombatBars();
   // 全滅チェック
+  const _wipeA = ()=>{
   if(cbtState.enemies.every(e=>(isNPCCbt?e.curCon:e.curMR)<=0)){
+   if(_finalVolley(_wipeA)) return;
    gainAPAll(cbtState.totalMR);
    const cs = cbtState; // onWin側でcbtStateがnullになっても参照がずれないようスナップショットを保持
    showCombatOK(()=>{
@@ -58027,6 +58110,8 @@ function _npcTtyfApply(npc, sp, lv, stCost, target, onDone){
    return;
   }
   onDone();
+  };
+  _wipeA();
  };
 
  // NPC型戦闘限定：対象（敵）の回避判定を挟む（内部計算のみ、演出なし）
@@ -58069,6 +58154,7 @@ function _npcAttackSpellApply(npc, sp, target, onDone){
  const checkWipeAndDone = ()=>{
   _updateCombatBars();
   if(cbtState.enemies.every(e=>(isNPCCbt?e.curCon:e.curMR)<=0)){
+   if(_finalVolley(checkWipeAndDone)) return;
    gainAPAll(cbtState.totalMR);
    const cs = cbtState;
    showCombatOK(()=>{
@@ -58863,8 +58949,12 @@ function resolveRoundNPC(pRoll, npcActions){
 
  // ── 敵ロール（能力値型）──
  const aliveEnemies = cs.enemies.filter(e=>e.curCon>0);
- const eRolls = aliveEnemies.map(e=>{
-  if(cs.sleeping>0) return {enemy:e, roll:0, dice:[], ttyf:0};
+ // 魔法フェーズで倒れる直前に魔法を放った敵の分も、今ラウンドの敵ロールに数える（ダメージ分配の頭数には入れない）
+ const _dyingRollers = cs.enemies.filter(e=>e.curCon<=0 && e._dyingCast && (e._castDetonateThisRound||e._castTtyfThisRound));
+ const eRollers = aliveEnemies.concat(_dyingRollers);
+ const eRolls = eRollers.map(e=>{
+  if(e.curCon<=0) e._dyingCast = false;
+  if(cs.sleeping>0){ if(e.curCon<=0){ e._castDetonateThisRound=false; e._detonateHitThisRound=0; e._castTtyfThisRound=false; e._ttyfHitThisRound=0; } return {enemy:e, roll:0, dice:[], ttyf:0}; }
   // 魔法フェーズで詠唱済みなら、その結果（回避成功なら0）をそのまま使う。近接ロールはしない
   if(e._castTtyfThisRound){
    const ttyfVal = e._ttyfHitThisRound||0;
@@ -58914,7 +59004,7 @@ function resolveRoundNPC(pRoll, npcActions){
  });
  if(partyRolls.length) detail += `→<span style="color:#f0ece0">${totalPlayerRoll}</span>`;
  detail += ' vs ';
- if(aliveEnemies.length>1){
+ if(eRollers.length>1){
   detail += eRolls.map(r=>`${r.enemy.name}<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">${diceStr(r.dice)}</span>${r.ttyf>0?`+<span style="color:#e8e0d0">Magic Bolt+${r.ttyf}</span>`:''}=<span class="ora">${r.roll}</span>`).join('+');
   detail += `→<span class="ora">${eTotalRoll}</span>`;
  } else {
@@ -60464,7 +60554,7 @@ function _ttyfApplyHit(spell, ttyfLv, stCost, target, discCost, result, isNPCCbt
  const allDeadCheck = isNPCCbt
   ? cbtState.enemies.every(e=>e.curCon<=0)
   : cbtState.enemies.every(e=>e.curMR<=0);
- if(allDeadCheck){
+ const _victoryC = ()=>{
   if(cbtState.isNPC){ gainAPCombatNPC(cbtState.enemies); }
   else { gainAPAll(cbtState.totalMR); }
   const cs = cbtState; // onWin側でcbtStateがnullになっても参照がずれないようスナップショットを保持
@@ -60479,8 +60569,8 @@ function _ttyfApplyHit(spell, ttyfLv, stCost, target, discCost, result, isNPCCbt
     go(cs.win||currentNodeId);
    }
   });
-  return;
- }
+ };
+ if(allDeadCheck){ if(!_finalVolley(_victoryC)) _victoryC(); return; }
 
  // パーティがいれば次はNPCの行動へ、単独なら即resolveRound
  const aliveParty = (PC.party||[]).filter(n=>n.con>0);
@@ -60988,6 +61078,20 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026110601', sections:[
+  { heading:'新規実装項目', items:[
+   '仲間とのアイテム受け渡しで、矢を渡せるようにした（1本・10本・全部）。',
+  ]},
+  { heading:'調整', items:[
+   '魔法フェーズで先に倒された敵の魔法使いも、倒れる間際に魔法を放つようにした（最後の1体が倒れた場合も同様）。',
+   '旅芸人一座の護衛中に別の地方の一座と同じ町になった場合、護衛中の一座を優先して表示するようにした。',
+   '強さが一時的に増えたとき、最大値の表示まで一緒に上がらないようにした。',
+   '旅の動機は一世代限りとし、子や後継者には引き継がないようにした。',
+  ]},
+  { heading:'不具合修正', items:[
+   '賞金首を2体以上捕まえても、広場で1体分しか引き渡せない不具合を修正した。',
+  ]},
+ ]},
  { version:'ver.2026110401', sections:[
   { heading:'新規実装項目', items:[
    '起動時に、前回のセーブデータの書き出しから7日以上経っていたら、書き出しを促す案内を出す。',
