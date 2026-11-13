@@ -274,6 +274,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 .wild-dir .wild-arrow{font-size:calc(var(--font-base) + 4px)}
 .wild-dir.wild-road{font-size:calc(var(--font-sm) - 1px);border-color:#a08848}
 .choice-btn::before{content:'▶ ';color:#f0ece0}
+.choice-btn.minus-btn::before{content:'◀ ';color:#f0ece0}
 /* PC表示時のみ、キーボード数字ショートカット（1〜9）のラベルを選択肢ボタンに表示する */
 .kb-num{display:none}
 @media (min-width: 860px) {
@@ -671,7 +672,7 @@ html.cmd-vertical #npc-action-btns > .cmd-skip{ order:-1; }   /* 魔法・遠距
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026111301</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026111302</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -923,7 +924,8 @@ html.cmd-vertical #npc-action-btns > .cmd-skip{ order:-1; }   /* 魔法・遠距
 
  <!-- 所持金・経験値・レベル -->
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 冒険 ──</div>
- <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:10px" id="sp-adv"></div>
+ <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:6px" id="sp-adv"></div>
+ <div id="sp-apbar" style="margin-bottom:10px"></div>
 
  <!-- 性格 -->
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px;margin-top:10px">── 性格 ──</div>
@@ -16867,6 +16869,8 @@ function effectiveArmor(pc=PC){
 
 // ── LEVEL & 経験値 ─────────────────────────
 const LEVEL_THRESHOLDS = [0,1000,3000,7000,15000,25000,45000,70000,100000,140000,200000,280000,400000,550000,750000,1000000,2000000,4000000,8000000,16000000];
+// Lv20以降も、必要な経験値は倍々で増えていく（Lv40まで。数値が安全に扱える範囲）
+for(let _i = LEVEL_THRESHOLDS.length; _i < 40; _i++) LEVEL_THRESHOLDS.push(LEVEL_THRESHOLDS[_i-1] * 2);
 function checkLevel(pc=PC){
  let lv=1;
  for(let i=1;i<LEVEL_THRESHOLDS.length;i++){
@@ -33536,6 +33540,10 @@ const VILLAGE_INCIDENT_LEAVABLE = new Set([
  'ore_appraisal',           // 未掘削の鉱脈（物）
  'tax_ledger_discrepancy',  // 帳簿の不正の痕跡（物）
  'haunted_rumor',           // 幽霊が出るという噂の家（場所）
+ 'marea_marching_shapes',   // 列を成す何か（やり過ごせる）
+ 'marea_pale_road',         // 色を失った道（避けて通れる）
+ 'marea_pulse_ground',      // 脈打つ地面（離れられる）
+ 'marea_same_place',        // 同じ場所（引き返せる）
  'old_curse_ritual',        // 古い呪いの儀式跡（場所）
  'collapsing_building',     // 崩れかけた建物に閉じ込められた人（動けない）
  'harbor_smuggled_goods_find', // 積み荷の陰の密輸品（物）
@@ -35887,6 +35895,109 @@ const SMALL_TOWN_DISTRICTS = {
  },
 };
 
+// ── マレア地方：荒れ地（ネリア砦・ドルア・サルペ・ネブラ共通）──
+// 敵は道中モンスター（MAREA_ENEMIES）と同じ表を使う（wildlifeTable:'marea' → ydRollVillageEncounter が pickMareaEnemy へ委譲）。
+// 反射騎士などの存在を匂わせる描写は入れない。土地の異常さ（色の抜けた地面・脈動・観察される感覚・時間の乱れ）だけで雰囲気を作る。
+const MAREA_FLAVOR_BASE = {
+ passage: [
+  '地面が、踏むたびにわずかに沈む。足を上げると、跡がゆっくりと元に戻っていく。',
+  '草の色が妙に薄い。緑というより、緑だった何かの名残のようだ。',
+  '岩肌を覆う地衣が、風もないのに小さく波打っている。見ないふりをして通り過ぎた。',
+  '乾いた土の割れ目から、湿った生温かい息が漏れている。',
+  '遠くで何かが動く音がする。止まると、少し遅れて音も止んだ。',
+  '空の色が定まらない。昼のはずなのに、夕暮れの色を引きずっている。',
+  '振り返ると、来た道が少し違って見える。どこが違うのかは言い当てられない。',
+  '地面に点々と落ちている小石が、ひとつ残らず同じ向きに並んでいる。',
+ ],
+ turn: [
+  '道が曲がる先で、影だけがこちらを向いたまま動かない。近づくと、ただの岩だった。',
+  '曲がった先の地面に、足跡が一列に続いている。どれも同じ間隔で、深さまで同じだ。',
+  '曲がり角の岩に、乾ききらない何かが擦りつけられている。誰かが残したのか、岩自身が滲ませたのかは分からない。',
+ ],
+ side: {
+  left90: [
+   '左手の脇道の奥が、ここより少し暗い。日が差しているはずなのに、道の中だけが夜のようだ。',
+   '左へ折れる小道の入口に、見慣れない大きさの跡が並んでいる。誰かが無理に押し込んだように見える。',
+  ],
+  right90: [
+   '右手の脇道の奥が、ここより少し暗い。日が差しているはずなのに、道の中だけが夜のようだ。',
+   '右へ続く小道の入口に、見慣れない大きさの跡が並んでいる。誰かが無理に押し込んだように見える。',
+  ],
+  tee: [
+   '道が二又に分かれている。片方で草が一方向に倒れているが、風は吹いていない。',
+   '二又の道のどちらも、同じように踏み固められている。足跡の向きだけが、どれも同じだ。',
+  ],
+  cross: [
+   '四方に道が分かれる場所に出た。中央の地面だけが色を失い、白く乾いている。',
+  ],
+ },
+ dead_end: [
+  '道が黒い裂け目に断たれている。裂け目に光は吸い込まれ、縁だけが、輪郭を持たないまま揺れている。',
+  '肉質の瘤が道を塞いでいる。脈打つたび、行く手がわずかに狭まる気がした。',
+  '引き返すしかない。背後の道が、さっきより長くなっている気がする。',
+ ],
+ roomHeader: ' 開けた場所に出た',
+ room: [
+  '草の生えない円形の空き地に出た。地面は磨いたように滑らかで、縁だけが丁寧に切り取られている。',
+  '朽ちた装備や道具の残骸が、人が座っていた形のまま散らばっている。持ち主の姿はない。',
+  '地衣に覆われた大きな岩が、ゆっくりと呼吸している。近づくと、むっとする甘い臭いがした。',
+  '家畜小屋らしい跡がある。柵は内側から外へ向かって曲がっている。',
+ ],
+ forage: [
+  '岩の隙間に、薄紫の薬草が群れて生えている。霧のある土地でしか育たない種類に似ている。',
+  '地衣の下で、小さな実のようなものが脈打っている。食べられるかは、確かめる気になれない。',
+  '古い石の割れ目に、何かの欠片が挟まっている。遺物かもしれない。',
+ ],
+};
+function _mareaFlavor(entrances, extraRooms){
+ return { ...MAREA_FLAVOR_BASE, entrances, room: [...MAREA_FLAVOR_BASE.room, ...(extraRooms||[])] };
+}
+const MAREA_TRAP_TYPES = [
+ {name:'沈む地面', attr:'dex', descs:['地面が不自然に柔らかい。踏み込むと、足首まで沈みそうだ。','踏み固められた跡の途中だけ、土の色が違う。そこだけ脈打つように見える。','足元の土が、呼吸に合わせてわずかに上下している。']},
+ {name:'地衣の胞子', attr:'con', descs:['岩を覆う地衣が、粉を吹いたように白んでいる。触れれば胞子が舞いそうだ。','空気に、甘く湿った臭いが混じっている。吸い込むと頭が重くなる気がする。','地衣の表面が、ぷくりと膨らんでいる。破裂寸前のようだ。']},
+ {name:'絡みつく触手の根', attr:'spd', descs:['地面から、肉質の細い根のようなものが覗いている。こちらの動きに合わせて、わずかに揺れている。','足元の土が、細かく波打っている。何かが這い寄ってくる気配がある。','道の脇に、粘液を引いた細い糸が張り巡らされている。']},
+ {name:'色の抜けた地面', attr:'lk', descs:['道の一部だけ、色を吸い取られたように白い。踏み込んでよいのか判断がつかない。','足元の影が、そこだけ薄れている。影の中に何かが潜んでいるようだ。','地面の割れ目から、色を持たない靄が滲み出している。']},
+ {name:'ずれた拍動', attr:'iq', descs:['土の下から、くぐもった鼓動が伝わってくる。拍が不規則で、数えようとすると乱れる。','空気の振動が、足元の地面の揺れと噛み合っていない。何かの仕掛けか、土地のくせか分からない。','小石が、一定の間隔で跳ねている。間隔の理由を考えると、頭がずきりと痛んだ。']},
+];
+const MAREA_TENSE_ATMS = [
+ '風が止んだ。地衣の波打ちも止まり、辺り一帯が、こちらの様子を窺っている。',
+ '規則正しい音が、遠くからこちらへ向かってくる。立ち止まっても、音は近づいてくる。',
+ '前方の空気が歪んでいる。色が滲み、輪郭がほどけていく。',
+ '土の下から、くぐもった鼓動が伝わってくる。自分の脈と、ずれている。',
+];
+const MAREA_DARK_ESCAPE = {
+ intro: 'マレアの夜は、星のない闇に落ちる。足元の地面が呼吸しているのが伝わってくる。拠点へ戻れるか……',
+ success: '遠くに灯りが見えた。それだけを頼りに、足を動かし続けた。なんとか入口へたどり着いた！',
+ death: '暗闇の中で、地面が柔らかく沈んだ。足が抜けない……',
+ hurt: '暗闇の中、何かに足を取られて転んだ。',
+};
+const MAREA_INCIDENTS = [
+ {
+  id:'marea_marching_shapes',
+  phases:['dawn','morning','noon','afternoon','night','midnight'],
+  title:' 列を成す何か',
+  flavor:'無言の何かが、列を成して荒れ地を横切っていく。足並みは寸分も乱れず、こちらに気づいているのかどうかも分からない。',
+ },
+ {
+  id:'marea_pale_road',
+  phases:['dawn','morning','noon','afternoon','night','midnight'],
+  title:' 色を失った道',
+  flavor:'道の一部が、色を吸い取られたように白い。踏み込んだ者の足跡だけが、ぽつりと途中で途切れている。',
+ },
+ {
+  id:'marea_pulse_ground',
+  phases:['dawn','morning','noon','afternoon','night','midnight'],
+  title:' 脈打つ地面',
+  flavor:'足元の土が、心臓のように打っている。立ち止まって耳を澄ますと、その拍が自分の脈と少しずつずれていくのが分かる。',
+ },
+ {
+  id:'marea_same_place',
+  phases:['dawn','morning','noon','afternoon','night','midnight'],
+  title:' 同じ場所',
+  flavor:'気づくと、さっき通ったはずの岩の前に戻っている。目印に付けた傷は、岩のどこにも増えていない。',
+ },
+];
+
 // ── 村・裏路地システムの拠点別設定レジストリ ──
 // 新しい村を追加する場合は、ここに1エントリ追加するだけでよい（エンジン側は villageId 経由で参照する）
 const VILLAGE_BACKALLEY_CONFIGS = {
@@ -36106,6 +36217,86 @@ const VILLAGE_BACKALLEY_CONFIGS = {
    death: '暗闇の中で凍った岩に足を取られ、倒れ込んだ。動けない……',
    hurt: '暗闇の中、落石につまずいて転んだ。',
   },
+ },
+ neria: {
+  label: '砦の外郭',
+  wildlifeTable: 'marea',
+  flavor: _mareaFlavor([
+   '砦の外壁沿いに歩くと、積まれた土嚢の隙間に、誰も覚えていない紋章が刻まれている。門の外には、補修されたばかりの跡が続いている。',
+   '門を抜けて外郭へ出ると、見張り台の影が地面に落ちている。影の長さが、時刻と合っていない。',
+   '外壁の補修跡をたどると、石積みが途切れた場所から、色の薄い荒れ地が広がっている。',
+  ], [
+   'かつて堀だった溝が、黒く乾いている。底に、朽ちた装備の欠片がびっしり敷き詰められている。',
+  ]),
+  incidents: MAREA_INCIDENTS,
+  forageType: 'gold',
+  forageLabel: ' 岩の隙間を探る（運 Lv2 能力値テスト）',
+  forageOkText: (gp)=>`岩の隙間から、売れそうな遺物の欠片を見つけた。（${gp}GP）`,
+  forageNgText: '探ってみたが、持ち帰れそうなものは見つからなかった。',
+  trapTypes: MAREA_TRAP_TYPES,
+  tenseAtms: MAREA_TENSE_ATMS,
+  lootText: ' 色を失った土の上に、何か光るものが落ちている。それだけが、やけに鮮やかだ。',
+  darkEscape: MAREA_DARK_ESCAPE,
+ },
+ dorua: {
+  label: '台地の荒れ地',
+  wildlifeTable: 'marea',
+  flavor: _mareaFlavor([
+   '農地の端で、鍬が地面に刺さったまま錆びている。畝は途中から、種を蒔かれた記憶ごと、なかったことになっている。',
+   '村はずれの畑の先で、土の色が急に変わっている。その境目から先は、誰も耕した跡がない。',
+   '干上がった用水路に沿って歩くと、台地の縁で水路が途切れている。水の跡だけが、どこへともなく続いていた。',
+  ], [
+   '環状列石が遠くに見える。石は、数えるたびに数が合わない。',
+  ]),
+  incidents: MAREA_INCIDENTS,
+  forageType: 'gold',
+  forageLabel: ' 岩の隙間を探る（運 Lv2 能力値テスト）',
+  forageOkText: (gp)=>`岩の隙間から、売れそうな遺物の欠片を見つけた。（${gp}GP）`,
+  forageNgText: '探ってみたが、持ち帰れそうなものは見つからなかった。',
+  trapTypes: MAREA_TRAP_TYPES,
+  tenseAtms: MAREA_TENSE_ATMS,
+  lootText: ' 色を失った土の上に、何か光るものが落ちている。それだけが、やけに鮮やかだ。',
+  darkEscape: MAREA_DARK_ESCAPE,
+ },
+ sarpe: {
+  label: '浜辺の荒れ地',
+  wildlifeTable: 'marea',
+  flavor: _mareaFlavor([
+   '網干し場の先で、波の音が途切れている。海はあるのに、潮の匂いがしない。',
+   '朽ちた小舟が並ぶ浜を抜けると、足跡のない砂地が続いている。波打ち際だけが、少しずつ後ずさっている。',
+   '塩の抜けた干し場を過ぎると、砂が色を失った荒れ地に変わる。貝殻が、ひとつ残らず同じ向きに並んでいる。',
+  ], [
+   '浜に石碑が並んでいる。刻まれた文字が、見るたびに少しずつ変わっている気がする。',
+  ]),
+  incidents: MAREA_INCIDENTS,
+  forageType: 'gold',
+  forageLabel: ' 岩の隙間を探る（運 Lv2 能力値テスト）',
+  forageOkText: (gp)=>`岩の隙間から、売れそうな遺物の欠片を見つけた。（${gp}GP）`,
+  forageNgText: '探ってみたが、持ち帰れそうなものは見つからなかった。',
+  trapTypes: MAREA_TRAP_TYPES,
+  tenseAtms: MAREA_TENSE_ATMS,
+  lootText: ' 色を失った土の上に、何か光るものが落ちている。それだけが、やけに鮮やかだ。',
+  darkEscape: MAREA_DARK_ESCAPE,
+ },
+ nebra: {
+  label: '霧の荒れ地',
+  wildlifeTable: 'marea',
+  flavor: _mareaFlavor([
+   '霧が、道の形に開いている。灯台の灯りが、背後からも前方からも差している。',
+   '村の外れで、霧の濃さが急に変わる。薄い側へ進むと、道がひとりでに長くなっていく。',
+   '薬草畑の柵が途切れた先に、霧の中へ消える踏み跡がある。踏み跡は、こちらへ向かうものだけだ。',
+  ], [
+   '霧が不自然に濃く渦を巻いている場所に出た。中心に、人影が立っているように見える。近づくと、霧が少しだけ後ずさった。',
+  ]),
+  incidents: MAREA_INCIDENTS,
+  forageType: 'gold',
+  forageLabel: ' 岩の隙間を探る（運 Lv2 能力値テスト）',
+  forageOkText: (gp)=>`岩の隙間から、売れそうな遺物の欠片を見つけた。（${gp}GP）`,
+  forageNgText: '探ってみたが、持ち帰れそうなものは見つからなかった。',
+  trapTypes: MAREA_TRAP_TYPES,
+  tenseAtms: MAREA_TENSE_ATMS,
+  lootText: ' 色を失った土の上に、何か光るものが落ちている。それだけが、やけに鮮やかだ。',
+  darkEscape: MAREA_DARK_ESCAPE,
  },
 };
 function villageCfg(dung){
@@ -36409,6 +36600,12 @@ function ydRollMonster(floor, poolOverride){
 // generateNPC()でST/DEX等を持つ本物のNPCを生成し、startCombatNPC（isNPC型）で戦えるようにする。
 // 単一フロア固定（フロア深度スケーリングは行わない）。
 function ydRollVillageEncounter(pool){
+ // マレア地方：道中モンスター（MAREA_ENEMIES）と同じ表。pickMareaEnemy の結果を村外れ遭遇の形式へ変換する
+ if(pool === 'marea'){
+  const e = pickMareaEnemy();
+  if(e.kind === 'npc') return { name:e.name, count:e.npcs.length, isNPCType:true, npcs:e.npcs, isHuman:false, desc:e.desc };
+  return { name:e.name, count:1, mr:e.mr, singleMR:e.mr, armor:e.armor||0, magicOnly:!!e.magicOnly, isHuman:false, desc:e.desc };
+ }
  const m = pool[Math.floor(Math.random()*pool.length)];
  if(m.kind === 'npc'){
   const level = m.levelMin + Math.floor(Math.random()*(m.levelMax-m.levelMin+1));
@@ -39106,7 +39303,7 @@ function ydActionChoices(node, floor){
     } else {
     const enemies = Array.from({length:m.count},(_,i)=>({
      name:m.count>1?`${m.name} #${i+1}`:m.name,
-     mr:m.singleMR, curMR:m.singleMR, armor:m.armor||0,
+     mr:m.singleMR, curMR:m.singleMR, armor:m.armor||0, magicOnly:!!m.magicOnly,
     }));
     ch.push({label:` 戦う（${m.name} ×${m.count}）`, fn:()=>{
      const _nid=node.id, _fl=floor;
@@ -39292,7 +39489,7 @@ function ydActionChoices(node, floor){
         const gp = 3+Math.floor(Math.random()*6);
         gainGP(gp);
         updateHUD();
-        document.getElementById('story').innerHTML+=`<br><br><span style="color:#f0ece0"> 瓦礫の中から換金できそうな発掘品の欠片を見つけた。（${gp}GP）</span>`;
+        document.getElementById('story').innerHTML+=`<br><br><span style="color:#f0ece0"> ${cfg.forageOkText ? cfg.forageOkText(gp) : `瓦礫の中から換金できそうな発掘品の欠片を見つけた。（${gp}GP）`}</span>`;
        } else {
         const food = 4+Math.floor(Math.random()*5);
         PC._food=(PC._food||0)+food;
@@ -39303,7 +39500,7 @@ function ydActionChoices(node, floor){
       },
       onFail:()=>{
        PC[node.forageKey]=true;
-       document.getElementById('story').innerHTML+=`<br><br><span style="color:#d0c8b8">${cfg.forageType==='gold' ? ' 瓦礫を掘り返してみたが、金になりそうなものは見つからなかった。' : ' 探し回ったが、食べられそうなものは見つからなかった。'}</span>`;
+       document.getElementById('story').innerHTML+=`<br><br><span style="color:#d0c8b8">${cfg.forageNgText ? cfg.forageNgText : cfg.forageType==='gold' ? ' 瓦礫を掘り返してみたが、金になりそうなものは見つからなかった。' : ' 探し回ったが、食べられそうなものは見つからなかった。'}</span>`;
        renderChoices([{label:'▶ OK', fn:()=>ydGoNode(node.id, floor)}]);
       },
      });
@@ -39654,6 +39851,67 @@ function ydActionChoices(node, floor){
        finish(`<span style="color:#e8e0d0"> 肉を投げて気を逸らし、隙をついて子供を安全な場所へ導いた。（食料-5）</span>`);
       }});
      }
+     break;
+
+    case 'marea_marching_shapes':
+     ch.push({label:' 息を殺して、やり過ごす', fn:()=>{
+      setupSavingRoll({ attr:'dex', level:2,
+       onSuccess:()=>finish(`<span style="color:#e8e0d0"> 身を低くして待つうち、列はこちらに目もくれず、荒れ地の向こうへ消えていった。</span>`),
+       onFail:()=>{
+        const dmg = ydD(3);
+        PC.con = Math.max(0, PC.con-dmg);
+        finish(`<span style="color:#e0d0d0"> 足元の石を鳴らしてしまった。列が一斉に止まり、全員がこちらを向いた。……次の瞬間、何事もなかったように歩き出す。（体力-${dmg}）冷や汗で体が冷え切っている。</span>`);
+       },
+      });
+     }});
+     ch.push({label:' 列が過ぎるまで、道を引き返して待つ（時間を消費）', fn:()=>{
+      if(advanceVillageTime(90)) return;
+      finish(`<span style="color:#e8e0d0"> 来た道を戻って時間を置いた。戻ってみると、列の跡はどこにも残っていなかった。</span>`);
+     }});
+     break;
+
+    case 'marea_pale_road':
+     ch.push({label:' 強引に突っ切る', fn:()=>{
+      setupSavingRoll({ attr:'con', level:2,
+       onSuccess:()=>finish(`<span style="color:#e8e0d0"> 息を止めて駆け抜けた。足の感覚が一瞬だけ遠のいたが、抜けた先で元に戻った。</span>`),
+       onFail:()=>{
+        const dmg = ydDn(6,1);
+        PC.con = Math.max(0, PC.con-dmg);
+        advanceVillageTime(60);
+        finish(`<span style="color:#e0d0d0"> 白い地面を踏んだ途端、足の感覚が抜け落ちた。這うようにして抜けたが、しばらく歩けなかった。（体力-${dmg}）</span>`);
+       },
+      });
+     }});
+     ch.push({label:' 縁を回り込む（時間を消費）', fn:()=>{
+      if(advanceVillageTime(60)) return;
+      finish(`<span style="color:#e8e0d0"> 白い地面を避け、大きく回り込んだ。回り込んだ先でも、どこまでが道だったのか分からなくなっていた。</span>`);
+     }});
+     break;
+
+    case 'marea_pulse_ground':
+     ch.push({label:' 膝をついて、拍に自分の脈を合わせる', fn:()=>{
+      setupSavingRoll({ attr:'lk', level:2,
+       onSuccess:()=>finish(`<span style="color:#e8e0d0"> 呼吸を整えるうち、拍が少しずつ遠のいていった。立ち上がると、地面は何事もなかったように静まっている。</span>`),
+       onFail:()=>{
+        const dmg = ydD(3);
+        PC.con = Math.max(0, PC.con-dmg);
+        advanceVillageTime(60);
+        finish(`<span style="color:#e0d0d0"> 拍がずれるたびに、視界が揺らぐ。気づくと地面に倒れていた。（体力-${dmg}）かなりの時間が経っていたようだ。</span>`);
+       },
+      });
+     }});
+     break;
+
+    case 'marea_same_place':
+     ch.push({label:' 岩を観察し、道筋の法則を探る', fn:()=>{
+      setupSavingRoll({ attr:'iq', level:2,
+       onSuccess:()=>finish(`<span style="color:#e8e0d0"> 岩を中心に、風の抜ける向きと影の長さが食い違っていることに気づく。その逆へ進むと、見覚えのない道へ出た。</span>`),
+       onFail:()=>{
+        if(advanceVillageTime(120)) return;
+        finish(`<span style="color:#e0d0d0"> 何度歩いても、同じ岩の前に戻ってしまう。ようやく抜け出したときには、思いのほか時間が過ぎていた。</span>`);
+       },
+      });
+     }});
      break;
 
     case 'swindler_map':
@@ -43112,7 +43370,7 @@ function ydActionChoices(node, floor){
     }
     const enemies = Array.from({length:m.count},(_,i)=>({
      name:m.count>1?`${m.name} #${i+1}`:m.name,
-     mr:m.singleMR, curMR:m.singleMR, armor:m.armor||0,
+     mr:m.singleMR, curMR:m.singleMR, armor:m.armor||0, magicOnly:!!m.magicOnly,
     }));
     ch.push({label:` 戦う（${m.name} ×${m.count}）`, fn:()=>{
      const _nid=node.id, _fl=floor;
@@ -47985,6 +48243,8 @@ const MAREA_ENEMIES = [
   desc:'大地に走る黒い亀裂が、周囲の色彩ごと吸い込むように大きく口を開けた。武器を構えても、手応えがまるでない——魔法でなければ効かないようだ。' },
  { kind:'npc', name:'奇妙な意匠の全身鎧をまとった兵士', levelMin:10, levelMax:30,
   desc:'見たこともない意匠の全身鎧をまとった兵士が、無言のままこちらへ歩み寄ってくる。' },
+ { kind:'npc', name:'奇妙な意匠の全身鎧をまとった騎士', levelMin:15, levelMax:30, reflect:true,
+  desc:'見たこともない意匠の全身鎧をまとった騎士が、無言のまま、ゆっくりとこちらへ歩み寄ってくる。' },
 ];
 
 function pickMareaEnemy(){
@@ -47994,6 +48254,7 @@ function pickMareaEnemy(){
   const npc = generateNPC(level);
   npc.name = t.name; // 名称はモンスター名で統一
   npc.bountyTitle = t.name;
+  if(t.reflect) npc.reflectsSpells = true;
   return { kind:'npc', name:t.name, desc:t.desc, isHuman:false, npcs:[npc] };
  }
  return { kind:'flat', name:t.name, desc:t.desc, isHuman:false, mr:t.mr, armor:t.armor||0, magicOnly:!!t.magicOnly, count:1 };
@@ -48269,6 +48530,7 @@ function pickMareaEnemyGroup(count){
    const npc = generateNPC(level);
    npc.name = t.name;
    npc.bountyTitle = t.name;
+   if(t.reflect) npc.reflectsSpells = true;
    return npc;
   });
   return { kind:'npc', name:t.name, desc:t.desc, count, npcs };
@@ -51091,7 +51353,7 @@ const SPELLS_L1 = [
 // ── SPELLS (Level 2) ── IQ≥12, DEX≥9, 学習500GP ──
 const SPELLS_L2 = [
  {name:'Soothe',cost:4, level:2, iqReq:12, dexReq:9, learnCost:500,
- desc:'2強さで1体力回復（最大値まで）', fn:'poorBaby'},
+ desc:'2強さで1体力回復（最大値まで）。回復量は＋−ボタンで調整できる', fn:'poorBaby'},
  {name:'Battle Surge', cost:10, level:2, iqReq:12, dexReq:9, learnCost:500,
  desc:'1ターン武器ダイスを3倍', fn:'whammy'},
  {name:'Blind Spot', cost:10, level:2, iqReq:12, dexReq:9, learnCost:500,
@@ -55418,6 +55680,18 @@ function renderStatusPanel(){
  d.innerHTML = `<div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:3px">${l}</div><div style="font-size:var(--font-base);color:${c}">${v}</div>`;
  advEl.appendChild(d);
  });
+ // 経験値バー（次のレベルまでの進み具合。仲間の詳細画面と同じ計算）
+ const apBarEl = document.getElementById('sp-apbar');
+ if(apBarEl){
+  const _ap = PC.ap || 0, _lv = PC.level || 1;
+  const _next = LEVEL_THRESHOLDS[_lv] || null, _prev = LEVEL_THRESHOLDS[_lv-1] || 0;
+  const _toNext = _next ? Math.max(0, _next - _ap) : null;
+  const _pct = _next ? Math.max(0, Math.min(100, Math.round((_ap - _prev) / (_next - _prev) * 100))) : 100;
+  apBarEl.innerHTML = '<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:6px 8px">'
+   + '<div style="height:4px;background:var(--ink);border-radius:2px;margin-bottom:4px"><div style="width:' + _pct + '%;height:100%;background:linear-gradient(90deg,#d8d0c0,#ffcc33);border-radius:2px"></div></div>'
+   + '<div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">' + (_toNext !== null ? '次のLvまで ' + _toNext.toLocaleString() + ' 経験値' : 'MAX LEVEL') + '</div>'
+   + '</div>';
+ }
 
  // ── 装備中アイテム（指輪など） ──
  const wornEl = document.getElementById('sp-worn-items');
@@ -59118,6 +59392,52 @@ function _spellFlavor(key, vars){
  return line;
 }
 
+// ── 魔法を反射する敵（Magic Bolt／Turn to Stone／Atomization を詠唱者へ跳ね返す）──
+const REFLECT_SPELL_FNS = ['ttyf','turnToStone','atomization'];
+function _spellReflected(target, fn){
+ return !!(target && target.reflectsSpells && REFLECT_SPELL_FNS.includes(fn));
+}
+// 跳ね返った魔法を詠唱者が受ける。回避判定は敵が同じ魔法を撃ったときと同じ（運の能力値テスト：Magic Boltは詠唱レベル、Turn to Stoneは6、Atomizationは7）
+// 詠唱者が主人公で死亡が確定した場合は onDone を呼ばない
+function _reflectSpellBack(caster, fn, lv, onDone, heat){
+ const cl = document.getElementById('clog');
+ // 跳ね返る先は、主人公と生きている仲間からランダム
+ const pool = [PC].concat((PC.party||[]).filter(n=>n.con>0));
+ const victim = pool[Math.floor(Math.random()*pool.length)];
+ const isPC = (victim === PC);
+ const who = isPC ? 'あなた' : victim.name;
+ if(fn==='atomization' && heat>0) cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + heat;
+ const spName = {ttyf:'Magic Bolt', turnToStone:'Turn to Stone', atomization:'Atomization'}[fn];
+ const dodgeLv = fn==='atomization' ? 7 : fn==='turnToStone' ? 6 : Math.max(1, lv||1);
+ cl.innerHTML += `<span class="red"> 鎧が${spName}を弾き返した！魔法は${who}に跳ね返ってくる——</span><br>`;
+ if(fn==='atomization' && heat>0) cl.innerHTML += `<span style="color:#e8e0d8"> （発生した熱で近接戦闘に${heat}ヒット追加）</span><br>`;
+ _npcCombatTtyfDodge(dodgeLv, victim, (dodged)=>{
+  if(dodged){
+   cl.innerHTML += `<span style="color:#e8e0d8"> ${who}は跳ね返った魔法をかわした！</span><br>`;
+   onDone();
+   return;
+  }
+  if(fn==='ttyf'){
+   const dmg = (caster.iq||10) * Math.max(1, lv||1);
+   victim.con = Math.max(0, victim.con - dmg);
+   cl.innerHTML += `<span class="red"> 跳ね返った魔法が${who}を撃った！（体力-${dmg}・防護値無視・残り${victim.con}）</span><br>`;
+  } else if(fn==='turnToStone'){
+   victim.con = 0;
+   cl.innerHTML += `<span class="red"> 跳ね返った魔法を浴び、${who}の体が石に変わっていく……</span><br>`;
+  } else {
+   victim.con = 0;
+   cl.innerHTML += `<span class="red"> 跳ね返った魔法に包まれ、${who}の体が光の中に消えていく……</span><br>`;
+  }
+  updateHUD();
+  if(victim.con <= 0){
+   if(isPC){ if(_handlePCZeroCon(cl)) return; }
+   else { cl.innerHTML += `<span class="red"> ${victim.name}が倒れた！</span><br>`; }
+  }
+  try{ updateCombatUI(); }catch(e){}
+  onDone();
+ });
+}
+
 function _npcCombatTtyfDodge(casterLevel, target, onResult){
  if(target === PC){
   document.getElementById('npc-action-panel').style.display = 'none';
@@ -59266,8 +59586,9 @@ function _magicPhaseSpellSelectNPC(){
  title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> 呪文を選択</span>`;
  btns.innerHTML='';
 
- PC.spells.forEach(sp=>{
-  if(['wisp','cateyes','blindSpot','enchantWeapon','fortifyArmor'].includes(sp.fn)) return;
+ _spellMenuItems(PC.spells, sp=>!['wisp','cateyes','blindSpot','enchantWeapon','fortifyArmor'].includes(sp.fn)).forEach(it=>{
+  if(it.heading != null){ btns.appendChild(_spellHeadingEl(it.heading)); return; }
+  const sp = it.sp;
   const canAfford = PC.st > _applyStaffDiscount(PC, sp.cost);
   const b = document.createElement('button');
   b.className='choice-btn';
@@ -59303,7 +59624,9 @@ function _magicPhaseNPCSpellSelectNPC(npc){
  title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${npc.name}の呪文を選択</span>`;
  btns.innerHTML='';
 
- (npc.spells||[]).forEach(sp=>{
+ _spellMenuItems(npc.spells).forEach(it=>{
+  if(it.heading != null){ btns.appendChild(_spellHeadingEl(it.heading)); return; }
+  const sp = it.sp;
   const canAfford=(npc.st||0)>_applyStaffDiscount(npc, sp.cost);
   const b=document.createElement('button');
   b.className='choice-btn';
@@ -59514,10 +59837,13 @@ function _magicPhaseStep(npcIdx, magicParty, pcDone){
  if(cbtState.autoNPC || _isCompanionHuntCombat()){
   if(npc._shapeshifted){ _magicPhaseStep(npcIdx+1, magicParty); return; }
   const alive = cbtState.enemies.filter(e=>(cbtState.isNPC?e.curCon:e.curMR)>0);
-  const picked = _npcPickAttackSpell(npc, NPC_ATTACK_SPELL_FNS_VS_ENEMY);
+  const _target0 = alive.length ? alive[Math.floor(Math.random()*alive.length)] : null;
+  // 魔法を反射する敵が相手のときは、反射される魔法を選ばない
+  const _pool = (_target0 && _target0.reflectsSpells) ? NPC_ATTACK_SPELL_FNS_VS_ENEMY.filter(f=>!REFLECT_SPELL_FNS.includes(f)) : NPC_ATTACK_SPELL_FNS_VS_ENEMY;
+  const picked = _npcPickAttackSpell(npc, _pool);
   if(picked && alive.length>0){
    cbtState[`_npcDidCast_${partyIdx}`] = true;
-   const target = alive[Math.floor(Math.random()*alive.length)];
+   const target = _target0;
    const onDone = ()=>_magicPhaseStep(npcIdx+1, magicParty);
    if(picked.fn==='ttyf'){
     _npcTtyfApply(npc, picked, 1, picked.cost, target, onDone);
@@ -59565,9 +59891,10 @@ function _magicPhaseSpellSelect(npcIdx, magicParty){
  title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> 呪文を選択</span>`;
  btns.innerHTML='';
 
- PC.spells.forEach(sp=>{
-  // 戦闘外専用呪文は除外
-  if(['wisp','cateyes','blindSpot','enchantWeapon','fortifyArmor'].includes(sp.fn)) return;
+ _spellMenuItems(PC.spells, sp=>!['wisp','cateyes','blindSpot','enchantWeapon','fortifyArmor'].includes(sp.fn)).forEach(it=>{
+  // 戦闘外専用呪文は除外（_spellMenuItems の絞り込み）
+  if(it.heading != null){ btns.appendChild(_spellHeadingEl(it.heading)); return; }
+  const sp = it.sp;
   const canAfford = PC.st > _applyStaffDiscount(PC, sp.cost);
   const b = document.createElement('button');
   b.className='choice-btn';
@@ -59601,7 +59928,9 @@ function _magicPhaseNPCSpellSelect(npc, npcIdx, magicParty){
  title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${npc.name}の呪文を選択</span>`;
  btns.innerHTML='';
 
- (npc.spells||[]).forEach(sp=>{
+ _spellMenuItems(npc.spells).forEach(it=>{
+  if(it.heading != null){ btns.appendChild(_spellHeadingEl(it.heading)); return; }
+  const sp = it.sp;
   const canAfford=(npc.st||0)>_applyStaffDiscount(npc, sp.cost);
   const b=document.createElement('button');
   b.className='choice-btn';
@@ -59621,6 +59950,48 @@ function _magicPhaseNPCSpellSelect(npc, npcIdx, magicParty){
  back.textContent='← 戻る';
  back.onclick=()=>{ _magicPhaseStep(npcIdx, magicParty); };
  btns.appendChild(back);
+}
+
+// ── Soothe（poorBaby）：回復量を選べる。強さ2で体力1。選択肢は「1・3・5・10・20・40」のうち上限未満のものと、上限（強さまたは最大体力まで）──
+function _sootheOptions(actor){
+ const max = Math.max(0, Math.min(Math.floor((actor.st||0)/2), (actor.maxCon||0)-(actor.con||0)));
+ return { max };   // max<=1（回復できる量が1以下）のときは選ばずそのまま回復する
+}
+// ＋／−ボタンで回復量を調整するUIを mountEl に作る。初期値は上限（強さまたは最大体力の範囲）。決定で onConfirm(n)
+function _sootheStepper(actor, max, mountEl, onConfirm){
+ let n = max;
+ mountEl.innerHTML = '';
+ const wrap = document.createElement('div');
+ wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;align-items:stretch;width:100%';
+ const view = document.createElement('div');
+ view.style.cssText = 'text-align:center;color:#e8e0d0;font-size:var(--font-sm);line-height:1.6;padding:4px 0';
+ const row = document.createElement('div');
+ row.style.cssText = 'display:flex;gap:6px;justify-content:center';
+ const render = ()=>{
+  view.innerHTML = `体力 <b>+${n}</b>（強さ -${n*2}）${n>=max && (actor.con||0)+n>=(actor.maxCon||0) ? '　全回復' : ''}<br><span style="color:#c0b098">体力 ${actor.con}→${actor.con+n}／強さ ${actor.st}→${actor.st-n*2}</span>`;
+ };
+ const mk = (label, d)=>{
+  const b = document.createElement('button');
+  b.className = 'choice-btn';
+  b.style.cssText = 'flex:1;min-width:0;text-align:center';
+  b.textContent = label;
+  if(d < 0) b.classList.add('minus-btn');   // マイナス側は三角を◀にする
+  b.onclick = (ev)=>{ ev.stopPropagation(); n = Math.max(1, Math.min(max, n + d)); render(); };
+  return b;
+ };
+ [['−5',-5],['−1',-1],['＋1',1],['＋5',5]].forEach(([l,d])=>row.appendChild(mk(l,d)));
+ const ok = document.createElement('button');
+ ok.className = 'choice-btn';
+ ok.style.cssText = 'text-align:center';
+ ok.textContent = '決定';
+ ok.onclick = ()=>{ mountEl.innerHTML = ''; onConfirm(n); };
+ wrap.appendChild(view); wrap.appendChild(row); wrap.appendChild(ok);
+ mountEl.appendChild(wrap);
+ render();
+}
+function _sootheApply(actor, n){
+ actor.st = Math.max(0, (actor.st||0) - n*2);
+ actor.con = Math.min(actor.maxCon, actor.con + n);
 }
 
 // NPC呪文詠唱処理（レベル選択→対象選択→効果）
@@ -59673,11 +60044,21 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp, customOnDone){
    cl.innerHTML += `<span style="color:#e0d8c8"> ${npc.name}が${sp.name}を詠唱したが、体力はすでに最大値だった。</span><br>`;
    onDone(); return;
   }
-  let healed = 0;
-  while(npc.st >= 2 && npc.con < npc.maxCon){ npc.st -= 2; npc.con++; healed++; }
-  cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を詠唱！体力+${healed}回復！（体力 ${npc.con}/${npc.maxCon}）</span><br>`;
-  updateHUD();
-  onDone(); return;
+  const _o = _sootheOptions(npc);
+  const _heal = (n)=>{
+   _sootheApply(npc, n);
+   cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を詠唱！体力+${n}回復！（体力 ${npc.con}/${npc.maxCon}）</span><br>`;
+   updateHUD();
+   onDone();
+  };
+  if(_o.max <= 1){ _heal(_o.max); return; }
+  const _panel = document.getElementById('npc-action-panel');
+  const _title = document.getElementById('npc-action-title');
+  const _btns  = document.getElementById('npc-action-btns');
+  _panel.style.display='';
+  _title.innerHTML=`<span style="color:#e0d8c8;font-size:var(--font-sm)"> ${npc.name}の${sp.name} — どれだけ回復しますか？（強さ2で体力1）</span>`;
+  _sootheStepper(npc, _o.max, _btns, _heal);
+  return;
  }
 
  if(sp.fn === 'healingFeeling'){
@@ -59750,6 +60131,11 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp, customOnDone){
   const isNPCCbt = cbtState.isNPC;
   const alive = cbtState.enemies.filter(e=>(isNPCCbt?e.curCon:e.curMR)>0);
   const applyOne = (target)=>{
+   if(isNPCCbt && _spellReflected(target, sp.fn)){
+    cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を詠唱！</span><br>`;
+    _reflectSpellBack(npc, sp.fn, 0, onDone, sp.fn==='atomization' ? Nd6(npc.level||1) : 0);
+    return;
+   }
    const dodgeLv = sp.fn==='atomization' ? 7 : 6;
    _npcCombatTtyfDodge(dodgeLv, target, (dodged)=>{
     if(sp.fn==='atomization'){
@@ -59977,6 +60363,11 @@ function _npcTtyfApply(npc, sp, lv, stCost, target, onDone){
   _wipeA();
  };
 
+ // 反射する敵：魔法は詠唱した仲間へ跳ね返る
+ if(isNPCCbt && _spellReflected(target, 'ttyf')){
+  _reflectSpellBack(npc, 'ttyf', lv, onDone);
+  return;
+ }
  // NPC型戦闘限定：対象（敵）の回避判定を挟む（内部計算のみ、演出なし）
  if(isNPCCbt){
   _npcCombatTtyfDodge(lv, target, (dodged)=>{
@@ -60064,6 +60455,11 @@ function _npcAttackSpellApply(npc, sp, target, onDone){
    cl.innerHTML += `<span style="color:var(--white)"> ${target.name}に${dmg}ダメージ！ CombatRating: ${prevHp}→${afterHp}</span><br>`;
    checkWipeAndDone();
   });
+  return;
+ }
+ if((sp.fn==='turnToStone' || sp.fn==='atomization') && isNPCCbt && _spellReflected(target, sp.fn)){
+  cl.innerHTML += `<span style="color:#e0d8c8"> ${npc.name}が${sp.name}を詠唱！</span><br>`;
+  _reflectSpellBack(npc, sp.fn, 0, onDone, sp.fn==='atomization' ? Nd6(npc.level||1) : 0);
   return;
  }
  if(sp.fn==='turnToStone'){
@@ -61294,7 +61690,9 @@ function _showSpellChoices(){
  btns.innerHTML = '';
 
  // 呪文ボタン
- PC.spells.forEach(sp=>{
+ _spellMenuItems(PC.spells).forEach(it=>{
+  if(it.heading != null){ btns.appendChild(_spellHeadingEl(it.heading)); return; }
+  const sp = it.sp;
   const canAfford = PC.st > _applyStaffDiscount(PC, sp.cost);
   const b = document.createElement('button');
   b.className = 'choice-btn';
@@ -61883,7 +62281,9 @@ function _openSpellModalFor(caster, context, nodeSpellEffects, nodeId){
  ctxEl.textContent = (context || '呪文を選択してください') + (caster!==PC ? `（${caster.name}）` : '');
  listEl.innerHTML = '';
 
- caster.spells.forEach(sp => {
+ _spellMenuItems(caster.spells).forEach(it => {
+  if(it.heading != null){ listEl.appendChild(_spellHeadingEl(it.heading)); return; }
+  const sp = it.sp;
   const isUnlockTrap = sp.fn === 'knockKnock' && !!_findUnlockableTrapContext(nodeId);
   const canAfford = isUnlockTrap ? caster.st > 2 : caster.st > _applyStaffDiscount(caster, sp.cost);
   const effect = nodeSpellEffects && nodeSpellEffects[sp.fn];
@@ -62032,17 +62432,30 @@ function castSpellOutOfCombat(spell, effect, caster, nodeId){
    scrollToTop();
    return;
   }
-  let healed = 0;
-  while(caster.st >= 2 && caster.con < caster.maxCon){
-   caster.st -= 2; caster.con++; healed++;
-  }
-  resultHtml = `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
+  const _so = _sootheOptions(caster);
+  const _sootheShow = (n)=>{
+   _sootheApply(caster, n);
+   story.innerHTML += `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
    <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}</div>
-   <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${casterLabel}体力+${healed}回復！（${caster!==PC?`${caster.name}の`:''}体力 ${caster.con}/${caster.maxCon}）</div>
+   <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">${casterLabel}体力+${n}回復！（${caster!==PC?`${caster.name}の`:''}体力 ${caster.con}/${caster.maxCon}）</div>
   </div>`;
-  story.innerHTML += resultHtml;
-  updateHUD();
+   updateHUD();
+   scrollToTop();
+  };
+  if(_so.max <= 1){ _sootheShow(_so.max); return; }
+  const _sbBack = ()=>{
+   if(PC._yeldunDungeon && _ydState && _ydState.nodeId){ ydGoNode(_ydState.nodeId, _ydState.floor); }
+   else if(window._currentHuntNode){ _huntGoNode(window._currentHuntNode._idx); }
+   else if(_huntState && _huntState.nodeId){ _huntGoNode(_huntState.nodeId); }
+   else { go(currentNodeId); }
+  };
+  story.innerHTML += `<div style="margin-top:10px;padding:10px;background:#130e09;border:1px solid #484848;border-radius:4px">
+   <div style="color:#e8e0d0;font-size:var(--font-sm);margin-bottom:4px"> ${spell.name}${caster!==PC?`（${caster.name}）`:''}</div>
+   <div style="color:var(--white);font-size:var(--font-sm);line-height:1.7">どれだけ回復しますか？（強さ2で体力1）</div>
+  </div>`;
   scrollToTop();
+  renderChoices([]);
+  _sootheStepper(caster, _so.max, document.getElementById('choices'), (n)=>{ _sootheShow(n); renderChoices([{label:'▶ OK', fn:_sbBack}]); });
   return;
  }
  if(spell.fn === 'blindSpot'){
@@ -62344,6 +62757,24 @@ function _ttyfApply(spell, ttyfLv, stCost, target){
 
  // NPC型戦闘限定：対象の回避判定を先に挟む（回避成功ならダメージ・ショック効果ともになし）
  if(isNPCCbt){
+  if(_spellReflected(target, 'ttyf')){
+   _reflectSpellBack(PC, 'ttyf', ttyfLv, ()=>{
+    cbtState._spellCaster = true;
+    cbtState._ttyfHit = 0;
+    cbtState._ttyfTarget = target;
+    cbtState._ttyfPRoll = 0;
+    updateCombatUI();
+    if(cbtState._magicPhaseNext){
+     cbtState._ttyfMagicPhase = true;
+     cbtState._magicPhaseNext();
+     return;
+    }
+    const aliveParty = (PC.party||[]).filter(n=>n.con>0);
+    if(aliveParty.length > 0){ _cbtNPCActions = []; showNPCActionPhase(0, aliveParty); }
+    else { resolveRound(0, []); }
+   });
+   return;
+  }
   _npcCombatTtyfDodge(ttyfLv, target, (dodged)=>{
    if(dodged){
     result.innerHTML = ` <span class="wizard-c">Magic Bolt</span> Lv${ttyfLv}<br>
@@ -62475,12 +62906,35 @@ function toggleMagicPanel(){
 function showMagicInCombat(){
  // 呪文は下部の選択肢パネルに統合済み
 }
+// 魔法メニューをレベル順にまとめる。同じレベルの中は覚えた順のまま。レベルが2種類以上あるときだけ「── Lv2 ──」の見出しを出す
+function _spellMenuItems(spells, keep){
+ const list = (spells||[]).map((sp,i)=>({sp,i}))
+  .sort((a,b)=>((a.sp.level||1)-(b.sp.level||1)) || (a.i-b.i))
+  .map(x=>x.sp)
+  .filter(sp=>!keep || keep(sp));
+ const multi = new Set(list.map(sp=>sp.level||1)).size > 1;
+ const out = [];
+ let last = null;
+ list.forEach(sp=>{
+  const lv = sp.level||1;
+  if(multi && lv !== last){ out.push({heading:lv}); last = lv; }
+  out.push({sp});
+ });
+ return out;
+}
+function _spellHeadingEl(level){
+ const d = document.createElement('div');
+ d.textContent = `── Lv${level} ──`;
+ d.style.cssText = 'color:var(--white2);font-size:calc(var(--font-sm) - 1px);text-align:center;padding:6px 0 2px;letter-spacing:.1em;width:100%';
+ return d;
+}
 function renderSpellList(ctx){
  const el=document.getElementById('spell-list');el.innerHTML='';
  const inCombat = !!cbtState;
- PC.spells.forEach(sp=>{
- // 戦闘中は使えない呪文（戦闘外専用）は、そもそも選択肢に出さない
- if(inCombat && (sp.fn==='enchantWeapon' || sp.fn==='fortifyArmor')) return;
+ _spellMenuItems(PC.spells, sp=>!(inCombat && (sp.fn==='enchantWeapon' || sp.fn==='fortifyArmor'))).forEach(it=>{
+ // 戦闘中は使えない呪文（戦闘外専用）は、そもそも選択肢に出さない（_spellMenuItems の絞り込みで除外）
+ if(it.heading != null){ el.appendChild(_spellHeadingEl(it.heading)); return; }
+ const sp = it.sp;
  const canAfford=PC.st>_applyStaffDiscount(PC, sp.cost);
  const btn=document.createElement('button');btn.className='spell-btn';
  btn.innerHTML=`${sp.name} <span class="sp-cost">強さ-${_applyStaffDiscount(PC, sp.cost)}</span><br><span style="color:var(--white2);font-size:calc(var(--font-lg) + 4px)">${sp.desc}</span>`;
@@ -62624,20 +63078,33 @@ function castSpell(spell,ctx){
  }
  break;
  case 'poorBaby':{
- // 2STで1CON回復（すでにSTを消費済みなので追加2ST消費）
+ // 2STで1CON回復（すでにSTを消費済み）。回復量は選べる
  if(PC.con >= PC.maxCon){
  // STを返還して失敗
  PC.st += spell.cost;
  result.innerHTML=' <span class="wizard-c">鎮痛剤</span>: 体力はすでに最大値です。';
  updateHUD(); break;
  }
- // 追加2ST消費で1CON回復を繰り返す
- let healed = 0;
- while(PC.st >= 2 && PC.con < PC.maxCon){
- PC.st -= 2; PC.con++; healed++;
- }
- result.innerHTML=` <span class="wizard-c">鎮痛剤</span>: 体力+${healed}回復！（体力 ${PC.con}/${PC.maxCon}）`;
- updateHUD(); break;
+ const _so = _sootheOptions(PC);
+ const _sootheDone = (n)=>{
+  _sootheApply(PC, n);
+  result.innerHTML=` <span class="wizard-c">鎮痛剤</span>: 体力+${n}回復！（体力 ${PC.con}/${PC.maxCon}）`;
+  updateHUD();
+ };
+ if(_so.max <= 1){ _sootheDone(_so.max); break; }
+ const _sch = document.getElementById('choices');
+ result.innerHTML=' <span class="wizard-c">鎮痛剤</span>: どれだけ回復しますか？（強さ2で体力1）';
+ _sootheStepper(PC, _so.max, _sch, (n)=>{
+  _sootheDone(n);
+  renderSpellList(ctx);
+  if(cbtState && cbtState._magicPhaseNext){
+   updateCombatUI();
+   const _nx = cbtState._magicPhaseNext;
+   cbtState._magicPhaseNext = null;
+   _nx();
+  }
+ });
+ return; // 選択完了までbreakしない
  }
  case 'overdrive':
  if(cbtState){
@@ -62848,6 +63315,12 @@ function castSpell(spell,ctx){
   const isNPCCbt = cbtState.isNPC;
   const alive = cbtState.enemies.filter(e=>(isNPCCbt?e.curCon:e.curMR)>0);
   const applyStone = (target)=>{
+   if(isNPCCbt && _spellReflected(target, 'turnToStone')){
+    const nx = cbtState._magicPhaseNext; cbtState._magicPhaseNext = null;
+    cbtState._spellCaster = true;
+    _reflectSpellBack(PC, 'turnToStone', 0, ()=>{ if(nx) nx(); });
+    return;
+   }
    _npcCombatTtyfDodge(6, target, (dodged)=>{
     if(dodged){
      result.innerHTML = ` <span class="wizard-c">Turn to Stone</span>: ${_spellFlavor('turnToStone_dodge', {target:target.name})}`;
@@ -62888,6 +63361,12 @@ function castSpell(spell,ctx){
   const isNPCCbt = cbtState.isNPC;
   const alive = cbtState.enemies.filter(e=>(isNPCCbt?e.curCon:e.curMR)>0);
   const applyAtomize = (target)=>{
+   if(isNPCCbt && _spellReflected(target, 'atomization')){
+    const nx = cbtState._magicPhaseNext; cbtState._magicPhaseNext = null;
+    cbtState._spellCaster = true;
+    _reflectSpellBack(PC, 'atomization', 0, ()=>{ if(nx) nx(); }, Nd6(PC.level||1) + Math.max(0, calcAdds()));
+    return;
+   }
    _npcCombatTtyfDodge(7, target, (dodged)=>{
     const dice = PC.level||1;
     const adds = Math.max(0, calcAdds());
@@ -62944,6 +63423,17 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026111302', sections:[
+  { heading:'新規実装項目', items:[
+   'STATUS画面に、次のレベルまでの経験値バーを追加した。',
+   'マレア地方の拠点の周辺を試験的に探索できるようにした。',
+   'マレア地方に新しい敵を追加した。',
+  ]},
+  { heading:'調整', items:[
+   'Soothe の回復量を、＋−ボタンで選べるようにした。',
+   '魔法メニューを、レベル別に分けて表示するようにした。',
+  ]},
+ ]},
  { version:'ver.2026111301', sections:[
   { heading:'新規実装項目', items:[
    '町の広場に「住人に話を聞く」を追加した。',
