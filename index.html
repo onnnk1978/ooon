@@ -672,7 +672,7 @@ html.cmd-vertical #npc-action-btns > .cmd-skip{ order:-1; }   /* 魔法・遠距
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026111302</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026111501</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -10729,10 +10729,18 @@ function _lairAreaTableGeneric(theme, area){
 
 // 部屋の選択肢ラベルを種別に応じて返す（宝物庫は「宝箱を開ける」、革袋・施錠された木箱は「調べる」、捕虜は「近づく」、モンスターは「戦う」）
 // 全5つの巣窟ダンジョンで共通。旧名の_lair5EncounterLabelは後方互換のためのエイリアス
+// 宝箱・木箱・革袋に近づいたあとの選択：開ける（調べる）か、手を付けずに引き返すか
+function _lairChestPrompt(ns, proceed, backNode){
+ const open = ns.kind === 'vault' ? ' 宝箱を開ける' : ns.kind === 'lockbox' ? ' 木箱を調べる' : ' 革袋を調べる';
+ renderChoices([
+  {label:open, fn:proceed},
+  {label:' 手を付けずに引き返す', fn:()=>go(backNode)},
+ ]);
+ scrollToTop();
+}
 function _lairEncounterLabel(ns){
- if(ns.kind === 'vault') return ' 宝箱を開ける';
+ if(ns.kind === 'vault' || ns.kind === 'treasure' || ns.kind === 'lockbox') return ' 近づく';
  if(ns.kind === 'rescue') return ' 近づく';
- if(ns.kind === 'treasure' || ns.kind === 'lockbox') return ' 調べる';
  return ' 戦う';
 }
 
@@ -11470,10 +11478,17 @@ function _lairRoomStatusTextGeneric(key, nodeId){
  const lair = PC[def.stateProp];
  if(!lair.themeId) return '';
  const ns = lair.nodeState[nodeId];
+ if(ns.empty) return '';
  if(ns.defeated) return `<br><br><span style="color:#b0a080">争いの痕跡が残るのみで、今は静まり返っている。</span>`;
  if(!ns.monsters){
   const theme = _lairScenarioAwareTheme(lair.themeId);
   const area = def.roomAreas[nodeId];
+  // エリアごとの出現率（定義のあるダンジョンのみ）：外れた部屋は最初から無人
+  if(def.areaRates && Math.random() >= (def.areaRates[area] != null ? def.areaRates[area] : 1)){
+   ns.monsters = []; ns.kind = 'monster'; ns.empty = true;
+   def.defeatFn(nodeId);
+   return '';
+  }
   const table = _lairAreaTableGeneric(theme, area);
   if(!table || !table.length){
    ns.monsters = [];
@@ -11485,6 +11500,7 @@ function _lairRoomStatusTextGeneric(key, nodeId){
   ns.kind = entry.kind || 'monster';
   ns.cfg = entry;
   ns.monsters = (ns.kind === 'monster') ? entry.spawn() : [];
+  if(ns.kind === 'monster' && def.spawnHook) ns.monsters = def.spawnHook(ns.monsters, lair) || ns.monsters;
   if(ns.kind === 'rescue' && !ns.captiveName){
    ns.captiveName = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
    ns.captiveLabel = Math.random()<0.5 ? '町人' : '村人';
@@ -11506,15 +11522,16 @@ function _lairStartEncounterGeneric(key, nodeId){
  const def = LAIR_DUNGEON_REG[key];
  const lair = PC[def.stateProp];
  const ns = lair.nodeState[nodeId];
- if(ns.kind === 'treasure'){ _lairOpenTreasureRoomGeneric(key, nodeId); return; }
- if(ns.kind === 'lockbox'){ _lairTryLockboxGeneric(key, nodeId); return; }
- if(ns.kind === 'vault'){ _lairTryVaultGeneric(key, nodeId); return; }
+ const _back = (def.fleeTo && def.fleeTo(nodeId)) || _lastNodeId || nodeId;
+ if(ns.kind === 'treasure'){ _lairChestPrompt(ns, ()=>_lairOpenTreasureRoomGeneric(key, nodeId), _back); return; }
+ if(ns.kind === 'lockbox'){ _lairChestPrompt(ns, ()=>_lairTryLockboxGeneric(key, nodeId), _back); return; }
+ if(ns.kind === 'vault'){ _lairChestPrompt(ns, ()=>_lairTryVaultGeneric(key, nodeId), _back); return; }
  if(ns.kind === 'rescue'){ _lairTryRescueGeneric(key, nodeId); return; }
  const monsters = ns.monsters;
  if(!monsters || !monsters.length) return;
  const isNPCType = monsters[0].st !== undefined;
  const common = {
-  win: nodeId, lose:'DEAD', canFlee:true, fleeTo: _lastNodeId,
+  win: nodeId, lose:'DEAD', canFlee:true, fleeTo: (def.fleeTo && def.fleeTo(nodeId)) || _lastNodeId,
   onWin: ()=>{ def.defeatFn(nodeId); },
  };
  if(isNPCType) startCombatNPC({ enemies: monsters, autoTreasure:true, ...common });
@@ -11600,9 +11617,8 @@ function lair5RoomStatusText(nodeId){
 
 // 部屋の選択肢ラベルを種別に応じて返す（宝物庫は「宝箱を開ける」、革袋・施錠された木箱は「調べる」、捕虜は「近づく」、モンスターは「戦う」）
 function _lair5EncounterLabel(ns){
- if(ns.kind === 'vault') return ' 宝箱を開ける';
+ if(ns.kind === 'vault' || ns.kind === 'treasure' || ns.kind === 'lockbox') return ' 近づく';
  if(ns.kind === 'rescue') return ' 近づく';
- if(ns.kind === 'treasure' || ns.kind === 'lockbox') return ' 調べる';
  return ' 戦う';
 }
 
@@ -11610,9 +11626,10 @@ function _lair5EncounterLabel(ns){
 function startLair5Encounter(nodeId){
  const lair = PC._lair5Dungeon;
  const ns = lair.nodeState[nodeId];
- if(ns.kind === 'treasure'){ _lair5OpenTreasureRoom(nodeId); return; }
- if(ns.kind === 'lockbox'){ _lair5TryLockbox(nodeId); return; }
- if(ns.kind === 'vault'){ _lair5TryVault(nodeId); return; }
+ const _back5 = _lastNodeId || nodeId;
+ if(ns.kind === 'treasure'){ _lairChestPrompt(ns, ()=>_lair5OpenTreasureRoom(nodeId), _back5); return; }
+ if(ns.kind === 'lockbox'){ _lairChestPrompt(ns, ()=>_lair5TryLockbox(nodeId), _back5); return; }
+ if(ns.kind === 'vault'){ _lairChestPrompt(ns, ()=>_lair5TryVault(nodeId), _back5); return; }
  if(ns.kind === 'rescue'){ _lair5TryRescue(nodeId); return; }
  const monsters = ns.monsters;
  if(!monsters || !monsters.length) return;
@@ -12623,7 +12640,7 @@ function npcRecruitDesc(npc){
  const raceJa = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'}[npc.race]||npc.race;
  const adds = calcAdds(npc);
  const w = npc.equippedWeapons?.[0];
- const dmg = w ? `${w.dice}D+${(w.adds||0)+adds}` : '素手';
+ const dmg = w ? `${w.dice}D${_sg((w.adds||0)+adds)}` : '素手';
  const armor = calcNPCArmor(npc);
  return `${raceJa}の${typeJa}　体力:${npc.con}/${npc.maxCon} 攻:${dmg} 防:${armor}`;
 }
@@ -13312,6 +13329,38 @@ const PATRON_EVENTS_COMMON = [
    win_line:'「若い頃の自分を思い出すな。お前はいい目をしている」老人は昔話を聞かせてくれた。何か大切なことを学んだ気がした。',
    lose_line:'「…昔を思い出したくなった。すまんが一人にしてくれ」老人は静かに目を伏せた。',
    win_ap:25, trust_delta:4 },
+
+ { name:'古参の冒険者', icon:'', type:'askDive',
+   cond:()=> (PC.level||1) >= 3 && (PC.party||[]).length >= 2,   // レベル3以上で、仲間が2人以上いるときだけ出る
+   intro:'日に焼けた古参の冒険者が、杯を傾けながらこちらを見ている。傷だらけの手甲が、年季を物語っている。',
+   question:'「お前、迷宮には潜ってるか？」',
+   yesLabel:'ああ、潜っている', noLabel:'いや、まだだ',
+   yes:'「そうか。それならいい。迷宮は、焦らず、仲間を信じて進むことだ。頑張れよ」',
+   no:'「その腕と仲間がいるのに、もったいない。冒険者は、潜ってなんぼだ。腕が錆びる前に、一度、迷宮に足を踏み入れてみろ。見えてくるものがある」' },
+
+ { name:'隣の卓の冒険者', icon:'', type:'monsterRumorCategory',
+   pool:[
+    { intro:'隣の卓では、顔を赤くした冒険者が、身ぶり手ぶりで武勇伝を語っている。',
+      lines:['「……そこで俺は言ったんだ。まだ俺の剣は本気を出していない、とな」'] },
+    { intro:'隣の卓で、冒険者が自分の腕の傷を見せびらかしている。',
+      lines:['「これは竜にやられた。……まあ、竜に見えた何かだがな」'] },
+    { intro:'酔った冒険者が、拳でテーブルを叩いて語っている。',
+      lines:['「あの洞窟の主は、俺の顔を見た途端に逃げ出したんだ」'] },
+    { intro:'隅の卓で、冒険者が真剣な顔で語っている。',
+      lines:['「干し肉は、嚙めば嚙むほど味が出る。これは真理だ」'] },
+    { intro:'鎧を磨いている冒険者が、誰に言うでもなく呟いている。',
+      lines:['「蒸れない鎧が出たら、俺は全財産を払う」'] },
+    { intro:'卓に突っ伏した冒険者が、うめくように言っている。',
+      lines:['「今日もまた、財布が軽い……」'] },
+    { intro:'ジョッキを見つめた冒険者が、遠い目で呟いている。',
+      lines:['「昔は迷宮が怖くなかったんだがなあ」'] },
+    { intro:'冒険者が、新しい剣を抱えて、嬉しそうに眺めている。',
+      lines:['「こいつの名前はもう決めてある。……まだ誰にも教えないがな」'] },
+    { intro:'賭けに負けた冒険者が、帽子を卓に叩きつけた。周りがどっと笑っている。',
+      lines:['「次だ、次！　次は絶対に勝つ！」'] },
+    { intro:'どこかの卓から、調子外れの歌声が聞こえてくる。誰も気にしていない。',
+      lines:['「♪ 迷宮の奥には〜　宝が眠る〜　たぶん〜」'] },
+   ]},
 
  { name:'道中のモンスターの噂', icon:'', type:'monsterRumorCategory',
    pool:[
@@ -14177,6 +14226,10 @@ const extra = {
    type:'drink', line:'「生きてて良かった…難破して三日間流された」話を聞いてあげると礼として一杯奢ってくれた。', gp_delta:0, free_drink:true },
   {icon:'', name:'港の伝言屋', intro:'羊皮紙を山ほど持った若者が忙しそうに飲んでいる。',
    type:'rumor', lines:['「エルマリアから急ぎの書状が来た。内容は知らないが、受け取った役人が真っ青になっていた」','「最近、南の島からの船が一週間遅れている。嵐はなかったはずなのに」','「港に来る船の積み荷に最近、検査できない箱が増えている」']},
+  {icon:'', name:'荒野の狩人', intro:'弓を背負い、獣の皮を肩にかけた男が、土埃のついた長靴のまま飲んでいる。荒野から戻ったばかりらしい。',
+   type:'rumor', lines:['「狩人の塚なら、街道を外れて西へ5日、そこから北西に5日だ。草に覆われた小高い塚が目印で、石室は風雨をしのげる。ただ、ときどき荒くれ者が住み着くから、近づく前に様子を見ることだ」']},
+  {icon:'', name:'隊商の護衛', intro:'使い込んだ剣を腰に下げた男が、隊商の仕事を終えて一息ついている。',
+   type:'rumor', lines:['「狩人の塚には、冒険者の一団がよく探検に来る。入っていくのは何度も見た。戻ってきて土産話をする連中もいれば、それきり姿を見ない連中もいる」']},
  ],
  stonehiem: [
   {icon:'', name:'鉱山の検査員', intro:'安全帽をかぶったままの男が飲んでいる。',
@@ -15149,6 +15202,8 @@ function checkWorldTickBundle(){
  checkOutpostRespawn();
  checkHruinRespawn();
  checkHfortRespawn();
+ checkHfort2Respawn();
+ checkNergolRespawn();
  // 世界的大地震の判定（発生予定日を過ぎていれば発生させる。噂として先に聞ける必要があるため）
  checkWorldEarthquake();
  // 地方状態システムの月次ティック（混沌の根城・巣窟ダンジョン・大地震・PCの手配度を踏まえた上で計算するため、上記より後に呼ぶ）
@@ -15641,7 +15696,7 @@ function talkToPatron(townId){
  const events = [
   ...(PATRON_EVENTS[townId] || []),
   ...PATRON_EVENTS_COMMON,
- ];
+ ].filter(e=>!e.cond || e.cond());
  if(!events.length) return;
  let ev = events[Math.floor(Math.random() * events.length)];
 
@@ -15670,6 +15725,21 @@ function talkToPatron(townId){
 
  } else if(ev.type === 'tip'){
   _showPatronPanel(header + msgBox(ev.line), onClose);
+
+ } else if(ev.type === 'askDive'){
+  // 問いかけ（はい／いいえ）に答えると、返事が返る。報酬や記録はない
+  _showPatronPanel(header + msgBox(ev.question) + `<div id="patron-ask-btns" style="margin-top:10px"></div>`, onClose);
+  const box = document.getElementById('patron-ask-btns');
+  [[ev.yesLabel, ev.yes],[ev.noLabel, ev.no]].forEach(([label, reply])=>{
+   const b = document.createElement('button');
+   b.className = 'choice-btn';
+   b.textContent = label;
+   b.onclick = ()=>{
+    box.remove();
+    _appendPatronPanel(`<div style="margin-top:8px">${msgBox(reply)}</div>`);
+   };
+   box.appendChild(b);
+  });
 
  } else if(ev.type === 'drink'){
   const results = [];
@@ -15800,7 +15870,7 @@ function _renderItemTransfer(npcIdx, direction){
  (src.invWeapons||[]).forEach((w,i)=>{
   if((src.equippedWeapons||[]).includes(w)) return; // 装備中の武器は、外してから渡す
   items.push({type:'weapon', idx:i, icon:'', label:w.name,
-   sub:`${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}${w._desc?'　'+w._desc:''}`});
+   sub:`${w.dice}D${_sg(w.adds||0)}　${w.twoHand?'両手':'片手'}${w._desc?'　'+w._desc:''}`});
  });
  // 未装備の防具
  (src.invArmors||[]).forEach((a,i)=>{
@@ -17177,6 +17247,7 @@ function loadAutoSave(){
  // ロードするセーブデータに存在しない場合でもクリアされず残ってしまう。
  // 領地関連のフィールドはこれが原因で新旧データが混線しうるため、代入前に明示的にリセットする
  delete PC._adventurer; // 印は読み込むセーブにある場合だけ立つ（旧セーブはWarrior扱い）
+ delete PC._lineageId;  // 血統ID：読み込むセーブにある場合だけ。前のセッションの血統を引きずらない（別の血統の世界状態を読まないため）
  delete PC._fiefCharter;
  delete PC._fiefCharters;
  PC.properties = {}; // 拠点データもロード前のセッションの残留を防ぐため必ず空にリセットしてから代入する
@@ -17235,7 +17306,35 @@ function loadAutoSave(){
  }
  return true;
 }
-const WORLD_KEY = 'tt5_world'; // 世界の継続状態（暦・過去仲間）
+const WORLD_KEY = 'tt5_world'; // （旧）全セーブ共通だった世界状態の保存先。別のキャラクターの拠点や暦が混ざる原因だったため、今は使わない
+const WORLD_KEY_PREFIX = 'tt5_world_'; // 世界の継続状態（暦・拠点・過去仲間）は血統（セーブデータの系譜）ごとに別々に保存する
+// 血統ID：新規開始で振り、世代交代では引き継ぐ。旧セーブ（IDなし）は、世界状態を扱う時点で振る
+function _lineageId(){
+ if(!PC._lineageId) PC._lineageId = Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+ return PC._lineageId;
+}
+function worldKey(){ return WORLD_KEY_PREFIX + _lineageId(); }
+// どのセーブ（3スロット・自動セーブ）にも、いま遊んでいるキャラにも属さない血統の世界状態を消す（保存領域の肥大を防ぐ）
+function _pruneWorldStates(){
+ try{
+  const alive = new Set([_lineageId()]);
+  const keys = [];
+  for(let s=1; s<=SAVE_SLOT_COUNT; s++) keys.push(getSaveKey(s));
+  keys.push(AUTOSAVE_KEY);
+  keys.forEach(k=>{
+   const raw = localStorage.getItem(k);
+   if(!raw) return;
+   try{ const id = JSON.parse(raw)?.pc?._lineageId; if(id) alive.add(id); }catch(e){}
+  });
+  const dead = [];
+  for(let i=0; i<localStorage.length; i++){
+   const k = localStorage.key(i);
+   if(k && k.startsWith(WORLD_KEY_PREFIX) && !alive.has(k.slice(WORLD_KEY_PREFIX.length))) dead.push(k);
+  }
+  dead.forEach(k=>localStorage.removeItem(k));
+  localStorage.removeItem(WORLD_KEY);   // 旧・全セーブ共通の保存先は今は使わない
+ }catch(e){}
+}
 let currentSaveSlot = 1; // 現在使用中スロット（1〜3）
 function getSaveKey(slot){ return SAVE_KEY_PREFIX + (slot||currentSaveSlot); }
 let currentNodeId = 'TOWN_KHAZAN';
@@ -17245,18 +17344,19 @@ let _lastNodeId = null; // go()で移動する直前にいたノード（巣窟�
 // 引退・死亡をまたいで保存される世界状態
 function loadWorldState(){
  try{
- const raw = localStorage.getItem(WORLD_KEY);
+ const raw = localStorage.getItem(worldKey());
  const ws = raw ? JSON.parse(raw) : null;
- console.log('[WS] loadWorldState key=', WORLD_KEY, 'found=', !!ws, 'properties=', ws ? JSON.stringify(ws.properties)?.slice(0,200) : null);
+ console.log('[WS] loadWorldState key=', worldKey(), 'found=', !!ws, 'properties=', ws ? JSON.stringify(ws.properties)?.slice(0,200) : null);
  return ws;
  }catch(e){ console.error('[WS] loadWorldState error', e); return null; }
 }
 function saveWorldState(ws){
- console.log('[WS] saveWorldState key=', WORLD_KEY, 'properties=', JSON.stringify(ws.properties)?.slice(0,200), 'residents=', JSON.stringify(ws.properties ? Object.values(ws.properties).map(p=>p.residents) : null));
- localStorage.setItem(WORLD_KEY, JSON.stringify(ws));
+ console.log('[WS] saveWorldState key=', worldKey(), 'properties=', JSON.stringify(ws.properties)?.slice(0,200), 'residents=', JSON.stringify(ws.properties ? Object.values(ws.properties).map(p=>p.residents) : null));
+ localStorage.setItem(worldKey(), JSON.stringify(ws));
+ _pruneWorldStates();
 }
 function clearWorldState(){
- localStorage.removeItem(WORLD_KEY);
+ localStorage.removeItem(worldKey());
 }
 
 // 現在PCを引退・死亡させ、WORLD_STATEを更新
@@ -17458,6 +17558,7 @@ const DUNGEON_NODES = new Set([
  'AL_ROOM14','AL_ROOM15','AL_ROOM15B','AL_ROOM16','AL_ROOM16_SECRET','AL_ROOM17',
  'AL_PASSAGE2','AL_PASSAGE3','AL_PASSAGE4','AL_PASSAGE5',
  'AL_PASSAGE6','AL_PASSAGE7','AL_PASSAGE8','AL_PASSAGE9',
+ 'AL_E_ROOM1','AL_E_ROOM2','AL_E_ROOM3','AL_E_ROOM4','AL_E_ROOM5','AL_E_ROOM6','AL_E_ROOM7','AL_E_ROOM8','AL_E_ROOM9','AL_E_ROOM10','AL_E_ROOM11','AL_E_ROOM12','AL_E_PASS_A','AL_E_PASS_B','AL_E_PASS_C','AL_E_PASS_D','AL_E_PASS_E','AL_E_PASS_F','AL_E_PASS_G','AL_E_PASS_H','AL_E_PASS_I','AL_E_PASS_J','AL_E_PASS_K','AL_E_PASS_L','AL_E_PASS_M','AL_E_PASS_N','AL_E_TJUNC_A',
  'AL_W_PASSAGE1','AL_W_PASSAGE2','AL_W_PASSAGE3','AL_W_PASSAGE4','AL_W_PASSAGE5',
  'AL_W_TJUNC1','AL_W_ROOM1','AL_W_ROOM3','AL_W_ROOM6','AL_W_ROOM8','AL_W_ROOM11','AL_W_PASSAGE6',
  'AL_W_ROOM2','AL_W_ROOM4','AL_W_ROOM5','AL_W_ROOM7','AL_W_ROOM9',
@@ -17634,6 +17735,7 @@ function loadGame(slot){
  // ロードするセーブデータに存在しない場合でもクリアされず残ってしまう。
  // 領地関連のフィールドはこれが原因で新旧データが混線しうるため、代入前に明示的にリセットする
  delete PC._adventurer; // 印は読み込むセーブにある場合だけ立つ（旧セーブはWarrior扱い）
+ delete PC._lineageId;  // 血統ID：読み込むセーブにある場合だけ。前のセッションの血統を引きずらない（別の血統の世界状態を読まないため）
  delete PC._fiefCharter;
  delete PC._fiefCharters;
  PC.properties = {}; // 拠点データもロード前のセッションの残留を防ぐため必ず空にリセットしてから代入する
@@ -20330,7 +20432,7 @@ TT%%Tn%%nn..
 TTT%~~%%%%nn
 TTTT~~ttnnnn
 # objects
-............
+..f.........
 ............
 ..b.........
 ......a.....
@@ -20342,6 +20444,7 @@ TTTT~~ttnnnn
 ..3.........
 ...d........
 # sites
+f: 廃砦 / 森の中に砦がある。 / ダンジョン廃砦2に入れる。西・北・東の3つの入口から入れる。
 a: 野盗のキャンプ / 野盗キャンプ / 疎林に張られた野盗の野営（仕様は荒野_野盗キャンプ仕様案.md）
 b: 苔むした石の祭壇 / 深い森の奥に、苔に覆われた石の祭壇がぽつんと残っている。誰が何のために築いたのかは、もうわからない。 / 特に何もない（中身は第3段階で検討）
 c: 沈みかけた石の塔 / 湿地に半ば沈んだ石造りの塔が、葦の間から頭をのぞかせている。 / 水面の下へ続く入口が見える（第3段階で中身を検討）
@@ -20371,7 +20474,7 @@ ssss~~~~.t....
 ............4.
 .......b......
 .........c....
-..............
+............e.
 ..1..1........
 ..............
 2.............
@@ -20384,6 +20487,7 @@ a: 河畔の船着き場跡 / 野営地 / 朽ちた桟橋と小舟の残骸。�
 b: 河を見下ろす古い見張り塔 / 遺跡 / 東岸の椰子林に建つ、昔の国境警備の跡
 c: 廃キャラバンの野営跡 / 野営地 / 荷車の残骸と消えた火の跡。持ち去られなかった荷が少し残る
 d: 野盗のキャンプ / 野盗キャンプ / 東岸の疎林に張られた野盗の野営（仕様は荒野_野盗キャンプ仕様案.md）
+e: 狩人の塚 / 草に覆われた小高い塚が盛り上がっている。頂上近くには、石を組んだ入口が口を開けており、奥に石室らしき空間が見える。 / 遺跡（地下ダンジョンの入口）
 1: 遠くに大河の水音が聞こえる / 兆候 / 大河が近いことを示す、景色の描写だけ
 2: 白く晒された獣の骨 / 兆候 / 砂漠が近いことを示す、景色の描写だけ
 3: 遠くに煙が見える / 兆候 / キャンプ d のヒント
@@ -20589,7 +20693,9 @@ function wildQuakeMult(fromId, toId, totalDays){
  const r = (typeof getRoute === 'function') ? getRoute(fromId, toId) : null;
  const base = r && r.days && r.days.walk;
  if(!base) return 1;
- const over0 = checkPartyWeight().over ? 2 : 1;
+ // 総日数は出発時の重量で決まっている。いまの重量ではなく、出発時に2倍にしたかどうかで割る（途中で荷が減っても増えても、荒野のマスが狂わないように）
+ const _ts = (typeof travelState !== 'undefined') ? travelState : null;
+ const over0 = (_ts && _ts.fromId === fromId && _ts.toId === toId && _ts._overApplied != null) ? _ts._overApplied : (checkPartyWeight().over ? 2 : 1);
  return Math.max(1, Math.round(totalDays / base / over0 * 100) / 100);
 }
 // 地形による移動の遅さ（日数の倍率）。深い森・丘陵＝移動速度2/3（日数1.5倍）、湿地・雪原・砂漠＝移動速度1/2（日数2倍）
@@ -20775,7 +20881,10 @@ function wildTxt(){
   w.msg = '';
  }
  h += `<span style="color:#f0ece0">荒野 ― ${T.name}</span>　<span style="color:#a89878;font-size:calc(var(--font-sm) - 1px)">入って${w.days}日</span><br><br>`;
- h += `<span style="color:#e8e4d8">${T.desc[(w.col * 7 + w.row * 3) % T.desc.length]}</span><br><br>`;
+ // 狩人の塚では、場所の説明を、地形の説明より上に出す
+ const _siteFirst = (w.key + ':' + cell.o) === NERGOL_WILD_SITE;
+ const _terrainDesc = `<span style="color:#e8e4d8">${T.desc[(w.col * 7 + w.row * 3) % T.desc.length]}</span><br><br>`;
+ if(!_siteFirst) h += _terrainDesc;
  const site = map.sites[cell.o];
  if(cell.o !== '.' && site){
   if(/^[0-9]$/.test(cell.o)){
@@ -20787,10 +20896,15 @@ function wildTxt(){
      + (site.type === 'フレーバーテキスト' && site.memo ? `<br><span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${site.memo}</span>` : '')
      // 種類の欄に文章（「。」を含む）が書かれている場所は、その文章を説明として出す（3つ目はメモ。開発版だけ表示）
      + (wildSiteHasDesc(site) ? `<br><span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${site.type}</span>` : '')
+     + ((map === WILD_MAPS[PC._wild.key] && (PC._wild.key + ':' + cell.o) === NERGOL_WILD_SITE && PC._nergolCaveKnown) ? `<br><span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">塚の裏手の茂みの陰には、小さな洞穴の入口も隠れている。</span>` : '')
+     + ((map === WILD_MAPS[PC._wild.key] && (PC._wild.key + ':' + cell.o) === NERGOL_WILD_SITE && PC._nergolSurfKnown && PC._nergolSurfKnown.surf4) ? `<br><span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">塚の斜面には、地下へ下る石の階段が口を開けている。</span>` : '')
+     + ((map === WILD_MAPS[PC._wild.key] && (PC._wild.key + ':' + cell.o) === NERGOL_WILD_SITE && PC._nergolSurfKnown && PC._nergolSurfKnown.surf5) ? `<br><span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">塚の裾野には、崩れかけた石の階段が地下へ続いている。</span>` : '')
+     + ((map === WILD_MAPS[PC._wild.key] && (PC._wild.key + ':' + cell.o) === NERGOL_WILD_SITE && PC._nergolSurfKnown && PC._nergolSurfKnown.surfV) ? `<br><span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">塚の窪みには、草に隠れた石段が地下へ続いている。</span>` : '')
      + (typeof BUILD_MODE !== 'undefined' && BUILD_MODE === 'dev' && wildSiteHasDesc(site) && site.memo ? `<br><span style="color:#8898a8;font-size:calc(var(--font-sm) - 3px)">【開発用メモ】${site.memo}</span>` : '')
      + `</div>`;
   }
  }
+ if(_siteFirst) h += _terrainDesc;
  const food = PC._food || 0;
  const foodCol = food <= 0 ? '#e08060' : (food <= 10 ? '#e0a060' : '#c8b8a0');
  h += `<span style="color:${foodCol};font-size:calc(var(--font-sm) - 1px)">${food > 0 ? `食料：あと${food}日分` : '食料なし（飢えが続いている）'}</span>`
@@ -20824,6 +20938,8 @@ function wildChoices(){
  // 荒野のダンジョン（丘を掘り抜いた遺跡など）の入口
  out.push(...hruinWildChoices());
  out.push(...hfortWildChoices());
+ out.push(...hfort2WildChoices());
+ out.push(...nergolWildChoices());
  return out;
 }
 
@@ -25302,7 +25418,7 @@ function arcDGoalFor(key, nodeId){
 function arcDInstallGoalRooms(){
  if(typeof NODES === 'undefined') return;
  Object.keys(LAIR_DUNGEON_REG).forEach(key=>{
-  if(key === 'hruin' || key === 'hfort') return;
+  if(key === 'hruin' || key === 'hfort' || key === 'hfort2' || key === 'nergol') return;
   const def = LAIR_DUNGEON_REG[key];
   const maxA = Math.max(...Object.values(def.roomAreas));
   Object.keys(def.roomAreas).filter(id=>def.roomAreas[id] === maxA).forEach(id=>{
@@ -29259,7 +29375,7 @@ const KHAZAN_DISTRICT_EVENTS = {
      let html = `<span style="color:#f0ece0"> 闇取引</span><br><br><span style="color:#c0b098">所持金：${PC.gold||0}GP</span><br><br>`;
      darkItems.forEach((w,i)=>{
       const can = (PC.gold||0) >= w.cost;
-      html += `<span style="color:${can?'#d4c4a0':'var(--dim2)'}">${w.name}　${w.dice}D+${w.adds}　${w.cost}GP</span><br>`;
+      html += `<span style="color:${can?'#d4c4a0':'var(--dim2)'}">${w.name}　${w.dice}D${_sg(w.adds)}　${w.cost}GP</span><br>`;
      });
      story.innerHTML = html;
      const choices = darkItems.map((w,i)=>({
@@ -37861,6 +37977,29 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━
 let _ydState = null; // {nodeId, floor}
 
+// ダンジョンから地上へ出るときの行き先（町ノードID）。依頼元・探索中の町・現在地の順で決める（既定をカザーヌに固定しない）
+function _ydSurfaceTownId(dung){
+ if(dung?.heroQuestBackNode) return dung.heroQuestBackNode;
+ if(dung?.exitTownNode) return dung.exitTownNode;
+ if(dung?.huntTownId) return 'TOWN_' + dung.huntTownId.toUpperCase();
+ return 'TOWN_' + (PC.town || 'khazan').toUpperCase();
+}
+// 「地上へ戻る」ボタンの動作。賞金首アジトは街路（アジトに入った地点）へ、街区・路地の探索は広場へ戻る
+function _ydSurfaceExit(dung){
+ const d = dung || PC._yeldunDungeon;
+ if(d?.isHideoutDungeon && PC._hideoutParent){
+  const parent = PC._hideoutParent;
+  PC._yeldunDungeon = parent.dungeon;
+  PC._hideoutParent = null;
+  ydGoNode(parent.nodeId, parent.floor);
+  return;
+ }
+ const dest = _ydSurfaceTownId(d);
+ PC._yeldunDungeon = null;
+ hideDungeonImage();
+ if(d?.isVillageBackAlley && d.districtType){ smallTownHub(d.villageId); return; }
+ go(dest);
+}
 // ヴァルドヘイム大迷宮専用：松明切れ時、現在階層+3の運SRで1階層ずつ上へ戻る
 function _ydValdheimDarkChoice(floor, fallbackTown){
  const level = floor + 3;
@@ -37918,6 +38057,7 @@ function ydGoNode(nodeId, floor){
  const _pp = document.getElementById('patron-panel');
  if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
  const dung  = PC._yeldunDungeon;
+ if(dung._chestSkipNode && dung._chestSkipNode !== nodeId) dung._chestSkipNode = null;
  floor = floor || dung.currentFloor;
  dung.currentFloor = floor;
  const node  = ydGetNode(floor, nodeId);
@@ -37972,7 +38112,7 @@ function ydGoNode(nodeId, floor){
  if(!ydIsLit && node.type !== 'entrance' && (PC._torchTurns||0) <= 0){
   // entryNodeIdが何らかの理由で失われていても、既知の命名規則で復元できるようにする
   const entryId = dung.floors?.[floor]?.entryNodeId || ('YD_F' + floor + '_entrance');
-  const fallbackTown = dung.heroQuestBackNode || (dung.huntTownId ? ('TOWN_' + dung.huntTownId.toUpperCase()) : 'TOWN_KHAZAN');
+  const fallbackTown = _ydSurfaceTownId(dung);
   const de = dung.isVillageBackAlley ? villageCfg(dung).darkEscape : null;
   const storyEl = document.getElementById('story');
   storyEl.innerHTML = de
@@ -38001,9 +38141,9 @@ function ydGoNode(nodeId, floor){
       renderChoices([
        {label:' 入口へ戻る', fn:()=>{
         try{ ydGoNode(entryId, floor); }
-        catch(e){ console.warn('YD entry return failed, falling back to town', e); PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }
+        catch(e){ console.warn('YD entry return failed, falling back to town', e); _ydSurfaceExit(dung); }
        }},
-       {label:' （反応しない場合）諦めて地上へ戻る', fn:()=>{ PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }},
+       {label:' （反応しない場合）諦めて地上へ戻る', fn:()=>{ _ydSurfaceExit(dung); }},
       ]);
       scrollToTop();
      },
@@ -39325,7 +39465,12 @@ function ydActionChoices(node, floor){
     }});
     }
    }
-   if(node.treasureFloor && (!node.monster || PC[node.monsterKey]) && !PC[node.roomKey+'_loot']){
+   if(node.treasureFloor && (!node.monster || PC[node.monsterKey]) && !PC[node.roomKey+'_loot'] && dung?._chestSkipNode !== node.id){
+    // 開けずに先へ進む選択肢：この部屋にいる間だけ宝箱を見送る（別の部屋へ移って戻ってくると、また開けられる）
+    ch.push({label: node.roomContent==='chest' ? ' 開けずに先へ進む' : ' 取らずに先へ進む', fn:()=>{
+     dung._chestSkipNode = node.id;
+     ydGoNode(node.id, floor);
+    }});
     ch.push({label: node.roomContent==='chest' ? (dung?.isVillageBackAlley ? ' 木箱を開ける' : ' 宝箱を開ける') : ' 宝物を取る', fn:()=>{
      PC[node.roomKey+'_loot']=true;
      const mr = (node.treasureFloor||floor) * 30;
@@ -39540,7 +39685,6 @@ function ydActionChoices(node, floor){
    const bq = (PC.quests||[]).find(qq=>qq.id===node.bountyQuestId);
    if(!PC[node.bossKey] && bq){
     ch.push({label:' 突入する', fn:()=>{
-     PC[node.bossKey] = true;
      const npc = bq.targetNPC;
      const parent = PC._hideoutParent;
      renderChoices([]);
@@ -39551,10 +39695,11 @@ function ydActionChoices(node, floor){
      });
      startCombatNPC({
       enemies:[{...npc, curCon:npc.con}, ...minions],
-      canFlee:false,
+      canFlee:true, isYD:true,
       win:'__noop__',
       lose:'DEAD',
       onWin:()=>{
+       PC[node.bossKey] = true;
        PC.quests = (PC.quests||[]).filter(qq=>qq.id!==bq.id);
        gainGPAll(bq.reward);
        changeTrust(bq.fromTownId, 5);
@@ -47833,6 +47978,8 @@ function travelTo(toId, method){
   go('TOWN_'+toId.toUpperCase());
  });
  if(travelState) travelState.method = method;
+ if(travelState) travelState._overApplied = (overweightDoubled && method === 'walk' && !checkPartyWeight().cold) ? 2 : 1;
+ if(travelState && overweightDoubled && method === 'walk' && !checkPartyWeight().cold) travelState._weightSlowed = true;   // 重量オーバーで2倍にした旅は、荷が軽くなれば残りが元の日数に戻る
  if(travelState && overweightDoubled && method === 'walk' && checkPartyWeight().cold) travelState._coldSlowed = true;   // 風邪で2倍にした旅は、治れば残りが元の日数に戻る
  if(travelState) travelState.crossRegion = getRegionKey(fromTownId) !== getRegionKey(toId);
  if(travelState){ travelState.fromId = fromTownId; travelState.toId = toId; } // 荒野へ入る・戻るときに使う
@@ -50260,10 +50407,18 @@ function advanceDaysAnimated(totalDays, onDone, interval=1000){
  setTimeout(_travelTickSched(), interval);
 }
 
+function weightSlowRelease(ts){
+ if(!ts || !ts._weightSlowed || ts._wildStep) return;
+ if(checkPartyWeight().weightOver) return;
+ ts._weightSlowed = false;
+ const rem = ts.totalDays - ts.daysDone;
+ if(rem > 1){ ts.totalDays -= Math.floor(rem / 2); travelLog(`<span style="color:#c8b8a0"> 荷が軽くなり、足取りが軽くなった。</span>`); }
+}
 function travelTick(){
  const ts = travelState;
  if(!ts) return;
  ts._tickPending = false;
+ weightSlowRelease(ts);
  if(ts._wildPaused) return; // 「荒野へ足を踏み入れる」の確認中は日を進めない
  // 旅の途中で風邪を引いた直後：その場で休むか選ばせる（残りの旅程があるときだけ）
  if(ts._coldAsk){ ts._coldAsk = false; if(!ts._coldRest && (ts.daysDone < ts.totalDays || ts._wildStep)){ coldPromptRest(ts); return; } }
@@ -51779,7 +51934,7 @@ function igsBuyBlackMarketWeapon(idx, townId){
  payPrice(it.cost, _sa);
  if(!_sa.invWeapons) _sa.invWeapons=[];
  _sa.invWeapons.push({name:'鹵獲品の'+it.name, _baseName:it.name, _salvage:true, dice:it.dice, adds:it.adds, twoHand:it.twoHand, stReq:it.stReq||0, dexReq:it.dexReq||0, weight:it.weight||0, ...(it.isRanged?{isRanged:true}:{}), ...(it.rangedOk?{rangedOk:true}:{}), ...(it.isWizardStaff?{isWizardStaff:true}:{})});
- updateHUD(); renderIngameShop(townId||PC.town);
+ updateHUD(); renderIngameShop(townId);
  showSaveToast(` ${_sa.name}: 鹵獲品の${it.name}を購入`);
 }
 function igsBuyBlackMarketArmor(idx, townId){
@@ -51790,7 +51945,7 @@ function igsBuyBlackMarketArmor(idx, townId){
  payPrice(it.cost, _sa);
  if(!_sa.invArmors) _sa.invArmors=[];
  _sa.invArmors.push({name:'鹵獲品の'+it.name, _salvage:true, hits:it.hits, stReq:it.stReq, isShield:it.isShield||false, weight:it.weight||0});
- updateHUD(); renderIngameShop(townId||PC.town);
+ updateHUD(); renderIngameShop(townId);
  showSaveToast(` ${_sa.name}: 鹵獲品の${it.name}を購入`);
 }
 // 店の説明文に添える地方状態フレーバー（物流途絶度→品薄、治安悪化度→鹵獲品混入）。両方該当する場合は両方表示
@@ -52582,6 +52737,9 @@ function startGame(){
  PC.lifespan = rollLifespan(race);
  PC.alignment_ethics = Math.floor((Math.random()-0.5)*60);
  PC.alignment_order  = Math.floor((Math.random()-0.5)*60);
+ // 血統ID：暦を引き継ぐ新規PC（世代交代）は前のキャラの血統を引き継ぎ、完全新規は新しい血統にする
+ if(!PC._inheritTime) delete PC._lineageId;
+ _lineageId();
  // 暦の引き継ぎ：_inheritTimeフラグがあればリセットしない
  if(!PC._inheritTime){
  GAME_TIME.totalDays = 0;
@@ -52736,7 +52894,7 @@ function renderShop(){
  const canUse=it.stReq<=PC.st&&it.dexReq<=PC.dex&&(PC.type==='warrior'||PC.type==='rogue'||it.dice<=2)&&(!PC._noHeavyWeapon||it.dice<=2)&&(!it.wizard||PC.type==='wizard');
  const div=document.createElement('div');div.className='shop-item';
  div.innerHTML=`<h4>${it.name} ${canUse?'':'<span style="color:#e0d0d0">※要件未満</span>'}</h4>
- <p>${it.dice}D+${it.adds} / 強さ≥${it.stReq} 器用さ≥${it.dexReq} ${it.twoHand?'両手':''}${it.wizard?'　<span style="color:#c8b0e0">魔法使い専用</span>':''}　Wgt:${it.weight}</p>
+ <p>${it.dice}D${_sg(it.adds)} / 強さ≥${it.stReq} 器用さ≥${it.dexReq} ${it.twoHand?'両手':''}${it.wizard?'　<span style="color:#c8b0e0">魔法使い専用</span>':''}　Wgt:${it.weight}</p>
  <span class="price">${formatItemCost(it.cost)}</span>
  <button class="buy-btn" ${!canUse||totalCP()<it.cost*100||cartWeight+it.weight>weightPossible()?'disabled':''} onclick="buyWeapon(${WEAPONS_TABLE.indexOf(it)})">BUY</button>`;
  p.appendChild(div);
@@ -53486,6 +53644,9 @@ function closeIngameShop(){
  const townNode = 'TOWN_' + shopTownId.toUpperCase();
  const target = NODES[shopNode] || NODES[currentNodeId] || NODES[townNode];
  if(target) renderChoices(typeof target.choices==='function' ? target.choices() : target.choices||[]);
+ // 閉じるボタンを押した指／カーソルの位置に、すぐ下に現れた選択肢（集落の「〜へ戻る」など）が重なって、同じ押下で誤って押されるのを防ぐ
+ const _ch = document.getElementById('choices');
+ if(_ch){ _ch.style.pointerEvents = 'none'; setTimeout(()=>{ _ch.style.pointerEvents = ''; }, 450); }
 }
 
 // ショップが開いているか
@@ -53493,6 +53654,10 @@ function isShopOpen(){ return !document.getElementById('ingame-shop').classList.
 
 // 売値（買値の50%、CP単位）
 function sellPriceCP(costGP){ return Math.floor(costGP * 100 * 0.5); }
+// 宝石付き防具の売値（GP）：宝石付き武器の売値の1/5（hitsの加算が武器の修整の1/5のため）
+function armorGemSellGP(priceGP){ return Math.floor(gemWeaponSellGP(priceGP) / 5); }
+function _armorSellCP(a, def){ return (a && a._isMagic && a._priceGP) ? armorGemSellGP(a._priceGP) * 100 : (def ? sellPriceCP(def.cost) : 0); }
+function _armorSellLabel(a, def){ return (a && a._isMagic && a._priceGP) ? armorGemSellGP(a._priceGP) + 'GP' : sellPriceLabel(def?.cost||0); }
 
 // CP換算の売値を適切な通貨単位で加算
 function gainPriceCP(priceCP, pc=PC){
@@ -53578,14 +53743,14 @@ function sellArmor(idx){
  const a = (_sa.invArmors||[])[idx];
  if(!a) return;
  { const _d0 = _armorDefs().find(t=>t.name===(a._baseName||a.name));
-   if(!_sellConfirm(`${a.name}を売りますか？（${sellPriceLabel(_d0?.cost||0)}）`)) return; }
+   if(!_sellConfirm(`${a.name}を売りますか？（${_armorSellLabel(a, _d0)}）`)) return; }
  _sa.equippedArmors = (_sa.equippedArmors||[]).filter(e=>e!==a);
  _sa.invArmors.splice(idx,1);
  const def = _armorDefs().find(t=>t.name===(a._baseName||a.name));
- const price = def ? sellPriceCP(def.cost) : 0;
+ const price = _armorSellCP(a, def);
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
- showSaveToast(` ${a.name}を売った（${sellPriceLabel(def?.cost||0)}）`);
+ showSaveToast(` ${a.name}を売った（${_armorSellLabel(a, def)}）`);
 }
 
 // 未装備の武器を捨てる（対価なし・ショップ外でも使用可）
@@ -53959,7 +54124,7 @@ function renderIgsList(townId){
   uninvA.forEach(a=>{
    const def = _armorDefs().find(t=>t.name===(a._baseName||a.name));
    const _a = a;
-   row(a.isShield?'':'', a.name, def ? sellPriceCP(def.cost) : 0, ()=>{ const _idx=(_shopActor||PC).invArmors.indexOf(_a); if(_idx>=0) sellArmor(_idx); });
+   row(a.isShield?'':'', a.name, _armorSellCP(a, def), ()=>{ const _idx=(_shopActor||PC).invArmors.indexOf(_a); if(_idx>=0) sellArmor(_idx); });
   });
  }
 
@@ -54301,11 +54466,11 @@ function igsForgeWeapon(idx){
  // 装備中の武器は所持品と同じ実体なので、w.addsの加算がそのまま反映される（同名の別の武器には影響しない）
  updateHUD();
  renderIgsList(_igsTownId);
- showSaveToast(` 鍛錬完了！${w.name} → ${w.dice}D+${w.adds}（+${_getForgeLevel(w)}/+6）`);
+ showSaveToast(` 鍛錬完了！${w.name} → ${w.dice}D${_sg(w.adds)}（+${_getForgeLevel(w)}/+6）`);
 }
 
 function renderIngameShop(townId){
- townId = townId || PC.town;
+ townId = townId || (isShopOpen() && _igsTownId) || PC.town;   // 両替・売却など引数なしの再描画では、いま開いている店を保つ（開拓地や旅商人の店が親町の店に化けるのを防ぐ）
  _igsTownId = townId;
  const isKhazan = townId === 'khazan';
  const isElsia2 = townId === 'elsia';
@@ -54348,14 +54513,14 @@ function exchangeSPtoGP(){
 
 function igsBuyWeapon(i, townId){
  const _sa = _shopActor || PC;
- const _t1=townId||PC.town; const tbl = _t1==='khazan'?WEAPONS_TABLE_KHAZAN:_t1==='elsia'?WEAPONS_TABLE_ELSIA:_t1==='al_rashid'?WEAPONS_TABLE_AL_RASHID:_t1==='yeldun'?WEAPONS_TABLE_YELDUN:_t1==='valdheim'?WEAPONS_TABLE_VALDHEIM:(_t1==='neria'||_t1==='kalvo')?WEAPONS_TABLE_NERIA:WEAPONS_TABLE;
+ const _t1=townId||(isShopOpen()&&_igsTownId)||PC.town; const tbl = _t1==='khazan'?WEAPONS_TABLE_KHAZAN:_t1==='elsia'?WEAPONS_TABLE_ELSIA:_t1==='al_rashid'?WEAPONS_TABLE_AL_RASHID:_t1==='yeldun'?WEAPONS_TABLE_YELDUN:_t1==='valdheim'?WEAPONS_TABLE_VALDHEIM:(_t1==='neria'||_t1==='kalvo')?WEAPONS_TABLE_NERIA:WEAPONS_TABLE;
  const it=tbl[i];
  if(!it||totalCP(_sa)<it.cost*100)return;
  if(it.wizard && _sa.type!=='wizard'){ showSaveToast('魔法使い専用の品です'); return; }
  payPrice(it.cost, _sa);
  if(!_sa.invWeapons) _sa.invWeapons=[];
  _sa.invWeapons.push({name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0,weight:it.weight||0,...(it._masterpiece?{_masterpiece:true}:{}),...(it.isRanged?{isRanged:true}:{}),...(it.rangedOk?{rangedOk:true}:{}),...(it.isWizardStaff?{isWizardStaff:true}:{})});
- updateHUD(); renderIngameShop(townId||PC.town);
+ updateHUD(); renderIngameShop(townId);
  showSaveToast(` ${_sa.name}: ${it.name}を購入`);
 }
 // 物流途絶度stage3で「棍棒」を補充した町（その町のテーブルに元々棍棒が無い場合）専用の購入処理
@@ -54366,18 +54531,18 @@ function igsBuyFallbackClub(townId){
  payPrice(it.cost, _sa);
  if(!_sa.invWeapons) _sa.invWeapons=[];
  _sa.invWeapons.push({name:it.name, dice:it.dice, adds:it.adds, twoHand:it.twoHand, stReq:it.stReq||0, dexReq:it.dexReq||0, weight:it.weight||0});
- updateHUD(); renderIngameShop(townId||PC.town);
+ updateHUD(); renderIngameShop(townId);
  showSaveToast(` ${_sa.name}: ${it.name}を購入`);
 }
 function igsBuyArmor(i, townId){
  const _sa = _shopActor || PC;
- const _t2=townId||PC.town; const tbl = _t2==='khazan' ? ARMOR_TABLE_KHAZAN : _t2==='elsia' ? ARMOR_TABLE_ELSIA : (_t2==='al_rashid'||_t2==='yeldun'||_t2==='valdheim') ? ARMOR_TABLE_WITH_SCALE : ARMOR_TABLE; // 表示側（renderIngameShop の aTable）と同じ表を引く
+ const _t2=townId||(isShopOpen()&&_igsTownId)||PC.town; const tbl = _t2==='khazan' ? ARMOR_TABLE_KHAZAN : _t2==='elsia' ? ARMOR_TABLE_ELSIA : (_t2==='al_rashid'||_t2==='yeldun'||_t2==='valdheim') ? ARMOR_TABLE_WITH_SCALE : ARMOR_TABLE; // 表示側（renderIngameShop の aTable）と同じ表を引く
  const it=_armorTableForActor(tbl, _t2, _sa)[i];
  if(!it||totalCP(_sa)<it.cost*100)return;
  payPrice(it.cost, _sa);
  if(!_sa.invArmors) _sa.invArmors=[];
  _sa.invArmors.push({name:it.name,hits:it.hits,stReq:it.stReq,isShield:it.isShield||false,weight:it.weight||0,...(it._size?{_size:it._size}:{})});
- updateHUD(); renderIngameShop(townId||PC.town);
+ updateHUD(); renderIngameShop(townId);
  showSaveToast(` ${_sa.name}: ${it.name}を購入`);
 }
 function igsBuyEquip(i){
@@ -54447,7 +54612,7 @@ function igsBuySpecialty(idx, townId, buyPrice){
  state.stocks[it.name] = stockCount - 1;
  PC.invSpecialties = PC.invSpecialties||[];
  PC.invSpecialties.push({name:it.name, icon:it.icon, regionKey, baseCost:it.baseCost, weight:it.weight, boughtAt:buyPrice});
- updateHUD(); renderIngameShop(townId||PC.town);
+ updateHUD(); renderIngameShop(townId);
  showSaveToast(`${it.icon} ${it.name}を購入した（${buyPrice}GP）`);
 }
 
@@ -55356,7 +55521,7 @@ function renderNPCDetail(el, n, idx){
  <div style="background:var(--ink);border:1px solid #440044;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#f0ece0"> ${w.name} ${w._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${w._baseName}）</span>`:''}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D${_sg(w.adds||0)}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
  </div>
  <span style="display:flex;gap:4px"><button onclick="renameGear('wEq',${wi},${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#14110c;border:1px solid #554a38;color:#c0b098;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">名前</button><button onclick="npcUnequipWeapon(${idx},${wi})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>${discBtn('wEq',idx,wi)}</span>
  </div>`).join('');
@@ -55366,7 +55531,7 @@ function renderNPCDetail(el, n, idx){
  return `<div style="background:var(--panel);border:1px solid var(--void);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} ${w._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${w._baseName}）</span>`:''}${canUse?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※要件未満</span>'}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds||0}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D${_sg(w.adds||0)}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
  </div>
  <span style="display:flex;gap:4px"><button onclick="renameGear('wInv',${n.invWeapons.indexOf(w)},${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#14110c;border:1px solid #554a38;color:#c0b098;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">名前</button><button onclick="npcEquipWeapon(${idx},${n.invWeapons.indexOf(w)})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>${discBtn('wInv',idx,n.invWeapons.indexOf(w))}</span>
  </div>`;
@@ -55377,7 +55542,7 @@ function renderNPCDetail(el, n, idx){
  <div style="background:var(--info-bg);border:1px solid #004444;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#ece8e0">${a.isShield?'':''} ${a.name} ${a._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${a._baseName}）</span>`:''}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits${n.type==='warrior'?` (×2→${a.hits*2})`:''}${wtLbl(a.weight)}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits${n.type==='warrior'?` (×2→${a.hits*2})`:''}${wtLbl(a.weight)}</div>${weaponDescHtml(a)}
  </div>
  <span style="display:flex;gap:4px"><button onclick="renameGear('aEq',${ai},${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#14110c;border:1px solid #554a38;color:#c0b098;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">名前</button><button onclick="npcUnequipArmor(${idx},${ai})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>${discBtn('aEq',idx,ai)}</span>
  </div>`).join('');
@@ -55387,7 +55552,7 @@ function renderNPCDetail(el, n, idx){
  return `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0">${a.isShield?'':''} ${a.name} ${a._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${a._baseName}）</span>`:''}${canUse?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※強さ不足</span>'}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits${wtLbl(a.weight)}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits${wtLbl(a.weight)}</div>${weaponDescHtml(a)}
  </div>
  <span style="display:flex;gap:4px"><button onclick="renameGear('aInv',${ai},${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#14110c;border:1px solid #554a38;color:#c0b098;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">名前</button><button onclick="npcEquipArmor(${idx},${ai})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>${discBtn('aInv',idx,ai)}</span>
  </div>`;
@@ -55488,7 +55653,7 @@ function renderNPCDetail(el, n, idx){
    rHtml += `<div style="background:var(--ink);border:1px solid #484848;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
    <div>
     <div style="font-size:var(--font-sm);color:#e0d8c8"> ${rw.name} ${rw._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${rw._baseName}）</span>`:''}</div>
-    <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rw.dice}D+${rw.adds||0}　${rw.isRanged?'弓':'投擲'}${wtLbl(rw.weight)}</div>${weaponDescHtml(rw)}
+    <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rw.dice}D${_sg(rw.adds||0)}　${rw.isRanged?'弓':'投擲'}${wtLbl(rw.weight)}</div>${weaponDescHtml(rw)}
    </div>
    <span style="display:flex;gap:4px"><button onclick="renameGear('rEq',0,${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#14110c;border:1px solid #554a38;color:#c0b098;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">名前</button><button onclick="npcUnequipRanged(${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#200000;border:1px solid #550000;color:#e0d8c8;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">外す</button>${discBtn('ranged',idx)}</span>
    </div>`;
@@ -55499,7 +55664,7 @@ function renderNPCDetail(el, n, idx){
   candidates.forEach((w,wi)=>{
    const widx = (n.invWeapons||[]).indexOf(w);
    rHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
-   <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} ${w._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${w._baseName}）</span>`:''} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds||0}${wtLbl(w.weight)}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
+   <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} ${w._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${w._baseName}）</span>`:''} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D${_sg(w.adds||0)}${wtLbl(w.weight)}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
    <span style="display:flex;gap:4px"><button onclick="renameGear('wInv',${widx},${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#14110c;border:1px solid #554a38;color:#c0b098;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">名前</button><button onclick="npcEquipRanged(${idx},${widx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:var(--info-bg);border:1px solid #484848;color:var(--white2);font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">遠距離装備</button>${discBtn('wInv',idx,widx)}</span>
    </div>`;
   });
@@ -55751,7 +55916,7 @@ function renderStatusPanel(){
  wpHtml += `<div style="background:var(--ink);border:1px solid #550055;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#f0ece0"> ${w.name} ${w._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${w._baseName}）</span>`:''}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${w.dice}D${_sg(w.adds)}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
  </div>
  <div style="display:flex;gap:4px"><button onclick="renameGear('wEq',${i})" ${btnStyle('#c0b098','#14110c','#554a38')}>名前</button><button onclick="unequipWeapon(${i})" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>${discBtn('wEq',-1,i)}</div>
  </div>`;
@@ -55777,7 +55942,7 @@ function renderStatusPanel(){
  <div style="display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${displayName} ${baseLabel}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D+${w.adds}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#d8d0c0">${w.dice}D${_sg(w.adds)}　${w.twoHand?'両手':'片手'}${wtLbl(w.weight)}</div>${weaponDescHtml(w)}
  </div>
  <div style="display:flex;gap:4px">
  <button onclick="equipWeapon(${idx})" ${check.ok?btnStyle('var(--nature2)','#0e1006','var(--rust)'):`disabled ${btnStyle('#444','#111','#a0a0a0')}`}>${check.ok?'装備':'不可'}</button>
@@ -55798,7 +55963,7 @@ function renderStatusPanel(){
   rngHtml += `<div style="background:var(--ink);border:1px solid #484848;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
   <div>
   <div style="font-size:var(--font-sm);color:#e0d8c8"> ${rngW.name} ${rngW._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${rngW._baseName}）</span>`:''}</div>
-  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rngW.dice}D+${rngW.adds}　${rngW.isRanged?'弓':'投擲'}${wtLbl(rngW.weight)}</div>${weaponDescHtml(rngW)}
+  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${rngW.dice}D${_sg(rngW.adds)}　${rngW.isRanged?'弓':'投擲'}${wtLbl(rngW.weight)}</div>${weaponDescHtml(rngW)}
   </div>
   <div style="display:flex;gap:4px"><button onclick="renameGear('rEq',0)" ${btnStyle('#c0b098','#14110c','#554a38')}>名前</button><button onclick="unequipRanged()" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>${discBtn('ranged',-1)}</div>
   </div>`;
@@ -55810,7 +55975,7 @@ function renderStatusPanel(){
  rangedCandidates.forEach(w=>{
   const idx = PC.invWeapons.indexOf(w);
   rngHtml += `<div style="background:var(--panel);border:1px solid #224;border-radius:3px;padding:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
-  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} ${w._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${w._baseName}）</span>`:''} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D+${w.adds}${wtLbl(w.weight)}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
+  <div style="font-size:var(--font-sm);color:#c8b8a0"> ${w.name} ${w._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${w._baseName}）</span>`:''} <span style="color:var(--white2);font-size:calc(var(--font-sm) - 2px)">${w.dice}D${_sg(w.adds)}${wtLbl(w.weight)}</span>${w._desc?`<span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 2px)">　${w._desc}</span>`:''}</div>
   <div style="display:flex;gap:4px"><button onclick="renameGear('wInv',${idx})" ${btnStyle('#c0b098','#14110c','#554a38')}>名前</button><button onclick="equipRanged(${idx})" ${btnStyle('var(--white2)','var(--info-bg)','var(--info-border)')}>遠距離装備</button>${discBtn('wInv',-1,idx)}</div>
   </div>`;
  });
@@ -55830,7 +55995,7 @@ function renderStatusPanel(){
  arHtml += `<div style="background:var(--ink);border:1px solid #585858;border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#ece8e0">${a.isShield?'':''} ${a.name} ${a._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${a._baseName}）</span>`:''}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${a.hits}hits${isWarrior?` →${eff}hits(×2)`:''}${a.isShield?' [シールド]':''}${wtLbl(a.weight)}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${a.hits}hits${isWarrior?` →${eff}hits(×2)`:''}${a.isShield?' [シールド]':''}${wtLbl(a.weight)}</div>${weaponDescHtml(a)}
  </div>
  <div style="display:flex;gap:4px"><button onclick="renameGear('aEq',${i})" ${btnStyle('#c0b098','#14110c','#554a38')}>名前</button><button onclick="unequipArmor(${i})" ${btnStyle('#e0d8c8','#1a1a1a','#484848')}>外す</button>${discBtn('aEq',-1,i)}</div>
  </div>`;
@@ -55845,13 +56010,13 @@ function renderStatusPanel(){
  const idx = PC.invArmors.indexOf(a);
  const check = canEquipArmor(a);
  const def = _armorDefs().find(t=>t.name===(a._baseName||a.name));
- const sellBtn = isShopOpen() && def
- ? `<button onclick="sellArmor(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(def.cost)}</button>`
+ const sellBtn = isShopOpen() && (def || a._isMagic)
+ ? `<button onclick="sellArmor(${idx})" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${_armorSellLabel(a, def)}</button>`
  : '';
  arHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
  <div style="font-size:var(--font-sm);color:#c8b8a0">${a.isShield?'':''} ${a.name} ${a._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${a._baseName}）</span>`:''}</div>
- <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${a.hits}hits${a.isShield?' [シールド]':''}${wtLbl(a.weight)}</div>
+ <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${a.hits}hits${a.isShield?' [シールド]':''}${wtLbl(a.weight)}</div>${weaponDescHtml(a)}
  </div>
  <div style="display:flex;gap:4px">
  <button onclick="renameGear('aInv',${idx})" ${btnStyle('#c0b098','#14110c','#554a38')}>名前</button>
@@ -57626,6 +57791,7 @@ function startAsNPC(npcIdx){
  const npc = ws.knownNPCs[npcIdx];
  if(!npc) return;
 
+ const _keepLineage = _lineageId(); // 血統IDは引き継ぐ（NPCのデータで上書きされないよう先に確保）
  // 前のキャラクターが最後にいた町を引き継ぐ（Object.assign前に確保しておく）
  const lastTown = PC.town || ws.lastTown || 'khazan';
  // 爵位は血縁の子にのみ引き継がせるため、クリアされる前に確保しておく
@@ -57638,6 +57804,7 @@ function startAsNPC(npcIdx){
  const _prevName = PC.name;
  // NPCのデータをPCに転写
  Object.assign(PC, JSON.parse(JSON.stringify(npc)));
+ PC._lineageId = _keepLineage;
  PC._npcEquipWeight = true; // 世代交代：旧セーブからの引き継ぎでも仲間NPCの装備重量を反映する
  PC.town = lastTown;
  // PCとして不要なNPC固有フィールドをクリア
@@ -57646,7 +57813,7 @@ function startAsNPC(npcIdx){
  PC.lifeEvents = []; // ライフイベントは新PCのものからスタート
  PC.spdBase = PC.spd;
  // 前PCの_フラグ類をクリア（世界状態はworldStateから引き継ぐ）
- const keepFlags = new Set(['_startTown','_npcId','_fiefCharters']);
+ const keepFlags = new Set(['_startTown','_npcId','_fiefCharters','_lineageId']);
  Object.keys(PC).filter(k=>k.startsWith('_') && !keepFlags.has(k)).forEach(k=>{ delete PC[k]; });
  // 年齢・誕生日を、後継NPC自身のデータから算出し直す
  // （NPCのbirthDayは起点からの経過日数、PCのbirthDay/Month/Yearは暦の年月日で意味が異なるため、
@@ -57882,6 +58049,8 @@ function darkRoomChoices(nodeId){
   { prefix:'OUTPOST_',      escape:'OUTPOST_DARK_ESCAPE' },
   { prefix:'HRUIN_',        escape:'HRUIN_DARK_ESCAPE' },
   { prefix:'HFORT_',        escape:'HFORT_DARK_ESCAPE' },
+  { prefix:'HFORT2_',       escape:'HFORT2_DARK_ESCAPE' },
+  { prefix:'NERGOL_',       escape:'NERGOL_DARK_ESCAPE' },
   { prefix:'LAIR_',         escape:'LAIR_DARK_ESCAPE' },
   { prefix:'SRUIN_',        escape:'SRUIN_DARK_ESCAPE' },
   { prefix:'RUIN_',         escape:'RUIN_DARK_ESCAPE' },
@@ -57950,6 +58119,7 @@ function go(nodeId){
  // 町ノードに入るたびに、チュートリアルの死亡イベントの噂をチェックする
  if(typeof nodeId==='string' && nodeId.startsWith('TOWN_')){
   checkTutorialDeathRumors();
+  try{ nergolPayPrisoners(); }catch(e){ console.error(e); }
   // 旅芸人の一座との護衛契約中：給金・満了・出発時刻の超過を処理する（画面を引き取ったらここで終わる）
   if(troupeTownHook(nodeId)) return;
  }
@@ -58148,7 +58318,7 @@ function go(nodeId){
  // モンスターエンカウント（暗闇中は判定しない）
  // 専用エンカウント関数を持つダンジョンはスキップ
  const _skipGenericEnc = nodeId.startsWith('RUIN_P') || nodeId.startsWith('RUIN_ROOM') || nodeId.startsWith('RUIN_TJUNC')
-  || nodeId.startsWith('LAIR_') || nodeId.startsWith('LAIR2_') || nodeId.startsWith('LAIR3_') || nodeId.startsWith('LAIR4_') || nodeId.startsWith('LAIR5_') || nodeId.startsWith('NIFLAIR_') || nodeId.startsWith('LAIR6_') || nodeId.startsWith('LAIR7_') || nodeId.startsWith('OUTPOST_') || nodeId.startsWith('HRUIN_') || nodeId.startsWith('HFORT_') || nodeId.startsWith('SRUIN_') || nodeId.startsWith('SETTLE_');
+  || nodeId.startsWith('LAIR_') || nodeId.startsWith('LAIR2_') || nodeId.startsWith('LAIR3_') || nodeId.startsWith('LAIR4_') || nodeId.startsWith('LAIR5_') || nodeId.startsWith('NIFLAIR_') || nodeId.startsWith('LAIR6_') || nodeId.startsWith('LAIR7_') || nodeId.startsWith('OUTPOST_') || nodeId.startsWith('HRUIN_') || nodeId.startsWith('HFORT_') || nodeId.startsWith('HFORT2_') || nodeId.startsWith('NERGOL_') || nodeId.startsWith('SRUIN_') || nodeId.startsWith('SETTLE_');
  if(PC._torchTurns > 0 && !_skipGenericEnc){
  const dungeonFloor = nodeId.startsWith('CRYPT3_') ? 3 : nodeId.startsWith('CRYPT2_') ? 2 : nodeId.startsWith('SHR2_') ? 2 : 1;
  const enc = rollEncounter(dungeonFloor);
@@ -58438,6 +58608,7 @@ function hideTravelProgress(){
 let _trvImgs = null;   // 現在の移動で使う画像配列
 let _trvImgIdx = 0;    // 現在表示中のインデックス
 
+function _sg(n){ n=Number(n)||0; return n<0 ? String(n) : '+'+n; }
 function hideTravelImage(){
  const w = document.getElementById('travel-img-area');
  if(w) w.style.display = 'none';
@@ -60017,7 +60188,7 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp, customOnDone){
   cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + dmg;
   cbtState._spellCaster = true;
   const spName = sp.fn==='blastingPower' ? 'Detonate' : 'Ice Bind';
-  cl.innerHTML += `<span style="color:#e0d8c8"> ${npc.name}が${spName}を詠唱！${dice}D+${adds}=${dmg}ヒット追加！</span><br>`;
+  cl.innerHTML += `<span style="color:#e0d8c8"> ${npc.name}が${spName}を詠唱！${dice}D${_sg(adds)}=${dmg}ヒット追加！</span><br>`;
   onDone();
   return;
  }
@@ -61442,15 +61613,15 @@ function doFlee(){
   renderChoices([{label:'← 町に戻る', go: backNode}]);
  } else {
   const entryId = dung?.floors?.[dung.currentFloor]?.entryNodeId || (dung ? ('YD_F' + dung.currentFloor + '_entrance') : null);
-  const fallbackTown = dung?.heroQuestBackNode || 'TOWN_KHAZAN';
+  const fallbackTown = _ydSurfaceTownId(dung);
   if(entryId) renderChoices([
    {label:' 入口へ戻る', fn:()=>{
     try{ ydGoNode(entryId, dung.currentFloor); }
-    catch(e){ console.warn('YD entry return failed, falling back to town', e); PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }
+    catch(e){ console.warn('YD entry return failed, falling back to town', e); _ydSurfaceExit(dung); }
    }},
-   {label:' （反応しない場合）諦めて地上へ戻る', fn:()=>{ PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }},
+   {label:' （反応しない場合）諦めて地上へ戻る', fn:()=>{ _ydSurfaceExit(dung); }},
   ]);
-  else renderChoices([{label:' ダンジョンを出る', fn:()=>{ PC._yeldunDungeon=null; hideDungeonImage(); go(fallbackTown); }}]);
+  else renderChoices([{label:' ダンジョンを出る', fn:()=>{ _ydSurfaceExit(dung); }}]);
  }
  // ダンジョン内逃走 → 直前にいたノードに戻る・松明1本消費
  } else {
@@ -61496,7 +61667,9 @@ function doFlee(){
  renderChoices([{label:'← 町に戻る', go: currentNodeId}]);
  } else {
  // 汎用フォールバック：逃走成功なのでlose（敗北先）ではなく、fleeTo（1つ前のノード指定があればそちら）／win先／現在地の順で戻す
- go(savedState.fleeTo || savedState.win || currentNodeId);
+ // win が '__noop__'（勝利後の行き先を onWin で別に処理する戦闘＝巣窟のワンダリングなど）のときは、そのままでは行き先にならないので現在地へ戻す
+ const _fleeDest = savedState.fleeTo || ((savedState.win && savedState.win !== '__noop__') ? savedState.win : null) || currentNodeId;
+ go(_fleeDest);
  }
  } // end else（非YD）
  }
@@ -63423,6 +63596,23 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026111501', sections:[
+  { heading:'新規実装項目', items:[
+   'アル・ラシード東方の地下迷宮に、東側の区画を追加した。',
+   'エルマリア-ストーンヘイム間の荒野に廃砦を追加した。',
+   'ポートアルゴン-アル・ラシード間の荒野に狩人の塚を追加した。',
+  ]},
+  { heading:'調整', items:[
+   '賞金首のアジトで、賞金首との戦闘からも逃げられるようにした。逃げたあとは、アジトに入った街路に戻る。',
+   'ランダムに生成されるダンジョンで、宝箱や宝物を開けずに先へ進めるようにした。',
+  ]},
+  { heading:'不具合修正', items:[
+   'ワンダリングモンスターから逃げ切ったあと、操作できなくなる不具合を修正した。',
+   '開拓地の店で両替や売却をして閉じると、元いた町に戻される不具合を修正した。',
+   '賞金首との戦闘から逃げて地上へ戻ると、別の町（カザーヌ）に移動してしまう不具合を修正した。',
+   '大金を使って荷物が軽くなっても、移動時間が重量超過のままになる不具合を修正した。',
+  ]},
+ ]},
  { version:'ver.2026111302', sections:[
   { heading:'新規実装項目', items:[
    'STATUS画面に、次のレベルまでの経験値バーを追加した。',
@@ -63730,7 +63920,7 @@ function dbgGemWeapon(wantCount){
    const hasEra = /^(上古|古代|中興|前代)の/.test(w.name);
    if(era === null || (era ? w.name.startsWith(era + 'の') : !hasEra)){
     updateHUD();
-    showSaveToast(` ${w.name}（${w.dice}D+${w.adds}）を入手`);
+    showSaveToast(` ${w.name}（${w.dice}D${_sg(w.adds)}）を入手`);
     return w;
    }
    PC.invWeapons.pop();
@@ -64121,7 +64311,7 @@ function dbgShowWorldState(){
  const story = document.getElementById('story');
  if(!ws){ story.innerHTML = '<span style="color:#e0d0d0">worldState: null（未保存）</span>'; return; }
  let html = '<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">── worldState ──</span><br><br>';
- html += `<b>key:</b> ${typeof WORLD_KEY !== 'undefined' ? WORLD_KEY : 'UNDEFINED'}<br>`;
+ html += `<b>key:</b> ${typeof worldKey === 'function' ? worldKey() : 'UNDEFINED'}<br>`;
  html += `<b>totalDays:</b> ${ws.totalDays}<br>`;
  html += `<b>lastPCName:</b> ${ws.lastPCName}<br>`;
  html += `<b>lastReason:</b> ${ws.lastReason}<br>`;
@@ -64724,6 +64914,26 @@ function alCheckEncounter(returnNode){
   onWin(){ document.getElementById('cbt-area').classList.add('hidden'); document.getElementById('scroll-area').classList.remove('in-combat'); document.getElementById('text-win').style.display=''; cbtState=null; go(returnNode); },
  });
  return true;
+}
+// ── アル・ラシード東方の地下迷宮 東ブロック ──
+// 東ブロックの開通フラグ（AL_ROOM11 の東壁の扉に使う）
+const AL_EAST_BLOCK_READY = true;
+const AL_E_HEAD = '<span style="color:#f0ece0">アル・ラシード東方の地下迷宮 東区画</span><br><br>';
+// 仕掛けの状態は PC のフラグで持つ（_alE_lever5＝部屋5のレバー／_alE_lever12＝部屋12のレバー／_alE_leverA＝通路aのレバー／_alE_lever11＝部屋11のレバー）
+// レバーを動かす：フラグを立て、短い文を出して元の部屋に戻る
+function alELever(flag, msg, backNode){
+ PC[flag] = true;
+ const s = document.getElementById('story');
+ s.innerHTML = AL_E_HEAD + `<span style="color:#e8e4d8">${msg}</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>go(backNode)}]);
+ scrollToTop();
+}
+// 閉まった落とし格子を力ずくで開けようとする：絶対に開かない。16%の確率でワンダリングモンスターが現れる
+function alEForceGrate(nodeId){
+ if(alCheckEncounter(nodeId)) return;
+ const s = document.getElementById('story');
+ s.innerHTML += `<br><br><span style="color:#e8e4d8"> 格子を力ずくで揺さぶってみたが、びくともしない。</span>`;
+ scrollToTop();
 }
 function alMove(dest){ if(!alCheckEncounter(dest)) go(dest); }
 
@@ -71921,14 +72131,323 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
 
  AL_ROOM11:{
  scene:'dungeon',
+ // 東壁中央の扉は東ブロック（AL_E_*）の部屋1へ通じる。東ブロックが完成するまでは dev ビルドだけに出す
+ // （リリース版に未完成の部屋への扉が出ないようにする。東ブロック完成後は AL_EAST_BLOCK_READY を true にする）
  txt:()=>`<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
   南北35m、東西15mの細長い石室。壁に沿って石造りの棚の跡が並んでいる。<br>
-  北壁西端に扉、西壁南端にアーチ、南壁東端に鉄で補強された扉がある。`,
+  北壁西端に扉、西壁南端にアーチ、${AL_EAST_BLOCK_READY ? '東壁中央に扉、' : ''}南壁東端に鉄で補強された扉がある。`,
+ choices:()=>{
+  const ch=[
+   {label:'↑ 北の扉', fn:()=>alMove('AL_ROOM17')},
+   {label:'↙ 南西のアーチ', fn:()=>alMove('AL_ROOM4')},
+   {label:'↘ 南東の扉', fn:()=>alMove('AL_PASSAGE5')},
+  ];
+  if(AL_EAST_BLOCK_READY) ch.push({label:'→ 東壁の扉', fn:()=>alMove('AL_E_ROOM1')});
+  return ch;
+ },
+ },
+
+ // ══════ アル・ラシード東方の地下迷宮 東ブロック（AL_E_*）══════
+ AL_E_ROOM1:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}35m四方の広い石室。床の石畳は所々が割れ、長い年月が過ぎたことをうかがわせる。<br>
+  北壁西端から15mに扉、東壁北端から15mに扉、東壁南端にアーチ、西壁南端から15mに扉がある。`,
  choices:[
-  {label:'↑ 北の扉', fn:()=>alMove('AL_ROOM17')},
-  {label:'↙ 南西のアーチ', fn:()=>alMove('AL_ROOM4')},
-  {label:'↘ 南東の扉', fn:()=>alMove('AL_PASSAGE5')},
+  {label:'↑ 北壁の扉', fn:()=>alMove('AL_E_ROOM2')},
+  {label:'→ 東壁北寄りの扉', fn:()=>alMove('AL_E_PASS_A')},
+  {label:'↘ 東壁南端のアーチ', fn:()=>alMove('AL_E_ROOM4')},
+  {label:'← 西壁の扉', fn:()=>alMove('AL_ROOM11')},
  ],
+ },
+
+ AL_E_ROOM2:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北15m、東西25mの石室。<br>
+  南壁中央に扉がある。東壁中央には落とし格子があり、${PC._alE_leverA?'格子は上がっている。':'格子は固く閉ざされている。'}`,
+ choices:()=>{
+  const ch=[{label:'↓ 南壁の扉', fn:()=>alMove('AL_E_ROOM1')}];
+  if(PC._alE_leverA) ch.push({label:'→ 東壁の落とし格子（開いている）', fn:()=>alMove('AL_E_ROOM11')});
+  else ch.push({label:'→ 東壁の落とし格子（閉まっている）', fn:()=>alEForceGrate('AL_E_ROOM2')});
+  return ch;
+ },
+ },
+
+ AL_E_ROOM11:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}5m四方の小さな石室。<br>
+  西壁に落とし格子があり、東壁にレバーがある。${PC._alE_lever11?'<br><span style="color:#e0d8c8"> レバーはすでに動かしてある。</span>':''}`,
+ choices:()=>{
+  const ch=[];
+  if(!PC._alE_lever11) ch.push({label:' 東壁のレバーを動かす', fn:()=>alELever('_alE_lever11','レバーを引くと、どこか遠くで重い格子が持ち上がる音が響いた。','AL_E_ROOM11')});
+  ch.push({label:'← 西壁の落とし格子（開いている）', fn:()=>alMove('AL_E_ROOM2')});
+  return ch;
+ },
+ },
+
+ AL_E_PASS_A:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北15mの通路。<br>
+  西壁に扉がある。南端の南壁にレバーがある。${PC._alE_leverA?'<br><span style="color:#e0d8c8"> レバーはすでに動かしてある。</span>':''}`,
+ choices:()=>{
+  const ch=[];
+  if(!PC._alE_leverA) ch.push({label:' 南端のレバーを動かす', fn:()=>alELever('_alE_leverA','レバーを引くと、壁の奥で鎖が巻き上がる音が響いた。','AL_E_PASS_A')});
+  ch.push({label:'← 西壁の扉', fn:()=>alMove('AL_E_ROOM1')});
+  return ch;
+ },
+ },
+
+ AL_E_ROOM4:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北25m、東西15mの石室。<br>
+  北壁東端に扉、南壁東端に扉、西壁中央に扉、西壁北端にアーチがある。`,
+ choices:[
+  {label:'↗ 北壁東端の扉', fn:()=>alMove('AL_E_PASS_B')},
+  {label:'↘ 南壁東端の扉', fn:()=>alMove('AL_E_PASS_C')},
+  {label:'← 西壁中央の扉', fn:()=>alMove('AL_E_ROOM8')},
+  {label:'↖ 西壁北端のアーチ', fn:()=>alMove('AL_E_ROOM1')},
+ ],
+ },
+
+ AL_E_PASS_B:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北15mの通路。北端の北壁と南端の南壁に、それぞれ扉がある。`,
+ choices:[
+  {label:'↑ 北端の扉', fn:()=>alMove('AL_E_ROOM9')},
+  {label:'↓ 南端の扉', fn:()=>alMove('AL_E_ROOM4')},
+ ],
+ },
+
+ AL_E_ROOM9:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}15m四方の石室。中央に四角い石の台座がある。台座の上にはかつて何かが載っていたようだが、今は何もない。<br>
+  南壁東端に扉がある。北壁西端には落とし格子があり、${PC._alE_lever11?'格子は上がっている。':'格子は固く閉ざされている。'}`,
+ choices:()=>{
+  const ch=[{label:'↘ 南壁東端の扉', fn:()=>alMove('AL_E_PASS_B')}];
+  if(PC._alE_lever11) ch.push({label:'↖ 北壁西端の落とし格子（開いている）', fn:()=>alMove('AL_E_ROOM10')});
+  else ch.push({label:'↖ 北壁西端の落とし格子（閉まっている）', fn:()=>alEForceGrate('AL_E_ROOM9')});
+  return ch;
+ },
+ },
+
+ AL_E_ROOM10:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}15m四方の石室。<br>
+  南壁西端に落とし格子がある。${PC._alE_lever11?'格子は上がっている。':'格子は固く閉ざされている。'}`,
+ choices:()=>{
+  const ch=[];
+  if(PC._alE_lever11) ch.push({label:'↙ 南壁西端の落とし格子（開いている）', fn:()=>alMove('AL_E_ROOM9')});
+  else ch.push({label:'↙ 南壁西端の落とし格子（閉まっている）', fn:()=>alEForceGrate('AL_E_ROOM10')});
+  return ch;
+ },
+ },
+
+ AL_E_PASS_C:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北20mの通路。北端の北壁に扉がある。南端はT字路になっている。`,
+ choices:[
+  {label:'↑ 北端の扉', fn:()=>alMove('AL_E_ROOM4')},
+  {label:'↓ 南端（T字路）', fn:()=>alMove('AL_E_TJUNC_A')},
+ ],
+ },
+
+ AL_E_TJUNC_A:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}東西に延びる通路から、北へ通路が分岐するT字路。`,
+ choices:[
+  {label:'↑ 北の通路', fn:()=>alMove('AL_E_PASS_C')},
+  {label:'→ 東の通路', fn:()=>alMove('AL_E_PASS_E')},
+  {label:'← 西の通路', fn:()=>alMove('AL_E_PASS_F')},
+ ],
+ },
+
+ AL_E_PASS_E:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}東西40mの通路。東端は北へ折れ曲がっている。西端はT字路になっている。`,
+ choices:[
+  {label:'→ 東端（北へ折れる）', fn:()=>alMove('AL_E_PASS_I')},
+  {label:'← 西端（T字路）', fn:()=>alMove('AL_E_TJUNC_A')},
+ ],
+ },
+
+ AL_E_PASS_I:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北15mの通路。北端は西へ、南端は東へ折れ曲がっている。`,
+ choices:[
+  {label:'↰ 北端（西へ折れる）', fn:()=>alMove('AL_E_PASS_J')},
+  {label:'↱ 南端（東へ折れる）', fn:()=>alMove('AL_E_PASS_E')},
+ ],
+ },
+
+ AL_E_PASS_J:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}東西35mの通路。東端は南へ折れ曲がっている。西端は行き止まりで、北壁に扉がある。`,
+ choices:[
+  {label:'↓ 東端（南へ折れる）', fn:()=>alMove('AL_E_PASS_I')},
+  {label:'↑ 西端・北壁の扉', fn:()=>alMove('AL_E_ROOM6')},
+ ],
+ },
+
+ AL_E_ROOM6:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北15m、東西35mの石室。<br>
+  北壁西端に扉、南壁西端に扉がある。`,
+ choices:[
+  {label:'↑ 北壁西端の扉', fn:()=>alMove('AL_E_PASS_K')},
+  {label:'↓ 南壁西端の扉', fn:()=>alMove('AL_E_PASS_J')},
+ ],
+ },
+
+ AL_E_PASS_K:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北25mの通路。北端は行き止まりで、東壁に落とし格子がある。${PC._alE_lever12?'格子は上がっている。':'格子は固く閉ざされている。'}<br>
+  南端の南壁に扉がある。`,
+ choices:()=>{
+  const ch=[];
+  if(PC._alE_lever12) ch.push({label:'↗ 北端・東壁の落とし格子（開いている）', fn:()=>alMove('AL_E_ROOM3')});
+  else ch.push({label:'↗ 北端・東壁の落とし格子（閉まっている）', fn:()=>alEForceGrate('AL_E_PASS_K')});
+  ch.push({label:'↓ 南端の扉', fn:()=>alMove('AL_E_ROOM6')});
+  return ch;
+ },
+ },
+
+ AL_E_ROOM3:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北35m、東西25mの石室。<br>
+  東の壁一面に、兵士の一団と、様々な武器を手にした昆虫のような化物との凄惨な戦いを描いたモザイク画が広がっている。かなり色褪せていて、だいぶ古い時代のもののようだ。<br>
+  北壁西端に扉、北壁東端にアーチ、南壁西端に扉がある。西壁北端から15mの位置には落とし格子があり、${PC._alE_lever12?'格子は上がっている。':'格子は固く閉ざされている。'}`,
+ choices:()=>{
+  const ch=[
+   {label:'↖ 北壁西端の扉', fn:()=>alMove('AL_E_ROOM5')},
+   {label:'↗ 北壁東端のアーチ', fn:()=>alMove('AL_E_PASS_L')},
+   {label:'↙ 南壁西端の扉', fn:()=>alMove('AL_E_ROOM6')},
+  ];
+  if(PC._alE_lever12) ch.push({label:'← 西壁の落とし格子（開いている）', fn:()=>alMove('AL_E_PASS_K')});
+  else ch.push({label:'← 西壁の落とし格子（閉まっている）', fn:()=>alEForceGrate('AL_E_ROOM3')});
+  return ch;
+ },
+ },
+
+ AL_E_PASS_L:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北35mの通路。北端は西へ折れ曲がっている。南端の南壁にアーチがある。`,
+ choices:[
+  {label:'↰ 北端（西へ折れる）', fn:()=>alMove('AL_E_PASS_M')},
+  {label:'↓ 南端のアーチ', fn:()=>alMove('AL_E_ROOM3')},
+ ],
+ },
+
+ AL_E_PASS_M:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}東西25mの通路。東端は南へ折れ曲がっている。西端は行き止まりで、南壁に扉がある。${PC._alE_lever5?'<br>西端の西壁に、これまで見落としていた扉が開いている。':''}`,
+ choices:()=>{
+  const ch=[
+   {label:'↓ 東端（南へ折れる）', fn:()=>alMove('AL_E_PASS_L')},
+   {label:'↓ 西端・南壁の扉', fn:()=>alMove('AL_E_ROOM5')},
+  ];
+  if(PC._alE_lever5) ch.push({label:'← 西端・西壁の扉', fn:()=>alMove('AL_E_PASS_N')});
+  return ch;
+ },
+ },
+
+ AL_E_ROOM5:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北25m、東西15mの石室。<br>
+  北壁西端に扉、南壁西端に扉がある。東壁にレバーがある。${PC._alE_lever5?'<br><span style="color:#e0d8c8"> レバーはすでに動かしてある。</span>':''}`,
+ choices:()=>{
+  const ch=[];
+  if(!PC._alE_lever5) ch.push({label:' 東壁のレバーを動かす', fn:()=>alELever('_alE_lever5','レバーを引くと、壁の奥で石の擦れる重い音が響き、やがて静まった。','AL_E_ROOM5')});
+  ch.push({label:'↑ 北壁西端の扉', fn:()=>alMove('AL_E_PASS_M')});
+  ch.push({label:'↓ 南壁西端の扉', fn:()=>alMove('AL_E_ROOM3')});
+  return ch;
+ },
+ },
+
+ AL_E_PASS_N:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北45mの通路。北端は行き止まりで、東壁に扉がある。<br>
+  南端の南壁には、石でできたボタンがついている。${PC._alE_lever5?'<br>北端の東壁に、扉が開いている。':''}`,
+ choices:()=>[
+  ...(PC._alE_lever5?[{label:'↗ 北端・東壁の扉', fn:()=>alMove('AL_E_PASS_M')}]:[]),
+  {label:' 南端のボタンを押す', fn:()=>{
+   const s = document.getElementById('story');
+   if(!PC._alE_lever11){
+    s.innerHTML += `<br><br><span style="color:#e8e4d8"> ボタンを押してみたが、何も起こらない。</span>`;
+    scrollToTop();
+    return;
+   }
+   s.innerHTML = AL_E_HEAD + `<span style="color:#e8e4d8">ボタンを押すと、床が淡く光り、視界が白く染まった。——気がつくと、見知らぬ通路に立っていた。</span>`;
+   renderChoices([{label:'▶ OK', fn:()=>go('AL_E_PASS_D')}]);
+   scrollToTop();
+  }},
+ ],
+ },
+
+ AL_E_PASS_D:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}東西35mの通路。西端は行き止まりになっている。東端の東壁に扉がある。`,
+ choices:[
+  {label:'→ 東端の扉', fn:()=>alMove('AL_E_ROOM10')},
+ ],
+ },
+
+ AL_E_PASS_F:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}東西50mの通路。東端はT字路になっている。西端は北へ折れ曲がっている。`,
+ choices:[
+  {label:'→ 東端（T字路）', fn:()=>alMove('AL_E_TJUNC_A')},
+  {label:'↑ 西端（北へ折れる）', fn:()=>alMove('AL_E_PASS_G')},
+ ],
+ },
+
+ AL_E_PASS_G:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北45mに延びる通路。北端は東へ、南端も東へ折れ曲がっている。`,
+ choices:[
+  {label:'↱ 北端（東へ折れる）', fn:()=>alMove('AL_E_PASS_H')},
+  {label:'↳ 南端（東へ折れる）', fn:()=>alMove('AL_E_PASS_F')},
+ ],
+ },
+
+ AL_E_PASS_H:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}東西15mの通路。東端の東壁に扉がある。西端は南へ折れ曲がっている。`,
+ choices:[
+  {label:'→ 東端の扉', fn:()=>alMove('AL_E_ROOM8')},
+  {label:'↓ 西端（南へ折れる）', fn:()=>alMove('AL_E_PASS_G')},
+ ],
+ },
+
+ AL_E_ROOM8:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}15m四方の石室。<br>
+  東壁北端に扉、南壁西端に扉、西壁南端にアーチ、西壁北端に扉がある。`,
+ choices:[
+  {label:'↗ 東壁北端の扉', fn:()=>alMove('AL_E_ROOM4')},
+  {label:'↙ 南壁西端の扉', fn:()=>alMove('AL_E_ROOM7')},
+  {label:'↙ 西壁南端のアーチ', fn:()=>alMove('AL_E_ROOM12')},
+  {label:'↖ 西壁北端の扉', fn:()=>alMove('AL_E_PASS_H')},
+ ],
+ },
+
+ AL_E_ROOM7:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}南北15m、東西35mの石室。<br>
+  北壁の西端から15mの位置に扉がある。`,
+ choices:[
+  {label:'↑ 北壁の扉', fn:()=>alMove('AL_E_ROOM8')},
+ ],
+ },
+
+ AL_E_ROOM12:{
+ scene:'dungeon',
+ txt:()=>`${AL_E_HEAD}5m四方の小さな石室。<br>
+  東壁にアーチがある。西壁にはレバーがある。${PC._alE_lever12?'<br><span style="color:#e0d8c8"> レバーはすでに動かしてある。</span>':''}`,
+ choices:()=>{
+  const ch=[];
+  if(!PC._alE_lever12) ch.push({label:' 西壁のレバーを動かす', fn:()=>alELever('_alE_lever12','レバーを引くと、遠くで重い格子が持ち上がる音が響いた。','AL_E_ROOM12')});
+  ch.push({label:'→ 東壁のアーチ', fn:()=>alMove('AL_E_ROOM8')});
+  return ch;
+ },
  },
 
  AL_PASSAGE5:{
@@ -77473,6 +77992,7 @@ function hruinMsg(text){
 // 荒野から入る（entry：'N'＝西斜面の北寄りの入口→部屋J／'S'＝南寄りの入口→柱廊1）
 function hruinEnter(entry){
  checkHruinRespawn();
+ hideTravelImage(); // 荒野の景色の画像を消す
  initTorch();
  PC._hruinEntry = entry;
  PC._hruinFresh = true;
@@ -77672,6 +78192,7 @@ function hfortRespawnDayAfter(clearDay){
  return Math.floor(t / DAYS_PER_MONTH) * DAYS_PER_MONTH + DAYS_PER_MONTH - base;
 }
 function hfortBanditsSuppressed(regionKey){
+ if(hfort2BanditsSuppressed(regionKey)) return true;
  const l = PC._hfortDungeon;
  if(!l || l.themeId || l.clearedDay == null) return false;
  if(GAME_TIME.totalDays >= l.nextRespawnDay) return false;
@@ -77745,6 +78266,7 @@ function hfortMsg(text){ hruinMsg(text); }
 // 荒野から入る（entry：'W'＝西の入口→部屋A／'E'＝東の入口→通路2）
 function hfortEnter(entry){
  checkHfortRespawn();
+ hideTravelImage(); // 荒野の景色の画像を消す
  initTorch();
  PC._hfortEntry = entry;
  PC._hfortFresh = true;
@@ -77860,6 +78382,1170 @@ function hfortWildChoices(){
   {label:` ${HFORT_NAME}に入る（東側の入口）`, fn:()=>hfortEnter('E')},
  ];
 }
+
+// ══════════════════════════════════════════
+// 「廃砦2」（荒野のダンジョン・1階）
+// 構造の元データ：ユーザー提供の構造。巣窟ダンジョン共通の仕組み（テーマ抽選・エリア別モンスター・ワンダリング・再湧き）は廃砦1と同じものを使う
+// 入口は3つ：西（通路1）／北（通路2）／東（通路8）。荒野マップへの設置と2階は未作成
+// ══════════════════════════════════════════
+const HFORT2_NAME = '廃砦';
+const HFORT2_UPPER_READY = true;
+const HFORT2_ROOM_AREAS = {
+ HFORT2_ROOM_3:1, HFORT2_ROOM_4:1, HFORT2_ROOM_5:1, HFORT2_ROOM_6:1, HFORT2_ROOM_7:1,
+ HFORT2_ROOM_1:2, HFORT2_ROOM_2:2,
+ HFORT2_F2_ROOM_2:2, HFORT2_F2_ROOM_3:2, HFORT2_F2_ROOM_4:2, HFORT2_F2_ROOM_5:2,
+ HFORT2_F2_ROOM_6:3, HFORT2_F2_ROOM_7:3, HFORT2_F2_ROOM_8:3, HFORT2_F2_ROOM_9:3,
+};
+const HFORT2_ROUTE_KEY = 'elsia__stonehiem';
+const HFORT2_WILD_SITE = 'elsia__stonehiem:f';
+// この砦のある荒野の両端の地方では、砦を一掃している間、盗賊・山賊が出なくなる（廃砦1と同じ）
+function hfort2BanditsSuppressed(regionKey){
+ const l = PC._hfort2Dungeon;
+ if(!l || l.themeId || l.clearedDay == null) return false;
+ if(GAME_TIME.totalDays >= l.nextRespawnDay) return false;
+ return !!regionKey && HFORT2_ROUTE_KEY.split('__').map(t=>getRegionKey(t)).filter(Boolean).indexOf(regionKey) >= 0;
+}
+function hfort2WildChoices(){
+ const w = PC._wild;
+ if(!w || !WILD_MAPS[w.key]) return [];
+ const o = WILD_MAPS[w.key].objects[w.row] && WILD_MAPS[w.key].objects[w.row][w.col];
+ if(!o || (w.key + ':' + o) !== HFORT2_WILD_SITE) return [];
+ return [
+  {label:` ${HFORT2_NAME}に入る（西側の入口）`, fn:()=>hfort2Enter('W')},
+  {label:` ${HFORT2_NAME}に入る（北側の入口）`, fn:()=>hfort2Enter('N')},
+  {label:` ${HFORT2_NAME}に入る（東側の入口）`, fn:()=>hfort2Enter('E')},
+ ];
+}
+const HFORT2_ENC_AREA = { HFORT2_PASSAGE_11:1, HFORT2_F2_PASSAGE_7:3 };
+function initHfort2Dungeon(){
+ if(!PC._hfort2Dungeon){
+  PC._hfort2Dungeon = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{}, scenarioSorcererName:null, scenarioNames:null };
+ }
+ const lair = PC._hfort2Dungeon;
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(HFORT2_ROOM_AREAS).forEach(id=>{
+  if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null };
+ });
+}
+function checkHfort2Respawn(){ _lairCheckRespawnGeneric('hfort2', initHfort2Dungeon); }
+function defeatHfort2Room(nodeId){
+ const lair = PC._hfort2Dungeon;
+ lair.nodeState[nodeId].defeated = true;
+ const allDefeated = Object.keys(HFORT2_ROOM_AREAS).every(id=>lair.nodeState[id].defeated);
+ if(allDefeated){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = hfortRespawnDayAfter(GAME_TIME.totalDays);
+  lair.themeId = null;
+ }
+}
+function rollHfort2Wandering(area){
+ const lair = PC._hfort2Dungeon;
+ if(!lair || !lair.themeId) return null;
+ if(Math.random() >= 0.16) return null;
+ const theme = _lairScenarioAwareTheme(lair.themeId);
+ const table = (_lairAreaTableGeneric(theme, area)||[]).filter(e=>typeof e.spawn === 'function');
+ if(!table.length) return null;
+ return table[Math.floor(Math.random()*table.length)].spawn();
+}
+LAIR_DUNGEON_REG.hfort2 = { fixedTheme:'fortBandits', stateProp:'_hfort2Dungeon', roomAreas:HFORT2_ROOM_AREAS, defeatFn:(id)=>defeatHfort2Room(id), rescuedNamesProp:'_hfort2RescuedNames', wanderFn:(area)=>rollHfort2Wandering(area), wanderCombatFn:(m,r)=>startHruinWanderCombat(m,r) };
+function hfort2Move(dest){
+ const area = HFORT2_ENC_AREA[dest];
+ if(area){
+  const wander = rollHfort2Wandering(area);
+  if(wander && wander.length){
+   const counts = {};
+   wander.forEach(m=>{ counts[m.name] = (counts[m.name]||0)+1; });
+   const desc = Object.entries(counts).map(([n,c])=> c>1 ? `${n}×${c}` : n).join('、');
+   const s = document.getElementById('story');
+   if(s) s.innerHTML += `<br><br><span style="color:#f0ddd8"> ${desc}が現れた！</span>`;
+   renderChoices([]);
+   drawScene('combat');
+   startHruinWanderCombat(wander, dest);
+   return;
+  }
+ }
+ go(dest);
+}
+// 荒野から入る（entry：'W'＝西→通路1／'N'＝北→通路2／'E'＝東→通路8）
+const HFORT2_ENTRY_NODE = { W:'HFORT2_PASSAGE_1', N:'HFORT2_PASSAGE_2', E:'HFORT2_PASSAGE_8' };
+function hfort2Enter(entry){
+ checkHfort2Respawn();
+ hideTravelImage(); // 荒野の景色の画像を消す
+ initTorch();
+ PC._hfort2Entry = entry;
+ PC._hfort2Fresh = true;
+ drawScene('dungeon');
+ go(HFORT2_ENTRY_NODE[entry] || HFORT2_ENTRY_NODE.W);
+}
+function hfort2Exit(){
+ PC._hfort2Fresh = false;
+ if(typeof hideDungeonImage === 'function') hideDungeonImage();
+ if(PC._wild && typeof WILD_MAPS !== 'undefined' && WILD_MAPS[PC._wild.key]){
+  PC._wild.msg = `${HFORT2_NAME}の外へ出た。`;
+  go('WILDERNESS');
+ } else {
+  go('TOWN_' + (PC.town || 'khazan').toUpperCase());
+ }
+ _lairPayRescueRewardGeneric('hfort2');
+}
+function hfort2Flavor(){
+ if(!PC._hfort2Fresh) return '';
+ PC._hfort2Fresh = false;
+ const lair = PC._hfort2Dungeon;
+ return '<br><br>' + ((lair && lair.themeId)
+  ? _lairScenarioAwareTheme(lair.themeId).entryFlavor
+  : 'あたりは静まり返っており、これといった気配は感じられない。');
+}
+const HFORT2_DEFS = {
+ PASSAGE_1: { ent:true, t:'南北45mの通路。西壁の中央には、外への扉がある。北端と南端は、それぞれ別の通路に突き当たっている。',
+  e:[['← 西壁中央の扉から外へ','@OUT'], ['↑ 北端のT字路へ','TJ_1'], ['↓ 南端のT字路へ','TJ_2']] },
+ TJ_1: { t:'南北に伸びる通路から、西へ通路が分岐するT字路。',
+  e:[['↑ 北の通路へ','PASSAGE_2'], ['← 西の通路へ','PASSAGE_3'], ['↓ 南の通路へ','PASSAGE_1']] },
+ PASSAGE_2: { ent:true, t:'南北20mの通路。北端は行き止まりで、東壁に外への扉がある。西壁の北端から15mのところには、部屋へ続く扉がある。南端はT字路になっている。',
+  e:[['→ 北端東壁の扉から外へ','@OUT'], ['← 西壁の扉へ','ROOM_5'], ['↓ 南端のT字路へ','TJ_1']] },
+ PASSAGE_3: { t:'東西20mの通路。西端は行き止まりで、北壁に扉がある。東端はT字路になっている。',
+  e:[['↑ 西端北壁の扉へ','ROOM_5'], ['→ 東端のT字路へ','TJ_1']] },
+ ROOM_5: { t:'15m四方の部屋。東壁の南端と南壁の西端に、それぞれ扉がある。西壁に沿って、上へ向かう石の階段がある。',
+  e:[['→ 東壁南端の扉へ','PASSAGE_2'], ['↓ 南壁西端の扉へ','PASSAGE_3'], ['@UP:ROOM_1','西壁沿いの階段を上る（2階へ）']] },
+ TJ_2: { t:'南北に延びる通路から、西へ通路が分岐するT字路。',
+  e:[['↑ 北の通路へ','PASSAGE_1'], ['← 西の通路へ','PASSAGE_5'], ['↓ 南の通路へ','PASSAGE_4']] },
+ PASSAGE_5: { t:'東西20mの通路。西端は行き止まりで、南壁に扉がある。東端はT字路になっている。',
+  e:[['↓ 西端南壁の扉へ','ROOM_7'], ['→ 東端のT字路へ','TJ_2']] },
+ ROOM_7: { t:'15m四方の部屋。北壁の西端に扉がある。',
+  e:[['↑ 北壁西端の扉へ','PASSAGE_5']] },
+ PASSAGE_4: { t:'南北10mの通路。南端は行き止まりで、東壁に部屋へ続くアーチがある。北端はT字路になっている。',
+  e:[['→ 南端東壁のアーチへ','ROOM_3'], ['↑ 北端のT字路へ','TJ_2']] },
+ ROOM_3: { t:'15m四方の部屋。北壁の東端に金属製の扉、西壁の南端にアーチがある。',
+  e:[['↑ 北壁東端の金属の扉へ','ROOM_1'], ['← 西壁南端のアーチへ','PASSAGE_4']] },
+ ROOM_1: { t:'35m四方の広い部屋。北壁の西端に扉、南壁の東端に扉、南壁の西端から15mのところに金属製の扉がある。',
+  e:[['↑ 北壁西端の扉へ','PASSAGE_6'], ['↓ 南壁東端の扉へ','ROOM_2'], ['↓ 南壁の金属の扉へ','ROOM_3']] },
+ ROOM_2: { t:'15m四方の部屋。北壁の東端に扉がある。',
+  e:[['↑ 北壁東端の扉へ','ROOM_1']] },
+ PASSAGE_6: { t:'東西50mの通路。西端は行き止まりで、南壁に扉がある。東端はT字路になっている。',
+  e:[['↓ 西端南壁の扉へ','ROOM_1'], ['→ 東端のT字路へ','TJ_3']] },
+ TJ_3: { t:'東西に延びる通路から、南へ通路が分岐するT字路。',
+  e:[['→ 東の通路へ','PASSAGE_7'], ['↓ 南の通路へ','PASSAGE_8'], ['← 西の通路へ','PASSAGE_6']] },
+ PASSAGE_7: { t:'東西10mの通路。東端は行き止まりで、北壁に扉がある。西端はT字路になっている。',
+  e:[['↑ 東端北壁の扉へ','ROOM_4'], ['← 西端のT字路へ','TJ_3']] },
+ ROOM_4: { t:'15m四方の部屋。南壁の東端に扉がある。',
+  e:[['↓ 南壁東端の扉へ','PASSAGE_7']] },
+ PASSAGE_8: { ent:true, t:'南北50mの通路。東壁の北端から25mのところに、外への扉がある。南端で通路は西に折れ、折れた角の南壁には部屋へ続く扉がある。北端はT字路になっている。',
+  e:[['↑ 北端のT字路へ','TJ_3'], ['→ 東壁の扉から外へ','@OUT'], ['↓ 南端の南壁の扉へ','ROOM_6'], ['← 南端から西へ','PASSAGE_9']] },
+ PASSAGE_9: { t:'東西10mの通路。東端は北へ折れ、折れた角の南壁には部屋へ続く扉がある。西端はT字路になっている。',
+  e:[['↑ 東端から北へ','PASSAGE_8'], ['↓ 東端南壁の扉へ','ROOM_6'], ['← 西端のT字路へ','TJ_4']] },
+ ROOM_6: { t:'15m四方の部屋。北壁の西端に扉がある。',
+  e:[['↑ 北壁西端の扉へ','PASSAGE_8']] },
+ TJ_4: { t:'南北に走る通路から、東へ通路が分岐するT字路。',
+  e:[['↑ 北の通路へ','PASSAGE_10'], ['→ 東の通路へ','PASSAGE_9'], ['↓ 南の通路へ','PASSAGE_11']] },
+ PASSAGE_10: { t:'南北30mの通路。北端には、上へ向かう石の階段がある。南端はT字路になっている。',
+  e:[['@UP:ROOM_4','北端の階段を上る（2階へ）'], ['↓ 南端のT字路へ','TJ_4']] },
+ PASSAGE_11: { t:'南北20mの通路。南端は行き止まりになっている。北端はT字路になっている。',
+  e:[['↑ 北端のT字路へ','TJ_4']] },
+ // ── 2階 ──
+ F2_PASSAGE_7: { t:'南北15mの通路。北端は行き止まりになっている。南端も行き止まりで、東壁に扉がある。',
+  e:[['→ 南端東壁の扉へ','F2_ROOM_9']] },
+ F2_ROOM_9: { t:'15m四方の部屋。北壁の東端、東壁の北端、西壁の南端に、それぞれ扉がある。',
+  e:[['↑ 北壁東端の扉へ','F2_ROOM_7'], ['→ 東壁北端の扉へ','F2_PASSAGE_6'], ['← 西壁南端の扉へ','F2_PASSAGE_7']] },
+ F2_ROOM_7: { t:'25m四方の部屋。東壁の中央にアーチ、南壁の西端に扉がある。',
+  e:[['→ 東壁中央のアーチへ','F2_ROOM_6'], ['↓ 南壁西端の扉へ','F2_ROOM_9']] },
+ F2_ROOM_6: { t:'25m四方の部屋。北壁の中央に扉、南壁の中央にアーチ、西壁の中央にアーチがある。',
+  e:[['↑ 北壁中央の扉へ','F2_ROOM_4'], ['↓ 南壁中央のアーチへ','F2_PASSAGE_6'], ['← 西壁中央のアーチへ','F2_ROOM_7']] },
+ F2_PASSAGE_6: { t:'東西35mの通路。東端の北側には部屋へ続くアーチ、東壁には扉がある。西端の西壁にも扉がある。',
+  e:[['↑ 東端北側のアーチへ','F2_ROOM_6'], ['→ 東端東壁の扉へ','F2_ROOM_8'], ['← 西端西壁の扉へ','F2_ROOM_9']] },
+ F2_ROOM_8: { t:'15m四方の部屋。東壁の南端と西壁の北端に、それぞれ扉がある。',
+  e:[['→ 東壁南端の扉へ','F2_PASSAGE_5'], ['← 西壁北端の扉へ','F2_PASSAGE_6']] },
+ F2_PASSAGE_5: { t:'南北25mの通路。北端は西に折れている。南端は行き止まりで、西壁に扉がある。',
+  e:[['↑ 北端から西へ','F2_PASSAGE_4'], ['← 南端西壁の扉へ','F2_ROOM_8']] },
+ F2_PASSAGE_4: { t:'東西15mの通路。東端は南に、西端は北に折れている。',
+  e:[['→ 東端から南へ','F2_PASSAGE_5'], ['← 西端から北へ','F2_PASSAGE_3']] },
+ F2_PASSAGE_3: { t:'南北55mの通路。北端も南端も、東に折れている。',
+  e:[['↑ 北端から東へ','F2_PASSAGE_2'], ['↓ 南端から東へ','F2_PASSAGE_4']] },
+ F2_PASSAGE_2: { t:'東西15mの通路。東端は北に、西端は南に折れている。',
+  e:[['→ 東端から北へ','F2_PASSAGE_1'], ['← 西端から南へ','F2_PASSAGE_3']] },
+ F2_PASSAGE_1: { t:'南北25mの通路。北端は行き止まりで、西壁に扉がある。南端は西に折れている。',
+  e:[['← 北端西壁の扉へ','F2_ROOM_5'], ['↓ 南端から西へ','F2_PASSAGE_2']] },
+ F2_ROOM_5: { t:'15m四方の部屋。東壁の北端と南壁の西端に、それぞれ扉がある。',
+  e:[['→ 東壁北端の扉へ','F2_PASSAGE_1'], ['↓ 南壁西端の扉へ','F2_ROOM_4']] },
+ F2_ROOM_4: { t:'25m四方の部屋。北壁の東端、南壁の中央、西壁の中央に、それぞれ扉がある。南西の角には、下へ向かう石の階段がある。',
+  e:[['↑ 北壁東端の扉へ','F2_ROOM_5'], ['↓ 南壁中央の扉へ','F2_ROOM_6'], ['← 西壁中央の扉へ','F2_ROOM_3'], ['↓ 南西の角の階段を下りる（1階へ）','PASSAGE_10']] },
+ F2_ROOM_3: { t:'25m四方の部屋。北壁の西端と東壁の中央に、それぞれ扉がある。',
+  e:[['↑ 北壁西端の扉へ','F2_ROOM_2'], ['→ 東壁中央の扉へ','F2_ROOM_4']] },
+ F2_ROOM_2: { t:'15m四方の部屋。南壁の東端と西壁の北端に、それぞれ扉がある。',
+  e:[['↓ 南壁東端の扉へ','F2_ROOM_3'], ['← 西壁北端の扉へ','F2_ROOM_1']] },
+ F2_ROOM_1: { t:'5m四方の小さな部屋。東壁に扉があり、南壁には下へ向かう石の階段がある。',
+  e:[['→ 東壁の扉へ','F2_ROOM_2'], ['↓ 南壁の階段を下りる（1階へ）','ROOM_5']] },
+};
+function _hfort2MakeNode(key, d){
+ const nid = 'HFORT2_' + key;
+ const isRoom = !!HFORT2_ROOM_AREAS[nid];
+ const node = {
+  scene:'dungeon',
+  txt:()=>{
+   initHfort2Dungeon();
+   return `<span style="color:#f0ece0">${HFORT2_NAME}</span><br><br>${d.t}`
+    + (isRoom ? _lairRoomStatusTextGeneric('hfort2', nid) : '')
+    + (d.ent ? hfort2Flavor() : '');
+  },
+  choices:()=>{
+   initHfort2Dungeon();
+   if(isRoom){
+    const lair = PC._hfort2Dungeon, ns = lair.nodeState[nid];
+    if(lair.themeId && !ns.defeated) return [{label:_lairEncounterLabel(ns), fn:()=>_lairStartEncounterGeneric('hfort2', nid)}];
+   }
+   const out = [];
+   d.e.forEach(([a, b])=>{
+    if(a.startsWith('@UP:')){ // 2階への階段（2階の完成まではdevビルドだけ）
+     if(HFORT2_UPPER_READY) out.push({label:'↑ '+b, fn:()=>hfort2Move('HFORT2_F2_' + a.slice(4))});
+     return;
+    }
+    if(b === '@OUT') out.push({label:a, fn:()=>hfort2Exit()});
+    else out.push({label:a, fn:()=>hfort2Move('HFORT2_' + b)});
+   });
+   return out;
+  },
+ };
+ if(isRoom) node.area = HFORT2_ROOM_AREAS[nid];
+ return node;
+}
+(function(){
+ const nodes = {};
+ Object.keys(HFORT2_DEFS).forEach(k=>{ nodes['HFORT2_' + k] = _hfort2MakeNode(k, HFORT2_DEFS[k]); });
+ nodes.HFORT2_DARK_ESCAPE = {
+  scene:'dungeon',
+  txt:()=>`<span style="color:#f0ece0"></span><br><br><span style="color:var(--white2)">松明が切れた。完全な暗闇の中、壁を手探りで進む。出口まで帰り着けるか……</span>`,
+  choices:()=>[{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+   setupSavingRoll({
+    attr:'lk', level:3,
+    onSuccess:()=>{
+     const s = document.getElementById('story');
+     s.innerHTML = `<span style="color:#f0ece0"></span><br><br>壁を手探りで進み、かすかな外光を頼りになんとか入口へ辿り着いた！`;
+     renderChoices([{label:' 外の光の方へ', go:(HFORT2_ENTRY_NODE[PC._hfort2Entry] || HFORT2_ENTRY_NODE.W)}]);
+     scrollToTop();
+    },
+    onFail:()=>{
+     const s = document.getElementById('story');
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'HFORT2_DARK_ESCAPE'}]);
+     scrollToTop();
+    },
+   });
+  }}],
+ };
+ Object.assign(NODES, nodes);
+ Object.keys(nodes).forEach(id=>DUNGEON_NODES.add(id));
+ DUNGEON_SAFE_NODES.add('HFORT2_DARK_ESCAPE');
+})();
+
+// ══════════════════════════════════════════
+// 「ネルゴルークの墳墓」（荒野のダンジョン）
+// 場所：荒野マップ al_rashid__port_argon の場所 e。小高い塚の頂上近くにある石室から入る
+// いまは石室と、その南の階段までを作成。階段の先（本体のダンジョン）は未作成で、階段を少し下ると壁で塞がれている
+// ══════════════════════════════════════════
+const NERGOL_NAME = 'ネルゴルークの墳墓';
+const NERGOL_OUTER_NAME = '狩人の塚';   // 石室・階段・洞穴など、地下1階に入る前の場所で使う呼び名
+const NERGOL_WILD_SITE = 'al_rashid__port_argon:e';
+function nergolWildChoices(){
+ const w = PC._wild;
+ if(!w || !WILD_MAPS[w.key]) return [];
+ const o = WILD_MAPS[w.key].objects[w.row] && WILD_MAPS[w.key].objects[w.row][w.col];
+ if(!o || (w.key + ':' + o) !== NERGOL_WILD_SITE) return [];
+ const out = [{label:' 塚の頂上近くの石室に入る', fn:()=>nergolEnter()}];
+ if(PC._nergolCaveKnown) out.push({label:' 茂みに隠れた洞穴に入る', fn:()=>nergolEnterCave()});
+ Object.keys(NERGOL_SURF).forEach(k=>{ if(PC._nergolSurfKnown && PC._nergolSurfKnown[k]) out.push({label:NERGOL_SURF[k].label, fn:()=>nergolEnterSurf(k)}); });
+ return out;
+}
+const NERGOL_SURF = {
+ surf4:{ node:'NERGOL_SURF4', label:' 塚の斜面に口を開けた階段を下りる', place:'斜面の階段' },
+ surf5:{ node:'NERGOL_SURF5', label:' 塚の裾野に崩れかけた階段を見つけて下りる', place:'裾野の階段' },
+ surfV:{ node:'NERGOL_SURFV', label:' 塚の窪みに隠れた石段を下りる', place:'窪みの階段' },
+};
+function nergolEnterSurf(k){
+ hideTravelImage();
+ checkNergolRespawn();
+ initTorch();
+ PC._nergolEntry = k;
+ drawScene('dungeon');
+ go(NERGOL_SURF[k].node);
+}
+function nergolEnterCave(){
+ hideTravelImage();
+ checkNergolRespawn();
+ initTorch();
+ PC._nergolEntry = 'cave';
+ drawScene('dungeon');
+ go('NERGOL_CAVE');
+}
+function nergolEnter(){
+ PC._nergolEntry = 'chamber';
+ hideTravelImage();
+ checkNergolRespawn();
+ initTorch();
+ drawScene('dungeon');
+ go('NERGOL_CHAMBER');
+}
+function nergolExit(){
+ if(typeof hideDungeonImage === 'function') hideDungeonImage();
+ if(PC._wild && typeof WILD_MAPS !== 'undefined' && WILD_MAPS[PC._wild.key]){
+  PC._wild.msg = `${NERGOL_OUTER_NAME}の外へ出た。`;
+  go('WILDERNESS');
+ } else {
+  go('TOWN_' + (PC.town || 'khazan').toUpperCase());
+ }
+}
+Object.assign(NODES, {
+ NERGOL_CHAMBER:{
+  scene:'dungeon',
+  txt:()=>`<span style="color:#f0ece0">${NERGOL_OUTER_NAME}</span><br><br>小高い塚の中に造られた石室。めぼしいものは何も残っておらず、床には、旅人や冒険者が焚き火をした跡が点々と残っているだけだ。<br>南側には開口部があり、幅5mほどの下り階段へとつながっている。`,
+  choices:()=>[
+   {label:'↓ 南の開口部から階段へ', fn:()=>go('NERGOL_STAIRS')},
+   {label:'↑ 石室の外へ出る', fn:()=>nergolExit()},
+  ],
+ },
+ NERGOL_STAIRS:{
+  scene:'dungeon',
+  txt:()=>`<span style="color:#f0ece0">${NERGOL_OUTER_NAME}</span><br><br>幅5mの階段が、闇の中へ下っている。石造りだが、古代のものとは思えないほど精度の高い加工がされており、段の高さも隅の角も、定規で測ったように揃っている。<br>階段は、下の通路へと続いている。`,
+  choices:()=>[
+   {label:'↓ 階段を下りる', fn:()=>go('NERGOL_B1_PASSAGE_1')},
+   {label:'↑ 階段を上って石室へ戻る', fn:()=>go('NERGOL_CHAMBER')},
+  ],
+ },
+ NERGOL_DARK_ESCAPE:{
+  scene:'dungeon',
+  txt:()=>`<span style="color:#f0ece0"></span><br><br><span style="color:var(--white2)">松明が切れた。完全な暗闇の中、壁を手探りで進む。出口まで帰り着けるか……</span>`,
+  choices:()=>[{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+   setupSavingRoll({
+    attr:'lk', level:3,
+    onSuccess:()=>{
+     const s = document.getElementById('story');
+     s.innerHTML = `<span style="color:#f0ece0"></span><br><br>壁を手探りで進み、かすかな外光を頼りになんとか${PC._nergolEntry === 'cave' ? '洞穴' : NERGOL_SURF[PC._nergolEntry] ? NERGOL_SURF[PC._nergolEntry].place : '石室'}へ辿り着いた！`;
+     renderChoices([{label:' 外の光の方へ', go: PC._nergolEntry === 'cave' ? 'NERGOL_CAVE' : NERGOL_SURF[PC._nergolEntry] ? NERGOL_SURF[PC._nergolEntry].node : 'NERGOL_CHAMBER'}]);
+     scrollToTop();
+    },
+    onFail:()=>{
+     const s = document.getElementById('story');
+     s.innerHTML = `<span class="red"></span><br><br>暗闇の中で方向を失い、壁に何度もぶつかりながら彷徨い続けた。`;
+     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'NERGOL_DARK_ESCAPE'}]);
+     scrollToTop();
+    },
+   });
+  }}],
+ },
+});
+['NERGOL_CHAMBER','NERGOL_STAIRS','NERGOL_DARK_ESCAPE'].forEach(id=>DUNGEON_NODES.add(id));
+DUNGEON_SAFE_NODES.add('NERGOL_DARK_ESCAPE');
+
+// ── 地下1階（ゾーンI：山賊団） ──
+// 墳墓は5つのゾーンに分かれる予定。ゾーンIの敵のテーマは「山賊団」（既存テーマ）。ゾーンII〜Vは未作成
+// 部屋のエリア番号：山賊団テーマのエリア（1：山賊／2：堂々・貫禄ある山賊／3：山賊リーダー）
+const NERGOL_ROOM_AREAS = {
+ NERGOL_B1_ROOM_A:1, NERGOL_B1_ROOM_C:1,
+ NERGOL_B1_ROOM_B:2,
+ NERGOL_B1_ROOM_D:3,
+};
+// エリアごとの出現率（その部屋に敵がいる確率）。外れた部屋は最初から無人で、「倒した」扱いになる
+const NERGOL_AREA_RATES = {1:0.5, 2:0.75, 3:1};
+// 気を失ったとき、目を覚ます候補（地下1階の通路。見張りのいる通路2は除く）
+const NERGOL_FAINT_WAKE_NODES = ['NERGOL_B1_PASSAGE_1','NERGOL_B1_PASSAGE_3','NERGOL_B1_PASSAGE_5','NERGOL_B1_PASSAGE_6','NERGOL_B1_PASSAGE_7','NERGOL_B1_PASSAGE_8'];
+const NERGOL_B1_HEAD = `<span style="color:#f0ece0">${NERGOL_NAME} 地下1階</span><br><br>`;
+function initNergolDungeon(){
+ if(!PC._nergolDungeon){
+  PC._nergolDungeon = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{}, scenarioSorcererName:null, scenarioNames:null, guardDefeated:false };
+ }
+ const lair = PC._nergolDungeon;
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(NERGOL_ROOM_AREAS).forEach(id=>{
+  if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null };
+ });
+}
+const NERGOL_ROOM_AREAS2 = {
+ NERGOL_B1_ROOM_E:1, NERGOL_B1_ROOM_F:1,
+ NERGOL_B1_ROOM_L:2, NERGOL_B1_ROOM_M:2, NERGOL_B1_ROOM_N:2, NERGOL_B1_ROOM_K:2, NERGOL_B1_ROOM_H:2, NERGOL_B1_ROOM_G:2,
+ NERGOL_B1_ROOM_I:3,
+};
+function initNergolDungeon2(){
+ if(!PC._nergolDungeon2){
+  PC._nergolDungeon2 = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{}, scenarioSorcererName:null, scenarioNames:null, gateDown:false };
+ }
+ const lair = PC._nergolDungeon2;
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(NERGOL_ROOM_AREAS2).forEach(id=>{
+  if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null };
+ });
+}
+function checkNergolRespawn2(){
+ initNergolDungeon2();
+ _lairCheckRespawnGeneric('nergol2', initNergolDungeon2);
+}
+function defeatNergolRoom2(nodeId){
+ const lair = PC._nergolDungeon2;
+ lair.nodeState[nodeId].defeated = true;
+ const allDefeated = Object.keys(NERGOL_ROOM_AREAS2).every(id=>lair.nodeState[id].defeated);
+ if(allDefeated){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = hfortRespawnDayAfter(GAME_TIME.totalDays);
+  lair.themeId = null;
+ }
+}
+// ゾーンIIのワンダリングモンスター（落とし格子を力づくで開けようとしたときだけ）
+function rollNergolWandering2(area){
+ const lair = PC._nergolDungeon2;
+ if(!lair || !lair.themeId) return null;
+ if(Math.random() >= 0.16) return null;
+ const theme = _lairScenarioAwareTheme(lair.themeId);
+ const table = (_lairAreaTableGeneric(theme, area || 2)||[]).filter(e=>typeof e.spawn === 'function' && (e.kind||'monster') === 'monster');
+ if(!table.length) return null;
+ return table[Math.floor(Math.random()*table.length)].spawn();
+}
+LAIR_DUNGEON_REG.nergol2 = { fixedTheme:'goblinNest', areaRates:NERGOL_AREA_RATES, stateProp:'_nergolDungeon2', roomAreas:NERGOL_ROOM_AREAS2, defeatFn:(id)=>defeatNergolRoom2(id), rescuedNamesProp:'_nergolRescuedNames', wanderFn:(area)=>null, wanderCombatFn:(m,r)=>startHruinWanderCombat(m,r),
+ fleeTo:(nid)=> (nid === 'NERGOL_B1_ROOM_E' && PC._nergolDungeon2 && PC._nergolDungeon2.gateDown) ? 'NERGOL_B1_ROOM_F' : null };
+
+// ── 地下1階（ゾーンIV：アンデッド／ゾーンV：混沌の信徒） ──
+const NERGOL_ROOM_AREAS4 = {
+ NERGOL_B1_ROOM_W:1, NERGOL_B1_ROOM_AA:1, NERGOL_B1_ROOM_AC:1, NERGOL_B1_ROOM_AD:1,
+ NERGOL_B1_ROOM_Z:2, NERGOL_B1_ROOM_X:2,
+ NERGOL_B1_ROOM_Y:3,
+};
+const NERGOL_ROOM_AREAS5 = {
+ NERGOL_B1_COL_1:1, NERGOL_B1_COL_2:1, NERGOL_B1_COL_3:1, NERGOL_B1_COL_4:1, NERGOL_B1_COL_5:1,
+ NERGOL_B1_ROOM_AE:2, NERGOL_B1_ROOM_AF:2, NERGOL_B1_ROOM_AG:2, NERGOL_B1_ROOM_AH:2,
+ NERGOL_B1_ROOM_AI:3,
+};
+function _nergolInitZone(prop, areas){
+ if(!PC[prop]){
+  PC[prop] = { themeId:null, lastThemeId:null, spawnDay:null, clearedDay:null, nextRespawnDay:0, nodeState:{}, scenarioSorcererName:null, scenarioNames:null, boost:1 };
+ }
+ const lair = PC[prop];
+ if(!lair.nodeState) lair.nodeState = {};
+ Object.keys(areas).forEach(id=>{ if(!lair.nodeState[id]) lair.nodeState[id] = { defeated:false, monsters:null }; });
+}
+function initNergolDungeon4(){ _nergolInitZone('_nergolDungeon4', NERGOL_ROOM_AREAS4); }
+function initNergolDungeon5(){ _nergolInitZone('_nergolDungeon5', NERGOL_ROOM_AREAS5); }
+function _nergolDefeatZone(prop, areas, nodeId){
+ const lair = PC[prop];
+ lair.nodeState[nodeId].defeated = true;
+ if(Object.keys(areas).every(id=>lair.nodeState[id].defeated)){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = hfortRespawnDayAfter(GAME_TIME.totalDays);
+  lair.themeId = null;
+ }
+}
+function defeatNergolRoom4(id){ _nergolDefeatZone('_nergolDungeon4', NERGOL_ROOM_AREAS4, id); }
+function defeatNergolRoom5(id){ _nergolDefeatZone('_nergolDungeon5', NERGOL_ROOM_AREAS5, id); }
+// 再配置ボタンによる強化：モンスターの強さを k 倍にする（MR型はmr、NPC型はHP(con)と武器の加算値）
+function _nergolScaleMonsters(ms, k){
+ if(!ms || k === 1) return ms;
+ ms.forEach(m=>{
+  if(m.mr != null) m.mr = Math.round(m.mr * k);
+  if(m.st !== undefined){
+   if(m.con != null) m.con = Math.round(m.con * k);
+   if(m.maxCon != null) m.maxCon = Math.round(m.maxCon * k);
+   (m.equippedWeapons||[]).forEach(w=>{ w.adds = Math.round((w.adds||0) * k) + (w.adds ? 0 : Math.round(k)); });
+  }
+ });
+ return ms;
+}
+LAIR_DUNGEON_REG.nergol4 = { fixedTheme:'undeadDrifters', areaRates:NERGOL_AREA_RATES, stateProp:'_nergolDungeon4', roomAreas:NERGOL_ROOM_AREAS4, defeatFn:(id)=>defeatNergolRoom4(id), rescuedNamesProp:'_nergolRescuedNames', wanderFn:(area)=>null, wanderCombatFn:(m,r)=>startHruinWanderCombat(m,r),
+ spawnHook:(ms, lair)=>_nergolScaleMonsters(ms, lair.boost || 1) };
+LAIR_DUNGEON_REG.nergol5 = { fixedTheme:'hollowCult', areaRates:NERGOL_AREA_RATES, stateProp:'_nergolDungeon5', roomAreas:NERGOL_ROOM_AREAS5, defeatFn:(id)=>defeatNergolRoom5(id), rescuedNamesProp:'_nergolRescuedNames', wanderFn:(area)=>null, wanderCombatFn:(m,r)=>startHruinWanderCombat(m,r) };
+
+// ── 部屋AHの宝石付き武器 ──
+// セーブデータにつき最初の1本は中程度（宝石2〜3個・基準値4〜12・筋力要求7〜17の武器）。以後、ゾーンVの再出現のたびに低レベル（宝石1個・基準値1〜10・武器は完全ランダム）
+function _nergolGenGemWeapon(tier){
+ const mid = tier === 'mid';
+ const gems = TREASURE_GEMS.filter(g=> mid ? (g.base >= 4 && g.base <= 12) : g.base <= 10);
+ const gem = gems[Math.floor(Math.random()*gems.length)];
+ const gemCount = mid ? 2 + Math.floor(Math.random()*2) : 1;
+ const pool = mid ? WEAPONS_TABLE_KHAZAN.filter(w=>w.stReq >= 7 && w.stReq <= 17) : WEAPONS_TABLE_KHAZAN;
+ const bw = pool[Math.floor(Math.random()*pool.length)];
+ let setting = TREASURE_SETTINGS[d6()-1];
+ if(setting === '革製') setting = 'Steel';
+ const priceGP = gem.base * 10 * gemCount;
+ return {
+  name: gemWeaponName(gem.name, gemCount, bw.name),
+  dice: bw.dice, adds: bw.adds + Math.floor(priceGP / 10),
+  twoHand: bw.twoHand, stReq: bw.stReq, dexReq: bw.dexReq || 0, weight: bw.weight || 0,
+  cost: Math.floor(priceGP * 0.5),
+  _isMagic: true, _priceGP: priceGP, _desc: gemWeaponDesc(gem.name, setting, bw.name),
+  ...(bw.isRanged ? { isRanged:true, range: bw.range||50 } : {}),
+  ...(bw.rangedOk ? { rangedOk:true } : {}),
+ };
+}
+function _nergolAhLoot(){
+ initNergolDungeon5();
+ const l = PC._nergolDungeon5;
+ if(!l.ahLoot){
+  const tier = PC._nergolGemMidDone ? 'low' : 'mid';
+  PC._nergolGemMidDone = true;
+  // 2本目以降は、宝石付きは30%。外れたときは普通の武器
+  const gemmed = tier === 'mid' || Math.random() < 0.3;
+  const weapon = gemmed ? _nergolGenGemWeapon(tier) : { ...WEAPONS_TABLE_KHAZAN[Math.floor(Math.random()*WEAPONS_TABLE_KHAZAN.length)] };
+  l.ahLoot = { tier, gemmed, weapon, taken:false };
+ }
+ return l.ahLoot;
+}
+function _nergolTakeAhWeapon(){
+ const loot = _nergolAhLoot();
+ if(loot.taken) return;
+ loot.taken = true;
+ PC.invWeapons = PC.invWeapons || [];
+ PC.invWeapons.push(loot.weapon);
+ updateHUD();
+ const w = loot.weapon;
+ const st = document.getElementById('story');
+ st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ece0">台座の武器を手に取った。<br>${w.name}（${w.dice}D${_sg(w.adds)}）</span>` + (w._desc ? `<br><span style="color:#c8b8a0">${w._desc}</span>` : '');
+ showSaveToast(` ${w.name}を手に入れた`);
+ renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_AH')}]);
+ scrollToTop();
+}
+
+// ── 宝石付き防具の名前（前半＝エルフ語風の宝石語とオーク語の宝石語を融合させた1語、後半＝暗黒語風の防具語） ──
+const GEM_ARMOR_GEMWORD = {
+ '水晶':'イシルブ', '七宝':'ガルム', 'トパーズ':'ラナール', 'ガーネット':'カルン', 'トルコ石':'ルイズルブ', 'アメジスト':'ヴィルン',
+ '象牙':'ペレンク', '紅玉髄':'ロスルク', 'オパール':'ニーミル', '炎のオパール':'ナルシュミル', 'アクアマリン':'ネンシルブ',
+ '翡翠':'ガラグンド', '蛇紋石':'サウグンド', '真珠':'ペルミル', 'ルビー':'カルアンブ', 'サファイア':'ウルイミル',
+ 'ダイヤモンド':'エレカルク', 'エメラルド':'ラスズミル',
+};
+const GEM_ARMOR_WORD = {
+ 'プレートアーマー':'ルグドゥルブ', 'スケイルアーマー':'ルグドゥルブ', '革製の鎧':'クリムプ', '布製の鎧':'クリムプ',
+ 'タワーシールド':'ルグ', 'ナイトシールド':'ルグ', 'バックラー':'ナズグ',
+};
+function gemArmorName(gemName, gemCount, baseName){
+ const era = GEM_WEAPON_ERA[gemCount] || '';
+ return `${era ? era + 'の' : ''}${baseName}「${GEM_ARMOR_GEMWORD[gemName] || gemName}・${GEM_ARMOR_WORD[baseName] || baseName}」`;
+}
+// 宝石付き防具の生成。tier='mid'：宝石2〜3個・基準値4〜12・プレートと布を除く／'low'：宝石1個・基準値1〜10・防具は全種から。hits加算は 基準値×数÷5（切り上げ）
+function _nergolGenGemArmor(tier){
+ const mid = tier === 'mid';
+ const gems = TREASURE_GEMS.filter(g=> mid ? (g.base >= 4 && g.base <= 12) : g.base <= 10);
+ const gem = gems[Math.floor(Math.random()*gems.length)];
+ const gemCount = mid ? 2 + Math.floor(Math.random()*2) : 1;
+ const pool = mid ? ARMOR_TABLE_KHAZAN.filter(a=>a.name !== 'プレートアーマー' && a.name !== '布製の鎧') : ARMOR_TABLE_KHAZAN;
+ const ba = pool[Math.floor(Math.random()*pool.length)];
+ const priceGP = gem.base * 10 * gemCount;
+ return {
+  name: gemArmorName(gem.name, gemCount, ba.name),
+  hits: ba.hits + Math.ceil(gem.base * gemCount / 5 - 1e-9),
+  stReq: ba.stReq, isShield: !!ba.isShield, weight: ba.weight,
+  _isMagic: true, _priceGP: priceGP, _desc: `${gem.name}付き${ba.name}`,
+ };
+}
+function _nergolYLoot(){
+ initNergolDungeon4();
+ const l = PC._nergolDungeon4;
+ if(!l.yLoot){
+  const tier = PC._nergolArmorMidDone ? 'low' : 'mid';
+  PC._nergolArmorMidDone = true;
+  const gemmed = tier === 'mid' || Math.random() < 0.3;
+  const armor = gemmed ? _nergolGenGemArmor(tier) : { ...ARMOR_TABLE_KHAZAN[Math.floor(Math.random()*ARMOR_TABLE_KHAZAN.length)] };
+  l.yLoot = { tier, gemmed, armor, taken:false };
+ }
+ return l.yLoot;
+}
+function _nergolTakeYArmor(){
+ const loot = _nergolYLoot();
+ if(loot.taken) return;
+ loot.taken = true;
+ let a = { ...loot.armor };
+ const sz = armorSizeOf(PC);
+ if(sz !== 'M'){
+  if(a._isMagic){
+   // 魔法の防具：手に取った者の体の大きさに合わせて、重さだけが変わる
+   a.weight = Math.max(1, Math.floor(a.weight * ARMOR_SIZE_RULES[sz].wt + 0.5 + 1e-9));
+   a._size = sz;
+  } else {
+   const d = ARMOR_SIZED[sz].find(x=>x._baseArmor === a.name);
+   if(d) a = { name:d.name, hits:d.hits, stReq:d.stReq, isShield:!!d.isShield, weight:d.weight, _size:sz };
+  }
+ }
+ PC.invArmors = PC.invArmors || [];
+ PC.invArmors.push(a);
+ updateHUD();
+ const st = document.getElementById('story');
+ st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ece0">台座の防具を手に取った。<br>${a.name}（${a.hits}hits）</span>` + (a._desc ? `<br><span style="color:#c8b8a0">${a._desc}</span>` : '')
+  + (a._isMagic && sz !== 'M' ? `<br><span style="color:#c8b8a0">手に取ると、防具は、持ち主の体に合わせて形を変えた。</span>` : '');
+ showSaveToast(` ${a.name}を手に入れた`);
+ renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_Y')}]);
+ scrollToTop();
+}
+function _nergolPressButton(){
+ initNergolDungeon4();
+ const lair = PC._nergolDungeon4;
+ lair.boost = (lair.boost || 1) * 5;
+ lair.themeId = 'undeadDrifters';
+ lair.spawnDay = GAME_TIME.totalDays;
+ lair.clearedDay = null;
+ lair.scenarioNames = null; lair.scenarioSorcererName = null;
+ Object.keys(NERGOL_ROOM_AREAS4).forEach(id=>{ lair.nodeState[id] = { defeated:false, monsters:null }; });
+ const n = Math.round(Math.log(lair.boost)/Math.log(5));
+ const st = document.getElementById('story');
+ st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ddd8">ボタンを押し込むと、壁の奥で重い歯車が噛み合うような音が響いた。${n <= 1 ? 'やがて、墳墓のどこかから、骨の軋む音と呻き声が聞こえはじめた。' : 'やがて、墳墓のあちこちから、前よりもずっと禍々しい気配が立ちのぼってきた。'}</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_AB')}]);
+ scrollToTop();
+}
+// 隠し扉：反対側から通り抜けて初めて、こちら側からも見つかる
+function _nergolSecretKnown(k){ return !!(PC._nergolSecrets && PC._nergolSecrets[k]); }
+function _nergolSecretLearn(k){ if(!PC._nergolSecrets) PC._nergolSecrets = {}; PC._nergolSecrets[k] = true; }
+
+// ── 地下1階（ゾーンIII：オーク） ──
+const NERGOL_ROOM_AREAS3 = {
+ NERGOL_B1_ROOM_Q:1, NERGOL_B1_ROOM_V:1,
+ NERGOL_B1_ROOM_O:2, NERGOL_B1_ROOM_S:2, NERGOL_B1_ROOM_T:2, NERGOL_B1_ROOM_U:2,
+ NERGOL_B1_ROOM_P:3,
+};
+// 部屋Rの囚人の特性と、助けたときの謝礼の範囲（GP）
+const NERGOL_PRISONER_TRAITS = [
+ {label:'狩人', r:[10,60]}, {label:'農民', r:[10,60]},
+ {label:'冒険者（戦士）', r:[10,60], lv:true, ty:'warrior'}, {label:'冒険者（盗賊）', r:[10,60], lv:true, ty:'rogue'}, {label:'冒険者（魔法使い）', r:[10,60], lv:true, ty:'wizard'},
+ {label:'町民', r:[30,180]}, {label:'下流貴族', r:[30,180]}, {label:'商人', r:[30,180]},
+ {label:'地主', r:[60,360]}, {label:'中流貴族', r:[60,360]},
+];
+function _nergolMakePrisoners(){
+ const out = [];
+ while(out.length < 4){
+  const name = NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)];
+  if(out.some(x=>x.name === name)) continue;
+  const t = NERGOL_PRISONER_TRAITS[Math.floor(Math.random()*NERGOL_PRISONER_TRAITS.length)];
+  out.push({ name, label:t.label, r:t.r, lv: t.lv ? 1+Math.floor(Math.random()*3) : null, ty: t.ty || null, status:'bound' });
+ }
+ return out;
+}
+function initNergolDungeon3(){
+ _nergolInitZone('_nergolDungeon3', NERGOL_ROOM_AREAS3);
+ if(!PC._nergolDungeon3.prisoners) PC._nergolDungeon3.prisoners = _nergolMakePrisoners();
+}
+function defeatNergolRoom3(id){ _nergolDefeatZone('_nergolDungeon3', NERGOL_ROOM_AREAS3, id); }
+LAIR_DUNGEON_REG.nergol3 = { fixedTheme:'orcNest', areaRates:NERGOL_AREA_RATES, stateProp:'_nergolDungeon3', roomAreas:NERGOL_ROOM_AREAS3, defeatFn:(id)=>defeatNergolRoom3(id), rescuedNamesProp:'_nergolRescuedNames', wanderFn:(area)=>null, wanderCombatFn:(m,r)=>startHruinWanderCombat(m,r) };
+function _nergolPrisonerText(x){ return `${x.label}の${x.name}`; }
+function _nergolMakeMate(x){
+ let npc = null;
+ for(let k=0; k<400; k++){ npc = generateNPC(x.lv || 1); if(npc.type === x.ty) break; }
+ npc.name = x.name; npc.type = x.ty;
+ return npc;
+}
+function _nergolJoinParty(x){
+ const npc = _nergolMakeMate(x);
+ PC.party = PC.party || [];
+ PC.party.push({...npc, trust:80, joinDay:GAME_TIME.totalDays});
+ x.joined = true; x.pendingJoin = false;
+ const _tj = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[npc.type]||npc.type;
+ const _rj = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン'}[npc.race]||npc.race;
+ addLifeEvent('', `${npc.name}を墳墓で救い出し、パーティに加わった（${_tj}・${_rj}）。`);
+ updateHUD(); try{ renderPartyTab(); }catch(e){}
+ showSaveToast(` ${npc.name}がパーティに加わった！`);
+ return npc;
+}
+function _nergolFreePrisoner(i){
+ initNergolDungeon3();
+ const ps = PC._nergolDungeon3.prisoners;
+ const x = ps[i];
+ if(!x || x.status !== 'bound') return;
+ x.status = 'freed';
+ PC._nergolPrisonersFreed = PC._nergolPrisonersFreed || [];
+ PC._nergolPrisonersFreed.push({ name:x.name, label:x.label, r:x.r });
+ let extra = '';
+ if(x.ty){
+  const slots = 3 - (PC.party||[]).length;
+  const rivals = ps.filter(y=>y !== x && y.ty && (y.status === 'bound' || y.pendingJoin)).length;
+  if(slots > 0 && slots > rivals){
+   _nergolJoinParty(x);
+   extra = `<br><span style="color:#f0ece0">「恩返しがしたい。よければ、一緒に行かせてほしい」</span><br><span style="color:#c8b8a0">${x.name}がパーティに加わった。</span>`;
+  } else if(slots > 0){
+   x.pendingJoin = true;
+   extra = `<br><span style="color:#f0ece0">「恩返しがしたい。よければ、一緒に行かせてほしい」</span>`;
+  }
+ }
+ const st = document.getElementById('story');
+ st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ece0">鎖を解き放つと、${_nergolPrisonerText(x)}は涙を浮かべて何度も礼を言った。</span><br><span style="color:#c8b8a0">町に戻ったら、無事を知らせてくれるそうだ。</span>` + extra;
+ renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_R')}]);
+ scrollToTop();
+}
+// 同行を申し出た冒険者が空きより多いときは、誰を連れていくか選ぶ（部屋を出るときに決める）
+function _nergolResolveJoins(next){
+ const ps = PC._nergolDungeon3.prisoners;
+ const pend = ps.filter(y=>y.pendingJoin);
+ const slots = 3 - (PC.party||[]).length;
+ if(!pend.length){ next(); return; }
+ if(slots <= 0 || pend.length <= slots){
+  const st = document.getElementById('story');
+  const joined = slots > 0 ? pend.map(y=>{ _nergolJoinParty(y); return y.name; }) : [];
+  pend.forEach(y=>{ y.pendingJoin = false; });
+  if(joined.length) st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ece0">${joined.join('、')}が、パーティに加わった。</span>`;
+  if(joined.length){ renderChoices([{label:'▶ OK', fn:()=>next()}]); scrollToTop(); } else next();
+  return;
+ }
+ const st = document.getElementById('story');
+ st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ece0">助け出した冒険者たちが、そろって同行を申し出ている。<br>ただ、全員を連れていくことはできない。</span>`;
+ renderChoices([
+  ...pend.map(y=>({label:` ${_nergolPrisonerText(y)}を仲間にする`, fn:()=>{ _nergolJoinParty(y); _nergolResolveJoins(next); }})),
+  {label:' 誰も連れていかない', fn:()=>{ pend.forEach(y=>{ y.pendingJoin = false; }); next(); }},
+ ]);
+ scrollToTop();
+}
+function _nergolLeavePrisoners(){
+ initNergolDungeon3();
+ if(PC._nergolDungeon3.prisoners.some(y=>y.pendingJoin)){ _nergolResolveJoins(()=>_nergolLeavePrisoners()); return; }
+ const left = PC._nergolDungeon3.prisoners.filter(x=>x.status === 'bound');
+ if(!left.length){ go('NERGOL_B1_ROOM_Q'); return; }
+ left.forEach(x=>{ x.status = 'left'; });
+ PC.chr = Math.max(0, (PC.chr||0) - left.length);
+ updateHUD();
+ const st = document.getElementById('story');
+ st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#e0d0d0">${left.map(_nergolPrisonerText).join('、')}を鎖に繋いだまま、部屋を後にした。背中に、すがるような視線がいつまでも突き刺さっている。</span><br><span style="color:#c8b8a0">魅力 -${left.length}</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_Q')}]);
+ scrollToTop();
+}
+// 町に戻ったとき、助けた囚人たちから謝礼を受け取る
+function nergolPayPrisoners(){
+ const list = PC._nergolPrisonersFreed;
+ if(!list || !list.length) return;
+ let total = 0;
+ list.forEach(x=>{ total += x.r[0] + Math.floor(Math.random()*(x.r[1]-x.r[0]+1)); });
+ gainGP(total, PC);
+ updateHUD();
+ showSaveToast(`${list.map(x=>x.name).join('、')}を解放した！謝礼として${total}GPを受け取った`);
+ PC._nergolPrisonersFreed = [];
+}
+function _nergolLairOf(nid){ return NERGOL_ROOM_AREAS3[nid] ? PC._nergolDungeon3 : NERGOL_ROOM_AREAS5[nid] ? PC._nergolDungeon5 : NERGOL_ROOM_AREAS4[nid] ? PC._nergolDungeon4 : NERGOL_ROOM_AREAS2[nid] ? PC._nergolDungeon2 : PC._nergolDungeon; }
+function _nergolKeyOf(nid){ return NERGOL_ROOM_AREAS3[nid] ? 'nergol3' : NERGOL_ROOM_AREAS5[nid] ? 'nergol5' : NERGOL_ROOM_AREAS4[nid] ? 'nergol4' : NERGOL_ROOM_AREAS2[nid] ? 'nergol2' : 'nergol'; }
+function checkNergolRespawn(){
+ checkNergolRespawn2();
+ initNergolDungeon4(); initNergolDungeon5();
+ { const l4 = PC._nergolDungeon4, b4 = l4.themeId; _lairCheckRespawnGeneric('nergol4', initNergolDungeon4); if(!b4 && l4.themeId){ l4.boost = 1; l4.yLoot = null; } }
+ { const l5 = PC._nergolDungeon5, b5 = l5.themeId; _lairCheckRespawnGeneric('nergol5', initNergolDungeon5); if(!b5 && l5.themeId) l5.ahLoot = null; }
+ initNergolDungeon3();
+ { const l3 = PC._nergolDungeon3, b3 = l3.themeId; _lairCheckRespawnGeneric('nergol3', initNergolDungeon3); if(!b3 && l3.themeId) l3.prisoners = _nergolMakePrisoners(); }
+ initNergolDungeon();
+ const lair = PC._nergolDungeon;
+ const before = lair.themeId;
+ _lairCheckRespawnGeneric('nergol', initNergolDungeon);
+ if(!before && lair.themeId){ lair.guardDefeated = false; }  // 山賊団が戻ると、通路2の見張りも戻る
+}
+function defeatNergolRoom(nodeId){
+ const lair = PC._nergolDungeon;
+ lair.nodeState[nodeId].defeated = true;
+ const allDefeated = Object.keys(NERGOL_ROOM_AREAS).every(id=>lair.nodeState[id].defeated);
+ if(allDefeated){
+  lair.lastThemeId = lair.themeId;
+  lair.clearedDay = GAME_TIME.totalDays;
+  lair.nextRespawnDay = hfortRespawnDayAfter(GAME_TIME.totalDays);  // 一掃から365日後の次の月初（廃砦と同じ）
+  lair.themeId = null;
+ }
+}
+LAIR_DUNGEON_REG.nergol = { fixedTheme:'banditGang', areaRates:NERGOL_AREA_RATES, stateProp:'_nergolDungeon', roomAreas:NERGOL_ROOM_AREAS, defeatFn:(id)=>defeatNergolRoom(id), rescuedNamesProp:'_nergolRescuedNames', wanderFn:(area)=>null, wanderCombatFn:(m,r)=>startHruinWanderCombat(m,r) };
+
+function _nergolRoomHooks(nid, d){
+ // 部屋に山賊が残っている間は、戦闘の選択肢だけを出す
+ const lair = _nergolLairOf(nid), ns = lair.nodeState[nid];
+ return !!(lair.themeId && !ns.defeated);
+}
+// 通路2の見張り（弓を持つ山賊）。山賊団が稼働中のときだけいる
+function _nergolGuardAlive(){
+ initNergolDungeon();
+ const l = PC._nergolDungeon;
+ return !!(l.themeId && !l.guardDefeated);
+}
+function _nergolStartGuardFight(){
+ const g = generateLairBandit('veteran');
+ g.name = '弓を構えた山賊';
+ g.equippedRanged = {name:'軽弓', dice:3, adds:0, stReq:12, dexReq:15, weight:40, twoHand:true, isRanged:true, range:65};
+ g.arrows = 10;
+ drawScene('combat');
+ startCombatNPC({
+  enemies:[g], win:'NERGOL_B1_PASSAGE_2', lose:'DEAD', canFlee:true, fleeTo:_lastNodeId, autoTreasure:true,
+  onWin:()=>{ PC._nergolDungeon.guardDefeated = true; },
+ });
+}
+// 部屋Aの倉庫を探す：カザーヌの武器屋の品からランダムに1つ。品質は粗悪（加算−2）
+function _nergolSearchStorehouse(){
+ const lair = PC._nergolDungeon, ns = lair.nodeState['NERGOL_B1_ROOM_A'];
+ if(ns.searched) return;
+ ns.searched = true;
+ const pool = WEAPONS_TABLE_KHAZAN.filter(w=>!w.wizard && !w.isWizardStaff);
+ const it = pool[Math.floor(Math.random()*pool.length)];
+ PC.invWeapons = PC.invWeapons || [];
+ const w = {name:'粗悪な'+it.name, dice:it.dice, adds:it.adds-2, twoHand:it.twoHand, stReq:it.stReq||0, dexReq:it.dexReq||0, weight:it.weight||0, _poorQuality:true,
+  ...(it.isRanged?{isRanged:true, range:it.range}:{}), ...(it.rangedOk?{rangedOk:true}:{})};
+ PC.invWeapons.push(w);
+ updateHUD();
+ const s = document.getElementById('story');
+ s.innerHTML = NERGOL_B1_HEAD + `<span style="color:#e8e4d8">積まれた木箱や樽をひっくり返していくと、片隅から、錆と刃こぼれだらけの<b>${w.name}</b>が出てきた。かろうじて、まだ使えそうだ。</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_A')}]);
+ scrollToTop();
+}
+// 部屋Bの安酒
+function _nergolDrink(){
+ const n = PC._nergolDrinks || 0;
+ const s = document.getElementById('story');
+ if(n >= 3){ _nergolFaint(); return; }
+ const done = (msg)=>{
+  PC._nergolDrinks = n + 1;
+  document.getElementById('dice-area').classList.add('hidden');
+  let extra = '';
+  if(PC._nergolDrinks === 3){
+   const mates = (PC.party||[]).filter(m=>m.con>0);
+   if(mates.length){
+    const who = mates[Math.floor(Math.random()*mates.length)];
+    const _lines = [
+     `${who.name}が瓶をひょいと取り上げた。「おいおい、それ以上いったらここで寝ることになるぞ。迷宮の床は寝心地が悪いぜ」`,
+     `${who.name}が顔をしかめて肩を掴んできた。「飲み過ぎだ。こんな薄暗い場所で酔い潰れたら、身ぐるみ剥がれても文句は言えないぞ」`,
+     `${who.name}が呆れたように笑った。「顔が赤いぞ。そのへんにしとけ、ここは酒場じゃない」`,
+     `${who.name}が声を潜めて言った。「いい加減にしろ。足がふらついてたら、いざという時に剣も振れないだろう」`,
+    ];
+    extra = `<br><br><span style="color:#d8d0c0">${_lines[Math.floor(Math.random()*_lines.length)]}</span>`;
+   }
+  }
+  s.innerHTML = NERGOL_B1_HEAD + msg + extra;
+  updateHUD();
+  renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_B')}]);
+  scrollToTop();
+ };
+ setupSavingRoll({
+  attr:'con', level:1, label:'安酒',
+  onSuccess(){
+   PC.lk += 1;
+   done(`<span style="color:#e8e4d8">瓶の安酒をあおると、喉が焼けた。だが、腹の底から妙な力が湧いてくる。（運が上がった）</span>`);
+  },
+  onFail(){
+   PC.con = Math.max(1, Math.floor(PC.con * 2 / 3));
+   done(`<span style="color:#f0ddd8">安酒をあおった途端、胃の腑がひっくり返った。ひどい悪酔いで、体から力が抜けていく……</span>`);
+  },
+ });
+}
+function _nergolFaint(){
+ const s = document.getElementById('story');
+ const members = [PC, ...(PC.party||[])];
+ const mates = (PC.party||[]).filter(m=>m.con>0);
+ members.forEach(m=>{
+  m.gold = 0; m.sp = 0; m.cp = 0;
+  m.invWeapons = (m.invWeapons||[]).filter(w=>!(w.dice >= 4));
+  m.equippedWeapons = (m.equippedWeapons||[]).filter(w=>!(w.dice >= 4));
+  if(m.equippedRanged && m.equippedRanged.dice >= 4){ m.equippedRanged = null; m.arrows = 0; }
+  m.invArmors = [];
+  m.equippedArmors = [];
+ });
+ PC._nergolDrinks = 0;
+ const dest = NERGOL_FAINT_WAKE_NODES[Math.floor(Math.random()*NERGOL_FAINT_WAKE_NODES.length)];
+ updateHUD();
+ s.innerHTML = NERGOL_B1_HEAD + `<span style="color:#e8e4d8">四杯目の安酒をあおると、視界がぐにゃりと歪んだ。${mates.length ? '見かねて止めに入った仲間も、手近な瓶を押しつけられ、無理やり飲まされた。<br>' : ''}安酒の酔いが一気に回り、そのまま意識が遠のいていった……</span>`;
+ renderChoices([{label:'▶ …', fn:()=>{
+  s.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ddd8">目を覚ますと、${mates.length ? '仲間ともども、' : ''}墳墓のどこかの通路に倒れていた。<br>懐は空になり、重い武器も、身につけていた防具も、きれいに無くなっている。</span>`;
+  renderChoices([{label:'▶ OK', fn:()=>go(dest)}]);
+  scrollToTop();
+ }}]);
+ scrollToTop();
+}
+function _nergolPullLever(){
+ const l2 = PC._nergolDungeon2, st = document.getElementById('story');
+ let msg;
+ if(l2.gateDown){ l2.gateDown = false; msg = '錆びたレバーを力いっぱい引き下ろすと、遠くで鎖が巻き上がる重い音が響いた。'; }
+ else msg = 'レバーは動くが、特に何も起きなかった。';
+ st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#e8e4d8">${msg}</span>`;
+ renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_J')}]);
+ scrollToTop();
+}
+const NERGOL_B1_DEFS = {
+ PASSAGE_1: { t:()=>'南北15mの通路。北端は、地上の石室へつながる上り階段になっている。南端は別の通路に突き当たっている。',
+  e:[['↑ 北端の階段を上る（石室へ）','@STAIRS'], ['↓ 南端のT字路へ','TJ_1']] },
+ TJ_1: { t:()=>'南北に伸びる通路から、西へ通路が分岐するT字路。',
+  e:[['↑ 北の通路へ','PASSAGE_1'], ['← 西の通路へ','PASSAGE_2'], ['↓ 南の通路へ','PASSAGE_3']] },
+ PASSAGE_3: { t:()=>'南北20mの通路。北端はT字路になっている。南端は東に折れ曲がっている。',
+  e:[['↑ 北端のT字路へ','TJ_1'], ['↓ 南端から東へ','PASSAGE_4']] },
+ PASSAGE_5: { t:()=>'東西20mの通路。東端は行き止まりで、東壁に扉がある。西端は北に折れ曲がっている。南壁の東端から10mのところにも、扉がある。',
+  e:[['→ 東端の扉へ','PASSAGE_2'], ['↓ 南壁の扉へ','ROOM_C'], ['← 西端から北へ','PASSAGE_6']] },
+ PASSAGE_6: { t:()=>'南北25mの通路。北端は行き止まりで、東壁に扉がある。南端は東に折れ曲がっている。',
+  e:[['→ 北端東壁の扉へ','ROOM_A'], ['↓ 南端から東へ','PASSAGE_5']] },
+ PASSAGE_7: { t:()=>'南北10mの通路。北端は行き止まりで、北壁に扉がある。南端は東に折れ曲がっている。',
+  e:[['↑ 北端北壁の扉へ','ROOM_C'], ['↓ 南端から東へ','PASSAGE_8']] },
+ PASSAGE_8: { t:()=>'東西35mの通路。東端には、下へ向かう石の階段がある。西端は北に折れ曲がっている。北壁の東端から15mのところには、扉がある。',
+  e:[['↓ 東端の階段を下りる','@B2'], ['↑ 北壁の扉へ','ROOM_D'], ['← 西端から北へ','PASSAGE_7']] },
+ ROOM_A: { t:()=>{ const ns = PC._nergolDungeon.nodeState['NERGOL_B1_ROOM_A'];
+   return `10m四方の部屋。山賊の倉庫になっているらしく、木箱や樽が雑然と積まれている。${ns.searched?'<br>荒らされた木箱が散らばっている。':''}<br>東壁の南端と西壁の北端に、それぞれ扉がある。`; },
+  e:[['→ 東壁南端の扉へ','ROOM_B'], ['← 西壁北端の扉へ','PASSAGE_6']] },
+ ROOM_B: { t:()=>`南北15m、東西25mの部屋。中央に、大きなぼろぼろの木のテーブルがある。あたりにはジョッキや酒瓶が散乱し、南の壁寄りの棚には、安酒の瓶が並んでいる。<br>東壁の南端に扉、西壁の中央に扉がある。`,
+  e:[['→ 東壁南端の扉へ','PASSAGE_1'], ['← 西壁中央の扉へ','ROOM_A']] },
+ ROOM_C: { t:()=>'南北15m、東西25mの部屋。北壁の中央、東壁の中央、南壁の中央に、それぞれ扉がある。',
+  e:[['↑ 北壁中央の扉へ','PASSAGE_5'], ['→ 東壁中央の扉へ','ROOM_D'], ['↓ 南壁中央の扉へ','PASSAGE_7']] },
+ ROOM_D: { t:()=>'20m四方の部屋。南壁の西端と、西壁の北端から10mのところに、それぞれ扉がある。',
+  e:[['↓ 南壁西端の扉へ','PASSAGE_8'], ['← 西壁の扉へ','ROOM_C']] },
+ ROOM_L: { t:()=>'南北35m、東西25mの部屋。北壁の東端から10mのところに扉、東壁の北端から10mのところに扉、南壁の中央に扉がある。西壁の中央には、柱廊へ通じるアーチがある。',
+  e:[['↑ 北壁東寄りの扉へ','ROOM_E'], ['→ 東壁北寄りの扉へ','ROOM_K'], ['↓ 南壁中央の扉へ','COL_2'], ['← 西壁中央のアーチへ','COL_1']] },
+ ROOM_M: { t:()=>'南北15m、東西10mの部屋。北壁の東端と、東壁の南端に、それぞれ扉がある。',
+  e:[['↑ 北壁東端の扉へ','ROOM_K'], ['→ 東壁南端の扉へ','ROOM_N']] },
+ ROOM_N: { t:()=>'南北25m、東西15mの部屋。北壁の西端にアーチ、西壁の中央に扉がある。',
+  e:[['↑ 北壁西端のアーチへ','ROOM_K'], ['← 西壁中央の扉へ','ROOM_M'], ['↓ 南壁の隠し扉へ','~ON:ROOM_O']] },
+ ROOM_I: { t:()=>'25m四方の部屋。北壁の中央と、南壁の中央に、それぞれ扉がある。',
+  e:[['↑ 北壁中央の扉へ','ROOM_G'], ['↓ 南壁中央の扉へ','ROOM_K']] },
+ ROOM_K: { t:()=>'南北15m、東西25mの部屋。北壁の中央に扉、東壁の南端に扉、西壁の中央に扉がある。南壁には、東端から10mのところにアーチ、西端から10mのところに扉がある。',
+  e:[['↑ 北壁中央の扉へ','ROOM_I'], ['→ 東壁南端の扉へ','PASSAGE_11'], ['↓ 南壁東寄りのアーチへ','ROOM_N'], ['↓ 南壁西寄りの扉へ','ROOM_M'], ['← 西壁中央の扉へ','ROOM_L']] },
+ PASSAGE_11: { t:()=>'南北50mの通路。北端は行き止まりで、北壁に扉がある。南端も行き止まりで、西壁に扉がある。東壁の北端から25mのところには、上りの階段がある。',
+  e:[['↑ 北端の扉へ','ROOM_H'], ['↓ 南端の扉へ','ROOM_K'], ['→ 東壁の上り階段へ','@CAVE']] },
+ ROOM_H: { t:()=>'15m四方の部屋。南壁の中央と、西壁の中央に、それぞれ扉がある。',
+  e:[['↓ 南壁中央の扉へ','PASSAGE_11'], ['← 西壁中央の扉へ','ROOM_G']] },
+ ROOM_G: { t:()=>'南北25m、東西20mの部屋。東壁の中央に扉、西壁の中央に扉がある。南壁には、東端から10mのところに扉がある。',
+  e:[['→ 東壁中央の扉へ','ROOM_H'], ['↓ 南壁東寄りの扉へ','ROOM_I'], ['← 西壁中央の扉へ','ROOM_F']] },
+ ROOM_J: { t:()=>'5m四方の小部屋。東壁に扉がある。南壁には、レバーが取り付けられている。',
+  e:[['→ 東壁の扉へ','PASSAGE_10']] },
+ PASSAGE_10: { t:()=>'南北20mの通路。北端は東に折れ曲がっている。南端は行き止まりで、西壁に扉がある。',
+  e:[['↑ 北端から東へ','PASSAGE_9'], ['↓ 南端の扉へ','ROOM_J']] },
+ PASSAGE_9: { t:()=>'東西10mの通路。東端は行き止まりで、東壁に扉がある。西端は南に折れ曲がっている。',
+  e:[['→ 東端の扉へ','ROOM_F'], ['← 西端から南へ','PASSAGE_10']] },
+ ROOM_F: { t:()=>'南北20m、東西14mの部屋。東壁の北端から10mのところに扉、南壁の中央に扉、西壁の北端から10mのところに扉がある。',
+  e:[['→ 東壁北寄りの扉へ','ROOM_G'], ['↓ 南壁中央の扉へ','ROOM_E'], ['← 西壁北寄りの扉へ','PASSAGE_9']] },
+ ROOM_E: { t:()=>{ const g = PC._nergolDungeon2.gateDown;
+   return `南北25m、東西20mの部屋。北壁の東端から10mのところに扉、南壁の東端から10mのところに扉がある。<br>` + (g ? '西壁の中央にあるアーチは、鉄の落とし格子で塞がれている。' : '西壁の中央には、通路へ通じるアーチがある。落とし格子は上がっている。'); },
+  e:[['↑ 北壁東寄りの扉へ','ROOM_F'], ['↓ 南壁東寄りの扉へ','ROOM_L'], ['@GATE','@GATE']] },
+ PASSAGE_4: { t:()=>'東西25mの通路。東端はアーチになっていて、部屋へ通じている。西端は北に折れ曲がっている。',
+  e:[['→ 東端のアーチへ','@TOE'], ['← 西端から北へ','PASSAGE_3']] },
+ PASSAGE_2: { t:()=>{
+   const g = _nergolGuardAlive();
+   return `東西30mの通路。西端は行き止まりで、西壁に扉がある。東端はT字路になっている。`
+    + (g ? `<br><br><span style="color:#f0ddd8">西端の扉の前に、弓を構えた山賊が立っている。こちらに気づくと、足元に矢を射かけてきた。<br>「近寄るな！　痛い目を見たくなけりゃ、さっさと帰れ！」</span>` : ''); },
+  e:[['← 西端の扉へ','@GUARD_DOOR'], ['→ 東端のT字路へ','TJ_1']] },
+ // ── ゾーンIV（アンデッド） ──
+ ROOM_AA: { t:()=>'南北10m、東西15mの部屋。北壁の中央と、南壁の中央に、それぞれ扉がある。',
+  e:[['↑ 北壁中央の扉へ','COL_4'], ['↓ 南壁中央の扉へ','PASSAGE_27']] },
+ PASSAGE_27: { t:()=>'東西30mの通路。東端は行き止まりで、北壁と東壁に、それぞれ扉がある。西端は南に折れ曲がっている。',
+  e:[['↑ 北壁の扉へ','ROOM_AA'], ['→ 東壁の扉へ','ROOM_Z'], ['← 西端から南へ','PASSAGE_26']] },
+ ROOM_Z: { t:()=>'15m四方の部屋。西壁の北端に扉がある。',
+  e:[['← 西壁北端の扉へ','PASSAGE_27']] },
+ PASSAGE_26: { t:()=>'南北45mの通路。北端は東に折れ曲がっている。南端は行き止まりで、東壁に扉がある。東壁の南端から25mのところにも、扉がある。',
+  e:[['↑ 北端から東へ','PASSAGE_27'], ['→ 南端東壁の扉へ','ROOM_X'], ['→ 東壁の扉へ','ROOM_Y']] },
+ ROOM_Y: { t:()=>'南北15m、東西20mの部屋。西壁の南端に扉がある。',
+  e:[['← 西壁南端の扉へ','PASSAGE_26']] },
+ ROOM_X: { t:()=>'南北25m、東西20mの部屋。東壁の中央と、西壁の中央に、それぞれ扉がある。',
+  e:[['→ 東壁中央の扉へ','ROOM_W'], ['← 西壁中央の扉へ','PASSAGE_26']] },
+ ROOM_W: { t:()=>'南北35m、東西20mの部屋。東壁の南端と、西壁の中央に、それぞれ扉がある。',
+  e:[['→ 東壁南端の扉へ','PASSAGE_25'], ['← 西壁中央の扉へ','ROOM_X']] },
+ ROOM_AB: { t:()=>{ const n = Math.round(Math.log((PC._nergolDungeon4 && PC._nergolDungeon4.boost) || 1)/Math.log(5));
+   return '5m四方の小部屋。東壁に扉がある。西壁にはボタンが取り付けられていて、その下には「再配置用」と書かれた板が掲げられている。'; },
+  e:[['→ 東壁の扉へ','PASSAGE_23']] },
+ PASSAGE_23: { t:()=>'南北15mの通路。北端は行き止まりで、北壁に柱廊への扉があり、西壁にも扉がある。南端も行き止まりで、扉がある。',
+  e:[['↑ 北壁の扉へ','COL_3'], ['← 西壁の扉へ','ROOM_AB'], ['↓ 南端の扉へ','ROOM_AC']] },
+ PASSAGE_21: { t:()=>'東西10mの通路。東端は十字路になっている。西端は行き止まりで、西壁に扉がある。',
+  e:[['→ 東端の十字路へ','XR_1'], ['← 西端の扉へ','ROOM_AC']] },
+ ROOM_AC: { t:()=>'南北20m、東西15mの部屋。北壁の東端、東壁の北端、南壁の中央に、それぞれ扉がある。',
+  e:[['↑ 北壁東端の扉へ','PASSAGE_23'], ['→ 東壁北端の扉へ','PASSAGE_21'], ['↓ 南壁中央の扉へ','ROOM_AD']] },
+ ROOM_AD: { t:()=>'南北25m、東西15mの部屋。北壁の中央、南壁の東端、西壁の北端に、それぞれ扉がある。',
+  e:[['↑ 北壁中央の扉へ','ROOM_AC'], ['↓ 南壁東端の扉へ','PASSAGE_20'], ['← 西壁北端の扉へ','PASSAGE_25']] },
+ PASSAGE_24: { t:()=>'南北40mの通路。北端は柱廊に通じている。南端は別の通路に続いている。',
+  e:[['↑ 北端の柱廊へ','COL_3'], ['↓ 南端の通路へ','PASSAGE_25']] },
+ PASSAGE_25: { t:()=>'南北40mの通路。北端は別の通路へ続いているが、暗くなっていて先が見えない。南端は行き止まりで、東壁に扉がある。西壁にも扉があり、東壁の北端から10mのところにも扉がある。',
+  e:[['↑ 北端の暗がりへ','PASSAGE_24'], ['→ 南端東壁の扉へ','PASSAGE_20'], ['← 西壁の扉へ','ROOM_W'], ['→ 東壁北寄りの扉へ','ROOM_AD']] },
+ PASSAGE_20: { t:()=>'東西25mの通路。東端は北に折れ曲がっている。西端は行き止まりで、西壁に扉がある。北壁の東端から15mのところにも、扉がある。',
+  e:[['→ 東端から北へ','PASSAGE_19'], ['← 西端の扉へ','PASSAGE_25'], ['↑ 北壁の扉へ','ROOM_AD']] },
+ PASSAGE_19: { t:()=>'南北45mの通路。北端は東に折れ曲がっている。南端は西に折れ曲がっている。',
+  e:[['↑ 北端から東へ','PASSAGE_18'], ['↓ 南端から西へ','PASSAGE_20']] },
+ PASSAGE_18: { t:()=>'東西10mの通路。東端はT字路になっている。西端は南に折れ曲がっている。',
+  e:[['→ 東端のT字路へ','TJ_2'], ['← 西端から南へ','PASSAGE_19']] },
+ TJ_2: { t:()=>'南北に伸びる通路から、西へ通路が分岐するT字路。',
+  e:[['↑ 北の通路へ','PASSAGE_16'], ['↓ 南の通路へ','PASSAGE_17'], ['← 西の通路へ','PASSAGE_18']] },
+ PASSAGE_17: { t:()=>'南北10mの通路。北端はT字路になっている。南端は行き止まりで、南壁に扉がある。',
+  e:[['↑ 北端のT字路へ','TJ_2'], ['↓ 南壁の扉へ','ROOM_V']] },
+ PASSAGE_16: { t:()=>'南北10mの通路。北端は十字路になっている。南端はT字路になっている。',
+  e:[['↑ 北端の十字路へ','XR_1'], ['↓ 南端のT字路へ','TJ_2']] },
+ PASSAGE_14: { t:()=>'東西15mの通路。東端は、部屋へ通じるアーチになっている。西端は十字路になっている。',
+  e:[['→ 東端のアーチへ','ROOM_S'], ['← 西端の十字路へ','XR_1']] },
+ XR_1: { t:()=>'東西に伸びる通路と、南北に伸びる通路が交わる十字路。',
+  e:[['↑ 北の通路へ','PASSAGE_15'], ['→ 東の通路へ','PASSAGE_14'], ['↓ 南の通路へ','PASSAGE_16'], ['← 西の通路へ','PASSAGE_21']] },
+ PASSAGE_15: { t:()=>'南北20mの通路。北端は行き止まりで、北壁に柱廊への扉がある。南端は十字路になっている。',
+  e:[['↑ 北壁の扉へ','COL_2'], ['↓ 南端の十字路へ','XR_1']] },
+ // ── ゾーンV（混沌の信徒） ──
+ ROOM_AI: { t:()=>'35m四方の部屋。天井は丸天井になっていて、頂点までは20mの高さがある。部屋の中央には、10m四方の祭壇がある。<br>西壁の南端に、扉がある。',
+  e:[['← 西壁南端の扉へ','ROOM_AE']] },
+ PASSAGE_28: { t:()=>'南北15mの通路。北端は行き止まりで、西壁に扉がある。南端も行き止まりで、南壁に扉がある。',
+  e:[['← 西壁の扉へ','^AF28:ROOM_AF'], ['↓ 南壁の扉へ','ROOM_AE']] },
+ ROOM_AE: { t:()=>'南北20m、東西30mの部屋。北壁の東端から15mのところ、東壁の北端から10mのところ、南壁の西端から15mのところ、西壁の北端から10mのところに、それぞれ扉がある。',
+  e:[['↑ 北壁東寄りの扉へ','PASSAGE_28'], ['→ 東壁北寄りの扉へ','ROOM_AI'], ['↓ 南壁西寄りの扉へ','COL_4'], ['← 西壁北寄りの扉へ','COL_5']] },
+ COL_5: { t:()=>'幅15m、高さ20mの柱廊が、南北に40m続いている。北端は、下りの階段で終わっている。南端は、地上へ続く上りの階段になっていて、東へ折れ曲がる柱廊とつながっている。東壁の北端から10mのところに、扉がある。',
+  e:[['↑ 北端の下り階段へ','@B2_5'], ['↓ 南端の階段を上る（地上へ）','@SURF5'], ['↓ 南端から東の柱廊へ','COL_4'], ['→ 東壁北寄りの扉へ','ROOM_AE']] },
+ COL_4: { t:()=>'幅15m、高さ20mの柱廊が、東西に40m続いている。東端は別の柱廊へ続いているようだが、先は暗くなっていて見えない。西端は北に折れ曲がっている。北壁の東端から10mのところと、南壁の東端から10mのところに、それぞれ扉がある。南壁の西端から5mのところには、地上へ続く階段がある。',
+  e:[['→ 東端の暗がりへ','COL_3'], ['← 西端から北へ','COL_5'], ['↑ 北壁の扉へ','ROOM_AE'], ['↓ 南壁の扉へ','ROOM_AA'], ['↓ 南壁の階段を上る（地上へ）','@SURF4']] },
+ COL_3: { t:()=>'幅15m、高さ20mの柱廊が、東西に50m続いている。東端は行き止まりで、北壁と南壁に、それぞれ扉がある。南壁の東端から20mのところには、通路への開口部がある。西端は別の柱廊へ続いているようだが、先は暗くなっていて見えない。',
+  e:[['← 西端の暗がりへ','COL_4'], ['↑ 北壁東端の扉へ','PASSAGE_22'], ['↓ 南壁東端の扉へ','PASSAGE_23'], ['↓ 南壁の開口部へ','PASSAGE_24']] },
+ PASSAGE_22: { t:()=>'東西10mの通路。東端は行き止まりで、東壁に扉がある。西端も行き止まりで、南壁に扉がある。',
+  e:[['→ 東壁の扉へ','^COL222:COL_2'], ['↓ 南壁の扉へ','COL_3']] },
+ COL_2: { t:()=>'幅15m、高さ20mの柱廊が、南北に50m続いている。北端は部屋への扉、南端は通路への扉になっている。',
+  e:[['↑ 北端の扉へ','ROOM_L'], ['↓ 南端の扉へ','PASSAGE_15'], ['← 西壁の隠し扉へ','~COL222:PASSAGE_22'], ['→ 東壁南端の隠し扉へ','~Q2:ROOM_Q']] },
+ ROOM_AF: { t:()=>'南北15m、東西25mの部屋。北壁の中央に扉がある。',
+  e:[['↑ 北壁中央の扉へ','ROOM_AG'], ['→ 東壁の隠し扉へ','~AF28:PASSAGE_28']] },
+ ROOM_AH: { t:()=>'15m四方の部屋。南壁の東端に扉がある。',
+  e:[['↓ 南壁東端の扉へ','ROOM_AG']] },
+ ROOM_AG: { t:()=>'南北15m、東西20mの部屋。北壁の東端から10mのところ、東壁の中央、南壁の東端から10mのところに、それぞれ扉がある。',
+  e:[['↑ 北壁東寄りの扉へ','ROOM_AH'], ['→ 東壁中央の扉へ','COL_1'], ['↓ 南壁東寄りの扉へ','ROOM_AF']] },
+ COL_1: { t:()=>'幅15m、高さ20mの柱廊が、東西に55m続いている。東端は、部屋へ通じるアーチになっている。西端には、扉がある。',
+  e:[['→ 東端のアーチへ','ROOM_L'], ['← 西端の扉へ','ROOM_AG']] },
+ // ── ゾーンIII（オーク） ──
+ ROOM_O: { t:()=>'南北20m、東西25mの部屋。北壁の中央と、南壁の中央に、それぞれ扉がある。',
+  e:[['↑ 北壁中央の扉へ','^ON:ROOM_N'], ['↓ 南壁中央の扉へ','ROOM_P']] },
+ ROOM_P: { t:()=>'南北35m、東西25mの部屋。北壁の西端と、西壁の中央に、それぞれ扉がある。南壁の中央は開口部になっていて、下りの階段が見える。',
+  e:[['↑ 北壁西端の扉へ','ROOM_O'], ['← 西壁中央の扉へ','ROOM_Q'], ['↓ 南壁の開口部から階段へ','@B2_P']] },
+ ROOM_Q: { t:()=>'南北35m、東西20mの部屋。北壁の西端から10mのところ、東壁の中央、南壁の東端から10mのところ、西壁の北端から15mのところに、それぞれ扉がある。',
+  e:[['↑ 北壁西寄りの扉へ','ROOM_R'], ['→ 東壁中央の扉へ','ROOM_P'], ['↓ 南壁東寄りの扉へ','ROOM_S'], ['← 西壁北寄りの扉へ','^Q2:COL_2']] },
+ PASSAGE_12: { t:()=>'東西15mの通路。東端は行き止まりで、南側に扉がある。西端も行き止まりで、西壁に扉がある。',
+  e:[['↓ 東端南側の扉へ','^T12:ROOM_T'], ['← 西端の扉へ','ROOM_S']] },
+ ROOM_S: { t:()=>'南北15m、東西20mの部屋。北壁の西端から10mのところ、東壁の中央、南壁の東端から10mのところに、それぞれ扉がある。西壁の北端には、通路へ通じるアーチがある。',
+  e:[['↑ 北壁西寄りの扉へ','ROOM_Q'], ['→ 東壁中央の扉へ','PASSAGE_12'], ['↓ 南壁東寄りの扉へ','ROOM_U'], ['← 西壁北端のアーチへ','PASSAGE_14']] },
+ ROOM_T: { t:()=>'15m四方の部屋。南壁の中央に扉がある。',
+  e:[['↑ 北壁中央の隠し扉へ','~T12:PASSAGE_12'], ['↓ 南壁中央の扉へ','PASSAGE_13']] },
+ PASSAGE_13: { t:()=>'東西10mの通路。東端は行き止まりで、北壁に扉がある。西壁にも扉がある。',
+  e:[['↑ 北壁の扉へ','ROOM_T'], ['← 西壁の扉へ','ROOM_U']] },
+ ROOM_U: { t:()=>'南北35m、東西15mの部屋。北壁の西端、東壁の中央、西壁の南端に、それぞれ扉がある。',
+  e:[['↑ 北壁西端の扉へ','ROOM_S'], ['→ 東壁中央の扉へ','PASSAGE_13'], ['← 西壁南端の扉へ','ROOM_V']] },
+ ROOM_V: { t:()=>'南北20m、東西25mの部屋。北壁の西端と、東壁の南端に、それぞれ扉がある。南壁の中央は開口部になっていて、地上へ続く階段が見える。',
+  e:[['↑ 北壁西端の扉へ','PASSAGE_17'], ['→ 東壁南端の扉へ','ROOM_U'], ['↓ 南壁の開口部から階段を上る（地上へ）','@SURFV']] },
+};
+function _nergolMakeNode(key, d){
+ const nid = 'NERGOL_B1_' + key;
+ const isRoom = !!(NERGOL_ROOM_AREAS3[nid] || NERGOL_ROOM_AREAS[nid] || NERGOL_ROOM_AREAS2[nid] || NERGOL_ROOM_AREAS4[nid] || NERGOL_ROOM_AREAS5[nid]);
+ return {
+  scene:'dungeon',
+  txt:()=>{
+   initNergolDungeon(); initNergolDungeon2(); initNergolDungeon4(); initNergolDungeon5(); initNergolDungeon3();
+   let _h = NERGOL_B1_HEAD + d.t() + (isRoom ? _lairRoomStatusTextGeneric(_nergolKeyOf(nid), nid) : '');
+   if(key === 'ROOM_Y' && !_nergolRoomHooks(nid) && !_nergolYLoot().taken) _h += `<br><br><span style="color:#f0ddd8">部屋の奥の台座に、${_nergolYLoot().gemmed ? '宝石をあしらった防具' : '防具'}が置かれている。</span>`;
+   if(key === 'ROOM_AH' && !_nergolRoomHooks(nid) && !_nergolAhLoot().taken) _h += `<br><br><span style="color:#f0ddd8">部屋の中央の台座に、${_nergolAhLoot().gemmed ? '宝石をあしらった武器' : '武器'}が横たえられている。</span>`;
+   return _h;
+  },
+  choices:()=>{
+   initNergolDungeon(); initNergolDungeon2(); initNergolDungeon4(); initNergolDungeon5(); initNergolDungeon3();
+   const lair = _nergolLairOf(nid);
+   if(isRoom && _nergolRoomHooks(nid)){
+    return [{label:_lairEncounterLabel(lair.nodeState[nid]), fn:()=>_lairStartEncounterGeneric(_nergolKeyOf(nid), nid)}];
+   }
+   const out = [];
+   d.e.forEach(([label, dest])=>{
+    if(dest === '@STAIRS') out.push({label, fn:()=>go('NERGOL_STAIRS')});
+    else if(dest === '@B2') out.push({label, fn:()=>go('NERGOL_B2_STUB')});
+    else if(dest === '@B2_5') out.push({label, fn:()=>{ PC._nergolB2Back = 'NERGOL_B1_COL_5'; go('NERGOL_B2_STUB'); }});
+    else if(dest === '@B2_P') out.push({label, fn:()=>{ PC._nergolB2Back = 'NERGOL_B1_ROOM_P'; go('NERGOL_B2_STUB'); }});
+    else if(dest === '@SURFV') out.push({label, fn:()=>go('NERGOL_SURFV')});
+    else if(dest === '@SURF4') out.push({label, fn:()=>go('NERGOL_SURF4')});
+    else if(dest === '@SURF5') out.push({label, fn:()=>go('NERGOL_SURF5')});
+    else if(dest.startsWith('~')){
+     // 隠し扉（~鍵:行き先）：反対側から通ったことがあるときだけ選択肢に出る
+     const [sk, to] = dest.slice(1).split(':');
+     if(_nergolSecretKnown(sk)) out.push({label, fn:()=>go('NERGOL_B1_' + to)});
+    }
+    else if(dest.startsWith('^')){
+     // 隠し扉の表側（^鍵:行き先）：通り抜けると、反対側にも扉があることに気づく
+     const [sk, to] = dest.slice(1).split(':');
+     out.push({label, fn:()=>{ _nergolSecretLearn(sk); go('NERGOL_B1_' + to); }});
+    }
+    else if(dest === '@CAVE') out.push({label, fn:()=>go('NERGOL_CAVE')});
+    else if(dest === '@TOE'){
+     out.push({label, fn:()=>{
+      const l2 = PC._nergolDungeon2; l2.gateDown = true;
+      const st = document.getElementById('story');
+      st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ddd8">アーチをくぐった瞬間、背後で轟音が響いた。振り返ると、鉄の落とし格子がアーチを塞いでいる！</span>`;
+      renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_E')}]);
+      scrollToTop();
+     }});
+    }
+    else if(dest === '@GATE'){
+     const l2 = PC._nergolDungeon2;
+     if(!l2.gateDown) out.push({label:'← 西壁のアーチへ', fn:()=>go('NERGOL_B1_PASSAGE_4')});
+     else out.push({label:'← 落とし格子を力づくで開けようとする', fn:()=>{
+      const st = document.getElementById('story');
+      const w = rollNergolWandering2(2);
+      if(w && w.length){
+       const counts = {};
+       w.forEach(m=>{ counts[m.name] = (counts[m.name]||0)+1; });
+       const desc = Object.entries(counts).map(([n,c])=> c>1 ? `${n}×${c}` : n).join('、');
+       st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ddd8">格子を揺さぶる音を聞きつけたのか、${desc}が現れた！</span>`;
+       renderChoices([]); drawScene('combat');
+       startHruinWanderCombat(w, 'NERGOL_B1_ROOM_E');
+      } else {
+       st.innerHTML = NERGOL_B1_HEAD + `<span style="color:#e8e4d8">鉄の格子に手をかけ、全身の力を込めて持ち上げようとしたが、びくともしない。どこかに仕掛けがあるのだろう。</span>`;
+       renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B1_ROOM_E')}]);
+       scrollToTop();
+      }
+     }});
+    }
+    else if(dest === '@LEVER'){ /* レバーは下で追加 */ }
+    else if(dest === '@GUARD_DOOR'){
+     if(_nergolGuardAlive()) out.push({label:'← 西端の扉へ近づく', fn:()=>_nergolStartGuardFight()});
+     else out.push({label, fn:()=>go('NERGOL_B1_PASSAGE_5')});
+    }
+    else out.push({label, fn:()=>go('NERGOL_B1_' + dest)});
+   });
+   if(key === 'ROOM_J') out.push({label:' 南壁のレバーを操作する', fn:()=>_nergolPullLever()});
+   if(key === 'ROOM_Y' && !_nergolYLoot().taken) out.push({label:' 台座の防具を手に取る', fn:()=>_nergolTakeYArmor()});
+   if(key === 'ROOM_AH' && !_nergolAhLoot().taken) out.push({label:' 台座の武器を手に取る', fn:()=>_nergolTakeAhWeapon()});
+   if(key === 'ROOM_AB') out.push({label:' 西壁のボタンを押す', fn:()=>_nergolPressButton()});
+   // 通路5から通路2へ：見張りが残っていれば、扉を開けた途端に戦闘になる
+   if(nid === 'NERGOL_B1_PASSAGE_5'){
+    const i = out.findIndex(c=>c.label === '→ 東端の扉へ');
+    if(i >= 0) out[i] = {label:'→ 東端の扉へ', fn:()=>{
+     if(_nergolGuardAlive()){
+      const s = document.getElementById('story');
+      s.innerHTML = NERGOL_B1_HEAD + `<span style="color:#f0ddd8">扉を開けると、弓を構えた山賊が待ち構えていた！</span>`;
+      renderChoices([{label:'▶ 戦う', fn:()=>_nergolStartGuardFight()}]);
+      scrollToTop();
+     } else go('NERGOL_B1_PASSAGE_2');
+    }};
+   }
+   if(key === 'ROOM_A' && !lair.nodeState[nid].searched) out.push({label:' 部屋の中を探す', fn:()=>_nergolSearchStorehouse()});
+   if(key === 'ROOM_B'){
+    out.push({label:' 棚の安酒を飲む', fn:()=>_nergolDrink()});
+   }
+   return out;
+  },
+ };
+}
+(function(){
+ const nodes = {};
+ Object.keys(NERGOL_B1_DEFS).forEach(k=>{ nodes['NERGOL_B1_' + k] = _nergolMakeNode(k, NERGOL_B1_DEFS[k]); });
+ // 柱廊1・柱廊2、洞穴、地下2階への階段の先
+ [['SURF4','斜面の階段','NERGOL_B1_COL_4','surf4','石の階段を上りきると、塚の斜面に口を開けた出口に出た。外の光と風が、さっと吹き込んでくる。'],
+  ['SURFV','窪みの階段','NERGOL_B1_ROOM_V','surfV','石段を上りきると、塚の窪みの、草に隠れた出口に出た。外の光と風が、さっと吹き込んでくる。'],
+  ['SURF5','裾野の階段','NERGOL_B1_COL_5','surf5','崩れかけた石の階段を上りきると、塚の裾野の、草に埋もれた出口に出た。外の光と風が、さっと吹き込んでくる。']].forEach(([id,place,back,key,desc])=>{
+  nodes['NERGOL_'+id] = {
+   scene:'dungeon',
+   txt:()=>`<span style="color:#f0ece0">${NERGOL_OUTER_NAME}</span><br><br>${desc}`,
+   choices:()=>[
+    {label:'↑ 外へ出る', fn:()=>{ if(!PC._nergolSurfKnown) PC._nergolSurfKnown = {}; PC._nergolSurfKnown[key] = true; nergolExit(); }},
+    {label:'↓ 階段を下りる', fn:()=>go(back)},
+   ],
+  };
+ });
+ nodes.NERGOL_CAVE = {
+  scene:'dungeon',
+  txt:()=>`<span style="color:#f0ece0">${NERGOL_OUTER_NAME}</span><br><br>石の階段を上ると、狭い洞穴に出た。かすかな外の光と、風の匂いがする。洞穴の出口は、茂みに隠れるようにして外へ開いている。`,
+  choices:()=>[
+   {label:'↑ 洞穴の外へ出る', fn:()=>{ PC._nergolCaveKnown = true; nergolExit(); }},
+   {label:'↓ 階段を下りる', fn:()=>go('NERGOL_B1_PASSAGE_11')},
+  ],
+ };
+ nodes.NERGOL_B2_STUB = {
+  scene:'dungeon',
+  txt:()=>NERGOL_B1_HEAD + `石の階段を少し下ると、壁に突き当たって途切れている。ここから先へは進めそうにない。`,
+  choices:()=>[{label:'↑ 階段を上って戻る', fn:()=>{ const b = PC._nergolB2Back || 'NERGOL_B1_PASSAGE_8'; PC._nergolB2Back = null; go(b); }}],
+ };
+ nodes.NERGOL_B1_ROOM_R = {
+  scene:'dungeon',
+  txt:()=>{
+   initNergolDungeon3();
+   const bound = PC._nergolDungeon3.prisoners.filter(x=>x.status === 'bound');
+   let h = NERGOL_B1_HEAD + '南北20m、東西10mの部屋。オークが囚人部屋として使っているらしく、壁には鎖と鉄の輪が打ち込まれている。南壁の東端に、扉がある。';
+   if(bound.length) h += '<br><br><span style="color:#f0ddd8">' + bound.map(x=>`鎖に繋がれた${_nergolPrisonerText(x)}が、助けを求めるようにこちらを見ている。`).join('<br>') + '</span>';
+   else h += '<br><br><span style="color:#b0a080">もう、鎖に繋がれた者はいない。</span>';
+   return h;
+  },
+  choices:()=>{
+   initNergolDungeon3();
+   const ps = PC._nergolDungeon3.prisoners, out = [];
+   ps.forEach((x,i)=>{ if(x.status === 'bound') out.push({label:` ${_nergolPrisonerText(x)}を助ける`, fn:()=>_nergolFreePrisoner(i)}); });
+   const anyBound = ps.some(x=>x.status === 'bound');
+   out.push({label: anyBound ? '↓ 囚人を残して、南壁東端の扉から出る' : '↓ 南壁東端の扉へ', fn:()=>_nergolLeavePrisoners()});
+   return out;
+  },
+ };
+ Object.assign(NODES, nodes);
+ Object.keys(nodes).forEach(id=>DUNGEON_NODES.add(id));
+})();
 
 
 try{ arcDInstallGoalRooms(); }catch(e){ console.error('arcD install', e); }
@@ -78455,6 +80141,11 @@ Object.assign(NODES, {
    <button onclick="dbg(()=>{initHfortDungeon();const ids=Object.keys(LAIR_THEMES);const pick=prompt('テーマID('+ids.join('/')+')','banditGang');if(!ids.includes(pick)){showSaveToast('不正なテーマID');return;}const l=PC._hfortDungeon;l.themeId=pick;l.spawnDay=GAME_TIME.totalDays;l.clearedDay=null;Object.keys(HFORT_ROOM_AREAS).forEach(id=>{l.nodeState[id]={defeated:false,monsters:null};});showSaveToast('テーマを強制設定：'+LAIR_THEMES[pick].name)})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">テーマを強制指定</button>
    <button onclick="dbg(()=>{initHfortDungeon();checkHfortRespawn();Object.keys(HFORT_ROOM_AREAS).forEach(id=>defeatHfortRoom(id));const l=PC._hfortDungeon;showSaveToast('一掃：盗賊・山賊が出なくなる。再入居は'+l.nextRespawnDay+'日目（現在'+GAME_TIME.totalDays+'日目）')})" class="dbg-btn" style="border-color:#aa4444;color:#ff8888">全部屋を討伐済みにして一掃</button>
    <button onclick="dbg(()=>{initHfortDungeon();const l=PC._hfortDungeon;const s=l.themeId?_lairScenarioAwareTheme(l.themeId).name:'（無人）';const cleared=Object.keys(HFORT_ROOM_AREAS).filter(id=>l.nodeState[id]?.defeated).length;showSaveToast('テーマ:'+s+' / 討伐済み部屋:'+cleared+'/'+Object.keys(HFORT_ROOM_AREAS).length+' / 次回湧き予定日:'+l.nextRespawnDay)})" class="dbg-btn" style="border-color:#446688;color:#88aacc">廃砦の状態を確認</button>
+   <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 廃砦2（1階・開発中） ──</div>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';hfort2Enter('W');})" class="dbg-btn">廃砦2：西の入口（通路1）に強制入場</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';hfort2Enter('N');})" class="dbg-btn">廃砦2：北の入口（通路2）に強制入場</button>
+   <button onclick="dbg(()=>{document.getElementById('debug-panel').style.display='none';hfort2Enter('E');})" class="dbg-btn">廃砦2：東の入口（通路8）に強制入場</button>
+   <button onclick="dbg(()=>{initHfort2Dungeon();const l=PC._hfort2Dungeon;const s=l.themeId?_lairScenarioAwareTheme(l.themeId).name:'（無人）';const c=Object.keys(HFORT2_ROOM_AREAS).filter(id=>l.nodeState[id]?.defeated).length;showSaveToast('テーマ:'+s+' / 討伐済み部屋:'+c+'/'+Object.keys(HFORT2_ROOM_AREAS).length+' / 次回湧き予定日:'+l.nextRespawnDay)})" class="dbg-btn" style="border-color:#446688;color:#88aacc">廃砦2の状態を確認</button>
   </div>
   <div style="color:var(--mid);font-size:calc(var(--font-sm) - 3px);font-family:monospace;margin:10px 0 6px;letter-spacing:1px">── 地下哨所（NEW） ──</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#0a000f;border:1px solid #443366;border-radius:4px;padding:8px;margin-bottom:14px">
