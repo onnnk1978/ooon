@@ -264,6 +264,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
  line-height:2.2;border-radius:4px;min-height:56px;
 }
 .choice-btn:active{background:#1e1608;border-color:#f0ece0;color:var(--white2)}
+#choices > *{flex-shrink:0}   /* コマンド欄の高さが頭打ちのとき、長い選択肢が潰れて文字が隣のボタンに隠れるのを防ぐ（はみ出す分はスクロール） */
 .wild-btn{background:#140e08;border:2px solid var(--border2);color:#f0ece0;font-family:system-ui,sans-serif;font-size:var(--font-base);padding:12px 13px;cursor:pointer;text-align:left;border-radius:4px}
 .wild-btn:active{background:#1e1608;border-color:#f0ece0}
 .wild-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
@@ -672,7 +673,7 @@ html.cmd-vertical #npc-action-btns > .cmd-skip{ order:-1; }   /* 魔法・遠距
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026111501</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026111701</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -4372,6 +4373,9 @@ function arenaChallengeRank(rankKey, returnNodeId, arenaTitle, townId){
   onWin:()=>{
    const prize = rank.prizeBase * count;
    gainGP(prize);
+   // 闘技場は死なない興行：勝っても、試合中に倒れた主人公・仲間は命に別状なく、体力1で戻る
+   PC.con = Math.max(PC.con, 1);
+   (PC.party||[]).forEach(n=>{ if(n.con<=0) n.con = 1; });
    updateHUD();
    document.getElementById('cbt-area').classList.add('hidden');
    document.getElementById('scroll-area').classList.remove('in-combat');
@@ -5946,30 +5950,68 @@ function propertyBury(townId){
 
  const choices = dead.map(n=>({
   label:` ${n.name}を埋葬する`,
-  fn:()=>{
-   const cur = getCurrentDate();
-   const epitaphCandidates = [
-    '安らかに眠れ',
-    'ここに英雄が眠る',
-    '共に旅した日々を忘れない',
-    '勇敢に戦った',
-    'また会う日まで',
-   ];
-   const epitaph = epitaphCandidates[Math.floor(Math.random()*epitaphCandidates.length)];
-   prop.graves.push({
-    name: n.name,
-    date: `${cur.year}年${cur.month}月${cur.day}日`,
-    epitaph,
-   });
-   PC.party = (PC.party||[]).filter(m=>m.name !== n.name);
-   addLifeEvent('', `${n.name}を${propName(townId)}に埋葬した。`);
-   updateHUD();
-   showSaveToast(` ${n.name}を埋葬した`);
-   propertyViewGraves(townId);
-  },
+  fn:()=>propertyEpitaphChoose(townId, n.name),
  }));
  choices.push({label:'← 拠点に戻る', fn:()=>_showPropertyMain(townId)});
  renderChoices(choices);
+}
+
+const GRAVE_EPITAPH_CANDIDATES = [
+ '安らかに眠れ','ここに英雄が眠る','共に旅した日々を忘れない','勇敢に戦った','また会う日まで',
+ '旅の続きは、いつかまた','最後まで背中を預けてくれた','静かな風の中で眠る','その剣は折れず、その志は残る','ありがとう',
+];
+function _epitaphClean(t){ return String(t||'').replace(/[<>&"'`\\]/g,'').replace(/\s+/g,' ').trim().slice(0,30); }
+// 墓碑銘を選ぶ：候補から選ぶか、自分で書くか、おまかせ（ランダム）
+function propertyEpitaphChoose(townId, name){
+ const n = (PC.party||[]).find(m=>m.name===name && m.con<=0);
+ if(!n) return;
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<span style="color:#c0b098"><b>${n.name}</b>の墓に刻む言葉を選んでください。</span>`;
+ const choices = GRAVE_EPITAPH_CANDIDATES.map(e=>({label:` 「${e}」`, fn:()=>propertyBuryDo(townId, name, e)}));
+ choices.push({label:' 自分で言葉を書く', fn:()=>propertyEpitaphWrite(townId, name)});
+ choices.push({label:' おまかせ', fn:()=>propertyBuryDo(townId, name, GRAVE_EPITAPH_CANDIDATES[Math.floor(Math.random()*GRAVE_EPITAPH_CANDIDATES.length)])});
+ choices.push({label:'← やめる', fn:()=>propertyBury(townId)});
+ renderChoices(choices);
+}
+function propertyEpitaphWrite(townId, name){
+ if(document.getElementById('epitaph-ask')) return;
+ const ov = document.createElement('div');
+ ov.id = 'epitaph-ask';
+ ov.style.cssText = 'position:fixed;inset:0;background:#000a;z-index:9997;display:flex;align-items:center;justify-content:center;padding:16px';
+ ov.innerHTML = `<div style="background:var(--info-bg);border:2px solid #686048;border-radius:6px;padding:16px;max-width:420px;width:100%;color:#e8e0d0;font-size:calc(var(--font-sm));line-height:1.7">
+  <div style="color:#f0ece0;font-size:calc(var(--font-sm) + 2px);margin-bottom:8px">墓碑銘を書く</div>
+  <div>墓に刻む言葉を入力してください（30字まで）。</div>
+  <input id="epitaph-input" type="text" maxlength="30" style="margin-top:8px;width:100%;box-sizing:border-box;background:var(--ink);border:2px solid var(--border);color:var(--white2);font-size:var(--font-base);padding:7px;border-radius:3px">
+  <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
+   <button class="wild-btn" id="epi-ok">これを刻む</button>
+   <button class="wild-btn" id="epi-cancel">やめる</button>
+  </div></div>`;
+ document.body.appendChild(ov);
+ const close = ()=>{ const o = document.getElementById('epitaph-ask'); if(o) o.remove(); };
+ const inp = document.getElementById('epitaph-input');
+ inp.focus();
+ const ok = ()=>{
+  const t = _epitaphClean(inp.value);
+  if(!t){ showSaveToast('言葉を入力してください'); return; }
+  close(); propertyBuryDo(townId, name, t);
+ };
+ document.getElementById('epi-ok').onclick = ok;
+ inp.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.isComposing) ok(); });
+ document.getElementById('epi-cancel').onclick = close;
+}
+function propertyBuryDo(townId, name, epitaph){
+ const prop = PC.properties[townId];
+ const n = (PC.party||[]).find(m=>m.name===name && m.con<=0);
+ if(!prop || !n) return;
+ prop.graves = prop.graves || [];
+ const cur = getCurrentDate();
+ prop.graves.push({name:n.name, date:`${cur.year}年${cur.month}月${cur.day}日`, epitaph:_epitaphClean(epitaph)});
+ PC.party = (PC.party||[]).filter(m=>m.name !== n.name);
+ addLifeEvent('', `${n.name}を${propName(townId)}に埋葬した。`);
+ updateHUD();
+ showSaveToast(` ${n.name}を埋葬した`);
+ propertyViewGraves(townId);
 }
 
 // ── 拠点拡張 ──────────────────────────────────────────────
@@ -7541,15 +7583,15 @@ function propertyShopAddPick(townId, kind){
  groupByName(invAvail).forEach(g=>{
   const base = _shopBasePrice(kind, g.items[0], townId);
   const countTxt = g.items.length > 1 ? ` ×${g.items.length}` : '';
-  choices.push({label:`[所持] ${g.name}${countTxt}（定価目安 ${base}GP）`, fn:()=>propertyShopSetPrice(townId, kind, g.items, ()=>{
-   g.items.forEach(it=>{ const idx = src.inv.indexOf(it); if(idx>=0) src.inv.splice(idx,1); });
+  choices.push({label:`[所持] ${g.name}${countTxt}（定価目安 ${base}GP）`, fn:()=>propertyShopSetPrice(townId, kind, g.items, (sub)=>{
+   sub.forEach(it=>{ const idx = src.inv.indexOf(it); if(idx>=0) src.inv.splice(idx,1); });
   })});
  });
  groupByName(src.stor).forEach(g=>{
   const base = _shopBasePrice(kind, g.items[0], townId);
   const countTxt = g.items.length > 1 ? ` ×${g.items.length}` : '';
-  choices.push({label:`[保管] ${g.name}${countTxt}（定価目安 ${base}GP）`, fn:()=>propertyShopSetPrice(townId, kind, g.items, ()=>{
-   g.items.forEach(it=>{ const idx = src.stor.indexOf(it); if(idx>=0) src.stor.splice(idx,1); });
+  choices.push({label:`[保管] ${g.name}${countTxt}（定価目安 ${base}GP）`, fn:()=>propertyShopSetPrice(townId, kind, g.items, (sub)=>{
+   sub.forEach(it=>{ const idx = src.stor.indexOf(it); if(idx>=0) src.stor.splice(idx,1); });
   })});
  });
  choices.push({label:'← 戻る', fn:()=>propertyShopAddItem(townId)});
@@ -7558,13 +7600,21 @@ function propertyShopAddPick(townId, kind){
 
 function propertyShopSetPrice(townId, kind, items, removeFromSource){
  const base = _shopBasePrice(kind, items[0], townId) || 10;
+ // 同名の品が複数あるときは、まず何点並べるかを決める（空欄・Enterなら全部）
+ if(items.length > 1){
+  const cIn = prompt(`「${items[0].name}」は${items.length}点あります。何点並べますか？（1〜${items.length}）`, String(items.length));
+  if(cIn === null) return;
+  const c = parseInt(cIn, 10);
+  if(!c || c < 1 || c > items.length){ showSaveToast(`1〜${items.length}の数を入力してください`); return; }
+  items = items.slice(0, c);
+ }
  const countTxt = items.length > 1 ? `　※${items.length}点まとめて同じ価格になります` : '';
- const input = prompt(`「${items[0].name}」の販売価格を入力してください（定価目安：${base}GP）${countTxt}`, String(base));
+ const input = prompt(`「${items[0].name}」の販売価格を入力してください（1点あたり。定価目安：${base}GP）${countTxt}`, String(base));
  if(input === null) return;
  const price = parseInt(input, 10);
  if(!price || price <= 0){ showSaveToast('正しい価格を入力してください'); return; }
  const shop = _propShop(townId);
- removeFromSource();
+ removeFromSource(items);
  items.forEach(item=>{ shop.shelf.push({ kind, item, price }); });
  showSaveToast(`${items[0].name}を${items.length>1?`${items.length}点、`:''}${price}GPで棚に並べた`);
  propertyShop(townId);
@@ -16154,6 +16204,7 @@ function npcLearnSpell(npcIdx, spellName, lv, isRogue){
 function dismissNPC(idx){
  const npc = PC.party[idx];
  if(!npc) return;
+ if(npc.con<=0){ showSaveToast('亡くなった仲間は、町の広場の共同墓地で埋葬できます'); return; }
  if(!confirm(`${npc.name} を解散しますか？`)) return;
  PC.party.splice(idx,1);
  addFormerCompanion(npc);
@@ -16623,6 +16674,7 @@ function makeRecruitNodes(){
  }
  // 現在のパーティメンバーを解散
  (PC.party||[]).forEach((n,i)=>{
+  if(n.con<=0) return;   // 亡くなった仲間は解散ではなく、広場の共同墓地で埋葬する
   choices.push({
    label:` ${n.name}を解散させる`,
    fn:()=>{
@@ -17271,6 +17323,7 @@ function loadAutoSave(){
  _migrateBackgroundMotiveIfNeeded();
  // 装備参照の結び付け直し（セーブ/ロードで見た目上の複製が生まれる問題の修正）
  _reconcileEquipRefs(PC);
+ (PC.party||[]).forEach(npc=>{ if(npc && npc.con<=0) npc._fallenLogged = true; });   // 過去に倒れた仲間は、後から人生の記録に重複して出さない
  (PC.party||[]).forEach(npc=>_reconcileEquipRefs(npc));
  ['title-screen','chargen','shop-area'].forEach(id=>{
   document.getElementById(id)?.classList.add('hidden');
@@ -17423,6 +17476,11 @@ function archiveCurrentPC(reason){
   if(PC[def.stateProp]) ws.lairDungeons[key] = JSON.parse(JSON.stringify(PC[def.stateProp]));
  });
  // 危機的状況からのPC主導の回復の記録（世界に残る記録なので世代交代しても引き継ぐ）
+ // 各町の共同墓地の記録（世代交代しても引き継ぐ）
+ if(PC._townGraves){
+  ws.townGraves = ws.townGraves || {};
+  Object.keys(PC._townGraves).forEach(t=>{ ws.townGraves[t] = mergeArray(ws.townGraves[t], PC._townGraves[t], 'name'); });
+ }
  if(PC._regionWasCrisis) ws.regionWasCrisis = JSON.parse(JSON.stringify(PC._regionWasCrisis));
  if(PC._regionCrisisRecord) ws.regionCrisisRecord = JSON.parse(JSON.stringify(PC._regionCrisisRecord));
 
@@ -17786,6 +17844,7 @@ function loadGame(slot){
  _migrateBackgroundMotiveIfNeeded();
  // 装備参照の結び付け直し（セーブ/ロードで見た目上の複製が生まれる問題の修正）
  _reconcileEquipRefs(PC);
+ (PC.party||[]).forEach(npc=>{ if(npc && npc.con<=0) npc._fallenLogged = true; });   // 過去に倒れた仲間は、後から人生の記録に重複して出さない
  (PC.party||[]).forEach(npc=>_reconcileEquipRefs(npc));
  // パーティNPCの旧データ移行
  (PC.party||[]).forEach((npc,i)=>{
@@ -20715,7 +20774,7 @@ function wildStepDays(w){ return wildStepDaysFor(w && w.quake, 1, w && wildMapDp
 // 旅の途中で「荒野へ足を踏み入れる」を出せる旅か（出せるなら経路キーを返す）
 function wildEligible(ts){
  if(!ts || !ts.fromId || !ts.toId) return null;
- if(ts.method !== 'walk' || ts._troupeLeg || PC._tutorial) return null;   // 地方またぎでなくても、地図（地方内の1日マス）があれば入れる
+ if(ts.method !== 'walk' || ts._troupeLeg || (PC._tutorial && PC._tutorial.step !== 'done')) return null;   // 地方またぎでなくても、地図（地方内の1日マス）があれば入れる
  if(typeof _getActiveCompanionDeliveryQuest === 'function' && _getActiveCompanionDeliveryQuest()) return null;
  // リリース版では、カザーヌ地方内（両端の町がカザーヌ地方）の荒野への入口を出さない（開発版には残す）
  if(BUILD_MODE !== 'dev' && getRegionKey(ts.fromId) === 'khazan_region' && getRegionKey(ts.toId) === 'khazan_region') return null;
@@ -20728,7 +20787,24 @@ function wildUpdateBtn(){
  if(!b) return;
  const ts = travelState;
  const key = wildEligible(ts);
- if(!key){ b.style.display = 'none'; return; }
+ if(!key){
+  if(BUILD_MODE === 'dev' && ts){   // 開発版のみ：出ない理由を表示する（調査用）
+   if(b._origTxt == null) b._origTxt = b.textContent;
+   let why = '';
+   if(!ts.fromId || !ts.toId) why = '出発地/目的地が不明(' + ts.fromId + '>' + ts.toId + ')';
+   else if(ts.method !== 'walk') why = '徒歩ではない(' + ts.method + ')';
+   else if(ts._troupeLeg) why = '一座の旅';
+   else if(PC._tutorial && PC._tutorial.step !== 'done') why = 'チュートリアル中';
+   else if(_getActiveCompanionDeliveryQuest()) why = '同行配達クエスト進行中';
+   else if(!wildRouteKeyFor(ts.fromId, ts.toId)) why = '荒野マップなし(' + ts.fromId + '>' + ts.toId + ')';
+   else why = 'その他';
+   b.style.display = ''; b.disabled = true; b.style.opacity = '0.45';
+   b.textContent = '［開発版］荒野に入れない理由：' + why;
+   return;
+  }
+  b.style.display = 'none'; return;
+ }
+ if(b._origTxt != null) b.textContent = b._origTxt;
  b.style.display = '';
  const ok = !!(ts._tickPending && !ts._wildPaused && ts.daysDone >= 1 && ts.daysDone < ts.totalDays
   && !cbtState && !document.getElementById('wild-confirm'));
@@ -20928,7 +21004,7 @@ function wildChoices(){
   if(!c || c.def.block) return;
   out.push({label: `${WILD_COMPASS[ci]}へ進む`, fn: ()=>wildMove(f), _wildCi: ci});
  });
- if(cur.t === '=') out.push({label: '街道に戻って旅を再開する', fn: ()=>wildReturn(), _wildCi: 'c'});
+ if(cur.t === '=') out.push({label: '街道に戻って旅を再開する', fn: ()=>wildReturnAsk(), _wildCi: 'c'});
  // 街道の両端では、そこが起点の町へ入れる（左端＝経路名の前の町、右端＝後の町）
  if(cur.t === '=' && (w.col === 0 || w.col === map.w - 1)){
   const tid = w.key.split('__')[w.col === 0 ? 0 : 1];
@@ -21243,7 +21319,30 @@ function wildCampFight(camp, assault){
 }
 
 // 街道に戻って旅を再開する（街道の列の位置から、旅の進み具合を復元する）
-function wildReturn(){
+// 街道へ戻るとき、どちらの町へ向かうかを選ぶ
+function wildReturnAsk(){
+ const w = PC._wild;
+ if(!w || document.getElementById('wild-return-ask')) return;
+ const nm = id=>(TOWNS[id] || {}).name || id;
+ const ov = document.createElement('div');
+ ov.id = 'wild-return-ask';
+ ov.style.cssText = 'position:fixed;inset:0;background:#000a;z-index:9997;display:flex;align-items:center;justify-content:center;padding:16px';
+ ov.innerHTML = `<div style="background:var(--info-bg);border:2px solid #686048;border-radius:6px;padding:16px;max-width:420px;width:100%;color:#e8e0d0;font-size:calc(var(--font-sm));line-height:1.7">
+  <div style="color:#f0ece0;font-size:calc(var(--font-sm) + 2px);margin-bottom:8px">街道に戻ります</div>
+  <div>街道に出たあと、どちらへ向かいますか？</div>
+  <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
+   <button class="wild-btn" id="wra-fwd">${nm(w.toId)}へ向かう</button>
+   <button class="wild-btn" id="wra-back">${nm(w.fromId)}へ引き返す</button>
+   <button class="wild-btn" id="wra-cancel">やめる（荒野にとどまる）</button>
+  </div></div>`;
+ document.body.appendChild(ov);
+ const close = ()=>{ const o = document.getElementById('wild-return-ask'); if(o) o.remove(); };
+ document.getElementById('wra-fwd').onclick = ()=>{ close(); wildReturn(false); };
+ document.getElementById('wra-back').onclick = ()=>{ close(); wildReturn(true); };
+ document.getElementById('wra-cancel').onclick = close;
+}
+
+function wildReturn(back){
  const w = PC._wild;
  if(!w) return;
  const map = WILD_MAPS[w.key];
@@ -21251,7 +21350,14 @@ function wildReturn(){
  const cp = w.rev ? N - 1 - w.col : w.col;
  let nd = Math.round((cp + w.frac) / N * T);
  nd = Math.max(1, Math.min(T - 1, nd));
- const fromId = w.fromId, toId = w.toId, method = w.travel.method || 'walk';
+ let fromId = w.fromId, toId = w.toId;
+ const method = w.travel.method || 'walk';
+ if(back){   // 引き返す：出発地と目的地を入れ替え、進み具合も反対側から数える
+  fromId = w.toId; toId = w.fromId;
+  nd = Math.max(1, Math.min(T - 1, T - nd));
+  PC.town = toId;
+  updateHUD();
+ }
  PC._wild = null;
  drawScene('travel');
  showTravelImage(method, fromId, toId);
@@ -25892,6 +25998,16 @@ function arcLetterIntro(l){
  const c = arcLetterCtx(l); if(!c) return '';
  return `覚えているだろうか。${c}で関わった、${l.skill ? l.skill + 'の' : ''}${l.npcName}だ。`;
 }
+// 手紙の追加文（2〜4通目の近況）：職種ごとに5種
+const ARC_LETTER_UPD_EXTRA = {
+ 鍵師:['錠前の修理で、町の宿屋に出入りするようになった。','細工物の鍵を一つ、作ってみた。出来はまずまずだ。','盗人除けの錠を頼まれた。皮肉なものだ。','古い鍵束を譲り受けた。どれも、鍵穴が分からない。','指先の感覚が、少し戻ってきた気がする。'],
+ 斥候:['川の浅瀬を見つけた。渡るなら今の季節がいい。','野営の跡を辿って、迷子を一人、見つけた。','山の鳥の声が変わった。そろそろ雪になる。','弓の弦を張り替えた。まだ勘は鈍っていない。','夜道を歩くのが、少しだけ億劫になってきた。'],
+ 学者:['古い地図の写しを手に入れた。町の名が今と違う。','迷宮の壁の落書きを、書き留めている。意外な発見がある。','若い書生が、押しかけて来るようになった。','古語の辞書を編んでいる。先は長い。','蔵書が増えすぎて、寝る場所が危うい。'],
+ 魔術師:['雨の日の実験は、湿気で失敗が多い。','古い杖を修理に出した。しばらくは手元にない。','星の巡りを記録している。気づくことが多い。','近所の薬師と、薬草を分け合う仲になった。','詠唱の練習で、隣家から苦情が来た。'],
+ 案内人:['橋が一つ、新しく架かった。旅が少し楽になる。','迷いやすい分かれ道に、目印の石を置いた。','霧の濃い朝は、峠を越えないほうがいい。','野宿に向く場所を、いくつか見つけた。','道端の泉を掃除した。澄んだ水が戻った。'],
+ 元仲間:['昔の戦の話を、子供たちにせがまれる。','古い剣を研ぎに出した。刃こぼれが、昔を思い出させる。','かつての仲間の墓に、花を供えてきた。','噂話を聞くのが、日課になった。','酒の量が減った。年のせいだ。'],
+ _default:['近所の子供に、字を教えている。','雨続きで、外に出られない日が続いた。','古い友人から、珍しい茶葉をもらった。','畑を少し広げた。','夜が長くなってきた。'],
+};
 function arcLetterText(l){
  const n = l.count + 1, here = arcTown(l.town), N = l.npc1;
  const _endLines = ({
@@ -25902,7 +26018,7 @@ function arcLetterText(l){
   keyDone:[`${N}のことは、今も折に触れて思い出す。`,`${N}の声を、ふとした折に思い出す。`,`${N}との約束は、果たせたと思っている。`,`${N}のことを語れる相手は、もうあなたくらいだ。`],
  })[l.endKind] || ['あの仕事のことは、今となっては穏やかな思い出だ。','あの仕事のことを、ときどき思い返す。','あの頃のことは、今では懐かしい。','あの仕事で出会えたことを、ありがたく思っている。'];
  const endLine = _endLines[Math.floor(Math.random() * _endLines.length)];
- const upd = ({
+ const _updBase = ({
   鍵師:['小さな店を構えた。錠前を直す客が、思ったより多い。','珍しい錠を預かった。久しぶりに、手が震えた。','弟子入りを頼まれた。断ったが、しつこい。',
    '古い錠前の図面を手に入れた。眺めているだけで日が暮れる。','開かずの金庫を頼まれた。三日かかったが、開いた。','道具を新調した。手になじむまで、もう少しかかりそうだ。',
    '町の蔵の鍵を任された。信用されるのは、悪くない。','昔の癖で、扉の鍵が気になって仕方がない。'],
@@ -25922,20 +26038,45 @@ function arcLetterText(l){
    '昔の装備を引っ張り出して、手入れをした。','酒場で、かつての武勇伝を聞かされた。尾ひれがついていた。','旅に出ていた頃が、ふと恋しくなる夜がある。',
    '古い傷が、天気を告げてくれる。','年を重ねたが、まだ剣は握れる。'],
  })[l.skill] || ['変わりなく暮らしている。','日々の仕事に追われている。','季節が一つ、過ぎた。','近所の者と、茶を飲む日が増えた。','庭の手入れに凝りはじめた。','穏やかな日が続いている。'];
+ const upd = _updBase.concat(ARC_LETTER_UPD_EXTRA[l.skill] || ARC_LETTER_UPD_EXTRA._default);
  // 近況は、これまでに使っていない文からランダムに選ぶ（使い切ったら最初から）
  if(!Array.isArray(l.usedUpd)) l.usedUpd = [];
  let _pool = upd.map((_, k)=>k).filter(k=>!l.usedUpd.includes(k));
  if(!_pool.length){ l.usedUpd = []; _pool = upd.map((_, k)=>k); }
  const _pick = _pool[Math.floor(Math.random() * _pool.length)];
  let body;
- if(n === 1) body = `無事に${here}に落ち着いた。${endLine}あらためて、礼を言う。`;
- else if(n >= ARC_D_LETTER_MAX) body = `${here}で、落ち着いた暮らしを送っている。もう便りは出さないかもしれないが、元気で。`;
+ if(n === 1){
+  const _f1 = [
+   `無事に${here}に落ち着いた。${endLine}あらためて、礼を言う。`,
+   `${here}に着いた。道中は何事もなかった。${endLine}礼を言いたくて筆を執った。`,
+   `ようやく${here}で腰を落ち着けた。${endLine}改めて、ありがとう。`,
+   `${here}に無事に着いたことを知らせる。${endLine}礼は、顔を合わせたときに改めて言う。`,
+   `${here}での暮らしが始まった。${endLine}まずは、礼を言わせてほしい。`,
+   `長い道のりだったが、${here}にたどり着いた。${endLine}あなたに礼を言いたかった。`];
+  body = _f1[Math.floor(Math.random() * _f1.length)];
+ }
+ else if(n >= ARC_D_LETTER_MAX){
+  const _f5 = [
+   `${here}で、落ち着いた暮らしを送っている。もう便りは出さないかもしれないが、元気で。`,
+   `${here}で、静かに暮らしている。便りは、これで最後にするつもりだ。どうか、達者で。`,
+   `${here}にて。もう書くことも尽きた。これが最後の便りになるだろう。元気で。`,
+   `${here}より。変わりのない日々だ。これを最後に、筆を置くことにする。道中の無事を祈っている。`,
+   `${here}で、穏やかに暮らしている。長く便りを送ったが、これで終わりにする。いつかまた、どこかで。`,
+   `${here}の暮らしにも、すっかり馴染んだ。便りはこれで最後になるが、あなたのことは忘れない。`];
+  body = _f5[Math.floor(Math.random() * _f5.length)];
+ }
  else { l.usedUpd.push(_pick); body = `${here}より。${upd[_pick]}そちらも、息災でいてほしい。`; }
  return `${arcLetterIntro(l)}${body}　——${l.npcName}`;
 }
 function arcLettersHtmlParts(){
  const now = GAME_TIME.totalDays;
- return arcLetterPending().map(l=>{
+ // 届いている手紙が複数あっても、1度に受け取るのは1通。次の手紙は1〜2週間ほど間をあける（同じ日にまとめて届くのを避ける）
+ const pend = arcLetterPending();
+ if(!pend.length) return [];
+ if(PC._arcLetterNext != null && now < PC._arcLetterNext && PC._arcLetterNext - now <= 30) return [];
+ const pick = pend[Math.floor(Math.random() * pend.length)];
+ PC._arcLetterNext = now + arcRand(7, 14);
+ return [pick].map(l=>{
   if(l.custom){
    l.pending = false; l.done = true;
    const cx = arcLetterCtx(l);
@@ -37035,6 +37176,62 @@ function _plazaSpeaker(ph){
   afternoon:['ベンチで話し込んでいた住人','買い物帰りの住人'], night:['帰り道の住人','酒場へ向かう職人'], midnight:['夜更かしの住人','見回りの衛兵']};
  return arcDesc(p, arcPick(roles[ph.key] || ['住人']));
 }
+// ── 共同墓地（無縁墓地）：各町の広場から訪ねる。墓碑銘はなく、埋葬料もかからない ──
+function townGraveList(townId){
+ if(!PC._townGraves) PC._townGraves = {};
+ if(!Array.isArray(PC._townGraves[townId])) PC._townGraves[townId] = [];
+ return PC._townGraves[townId];
+}
+function showTownCemetery(townId, backFn){
+ const town = TOWNS[townId];
+ const townName = town?.name || townId;
+ const graves = townGraveList(townId);
+ const dead = (PC.party||[]).filter(n=>n.con<=0);
+ const story = document.getElementById('story');
+ let html = ` <span style="color:#f0ece0">${townName} 共同墓地</span><br><br>`
+  + `<span style="color:#c0b098">身寄りのない者や旅の途中で倒れた者を葬る、町の共同墓地。墓碑銘のない素朴な石が並んでいる。</span><br><br>`;
+ if(graves.length){
+  html += `<span style="color:#c0b098">この町の共同墓地に葬った仲間：</span><br><br>`;
+  graves.forEach(g=>{
+   html += `<div style="border-left:2px solid #554433;padding:6px 10px;margin-bottom:8px">`
+    +`<span style="color:#ccbbaa"> <b>${g.name}</b></span>`
+    +`<span style="color:#d0c8b8;font-size:calc(var(--font-sm) - 1px)">　${g.typeJa?'元'+g.typeJa+'・':''}${g.date||'日付不明'}没</span>`
+    +`</div>`;
+  });
+ } else {
+  html += `<span style="color:#c0b098">この町の共同墓地には仲間を埋葬していない。</span>`;
+ }
+ if(PC.properties && PC.properties[townId]) html += `<br><br><span style="color:#a09078">この町には自分の拠点があり、拠点にも墓地がある。そちらなら墓碑銘のある墓に葬ることができる。</span>`;
+ if(dead.length) html += `<br><span style="color:#e8e0d0"> 埋葬を待っている者：${dead.map(n=>n.name).join('、')}</span>`;
+ story.innerHTML = html;
+ const choices = dead.map(n=>({label:` ${n.name}を埋葬する`, fn:()=>communalBury(townId, n.name, backFn)}));
+ choices.push({label:'← 広場に戻る', fn:()=>{ if(backFn) backFn(); }});
+ renderChoices(choices);
+}
+function communalBury(townId, name, backFn){
+ const n = (PC.party||[]).find(m=>m.name===name && m.con<=0);
+ if(!n) return;
+ const cur = getCurrentDate();
+ const typeJa = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[n.type] || '';
+ townGraveList(townId).push({name:n.name, date:`${cur.year}年${cur.month}月${cur.day}日`, typeJa});
+ PC.party = (PC.party||[]).filter(m=>m!==n);   // 持ち物はそのまま一緒に埋葬する
+ addLifeEvent('', `${n.name}を${TOWNS[townId]?.name||townId}の共同墓地に埋葬した。`);
+ updateHUD();
+ showSaveToast(` ${n.name}を埋葬した`);
+ showTownCemetery(townId, backFn);
+}
+// 戦いで倒れた仲間を、人生の記録に1回だけ残す（闘技場の試合は勝てば復活するので対象外）
+function logFallenCompanions(){
+ if(cbtState && cbtState.arenaMode) return;
+ (PC.party||[]).forEach(n=>{
+  if(!n) return;
+  if(n.con>0){ if(n._fallenLogged) n._fallenLogged = false; return; }
+  if(n._fallenLogged) return;
+  n._fallenLogged = true;
+  addLifeEvent('', `戦いで${n.name}が命を落とした。`);
+ });
+}
+
 function plazaTalkChoices(townId, backFn){
  const day = GAME_TIME.totalDays;
  const ph = villagePhase(getGameHour());
@@ -37050,7 +37247,8 @@ function plazaTalkChoices(townId, backFn){
   showSaveToast(` 話し込むうちに、${villagePhase(getGameHour()).label}になっていた`);
   if(backFn) backFn();                 // 広場の画面を先に描き直し、時間帯の表示を新しくする
   plazaTalk(townId, ph, null);
- }}];
+ }},
+ {label:' 共同墓地を訪ねる', fn:()=>showTownCemetery(townId, backFn)}];
 }
 function plazaTalk(townId, ph, backFn){
  const who = _plazaSpeaker(ph);
@@ -38051,12 +38249,35 @@ function _ydValdheimDarkChoice(floor, fallbackTown){
  };
 }
 
+// 討伐ダンジョンの探索フラグ（yd_*）は他のダンジョンへ入るたびに消されるため、討伐ダンジョン側に控えを持つ
+function ydSnapFlags(dung){
+ const o = {};
+ Object.keys(PC).forEach(k=>{ if(k.startsWith('yd_')) o[k] = PC[k]; });
+ dung._flagSave = JSON.parse(JSON.stringify(o));
+}
+function ydRestoreFlags(dung){
+ if(!dung || !dung._flagSave) return;
+ Object.keys(PC).filter(k=>k.startsWith('yd_')).forEach(k=>delete PC[k]);
+ Object.assign(PC, JSON.parse(JSON.stringify(dung._flagSave)));
+}
+function huntKilledCount(dung){
+ if(!dung || !dung.killedKeys) return 0;
+ const cur = PC._yeldunDungeon;
+ const src = (cur && cur.huntQuestId && cur.huntQuestId === dung.huntQuestId) || !dung._flagSave ? PC : dung._flagSave;
+ return dung.killedKeys.filter(k=>src[k]).length;
+}
 function ydGoNode(nodeId, floor){
  if(!PC._yeldunDungeon) return;
  // 酒場パネルが開いたままダンジョンへ移動した場合に備え、確実に閉じる
  const _pp = document.getElementById('patron-panel');
  if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
  const dung  = PC._yeldunDungeon;
+ if(dung.isHuntDungeon){
+  ydSnapFlags(dung);
+  // ロード後は依頼側のダンジョンと別オブジェクトになるため、いま探索中のものを依頼側に結び直す
+  const _hq = (PC.quests||[]).find(qq=>qq.id===dung.huntQuestId);
+  if(_hq && _hq.ydDungeon !== dung) _hq.ydDungeon = dung;
+ }
  if(dung._chestSkipNode && dung._chestSkipNode !== nodeId) dung._chestSkipNode = null;
  floor = floor || dung.currentFloor;
  dung.currentFloor = floor;
@@ -45722,8 +45943,7 @@ function startHuntQuest(questId){
 
  // 討伐進捗
  const total = q.ydDungeon.targetCount || 0;
- const killed = q.ydDungeon.killedKeys
-  ? q.ydDungeon.killedKeys.filter(k=>PC[k]).length : 0;
+ const killed = huntKilledCount(q.ydDungeon);
 
  storyEl.innerHTML = `
   <div style="border:1px solid #484848;border-radius:4px;padding:12px;background:#0c0900">
@@ -45738,6 +45958,7 @@ function startHuntQuest(questId){
   { label:' 出発する', fn:()=>{
    // YDダンジョンに切り替え
    PC._yeldunDungeon = q.ydDungeon;
+   ydRestoreFlags(q.ydDungeon);
    initTorch();
    ydGoNode(q.ydDungeon.floors[1].entryNodeId, 1);
   }},
@@ -46447,8 +46668,7 @@ function resumeCompanionHuntQuest(questId){
   ? `<span style="color:#f0ece0"> 松明を ${torches}本 持っている。</span>`
   : `<span style="color:#e0d0d0"> 松明を持っていない！暗闇の中を進むことになる。</span>`;
  const total = q.ydDungeon.targetCount || 0;
- const killed = q.ydDungeon.killedKeys
-  ? q.ydDungeon.killedKeys.filter(k=>PC[k]).length : 0;
+ const killed = huntKilledCount(q.ydDungeon);
  storyEl.innerHTML = `
   <div style="border:1px solid #4a6a34;border-radius:4px;padding:12px;background:#0a0d08">
    <div style="color:#f0ece0;font-size:var(--font-base);margin-bottom:8px"> ${q.leader.name}の一団と共にダンジョンへ戻る：${q.caveName}</div>
@@ -46459,6 +46679,7 @@ function resumeCompanionHuntQuest(questId){
  renderChoices([
   { label:' 再突入する', fn:()=>{
    PC._yeldunDungeon = q.ydDungeon;
+   ydRestoreFlags(q.ydDungeon);
    initTorch();
    ydGoNode(q.ydDungeon.floors[1].entryNodeId, 1);
   }},
@@ -46613,7 +46834,7 @@ function getActiveHuntChoices(townId){
  const hunts = (PC.quests||[]).filter(q=>q.type==='hunt' && q.status==='active' && q.fromTownId===townId);
  return hunts.map(q=>{
   const total  = q.rooms?.reduce((s,r)=>s+r.count,0)||0;
-  const killed = q.ydDungeon?.killedKeys?.filter(k=>PC[k]).length||0;
+  const killed = huntKilledCount(q.ydDungeon);
   const prog   = q.ydDungeon ? ` （${killed}/${total}体討伐済み）` : '';
   return {
   label:` 討伐へ出発：${q.caveName}（${q.monsterName}${prog}）`,
@@ -51110,7 +51331,7 @@ function pickTravelRumor(){
 // 進行中（出発済み・経由町で足止め中でない）の同行配達依頼を返す
 function _getActiveCompanionDeliveryQuest(){
  return (PC.quests||[]).find(q=>
-  q.type==='companionDelivery' && q.status==='active' && q._started && !q.isPausedAt
+  q && q.type==='companionDelivery' && q.status==='active' && q._started && !q.isPausedAt
  ) || null;
 }
 
@@ -52805,6 +53026,10 @@ function startGame(){
   PC._regionConditionAmbient = undefined;
  }
  // 危機的状況からのPC主導の回復の記録も引き継ぐ（先代以前の功績として残り、未回復の「危機的に達した」フラグも持ち越す）
+ if(PC._inheritedTownGraves){
+  PC._townGraves = PC._inheritedTownGraves;
+  PC._inheritedTownGraves = undefined;
+ }
  if(PC._inheritedRegionWasCrisis){
   PC._regionWasCrisis = PC._inheritedRegionWasCrisis;
   PC._inheritedRegionWasCrisis = undefined;
@@ -52973,6 +53198,7 @@ function canEquipWeapon(w, actor){
  const eq = actor.equippedWeapons || [];
  const hasShield = (actor.equippedArmors||[]).some(a=>a.isShield);
  if(eq.includes(w)) return {ok:false, reason:'すでに装備中'};
+ if(actor.equippedRanged === w) return {ok:false, reason:'遠距離武器として装備中です。先に外してください'};
  if(w.twoHand){
  if(eq.length>0) return {ok:false, reason:'他の武器を外してください'};
  if(hasShield) return {ok:false, reason:'盾を外してください（両手武器）'};
@@ -53017,6 +53243,11 @@ function equipRanged(idx){
  const w = PC.invWeapons[idx];
  if(!w || !isRangedWeapon(w)) return;
  if(PC.type === 'wizard'){ showSaveToast('魔法使いは遠距離武器を装備できません'); return; }
+ // 参照が切れていても（ロード・世代引き継ぎ後など）、中身が同じで所持数がすべて近接装備に使われているなら、同じ1本とみなす
+ const _wJ = JSON.stringify(w);
+ const _eqCopies = (PC.equippedWeapons||[]).filter(e=>e===w || JSON.stringify(e)===_wJ).length;
+ const _invCopies = (PC.invWeapons||[]).filter(e=>e===w || JSON.stringify(e)===_wJ).length;
+ if(_eqCopies > 0 && _invCopies <= _eqCopies){ showSaveToast(' 近接武器として装備中です。先に外してください'); return; }   // 同じ1本を近接と遠距離の両方に装備すると、外したとき増えてしまう
  if(PC.equippedRanged) PC.invWeapons.push(PC.equippedRanged); // 既存を所持に戻す
  PC.invWeapons.splice(idx, 1); // スロットから削除
  PC.equippedRanged = w;
@@ -55723,7 +55954,9 @@ function renderNPCDetail(el, n, idx){
  <button onclick="showItemTransfer(${idx})" style="width:100%;font-size:calc(var(--font-sm) - 2px);padding:10px;background:var(--ink);border:1px solid #505050;color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px;margin-top:4px"> アイテムを受け渡す</button>
 
  <!-- 解散ボタン -->
- <button onclick="dismissNPC(${idx})" style="width:100%;font-size:calc(var(--font-sm) - 2px);padding:10px;background:#1a0e06;border:1px solid #550022;color:#e0d0d0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px;margin-top:6px"> ${n.name}を解散させる</button>
+ ${n.con<=0
+ ? `<div style="font-size:calc(var(--font-sm) - 2px);padding:10px;color:#c8b8a0;border:1px solid #484038;border-radius:3px;margin-top:6px;text-align:center">${n.name}は亡くなっている。町の広場の共同墓地で埋葬できる</div>`
+ : `<button onclick="dismissNPC(${idx})" style="width:100%;font-size:calc(var(--font-sm) - 2px);padding:10px;background:#1a0e06;border:1px solid #550022;color:#e0d0d0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px;margin-top:6px"> ${n.name}を解散させる</button>`}
 
  <!-- 話しかけるボタン -->
  ${alive ? `<button onclick="talkToNPC(${idx})" style="width:100%;font-size:calc(var(--font-sm) - 2px);padding:10px;background:var(--ink);border:1px solid var(--bark);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px;margin-top:6px"> ${n.name}に話しかける</button>` : ''}
@@ -57897,6 +58130,7 @@ function startAsNPC(npcIdx){
  if(ws.settlements){ PC._settlements = JSON.parse(JSON.stringify(ws.settlements)); PC._settleLastKey = undefined; }
  if(ws.regionConditionAmbient) PC._regionConditionAmbient = JSON.parse(JSON.stringify(ws.regionConditionAmbient));
  // 危機的状況からのPC主導の回復の記録も引き継ぐ（記録自体は先代のものとして残り、未回復の「危機的に達した」フラグも持ち越す）
+ if(ws.townGraves) PC._townGraves = JSON.parse(JSON.stringify(ws.townGraves));
  if(ws.regionWasCrisis) PC._regionWasCrisis = JSON.parse(JSON.stringify(ws.regionWasCrisis));
  if(ws.regionCrisisRecord) PC._regionCrisisRecord = JSON.parse(JSON.stringify(ws.regionCrisisRecord));
  PC._regionConditionLastKey = undefined; // 新PCの最初のtickで現在月を基準に取り直す
@@ -57932,6 +58166,7 @@ function startNewPCInherit(){
  if(ws && ws.regionCondition) PC._inheritedRegionCondition = JSON.parse(JSON.stringify(ws.regionCondition));
  if(ws && ws.settlements) PC._inheritedSettlements = JSON.parse(JSON.stringify(ws.settlements));
  if(ws && ws.regionConditionAmbient) PC._inheritedRegionConditionAmbient = JSON.parse(JSON.stringify(ws.regionConditionAmbient));
+ if(ws && ws.townGraves) PC._inheritedTownGraves = JSON.parse(JSON.stringify(ws.townGraves));
  if(ws && ws.regionWasCrisis) PC._inheritedRegionWasCrisis = JSON.parse(JSON.stringify(ws.regionWasCrisis));
  if(ws && ws.regionCrisisRecord) PC._inheritedRegionCrisisRecord = JSON.parse(JSON.stringify(ws.regionCrisisRecord));
  if(ws && ws.lairDungeons) PC._inheritedLairDungeons = JSON.parse(JSON.stringify(ws.lairDungeons));
@@ -59590,10 +59825,10 @@ function _reflectSpellBack(caster, fn, lv, onDone, heat){
   }
   if(fn==='ttyf'){
    const dmg = (caster.iq||10) * Math.max(1, lv||1);
-   victim.con = Math.max(0, victim.con - dmg);
+   victim.con = Math.max(0, victim.con - dmg); logFallenCompanions();
    cl.innerHTML += `<span class="red"> 跳ね返った魔法が${who}を撃った！（体力-${dmg}・防護値無視・残り${victim.con}）</span><br>`;
   } else if(fn==='turnToStone'){
-   victim.con = 0;
+   victim.con = 0; logFallenCompanions();
    cl.innerHTML += `<span class="red"> 跳ね返った魔法を浴び、${who}の体が石に変わっていく……</span><br>`;
   } else {
    victim.con = 0;
@@ -59853,7 +60088,7 @@ function _enemyCastAtAlly(enemy, picked, tgt, npcLv, onDone){
    onDone(); return;
   }
   const dmg = (enemy.iq||0)*npcLv;
-  tgt.con = Math.max(0, tgt.con - dmg); updateHUD();
+  tgt.con = Math.max(0, tgt.con - dmg); updateHUD(); logFallenCompanions();
   cl.innerHTML += `<span class="red"> ${_spellFlavor('ttyf_hit', {caster:enemy.name, target:tgt.name})}（体力-${dmg}・防護値無視・残り${tgt.con}）</span>${fell()}<br>`;
   enemy._castTtyfThisRound = true; enemy._ttyfHitThisRound = dmg;
   onDone();
@@ -61491,6 +61726,7 @@ function resolveRoundNPC(pRoll, npcActions){
    targets.forEach(({t,armor,label},idx)=>{
     const dmg = Math.max(1, (perTarget+(idx===0?remainder2:0)) - armor);
     t.con = Math.max(0, t.con - dmg);
+    logFallenCompanions();
     detail += `　<span style="color:#c0b098">→ ${label}: -${dmg} [残体力${t.con}]</span><br>`;
    });
   } else if(enemyTtyfTotal>0){
@@ -62299,6 +62535,7 @@ function resolveRound(pRoll, npcActions){
  targets.forEach(({t,armor,label},idx)=>{
   const dmg = Math.max(1, (perTarget+(idx===0?remainder:0)) - armor);
   t.con = Math.max(0, t.con - dmg);
+  logFallenCompanions();
   if(t===PC){
    detail += `　<span class="red">→ You -${dmg} 体力 [${PC.con}/${PC.maxCon}]</span><br>`;
   } else {
@@ -63596,6 +63833,27 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026111701', sections:[
+  { heading:'新規実装項目', items:[
+   '町の広場に「共同墓地」を追加した。倒れた仲間を持ち物ごと無料で埋葬でき、町ごとに埋葬した仲間の名前を確認できる。記録は世代交代後も引き継ぐ。',
+   '拠点の墓地に埋葬するとき、墓碑銘を候補から選ぶか、自分で書けるようにした。',
+  ]},
+  { heading:'調整', items:[
+   '戦闘で仲間が命を落としたとき、人生の記録に残す。',
+   '倒れた仲間は解散できず、共同墓地または拠点の墓地で埋葬する。',
+   '荒野から街道に戻るとき、どちらの町へ向かうか選べるようにした。',
+   '拠点の店の棚に同名の品を並べるとき、個数を指定できるようにした。',
+   '闘技場では、勝敗にかかわらず倒れた仲間が死なないようにした。',
+  ]},
+  { heading:'不具合修正', items:[
+   'アル・ラシード東方の地下迷宮で、部屋に閉じ込められて戻れなくなる場所があった不具合を修正した。',
+   '王城地下牢で、鎖の守護者の広間から「退く」と行き止まりに移され、戻れなくなる不具合を修正した。',
+   '討伐依頼の途中で他のダンジョンに入ると、討伐数が0に戻る不具合を修正した。',
+   '同じ短剣・鉈を近接と遠距離の両方に装備でき、外すと増えてしまう不具合を修正した。',
+   'チュートリアルを終えているのに、荒野に入れないことがある不具合を修正した。',
+   '闘技場で、長い選択肢が潰れて読めない不具合を修正した。',
+  ]},
+ ]},
  { version:'ver.2026111501', sections:[
   { heading:'新規実装項目', items:[
    'アル・ラシード東方の地下迷宮に、東側の区画を追加した。',
@@ -69811,7 +70069,8 @@ const NODES = {
      },
     });
    }});
-   ch.push({label:'← 退く', fn:()=>cryptMove('CRYPT2_P21')});
+   // 守護者を倒す前に大広間へ入る道は、北壁の落とし格子（P5）だけ。西の扉の先は大広間にしか通じない行き止まりなので、退くときは入ってきた北へ戻る
+   ch.push({label:'← 退く（北壁・落とし格子へ）', fn:()=>cryptMove('CRYPT2_P5')});
    return ch;
   }
   ch.push({label:'← 西壁の扉', fn:()=>cryptMove('CRYPT2_P21')});
@@ -72094,16 +72353,13 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
  scene:'dungeon',
  txt:()=>`<span style="color:#f0ece0">アル・ラシード東方の地下迷宮</span><br><br>
   15m四方の石室。四方の壁に武器掛けの跡が残っているが、武器は全て失われている。<br>
-  南壁西端に鍵のかかった扉、南壁東端に鍵のかかった扉、東壁北端に扉がある。`,
+  南壁西端に鍵のかかった扉、南壁東端に扉、東壁北端に扉がある。`,
  choices:()=>{
   const ch=[];
-  if(PC._alDng_has_key){
-   ch.push({label:'↙ 南西の扉（鍵で開ける）', fn:()=>alMove('AL_ROOM4')});
-   ch.push({label:'↘ 南東の扉（鍵で開ける）', fn:()=>alMove('AL_ROOM11')});
-  } else {
-   ch.push({label:'↙ 南西の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
-   ch.push({label:'↘ 南東の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
-  }
+  // 南東の扉は AL_ROOM11 の北の扉と同じ扉で、施錠されていない（鍵なしで入った場合に戻れなくなるのを防ぐ）
+  if(PC._alDng_has_key) ch.push({label:'↙ 南西の扉（鍵で開ける）', fn:()=>alMove('AL_ROOM4')});
+  else ch.push({label:'↙ 南西の扉（鍵がかかっている）', fn:()=>showSaveToast('鍵がかかっている')});
+  ch.push({label:'↘ 南東の扉', fn:()=>alMove('AL_ROOM11')});
   ch.push({label:'↗ 北東の扉', fn:()=>alMove('AL_PASSAGE4')});
   return ch;
  },
