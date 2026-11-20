@@ -926,6 +926,7 @@ html.cmd-vertical #npc-action-btns > .cmd-skip{ order:-1; }   /* 魔法・遠距
  <!-- 所持金・経験値・レベル -->
  <div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:6px">── 冒険 ──</div>
  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:6px" id="sp-adv"></div>
+ <div id="sp-bank" style="margin-bottom:6px"></div>
  <div id="sp-apbar" style="margin-bottom:10px"></div>
 
  <!-- 性格 -->
@@ -1226,6 +1227,7 @@ let PC = {
  invBoots:false, // 後方互換用（廃止予定）
  invBootsName:null, // 'ブーツ' or 'サンダル'
  _spareFootwear:{}, // 予備の靴の数 {'ブーツ':n,'サンダル':n}
+ _spareWear:{}, // 履いたことのある予備の靴の摩耗 {'ブーツ':[{d,t}]}
  invEquip:[], // その他所持品
  // 松明
  _torchStock: 0,
@@ -1440,6 +1442,7 @@ function giveCurrencyToNPC(npcIdx, currency){
 }
 
 function gainGPAll(totalGP){
+ if(PC._nightmare && PC._nightmare.active) return 0;
  totalGP = Math.floor(totalGP);
  if(totalGP <= 0) return 0;
  // GP増加 → パーティNPCの信頼度+1
@@ -6312,21 +6315,40 @@ const EXPEDITION_TYPES = [
  { id:'trade',   label:'交易随行',     risk:'低',   desc:'隊商に同行して荷運びを手伝う。安定した稼ぎと経験が得られる。' },
 ];
 
+// 遠征から傷ついて戻った者は、体力が満タンに戻るまで拠点で休む。休養の日数が過ぎた者を全快させる
+const EXPEDITION_REST_RATE = 0.5;   // 宿屋の一泊と同じ：1日で最大体力の半分ずつ回復する
+function _expeditionRestSweep(prop){
+ (prop.caretakers||[]).forEach(n=>{
+  if(n._restUntil != null && GAME_TIME.totalDays >= n._restUntil){ n.con = n.maxCon || n.con; delete n._restUntil; }
+ });
+}
+// 傷の深さから、全員が満タンになるまでの休養日数を決める（最も傷の深い者に合わせる）
+function _expeditionRestDays(members){
+ let days = 0;
+ members.forEach(n=>{
+  const mx = n.maxCon || n.con || 1;
+  if(n.con < mx) days = Math.max(days, Math.ceil((mx - n.con) / (mx * EXPEDITION_REST_RATE)));
+ });
+ return days;
+}
 // 留守番パーティを送り出すメンバーを選ぶ画面
 function propertyExpeditionSelectMembers(townId, selected){
  selected = selected || [];
  const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
+ _expeditionRestSweep(prop);
  const caretakers = prop.caretakers||[];
+ const resting = caretakers.filter(n=>n._restUntil != null);
  const story = document.getElementById('story');
 
  story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
   +`<b> 遠征メンバーを選ぶ</b><br><br>`
   +`<span style="color:#c0b098">誰を遠征に送りますか？（1人から可）</span><br>`
+  +(resting.length ? `<span style="color:#c8a890">休養中：${resting.map(n=>`${n.name}（あと${Math.max(1, n._restUntil - GAME_TIME.totalDays)}日）`).join('、')}（傷が癒えるまで遠征に出せない）</span><br>` : '')
   +(selected.length ? `<span style="color:#ffcc88">選択中：${selected.map(n=>n.name).join('、')}</span><br>` : '')
   +(selected.length >= caretakers.length ? `<span style="color:#c05040">⚠ 全員を送ると拠点の留守番が不在になり、盗難のリスクが生じます</span><br>` : '');
 
- const remaining = caretakers.filter(n=>!selected.includes(n));
+ const remaining = caretakers.filter(n=>!selected.includes(n) && n._restUntil == null);
  renderChoices([
   ...remaining.map(n=>({
    label:` ${n.name}を加える（${({warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'})[n.type]||n.type}・Lv${n.level||1}）`,
@@ -6370,7 +6392,15 @@ function _pickExpeditionDestTown(townId){
 
 // 5種の遠征内容を具体的に確定させる（討伐相手・探索先・護衛先などをこの時点で決めて記憶する）
 // 種類を1つ指定して、その内容だけを新しく確定させる（連続遠征の再出発時に使う）
-function _generateSingleExpeditionOffer(townId, typeId){
+// 討伐対象の階級：敵のMR×体数の総量で 0=弱 / 1=中 / 2=強
+const HUNT_TIER_NAMES = ['弱','中','強'];
+const HUNT_TIER_REWARD = [1.0, 1.25, 1.5];   // 階級ごとの報酬（GP・経験値）の倍率
+const HUNT_TIER_NOTE = ['', '油断はできない相手だ', '手練れでなければ危うい'];
+function _huntTier(mEntry, count){
+ const total = (mEntry.mr||0) * (count||1);
+ return total <= 60 ? 0 : (total <= 200 ? 1 : 2);
+}
+function _generateSingleExpeditionOffer(townId, typeId, tierRange){
  // 拠点が領地の場合、地方・目的地の判定は免状の基点となった町を基準にする
  const isFief = isFiefId(townId);
  const fiefCharter = isFief ? getFiefCharter(townId) : null;
@@ -6380,10 +6410,16 @@ function _generateSingleExpeditionOffer(townId, typeId){
   const region = getRegionKey(regionRefTownId) || 'khazan_region';
   const table = HUNT_MONSTER_TABLE[region] || HUNT_MONSTER_TABLE.khazan_region;
   const totalWeight = table.reduce((s,e)=>s+(e.weight!=null?e.weight:1), 0);
-  let r = Math.random()*totalWeight, mEntry = table[table.length-1];
-  for(const e of table){ const w=e.weight!=null?e.weight:1; if(r<w){ mEntry=e; break; } r-=w; }
-  const count = mEntry.minApp + Math.floor(Math.random()*(mEntry.maxApp-mEntry.minApp+1));
-  return { typeId:'hunt', label:` 討伐遠征：${mEntry.name}${count>1?`（${count}体）`:''}の討伐`, target:{mEntry, count} };
+  let mEntry = null, count = 1, tier = 0;
+  for(let tries=0; tries<80; tries++){
+   let r = Math.random()*totalWeight;
+   mEntry = table[table.length-1];
+   for(const e of table){ const w=e.weight!=null?e.weight:1; if(r<w){ mEntry=e; break; } r-=w; }
+   count = mEntry.minApp + Math.floor(Math.random()*(mEntry.maxApp-mEntry.minApp+1));
+   tier = _huntTier(mEntry, count);
+   if(!tierRange || (tier>=tierRange.min && tier<=tierRange.max)) break;   // 繰り返し遠征では階級の範囲内に収める
+  }
+  return { typeId:'hunt', label:` 討伐遠征：【${HUNT_TIER_NAMES[tier]}】${mEntry.name}${count>1?`（${count}体）`:''}の討伐`, target:{mEntry, count, tier} };
  }
  if(typeId === 'explore'){
   const site = EXPEDITION_EXPLORE_SITES[Math.floor(Math.random()*EXPEDITION_EXPLORE_SITES.length)];
@@ -6432,7 +6468,7 @@ function propertyExpeditionSelectType(townId, members){
    const offer = offers[t.id];
    return `<div style="border:1px solid var(--border2);border-radius:4px;padding:6px 8px;margin-top:6px">
    <span style="color:#e0d8c8">${offer.label}</span>　<span style="color:#c8a8a0;font-size:calc(var(--font-sm) - 1px)">リスク：${t.risk}</span><br>
-   <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${t.desc}</span></div>`;
+   <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">${t.desc}${(offer.target && offer.target.tier>0) ? '　'+HUNT_TIER_NOTE[offer.target.tier] : ''}</span></div>`;
   }).join('');
 
  renderChoices([
@@ -6477,6 +6513,7 @@ function propertyExpeditionDepart(townId, members, offer, repeat){
   typeId: offer.typeId,
   offerLabel: offer.label,
   target: offer.target,
+  startTier: (offer.target && offer.target.tier != null) ? offer.target.tier : null,   // 繰り返し時は この階級と1つ下までから選ぶ
   departDay: GAME_TIME.totalDays,
   returnDay: GAME_TIME.totalDays + days,
   repeat: !!repeat,
@@ -6493,7 +6530,7 @@ function propertyExpeditionDepart(townId, members, offer, repeat){
   memberNames: members.map(n=>n.name).join('、'),
   repeat: !!repeat,
  });
- if(prop.expeditionLog.length > 20) prop.expeditionLog.length = 20;
+ if(prop.expeditionLog.length > 40) prop.expeditionLog.length = 40;
  showSaveToast(`${members.map(n=>n.name).join('、')}が${offer.label.trim()}に出発した（${days}日の予定）${repeatNote}`);
  _showPropertyMain(townId);
 }
@@ -6501,6 +6538,7 @@ function propertyExpeditionDepart(townId, members, offer, repeat){
 // 拠点訪問時：帰還予定日を過ぎていれば結果を解決する。戻り値：解決していれば結果HTML、なければnull
 function _checkExpeditionReturn(townId){
  const prop = PC.properties[townId];
+ if(prop) _expeditionRestSweep(prop);
  if(!prop || !(prop.expeditions||[]).length) return null;
 
  const due = prop.expeditions.filter(exp=>GAME_TIME.totalDays >= exp.returnDay);
@@ -6515,6 +6553,7 @@ function _checkExpeditionReturn(townId){
   let currentExp = exp;
   let cycles = 0;
   let lastHtml = '';
+  const cycleLines = [];   // 各回の相手と結果（繰り返し遠征の記録用）
   let cappedOut = false;
 
   // 「停止するまで繰り返す」設定の場合、帰還予定日を迎えるたびに自動で再抽選・再出発させ、
@@ -6527,13 +6566,19 @@ function _checkExpeditionReturn(townId){
     break;
    }
    const wasRepeat = currentExp.repeat && !currentExp.stopRequested;
-   const { html, survivors } = _resolveExpedition(townId, prop, members, currentExp.typeId, currentExp.target||{}, currentExp.offerLabel, currentExp.returnDay);
+   const { html, survivors, restDays, summaryLine } = _resolveExpedition(townId, prop, members, currentExp.typeId, currentExp.target||{}, currentExp.offerLabel, currentExp.returnDay);
    cycles++;
    lastHtml = html;
+   cycleLines.push(summaryLine);
 
    if(wasRepeat && survivors.length){
     if(cycles >= MAX_CYCLES_PER_VISIT){ cappedOut = true; break; } // 続きは次回訪問時に持ち越す
-    const newOffer = _generateSingleExpeditionOffer(townId, currentExp.typeId);
+    let tierRange = null;
+    if(currentExp.typeId === 'hunt'){
+     const st = (currentExp.startTier != null) ? currentExp.startTier : (currentExp.target && currentExp.target.mEntry ? _huntTier(currentExp.target.mEntry, currentExp.target.count) : null);
+     if(st != null) tierRange = { min:Math.max(0, st-1), max:st };
+    }
+    const newOffer = _generateSingleExpeditionOffer(townId, currentExp.typeId, tierRange);
     if(!newOffer){ currentExp = null; break; }
     const memberIds = survivors.map(n=>n._npcId);
     prop.caretakers = (prop.caretakers||[]).filter(n=>!memberIds.includes(n._npcId));
@@ -6546,8 +6591,9 @@ function _checkExpeditionReturn(townId){
      typeId: newOffer.typeId,
      offerLabel: newOffer.label,
      target: newOffer.target,
-     departDay: currentExp.returnDay,
-     returnDay: currentExp.returnDay + days,
+     startTier: currentExp.startTier != null ? currentExp.startTier : null,
+     departDay: currentExp.returnDay + (restDays||0),   // 傷が癒えるまで休んでから、次の遠征に出る
+     returnDay: currentExp.returnDay + (restDays||0) + days,
      repeat: true,
      stopRequested: false,
     };
@@ -6559,6 +6605,7 @@ function _checkExpeditionReturn(townId){
   if(cycles > 1){
    combinedHtml += `<div style="border:1px solid var(--border2);border-radius:4px;padding:10px;margin-top:8px">
     <div style="color:#f0ece0;font-size:var(--font-sm);margin-bottom:6px"> 留守中に${cycles}回の遠征が繰り返された（直近の結果）</div>
+    <div style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px);margin-bottom:6px;line-height:1.7">${cycleLines.slice(-12).map((l,i,a)=>`${cycles - a.length + i + 1}回目：${l}`).join('<br>')}${cycles > 12 ? `<br>（それ以前の${cycles-12}回は、遠征の記録に残っている）` : ''}</div>
     ${lastHtml}
    </div>`;
   } else if(cycles === 1){
@@ -6576,6 +6623,7 @@ function _checkExpeditionReturn(townId){
 // 遠征結果の解決本体（targetは出発時に確定済みの対象データ：討伐相手・探索先・護衛先など）
 function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, resolveDay){
  resolveDay = resolveDay != null ? resolveDay : GAME_TIME.totalDays; // 記録に使う日付（追いつき処理では実際の帰還予定日を渡す）
+ members.forEach(n=>{ if(n._restUntil != null){ n.con = n.maxCon || n.con; delete n._restUntil; } });   // 出発前に休んで全快している
  prop.storage = prop.storage || { gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 };
  const tDef = EXPEDITION_TYPES.find(t=>t.id===typeId);
  const names = members.map(n=>n.name).join('、');
@@ -6583,6 +6631,7 @@ function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, r
  let goldGained = 0;  // 記録用：この遠征で保管庫に入ったGP
  let apGained = 0;    // 記録用：メンバー1人あたりの獲得経験値
  let eventDesc = '';  // 記録用：道中で何があったか（山賊遭遇・罠発動等）の一言説明
+ let outcomeTag = '';  // 記録用：討伐の結果（大成功・手傷・撤退・大敗）
  let html = `<div style="border:1px solid var(--border2);border-radius:4px;padding:10px;margin-top:8px">
   <div style="color:#f0ece0;font-size:var(--font-sm);margin-bottom:6px"> ${names}が${(offerLabel||tDef.label).trim()}から帰還した</div>`;
 
@@ -6608,7 +6657,7 @@ function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, r
 
   if(partyCON <= 0){
    // 大敗：メンバーごとに死亡判定（負担割合に応じて）
-   eventDesc = `${mEntry.name}の群れに大敗した`;
+   eventDesc = `${mEntry.name}の群れに大敗した`; outcomeTag = '大敗';
    html += `<div style="color:#c05040">大敗した。${mEntry.name}の群れに歯が立たなかった。</div>`;
    const deaths = [];
    members.forEach(n=>{
@@ -6629,21 +6678,22 @@ function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, r
   } else {
    const lostRatio = 1 - (partyCON/startCON);
    const mr0 = mEntry.mr*count;
-   const gp = Math.floor(mr0 * (0.8+Math.random()*0.4));
-   apGained = Math.floor(mr0 / members.length);
+   const tierMul = HUNT_TIER_REWARD[_huntTier(mEntry, count)];
+   const gp = Math.floor(mr0 * tierMul * (0.8+Math.random()*0.4));
+   apGained = Math.floor(mr0 * tierMul / members.length);
    if(lostRatio < 0.2){
-    eventDesc = `${mEntry.name}を軽傷で討伐した（大成功）`;
+    eventDesc = `${mEntry.name}を軽傷で討伐した（大成功）`; outcomeTag = '大成功';
     html += `<div style="color:#f0ece0">大成功。${mEntry.name}を軽傷で退けた。</div>`;
     goldGained = gp;
     prop.storage.gold = (prop.storage.gold||0) + gp;
    } else if(lostRatio < 0.6){
-    eventDesc = `${mEntry.name}を討伐したが手傷を負った`;
+    eventDesc = `${mEntry.name}を討伐したが手傷を負った`; outcomeTag = '手傷';
     html += `<div style="color:#e0d8c8">${mEntry.name}を討伐したが、それなりの手傷を負った。</div>`;
     goldGained = gp;
     prop.storage.gold = (prop.storage.gold||0) + gp;
    } else {
     apGained = Math.floor(apGained*0.5);
-    eventDesc = `${mEntry.name}に苦戦し撤退した`;
+    eventDesc = `${mEntry.name}に苦戦し撤退した`; outcomeTag = '撤退';
     html += `<div style="color:#c8a890">苦戦の末に撤退した。得るものは少なかった。</div>`;
     goldGained = Math.floor(gp*0.3);
     prop.storage.gold = (prop.storage.gold||0) + goldGained;
@@ -6657,7 +6707,7 @@ function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, r
   const trapLv = ydRollTrapLevel(depth);
   const avgDex = members.reduce((s,n)=>s+(n.dex||10),0)/members.length;
   const avgLk  = members.reduce((s,n)=>s+(n.lk||10),0)/members.length;
-  const roll = roll2D6explode().total + avgDex + avgLk;
+  const roll = roll2D6explode() + avgDex + avgLk;
   const srTarget = trapLv*5 + 15;
   if(roll >= srTarget){
    eventDesc = `${target.site||'未踏エリア'}の探索に成功した`;
@@ -6713,7 +6763,7 @@ function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, r
 
  } else if(typeId === 'forage'){
   const avgLk = members.reduce((s,n)=>s+(n.lk||10),0)/members.length;
-  const roll = roll2D6explode().total + avgLk;
+  const roll = roll2D6explode() + avgLk;
   if(roll >= 20){
    eventDesc = '上質な薬草がよく採れた';
    goldGained = 5 + Math.floor(Math.random()*8);
@@ -6732,7 +6782,7 @@ function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, r
  } else if(typeId === 'trade'){
   const destName = target.destName || 'その町';
   const avgChr = members.reduce((s,n)=>s+(n.chr||10),0)/members.length;
-  const roll = roll2D6explode().total + avgChr;
+  const roll = roll2D6explode() + avgChr;
   goldGained = roll >= 20 ? (10+Math.floor(Math.random()*8)) : (5+Math.floor(Math.random()*6));
   apGained = 10;
   eventDesc = `${destName}への隊商随行を無事に終えた`;
@@ -6741,9 +6791,15 @@ function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, r
   members.forEach(n=>gainAPFor(n, apGained));
  }
 
- html += `</div>`;
  // 生存者は留守番として拠点に復帰させる（死亡者は除く）
  const survivors = members.filter(n=>!deathNames.includes(n.name));
+ // 傷ついて戻った者は、満タンに戻るまで休む（その間は次の遠征に出せない）
+ const restDays = _expeditionRestDays(survivors);
+ if(restDays > 0){
+  survivors.forEach(n=>{ if(n.con < (n.maxCon || n.con)) n._restUntil = resolveDay + restDays; });
+  html += `<div style="color:#c8b8a0">傷を負って戻った者たちは、体力が戻るまで${restDays}日ほど休むことになった。</div>`;
+ }
+ html += `</div>`;
  prop.caretakers = [...(prop.caretakers||[]), ...survivors];
 
  // 遠征の記録を保存（新しいものを先頭に、最大20件まで保持）
@@ -6758,10 +6814,17 @@ function _resolveExpedition(townId, prop, members, typeId, target, offerLabel, r
   apGained,
   eventDesc,
   html,
+  enemyName: (typeId === 'hunt' && target.mEntry) ? target.mEntry.name : '',
+  enemyCount: (typeId === 'hunt' && target.mEntry) ? (target.count||1) : 0,
+  enemyTier: (typeId === 'hunt' && target.mEntry) ? _huntTier(target.mEntry, target.count) : null,
+  outcome: outcomeTag,
  });
- if(prop.expeditionLog.length > 20) prop.expeditionLog.length = 20;
+ if(prop.expeditionLog.length > 40) prop.expeditionLog.length = 40;
 
- return { html, survivors };
+ const summaryLine = (typeId === 'hunt' && target.mEntry)
+  ? `【${HUNT_TIER_NAMES[_huntTier(target.mEntry,target.count)]}】${target.mEntry.name}${(target.count||1)>1?'×'+target.count+'体':''}　${outcomeTag}${deathNames.length ? '（戦死'+deathNames.length+'人）' : ''}`
+  : (offerLabel||tDef.label).trim();
+ return { html, survivors, restDays, summaryLine };
 }
 
 // 「拠点を管理する」メニューから、繰り返し遠征の停止を予約する
@@ -6793,6 +6856,7 @@ function propertyExpeditionLog(townId){
     return `<div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:6px">
     <span style="color:#c8a8a0;font-size:calc(var(--font-sm) - 1px)">${formatDate(daysToDate(l.day))}</span>　<span style="color:#e0d8c8">${l.label}</span><br>
     <span style="color:#c8b8a0;font-size:calc(var(--font-sm) - 1px)">メンバー：${l.memberNames}</span><br>
+    ${l.enemyName ? `<span style="color:#e0d0b8;font-size:calc(var(--font-sm) - 1px)">討伐相手：${l.enemyTier!=null?'【'+HUNT_TIER_NAMES[l.enemyTier]+'】':''}${l.enemyName}${l.enemyCount>1?'×'+l.enemyCount+'体':''}　結果：${l.outcome||'—'}</span><br>` : ''}
     ${l.eventDesc ? `<span style="color:#b8a888;font-size:calc(var(--font-sm) - 1px)">道中：${l.eventDesc}</span><br>` : ''}
     <span style="color:#ffcc88;font-size:calc(var(--font-sm) - 1px)">報酬：${l.goldGained||0}GP　経験値：+${l.apGained||0}</span>
     ${(l.deathNames||[]).length ? `<br><span style="color:#c05040;font-size:calc(var(--font-sm) - 1px)">戦死：${l.deathNames.join('、')}</span>` : ''}
@@ -7121,7 +7185,7 @@ function propertyPickupChild(townId){
       const typeChoices = [
        {label:' 戦士（Warrior）', fn:()=>{ child.type='warrior'; child._typeChosen=true; _recruitChild(child,prop,townId); }},
        ...(canWizard?[{label:' 魔法使い（Wizard）', fn:()=>{ child.type='wizard'; child._typeChosen=true; _recruitChild(child,prop,townId); }}]:[]),
-       {label:' 筊賊（Rogue）', fn:()=>{ child.type='rogue'; child._typeChosen=true; _recruitChild(child,prop,townId); }},
+       {label:' 盗賊（Rogue）', fn:()=>{ child.type='rogue'; child._typeChosen=true; _recruitChild(child,prop,townId); }},
        {label:'← 戻る', fn:()=>propertyPickupChild(townId)},
       ];
       renderChoices(typeChoices);
@@ -17042,6 +17106,7 @@ function gainAP(amount){
 
 // イベントAP：PCとパーティ全員に同額を配布
 function gainAPAll(amount){
+ if(PC._nightmare && PC._nightmare.active) return; // 悪夢の中では経験値は入らない
  if(amount <= 0) return;
  gainAP(amount);
  (PC.party||[]).forEach(n=>{ if(n.con>0) gainAPFor(n, amount); });
@@ -17714,6 +17779,7 @@ const DUNGEON_NODES = new Set([
 // 入口・出口など松明消費・暗闇判定を除外するノード
 const DUNGEON_SAFE_NODES = new Set([
  'RUIN_ENTRANCE','RUIN_DARK_ESCAPE',
+ 'AL_DNG_ENTRANCE','AL_DARK_ESCAPE',
 'TOMB_DARK_ESCAPE','TOMB_EXIT',
  'SHRINE_ENTRANCE','SHRINE_DARK_ESCAPE',
  'ISKALD_ENTRANCE','ISKALD_DARK_ESCAPE',
@@ -21016,6 +21082,7 @@ function wildChoices(){
  out.push(...hfortWildChoices());
  out.push(...hfort2WildChoices());
  out.push(...nergolWildChoices());
+ if(muleHas() || porterHas()) out.push({label:' 荷を整理する（ラバ・人夫）', fn:()=>carrierPick(()=>go('WILDERNESS'))});
  return out;
 }
 
@@ -27798,6 +27865,7 @@ function applyInjury(injury){
 // 体力0到達時に呼ぶ。運11以上ならtrueを返し選択肢を表示する（呼び出し元は通常の死亡処理をせず、ここに処理を委ねる）。
 // 運が0（あるいはそれ以下）なら発動しない。呼び出し元はこれまで通り死亡処理を行う。
 function offerLuckSave(enemyName){
+ if(PC._nightmare && PC._nightmare.active) return false; // 悪夢の中では九死に一生は起きない
  if((PC.lk||0) <= 0) return false;
  const area = document.getElementById('cbt-ok-area');
  if(!area) return false;
@@ -28494,6 +28562,52 @@ const NPC_NAMES = [
  'アオ','クモ','タカ','ナギ','シン','フウ',
  'ユキ','カゲ','ツル','ウミ','キリ','カナ',
  'ジン','レン','シオン','トキ','ナツ','アキ',
+ // 北方系追加3
+  'アイナル','アルヴァ','アンスガル','ウッラ','エイナル','エルヴィラ','オッド','オルガ',
+  'ガウティ','カーリ','キエル','グンヒルド','クリスタ','ゲルダ','コンラッド','サーガ',
+  'シグヴァルド','ステイナル','スノッリ','スルド','ソルヴィ','ダグニー','トーヴァ','トルギル',
+  'ナンナ','ネルダ','ノルド','ハーコン','ハルヴォル','ビルギッタ','ファフニル','フィヨルギン',
+  'ブリュンヒルデ','ヘルギ','ヘルムート','ボルグ','マルグレート','ミルドレッド','ヤーコブ','ユッタ',
+  'ラーシュ','ラグンヒルド','リヴ','ルーカス','ルードルフ','レギン','ロルフ','ロヴィーサ',
+  'ヴァルター','ヴィルヘルム','ヴェルナー','アーデル','エッダ','エルザ','ゲルト','ハイデ',
+  'ヒルデガルド','フロリアン','ブルーノ','ホルスト',
+ // エルマリア系追加3
+  'アエルウェン','アリエル','イリス','ウィレン','エイラ','エルヴィナ','エルディス','オリエル',
+  'カリエン','ガリオン','キエラ','サリエル','シリアン','セラフィン','ソレイユ','ティリエル',
+  'ニアリン','ネリエル','ハリエル','ファエリス','フィリエン','ベルウィン','ミリエル','メリアン',
+  'モルウェン','ユリエン','リリエル','リュシアン','ルミエル','レリエン','ローレリン','ヴェリオン',
+  'ヴェラン','エルナリエ','オルウェン','カエルウィン','キリオン','シルウェン','タウリエ','テレリエン',
+  'ナエリス','ネヴィル','ファルウェン','ヘリオン','マリエル','ミスリル','リアノン','ルーンウェン',
+  'レーリエ','アヴェリン','イルミナ','エスリエル','エレナ','オーレリア','カミーユ','セレスト',
+  'フロリス',
+ // ザハラ系追加3
+  'アジーズ','アッバス','アニース','アブラール','アルマーズ','イッザト','ウスマーン','エミール',
+  'オスマン','カーディル','カリーマ','ガーリブ','サイード','サーリフ','シャーキル','ジャーヴィド',
+  'ジャマール','スライマン','ズバイル','タウフィーク','ターヒル','ディーナ','ナーディア','ナディーム',
+  'ヌールジャハーン','ハーリド','ハキーム','ハサン','ハーミド','ファイサル','フサイン','ブシュラ',
+  'ホサイン','マジード','マリク','ミーナ','ムスタファ','ムニーラ','ヤーミン','ユーニス',
+  'ラーミー','ラニア','ラフマ','ランダ','リヤード','ルクサーナ','ワファー','ズレイカ',
+  'アクバル','アナーヒター','カーミル','シーリーン','シャフラ','ダリウス','ナスリーン','パルヴィーズ',
+  'ホスロー','マフヴァシュ',
+ // ドラクリム系追加3
+  'アルベリヒ','イーヴォ','ウォルフ','エイトリ','オルヴァル','ガルドル','ガンダルフ','グリームル',
+  'グルンド','クルム','ケルドル','ゴルド','スヴァルト','スタイン','スルーズ','ソルブ',
+  'ダイン','ドヴァリン','ドゥリン','ナール','ノルディ','ヒャルティ','フレイン','フロール',
+  'ボルグン','ミョルニル','ムイン','ヨトゥン','ログ','ロドモル','ヴァルグ','ヴィンドル',
+  'ヴェグ','ウトガル','オッタル','カルミル','グレイプ','ゴラン','ザルツ','シンドリ',
+  'スカディ','スティルン','トリグヴ','ドラウプニル','ハルド','ブロック','ブラーギ','フレキ',
+  'ベリ','ミーミル',
+ // 東洋系追加2
+  'アカネ','イズミ','カエデ','ガク','コハク','サクラ','シズク','スズ',
+  'セイ','タケ','チヨ','ツバキ','トウマ','ナミ','ヒカリ','フユ',
+  'ホシ','マユ','ミナト','ヤマト','ユズ','ライカ','リョウ','ルイ',
+  'ワカ','雪乃','月影','銀河','朝霧','夕凪','紅葉','白雲',
+  '翠','蒼','琥珀',
+ // 東欧・山岳系追加
+  'オルフェ','ガリーナ','キリル','コスタ','サシャ','ターニャ','ニーナ','パヴェル',
+  'ボリス','マトヴェイ','ミロシュ','ヤロスラフ','ラドミラ','リュドミラ','ヴラド','ズデニェク',
+  'スタニスラフ','ドラガン','ブラニスラフ','ミレナ','イヴァナ','ヴェスナ','ゾラン','ダニカ',
+  'ボヤナ',
 ];
 
 // ── 二つ名テーブル ──
@@ -33801,6 +33915,8 @@ const VILLAGE_INCIDENT_LEAVABLE = new Set([
  'marea_pale_road',         // 色を失った道（避けて通れる）
  'marea_pulse_ground',      // 脈打つ地面（離れられる）
  'marea_same_place',        // 同じ場所（引き返せる）
+ 'island_tidepool',         // 潮溜まり（物）
+ 'island_inscription',      // 古代の碑文（物）
  'old_curse_ritual',        // 古い呪いの儀式跡（場所）
  'collapsing_building',     // 崩れかけた建物に閉じ込められた人（動けない）
  'harbor_smuggled_goods_find', // 積み荷の陰の密輸品（物）
@@ -34088,6 +34204,7 @@ function _tavernRumorGo(townId, districtType){
 
 // 酒場の主人が噂を語り、「調べに行ってみないか」と誘う（語ったら true）
 function _showTavernRumor(townId){
+ if(/^(SETTLE_|FIEF_)/.test(currentNodeId||'')) return false;   // 領地・集落の酒場では、町の路地裏の噂は出さない
  const n = _pickTavernRumor(townId);
  if(!n) return false;
  const def = TAVERN_RUMOR_LINES[n.rumorId];
@@ -36556,7 +36673,145 @@ const VILLAGE_BACKALLEY_CONFIGS = {
   darkEscape: MAREA_DARK_ESCAPE,
  },
 };
+// ── 隆起島の遺跡（沈んだ古代都市）：町探索の仕組みを流用した地上の遺跡 ──
+// 敵はすべて同じ確率。キャンプの夜の襲撃も同じ表を使う。倒しても装備・財宝は手に入らない。
+const ISLAND_RUIN_ENEMIES = [
+ { kind:'npc', name:'奇妙な衣装を着た細長い手足の放浪者', levelMin:3, levelMax:5, minApp:2, maxApp:12, race:'人間？', idleChance:0.5 },
+ { kind:'npc', name:'異常に大きな頭の小人', levelMin:5, levelMax:8, minApp:1, maxApp:6, race:'人間？', npcType:'wizard' },
+ { name:'巨大蟹', mr:60, armor:15, minApp:1, maxApp:1 },
+ { kind:'npc', name:'虚ろな目の盗掘者', levelMin:3, levelMax:5, minApp:3, maxApp:6 },
+];
+const ISLAND_RUIN_FLAVOR = {
+ entrances: [
+  '崩れた石組みの街並みが、海の匂いを残したまま広がっている。足元の敷石は、濡れたように黒く光っている。',
+  '潮の引いた大通りの跡が、苔むした石柱の間を抜けて続いている。かつてここが、海の底だったとは思えない静けさだ。',
+ ],
+ passage: [
+  '敷石の隙間から、乾ききらない海水が滲み出している。貝殻が、そこかしこに貼りついている。',
+  '傾いた石柱の影が、道に長く落ちている。柱の表面には、波の跡のような筋が刻まれている。',
+  '崩れた壁の向こうに、屋根のない家並みが見える。窓の穴という穴から、海藻が垂れ下がっている。',
+  '足元で、小さな蟹が殻を鳴らして石の隙間へ逃げ込んだ。',
+  '潮の匂いに混じって、古い石の冷たい匂いがする。',
+  '壁に刻まれた彫刻は、フジツボに覆われて、もう何の絵だったのか分からない。',
+  '遠くで、石が崩れる音がした。しばらくして、静けさが戻ってきた。',
+ ],
+ turn: [
+  '曲がり角の壁に、手の跡のような窪みが並んでいる。誰の手の大きさにも合わない。',
+  '角を曲がると、道が緩やかに傾いている。かつての海岸線に向かって下っているようだ。',
+  '曲がった先の石畳だけ、不自然に乾いている。',
+ ],
+ side: {
+  left90: ['左手に、崩れかけたアーチをくぐる脇道がある。奥は海藻の匂いが濃い。', '左へ折れる小道がある。足跡のようなものが、奥へ続いている。'],
+  right90: ['右手に、崩れかけたアーチをくぐる脇道がある。奥は海藻の匂いが濃い。', '右へ折れる小道がある。足跡のようなものが、奥へ続いている。'],
+  tee: ['道が二又に分かれている。どちらの先にも、倒れた石像の一部が転がっている。'],
+  cross: ['四方に道が分かれる広場に出た。中央に、枯れた噴水の跡がある。'],
+ },
+ dead_end: [
+  '道が、崩れた建物の瓦礫に埋まっている。石の山は高く、これ以上は進めそうにない。',
+  '行き止まりだ。壁一面に、海の生き物の化石のような跡が浮き出ている。',
+  '巨大な石の扉が、半ば砂に埋もれて道を塞いでいる。びくともしない。',
+ ],
+ roomHeader: ' 開けた場所に出た',
+ room: [
+  '屋根の落ちた広間に出た。柱の列が、空に向かって立っている。床の中央に、水が浅く溜まっている。',
+  '朽ちた石の寝台が並ぶ、小さな部屋だ。壁の漆喰に、青い魚の絵が薄く残っている。',
+  '壁一面に、整然と並んだ棚の跡がある。棚の中身は、とうの昔に流されてしまったらしい。',
+  '円形の広場に出た。中央の台座には、あるはずの像がない。',
+ ],
+ forage: [
+  '崩れた家の床に、泥にまみれた壺の欠片が散らばっている。',
+  '石組みの隙間に、海水に洗われた何かが挟まっている。',
+  '潮溜まりの底に、鈍く光る輪のようなものが沈んでいる。',
+ ],
+};
+const ISLAND_RUIN_TRAP_TYPES = [
+ {name:'崩れる床', attr:'dex', descs:['敷石の一部が、わずかに沈んでいる。下は空洞のようだ。','苔に覆われた床の一角だけ、石の継ぎ目が揃っていない。']},
+ {name:'滑る苔', attr:'spd', descs:['敷石を、緑の苔がびっしりと覆っている。濡れて、よく光っている。','坂になった石畳に、海水が薄く流れている。']},
+ {name:'海水の溜まった窪地', attr:'con', descs:['道の先が、水を湛えた窪地になっている。底が見えない。','窪地の水面から、腐ったような匂いが立ち上っている。']},
+ {name:'古い仕掛け', attr:'lk', descs:['壁の石の一つだけ、色が違う。押し込めるようになっているようだ。','床の石に、細い溝が刻まれている。溝は壁の中へ続いている。']},
+];
+const ISLAND_RUIN_TENSE_ATMS = [
+ '空気が重くなった。濡れた石の向こうから、何かがこちらを見ている気がする。',
+ '足音が、自分のものだけではない。立ち止まると、遅れて止まる。',
+ '壁の影が、一瞬だけ動いた。風はない。',
+];
+const ISLAND_RUIN_DARK_ESCAPE = {
+ intro: '日が落ち、沈んだ都市は完全な闇に呑まれた。濡れた石壁を手探りで確かめながら進む。入口へ戻れるか……',
+ success: '壁の苔の感触を頼りに、必死に道を探した。海風が頬に触れ、なんとか入口へたどり着いた！',
+ death: '暗闇の中で、濡れた石に足を滑らせて倒れ込んだ。動けない……',
+ hurt: '暗闇の中、崩れた石に足を取られて転んだ。',
+};
+const ISLAND_RUIN_INCIDENTS = [
+ {
+  id:'island_tidepool',
+  phases:['dawn','morning','noon','afternoon','night','midnight'],
+  title:' 潮溜まり',
+  flavor:'石畳の窪みに海水が溜まっている。澄んだ水の底で、何かが鈍く光っている。',
+ },
+ {
+  id:'island_inscription',
+  phases:['dawn','morning','noon','afternoon','night','midnight'],
+  title:' 古代の碑文',
+  flavor:'崩れかけた壁面に、びっしりと文字が刻まれている。見慣れない文字だが、一部は読めそうな気がする。',
+ },
+];
+VILLAGE_BACKALLEY_CONFIGS.ruinisland = {
+ label: '沈んだ古代都市',
+ wildlifeTable: ISLAND_RUIN_ENEMIES,
+ flavor: ISLAND_RUIN_FLAVOR,
+ incidents: ISLAND_RUIN_INCIDENTS,
+ forageType: 'gold',
+ forageLabel: ' 瓦礫の中を漁る（運 Lv2 能力値テスト）',
+ forageOkText: (gp)=>`泥の中から、売れそうな古い装飾品を見つけた。（${gp}GP）`,
+ forageNgText: '探ってみたが、持ち帰れそうなものは見つからなかった。',
+ trapTypes: ISLAND_RUIN_TRAP_TYPES,
+ tenseAtms: ISLAND_RUIN_TENSE_ATMS,
+ lootText: ' 泥の中に、何か光るものが埋まっている。',
+ darkEscape: ISLAND_RUIN_DARK_ESCAPE,
+};
+// ── 悪夢：キャンプの夜に迷い込む、出口のない遺跡 ──
+// 悪夢の中の遺跡は、匂い以外は現実の遺跡と同じ描写。各文の後ろに不快な匂いの一文を足す
+const ISLAND_NIGHTMARE_SMELLS = [
+ '腐った果物のような、甘ったるい匂いが喉の奥に張りつく。',
+ '湿った布を鼻に押し当てられたような、かび臭さと甘さが混ざった匂いがする。',
+ '古い血と花の蜜を煮詰めたような匂いが、どこからともなく漂ってくる。',
+ '息を吸うたび、舌の奥に腐った甘みが残る。',
+ '吐き気を催す甘い匂いが、壁の向こうから濃く流れてくる。',
+ '焦げた砂糖と生ゴミの混ざったような匂いが、服にまで染みついている。',
+];
+function _nmSmellify(lines){
+ return lines.map((t,i)=> t + ISLAND_NIGHTMARE_SMELLS[i % ISLAND_NIGHTMARE_SMELLS.length]);
+}
+const ISLAND_NIGHTMARE_FLAVOR = {
+ entrances: _nmSmellify(ISLAND_RUIN_FLAVOR.entrances),
+ passage: _nmSmellify(ISLAND_RUIN_FLAVOR.passage),
+ turn: _nmSmellify(ISLAND_RUIN_FLAVOR.turn),
+ side: {
+  left90: _nmSmellify(ISLAND_RUIN_FLAVOR.side.left90),
+  right90: _nmSmellify(ISLAND_RUIN_FLAVOR.side.right90),
+  tee: _nmSmellify(ISLAND_RUIN_FLAVOR.side.tee),
+  cross: _nmSmellify(ISLAND_RUIN_FLAVOR.side.cross),
+ },
+ dead_end: _nmSmellify(ISLAND_RUIN_FLAVOR.dead_end),
+ roomHeader: ISLAND_RUIN_FLAVOR.roomHeader,
+ room: _nmSmellify(ISLAND_RUIN_FLAVOR.room),
+ forage: _nmSmellify(ISLAND_RUIN_FLAVOR.forage),
+};
+VILLAGE_BACKALLEY_CONFIGS.ruinisland_nightmare = {
+ label: '悪夢',
+ wildlifeTable: ISLAND_RUIN_ENEMIES,
+ flavor: ISLAND_NIGHTMARE_FLAVOR,
+ incidents: [],
+ forageType: 'gold',
+ forageLabel: '',
+ forageOkText: ()=>'', forageNgText: '',
+ trapTypes: ISLAND_RUIN_TRAP_TYPES,
+ tenseAtms: _nmSmellify(ISLAND_RUIN_TENSE_ATMS),
+ lootText: '',
+ darkEscape: ISLAND_RUIN_DARK_ESCAPE,
+};
 function villageCfg(dung){
+ if(dung?.isNightmare) return VILLAGE_BACKALLEY_CONFIGS.ruinisland_nightmare;
  // 小規模拠点（中央広場→行政地区／旧市街地区）は、地区タイプ共通データ＋拠点固有フレーバーを合成する
  if(dung?.districtType && SMALL_TOWN_DISTRICTS[dung.villageId]){
   const townDistrict = SMALL_TOWN_DISTRICTS[dung.villageId][dung.districtType];
@@ -36869,10 +37124,12 @@ function ydRollVillageEncounter(pool){
   const cnt = (m.minApp||1) + Math.floor(Math.random()*((m.maxApp||1)-(m.minApp||1)+1));
   const npcs = Array.from({length:cnt}, (_,i)=>{
    const npc = generateNPC(level);
+   if(m.npcType === 'wizard'){ npc.type = 'wizard'; npc.spells = _spellsUpToLevel(level); }
+   if(m.race) npc.race = m.race;
    npc.name = cnt>1 ? `${m.name} #${i+1}` : m.name;
    return npc;
   });
-  return { name:m.name, count:cnt, isNPCType:true, npcs, isHuman:true, desc:m.desc, talkDesc:m.talkDesc };
+  return { name:m.name, count:cnt, isNPCType:true, npcs, isHuman:true, desc:m.desc, talkDesc:m.talkDesc, idle: !!(m.idleChance && Math.random() < m.idleChance), level };
  }
  const count = m.minApp + Math.floor(Math.random()*(m.maxApp-m.minApp+1));
  // mrMin/mrMaxが指定されていれば個体ごとにMRをランダムに決定（無ければ従来通り固定mr）
@@ -36880,7 +37137,7 @@ function ydRollVillageEncounter(pool){
   ? (m.mrMin + Math.floor(Math.random()*(m.mrMax-m.mrMin+1)))
   : m.mr;
  const mr = singleMR * count;
- return { name:m.name, count, mr, singleMR, isHuman:m.isHuman||false };
+ return { name:m.name, count, mr, singleMR, isHuman:m.isHuman||false, armor:m.armor||0 };
 }
 
 // 宝物生成（テーブルX）
@@ -37020,7 +37277,7 @@ function ydInitDungeon(){
 // ── 村・裏路地の初期化（汎用）：単一フロア・10ノード程度。訪問のたび毎回再生成。
 // 明暗は時刻連動（動的判定、ydGoNode側で毎回更新）。新しい村を追加する場合、
 // VILLAGE_BACKALLEY_CONFIGSにエントリを1つ追加するだけでこの関数がそのまま使える。
-function initVillageBackAlley(townId, districtType){
+function initVillageBackAlley(townId, districtType, opts){
  const design = {
   construction:'natural', constructionLabel:'獣道',
   lighting:'dynamic', lightingLabel:'時刻に依存',
@@ -37042,7 +37299,19 @@ function initVillageBackAlley(townId, districtType){
   anchorPool: ['wildlife','forage'],
   anchorPlaced: [],
  };
- const floorNodeLimit = 10;
+ // 隆起島の遺跡：帰還先は島のメインメニュー。野生動物のアンカーは置かず、遭遇は通路ごとの判定で出す
+ if(townId === 'ruinisland'){
+  dungeon.isRuinIsland = true;
+  dungeon.exitTownNode = 'PORT_ARGON_ISLAND';
+  dungeon.anchorPool = ['forage'];
+ }
+ // 悪夢：出口なし・行き止まりなし。通路は生成され続け、時刻や明暗に左右されない
+ if(opts && opts.nightmare){
+  dungeon.isNightmare = true;
+  dungeon.anchorPool = [];
+  dungeon.design.isNaturalLight = true;
+ }
+ const floorNodeLimit = dungeon.isNightmare ? 99999 : 10;
  dungeon.floors[1] = ydInitFloor(1, floorNodeLimit);
  const f1 = dungeon.floors[1];
  f1.nodeMap[f1.entryNodeId] = {
@@ -37052,9 +37321,9 @@ function initVillageBackAlley(townId, districtType){
  return dungeon;
 }
 
-function enterVillageBackAlley(townId, districtType){
+function enterVillageBackAlley(townId, districtType, opts){
  checkVillageDeliveryExpiry();
- PC._yeldunDungeon = initVillageBackAlley(townId, districtType);
+ PC._yeldunDungeon = initVillageBackAlley(townId, districtType, opts);
  // 前回分の探索フラグをクリア（毎回再生成のためノードIDが使い回されるので必須）
  Object.keys(PC).filter(k=>k.startsWith('yd_ht_')||k.startsWith('yd_enc_')||k.startsWith('yd_m_')||k.startsWith('yd_l_')||k.startsWith('yd_a_')||k.startsWith('yd_r_')||k.startsWith('yd_tr_')||k.startsWith('yd_st_')||k.startsWith('yd_ev_')||k.startsWith('yd_tm_')||k.startsWith('yd_hb_')||k.startsWith('yd_t_')||k.startsWith('yd_fn_')||k.startsWith('yd_s_')||k.startsWith('yd_d_')||k.startsWith('yd_hd_')||k.startsWith('yd_vf_')||k.startsWith('yd_vi_')||k.startsWith('yd_dlv_')||k.startsWith('yd_wt_')||k.startsWith('yd_bh_')).forEach(k=>delete PC[k]);
  initTorch();
@@ -37218,11 +37487,13 @@ function communalBury(townId, name, backFn){
  addLifeEvent('', `${n.name}を${TOWNS[townId]?.name||townId}の共同墓地に埋葬した。`);
  updateHUD();
  showSaveToast(` ${n.name}を埋葬した`);
+ muleReconcile();
  showTownCemetery(townId, backFn);
 }
 // 戦いで倒れた仲間を、人生の記録に1回だけ残す（闘技場の試合は勝てば復活するので対象外）
 function logFallenCompanions(){
  if(cbtState && cbtState.arenaMode) return;
+ if(PC._nightmare && PC._nightmare.active) return; // 悪夢の中で倒れても記録しない
  (PC.party||[]).forEach(n=>{
   if(!n) return;
   if(n.con>0){ if(n._fallenLogged) n._fallenLogged = false; return; }
@@ -37231,6 +37502,549 @@ function logFallenCompanions(){
   addLifeEvent('', `戦いで${n.name}が命を落とした。`);
  });
 }
+
+// ══ ラバ（荷役動物） ══════════════════════════════════════════════
+// 町の広場で買える。運搬力は4000wu。主人公と仲間のそれぞれに「保存箱」があり、ラバが全員分の箱を運ぶ。
+// ダンジョンには入れず、入口の近くに留め置く（16%で逃げ出す。仲間を見張りに残せば逃げない）。
+const MULE_PRICE = 300, MULE_SELL = 150, MULE_CAPACITY = 4000, MULE_ESCAPE_RATE = 0.16;
+const MULE_REFUSE_TRUST = 20; // これ未満の信頼度の仲間は、自分の物をラバに預けたがらない
+const MULE_NONDUNGEON_NODES = new Set(['DEAD','WANTED_ARREST_NODE','PORT_ARGON_ISLAND','RESTART']);
+function muleHas(){ return !!(PC && PC._mule); }
+function porterHas(){ return !!(PC && PC._porter); }
+let _muleSel = 'mule';   // いま操作している運び手：'mule'（ラバ）か 'porter'（人夫）。箱・袋の画面は共通で、この値で切り替える
+function _car(){ return _muleSel === 'porter' ? PC._porter : PC._mule; }
+function _cap(){ return _muleSel === 'porter' ? ((PC._porter && PC._porter.cap) || 0) : MULE_CAPACITY; }
+function _pt(t){ return _muleSel === 'porter' ? String(t).replace(/ラバ/g,'人夫').replace(/箱/g,'袋') : t; }
+function _mt(msg){ showSaveToast(_pt(msg)); }
+function _withSel(sel, fn){ const old = _muleSel; _muleSel = sel; try{ return fn(); } finally { _muleSel = old; } }
+function _muleNewBox(name){ return {name:name||'', dead:false, gold:0, sp:0, cp:0, invWeapons:[], invArmors:[], invEquip:[], invJewels:[], invSpecialties:[]}; }
+function _muleKey(m){
+ if(m === PC) return 'pc';
+ if(!m._muleKey) m._muleKey = 'n' + Date.now().toString(36) + Math.floor(Math.random()*1e9).toString(36);
+ return m._muleKey;
+}
+function _muleMembers(){ return [PC, ...(PC.party||[])]; }
+function muleBox(m){
+ const mu = _car(); mu.boxes = mu.boxes || {};
+ const k = _muleKey(m);
+ if(!mu.boxes[k]) mu.boxes[k] = _muleNewBox(m.name);
+ return mu.boxes[k];
+}
+function muleBoxWeight(b){
+ let w = 0;
+ (b.invWeapons||[]).forEach(x=>{ w += x.weight||0; });
+ (b.invArmors||[]).forEach(x=>{ w += x.weight||0; });
+ (b.invEquip||[]).forEach(name=>{ const d = EQUIP_TABLE.find(t=>t.name===name); if(d) w += d.weight; });
+ (b.invSpecialties||[]).forEach(x=>{ w += x.weight||0; });
+ w += (b.gold||0) + (b.sp||0) + (b.cp||0);
+ return w;
+}
+// いまラバに載っている重さ（パーティにいる持ち主の箱だけを数える）
+function muleLoad(){
+ if(!_car()) return 0;
+ let w = 0;
+ _muleMembers().forEach(m=>{ const b = _car().boxes && _car().boxes[_muleKey(m)]; if(b) w += muleBoxWeight(b); });
+ return w;
+}
+// パーティを離れた持ち主の箱を整理する。倒れたまま離れた仲間の荷は、生きている者で分ける
+function muleReconcile(){
+ ['mule','porter'].forEach(k=>_withSel(k, _carReconcile));
+}
+function _carReconcile(){
+ if(!_car() || (PC._nightmare && PC._nightmare.active)) return;
+ const mu = _car(); if(!mu.boxes) return;
+ const present = new Set();
+ _muleMembers().forEach(m=>{
+  const k = _muleKey(m);
+  present.add(k);
+  const b = mu.boxes[k];
+  if(b){ b.name = m.name; b.dead = (m !== PC && m.con <= 0); }
+ });
+ Object.keys(mu.boxes).forEach(k=>{
+  if(present.has(k)) return;
+  const b = mu.boxes[k];
+  if(!b.dead) return; // 生きたまま去った持ち主の荷は、本人が持っていった
+  const living = _muleMembers().filter(m=>m===PC || m.con>0);
+  const total = {gold:b.gold||0, sp:b.sp||0, cp:b.cp||0};
+  ['gold','sp','cp'].forEach(c=>{
+   const share = Math.floor(total[c] / living.length);
+   living.forEach(m=>{ muleBox(m)[c] += share; });
+   muleBox(PC)[c] += total[c] - share * living.length;
+  });
+  let i = 0;
+  ['invWeapons','invArmors','invEquip','invJewels','invSpecialties'].forEach(f=>{
+   (b[f]||[]).forEach(it=>{ muleBox(living[i % living.length])[f].push(it); i++; });
+  });
+  delete mu.boxes[k];
+  _mt(`${b.name}の荷は、生き残った者たちで分けた`);
+ });
+}
+function _muleYdReal(){
+ const d = PC._yeldunDungeon;
+ return !!(d && !d.isVillageBackAlley && !d.isNightmare && !d.isRuinIsland);
+}
+function _muleDungeonNodeId(id){
+ if(typeof id !== 'string' || MULE_NONDUNGEON_NODES.has(id)) return false;
+ if(/^(TEST_|TUTORIAL_|SR_|WIN_|SRUIN_|SETTLE_)/.test(id)) return false;
+ if(/(_FRONT|_ENTRANCE)$/.test(id)) return false; // 入口の前は「外」。留め置く確認は、最初の部屋に入るときに出す（旅の途中で着いた直後に町へ引き返せてしまうのを防ぐ）
+ if(DUNGEON_NODES.has(id)) return true;
+ const nd = NODES[id];
+ return !!(nd && nd.scene === 'dungeon');
+}
+let _mulePanel = false, _mulePanelFns = [];
+function _muleShow(html, choices){
+ html = _pt(html);
+ choices = choices.map(c=>({...c, label:_pt(c.label)}));
+ if(_mulePanel){
+  const el = document.getElementById('sp-party-content');
+  if(el){
+   _mulePanelFns = choices.map(c=>c.fn);
+   el.innerHTML = `<div style="background:var(--panel);border:1px solid var(--bark);border-radius:4px;padding:10px;margin-bottom:8px;font-size:var(--font-sm);color:#e8e0d0;line-height:1.7">${html}</div>` +
+    choices.map((c,i)=>`<button onclick="_mulePanelFns[${i}]()" style="width:100%;font-size:calc(var(--font-sm) - 1px);padding:10px;background:var(--ink);border:1px solid #505050;color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px;margin-top:4px;text-align:left">${c.label}</button>`).join('');
+   return;
+  }
+  _mulePanel = false;
+ }
+ const st = document.getElementById('story');
+ if(st) st.innerHTML = html;
+ renderChoices(choices);
+ if(typeof scrollToTop === 'function') scrollToTop();
+}
+// ── ダンジョンの出入り ──
+function muleGoHook(nodeId){
+ if(PC._porter && nodeId === 'WILDERNESS') PC._porter.away = true;
+ if((!muleHas() && !porterHas()) || (PC._nightmare && PC._nightmare.active)) return false;
+ muleReconcile();
+ const m = PC._mule, pt = PC._porter;
+ const isD = _muleDungeonNodeId(nodeId);
+ if(isD && m && !m.inDungeon){
+  muleEntryPrompt(()=>go(nodeId), ()=>go(currentNodeId));
+  return true;
+ }
+ if(isD && pt && !pt.inDungeon){ pt.inDungeon = true; pt.away = true; showSaveToast(`${pt.name}は、入口で待つことになった`); return false; }
+ if(!isD && ((m && m.inDungeon) || (pt && pt.inDungeon)) && !_muleYdReal() && nodeId !== 'DEAD' && nodeId !== 'RESTART'){
+  return muleExit(()=>go(nodeId));
+ }
+ return false;
+}
+function muleYdHook(nodeId, floor){
+ if((!muleHas() && !porterHas()) || (PC._nightmare && PC._nightmare.active)) return false;
+ const m = PC._mule, pt = PC._porter;
+ if(!_muleYdReal()) return false;
+ if(m && !m.inDungeon){ muleEntryPrompt(()=>ydGoNode(nodeId, floor), null); return true; }
+ if(pt && !pt.inDungeon){ pt.inDungeon = true; pt.away = true; showSaveToast(`${pt.name}は、入口で待つことになった`); }
+ return false;
+}
+function muleEntryPrompt(proceed, cancelFn){
+ _mulePanel = false; _muleSel = 'mule';
+ const m = PC._mule;
+ const helpers = (PC.party||[]).filter(n=>n.con>0);
+ const choices = [];
+ const go_ = (guard)=>{
+  m.inDungeon = true;
+  m.guard = null; m.escaped = false;
+  if(PC._porter){ PC._porter.inDungeon = true; PC._porter.away = true; }   // 人夫も入口で待つ
+  if(guard === 'porter'){
+   // 人夫がラバを見張る：逃げ出す心配はない
+  } else if(guard){
+   PC.party = PC.party.filter(n=>n!==guard);
+   m.guard = guard;
+  } else {
+   m.escaped = Math.random() < MULE_ESCAPE_RATE;
+  }
+  proceed();
+ };
+ if(PC._porter) choices.push({label:` ${PC._porter.name}にラバを見張らせる`, fn:()=>go_('porter')});
+ helpers.forEach(n=>{
+  choices.push({label:` ${n.name}を見張りに残す`, fn:()=>go_(n)});
+ });
+ choices.push({label: helpers.length ? ' 見張りを置かず、ラバだけ留め置く' : ' ラバを留め置いて中へ入る', fn:()=>go_(null)});
+ if(cancelFn) choices.push({label:' やめて引き返す', fn:cancelFn});
+ const _pt2 = !!PC._porter;
+ _muleShow(`<span style="color:#f0ece0">ラバを留め置く</span><br><br>
+  ${_pt2 ? 'ラバと荷運び人夫は' : 'ラバは'}ダンジョンの中へは連れていけない。<br>
+  ラバは入口の近くの木や杭に繋いでおくことになる。誰かを見張りとして残せば、ラバが勝手に逃げ出す心配はない。ただし、その仲間は中へは入らない。${_pt2 ? '荷運び人夫を見張りに残すこともできる。' : ''}`, choices);
+}
+// ダンジョンから戻った。見張りを呼び戻し、逃げたラバの荷は失われる。画面を引き取ったらtrueを返す
+function muleExit(next){
+ _muleSel = 'mule';
+ if(PC._porter) PC._porter.inDungeon = false;
+ const m = PC._mule;
+ if(!m) return false;
+ m.inDungeon = false;
+ if(m.guard){ PC.party = PC.party || []; PC.party.push(m.guard); m.guard = null; }
+ if(m.escaped){
+  PC._mule = null;
+  if(next){
+   _muleShow(`<span style="color:#f0ece0">ラバがいない</span><br><br>
+    入口の近くに、ラバの姿はなかった。杭には、ちぎれた縄だけが残っている。<br>
+    預けていた荷も、ラバと一緒に消えてしまった。`, [{label:'▶ OK', fn:next}]);
+   return true;
+  }
+  showSaveToast('ラバが逃げ出し、預けた荷も失われた');
+ }
+ return false;
+}
+function _muleSyncOut(){
+ const m = PC._mule, pt = PC._porter;
+ if(((m && m.inDungeon) || (pt && pt.inDungeon)) && !_muleYdReal() && !_muleDungeonNodeId(currentNodeId)) muleExit(null);
+}
+// ── 購入・売却 ──
+function muleMenu(townId, backFn){
+ _mulePanel = false; _muleSel = 'mule';
+ _muleSyncOut();
+ if(!muleHas()){
+  _muleShow(`<span style="color:#f0ece0">ラバ</span><br><br>
+   広場の隅で、荷役用のラバを売っている者がいる。気性は荒くないらしい。荷をたっぷり背負わせられる、頑丈な体つきだ。<br>
+   値段は${MULE_PRICE}GP。連れていけるのは1頭までだ。`, [
+   {label:` ラバを買う（${MULE_PRICE}GP）`, fn:()=>{
+    if(!payGP(MULE_PRICE)){ showSaveToast('所持金が足りない'); return; }
+    PC._mule = {boxes:{}, inDungeon:false, escaped:false, guard:null};
+    updateHUD();
+    showSaveToast(' ラバを買った');
+    muleMenu(townId, backFn);
+   }},
+   {label:'← 広場に戻る', fn:backFn},
+  ]);
+  return;
+ }
+ _muleShow(`<span style="color:#f0ece0">ラバ</span><br><br>
+  おとなしく、荷の重みにも文句を言わない。<br>
+  載せている荷は${muleLoad()} / ${MULE_CAPACITY}wu。`, [
+  {label:' ラバの荷を整理する', fn:()=>{ _muleSel = 'mule'; muleBoxList(()=>muleMenu(townId, backFn)); }},
+  {label:` ラバを売る（${MULE_SELL}GP）`, fn:()=>muleSellAsk(townId, backFn)},
+  {label:'← 広場に戻る', fn:backFn},
+ ]);
+}
+// 運び手が手放された（売却・解雇・退去）。載せていた荷は、それぞれの持ち主の手元へ戻る
+function _carReturnAll(){
+ muleReconcile();
+ _muleMembers().forEach(m=>{
+  const b = _car() && _car().boxes && _car().boxes[_muleKey(m)];
+  if(!b) return;
+  m.gold = (m.gold||0) + b.gold; m.sp = (m.sp||0) + b.sp; m.cp = (m.cp||0) + b.cp;
+  ['invWeapons','invArmors','invEquip','invJewels','invSpecialties'].forEach(f=>{
+   m[f] = m[f] || []; (b[f]||[]).forEach(it=>m[f].push(it));
+  });
+ });
+}
+function muleSellAsk(townId, backFn){
+ _muleShow(`<span style="color:#f0ece0">ラバを売る</span><br><br>
+  ラバを手放すと、${MULE_SELL}GPになる。載せている荷は、それぞれの持ち主の手元に戻る。`, [
+  {label:` 売る（${MULE_SELL}GP）`, fn:()=>{
+   _muleSel = 'mule';
+   _carReturnAll();
+   if(PC._mule.guard){ PC.party = PC.party||[]; PC.party.push(PC._mule.guard); }
+   PC._mule = null;
+   gainGP(MULE_SELL);
+   updateHUD();
+   showSaveToast(` ラバを売った（${MULE_SELL}GP）`);
+   muleMenu(townId, backFn);
+  }},
+  {label:'← 戻る', fn:()=>muleMenu(townId, backFn)},
+ ]);
+}
+// ── 荷の整理 ──
+function muleBoxList(backFn){
+ if(!_car()) return;
+ _muleSyncOut(); muleReconcile();
+ if(_car().inDungeon){
+  _muleShow(`<span style="color:#f0ece0">ラバの荷</span><br><br>${_muleSel === 'porter' ? '人夫は、ダンジョンの入口で待っている' : 'ラバは、ダンジョンの入口の近くに繋いである'}。荷に手は届かない。`, [{label:'← 戻る', fn:backFn}]);
+  return;
+ }
+ const ch = _muleMembers().map(m=>{
+  const b = muleBox(m);
+  const dead = (m !== PC && m.con <= 0);
+  return {label:` ${m === PC ? 'あなた' : m.name}の箱${dead ? '（倒れている）' : ''}　${muleBoxWeight(b)}wu`, fn:()=>muleBoxScreen(m, backFn)};
+ });
+ ch.push({label:'← 戻る', fn:backFn});
+ _muleShow(`<span style="color:#f0ece0">ラバの荷</span><br><br>
+  ラバは、全員の箱を運んでいる。箱は持ち主ごとに分かれていて、自分の箱にしか出し入れできない。<br>
+  載せている荷は${muleLoad()} / ${_cap()}wu。<br>
+  倒れた仲間の箱は、その仲間を葬るか別れるときに、生き残った者で分ける。`, ch);
+}
+function _muleBoxSummary(m){
+ const b = muleBox(m);
+ const rows = [];
+ if(b.gold || b.sp || b.cp) rows.push(`${b.gold}GP ${b.sp}SP ${b.cp}CP`);
+ (b.invWeapons||[]).forEach(w=>rows.push(w.name));
+ (b.invArmors||[]).forEach(a=>rows.push(a.name));
+ (b.invEquip||[]).forEach(n=>rows.push(n));
+ (b.invJewels||[]).forEach(j=>rows.push(j.name));
+ (b.invSpecialties||[]).forEach(sp=>rows.push(sp.name));
+ return rows.length ? rows.join('、') : '空っぽだ';
+}
+function muleBoxScreen(m, backFn){
+ const dead = (m !== PC && m.con <= 0);
+ const who = m === PC ? 'あなた' : m.name;
+ const ch = [];
+ if(!dead){
+  ch.push({label:' 物を預ける', fn:()=>muleDepositItems(m, backFn)});
+  ch.push({label:' 金を預ける', fn:()=>muleCoins(m, 'in', backFn)});
+  ch.push({label:' 物を取り出す', fn:()=>muleWithdrawItems(m, backFn)});
+  ch.push({label:' 金を取り出す', fn:()=>muleCoins(m, 'out', backFn)});
+ }
+ ch.push({label:'← 戻る', fn:()=>muleBoxList(backFn)});
+ _muleShow(`<span style="color:#f0ece0">${who}の箱</span><br><br>
+  <span style="color:#c8b8a0">${_muleBoxSummary(m)}</span><br><br>
+  この箱の重さは${muleBoxWeight(muleBox(m))}wu。荷の合計は${muleLoad()} / ${_cap()}wu。`, ch);
+}
+function _muleRefuses(m){
+ if(m === PC) return false;
+ if((m.trust??0) < MULE_REFUSE_TRUST){
+  _mt(`${m.name}は、自分の物をラバに預けるのを嫌がった`);
+  return true;
+ }
+ return false;
+}
+function muleDepositItems(m, backFn){
+ if(_muleRefuses(m)) return;
+ const b = muleBox(m);
+ const left = _cap() - muleLoad();
+ const items = [];
+ (m.invWeapons||[]).forEach((w,i)=>{
+  if((m.equippedWeapons||[]).includes(w) || m.equippedRanged === w) return;
+  items.push({f:'invWeapons', i, name:w.name, wt:w.weight||0});
+ });
+ (m.invArmors||[]).forEach((a,i)=>{
+  if((m.equippedArmors||[]).includes(a)) return;
+  items.push({f:'invArmors', i, name:a.name, wt:a.weight||0});
+ });
+ (m.invEquip||[]).forEach((n,i)=>{ const d = EQUIP_TABLE.find(t=>t.name===n); items.push({f:'invEquip', i, name:n, wt:d?d.weight:0}); });
+ (m.invJewels||[]).forEach((j,i)=>items.push({f:'invJewels', i, name:j.name, wt:0}));
+ (m.invSpecialties||[]).forEach((sp,i)=>items.push({f:'invSpecialties', i, name:sp.name, wt:sp.weight||0}));
+ const ch = items.map(it=>({label:` ${it.name}（${it.wt}wu）`, fn:()=>{
+  if(it.wt > _cap() - muleLoad()){ _mt('ラバには、これ以上載せられない'); return; }
+  const arr = m[it.f]; const obj = arr[it.i]; if(obj === undefined) return;
+  arr.splice(it.i, 1);
+  b[it.f].push(obj);
+  updateHUD(); checkWeightPenalty(m);
+  _mt(`${it.name}を預けた`);
+  muleDepositItems(m, backFn);
+ }}));
+ ch.push({label:'← 戻る', fn:()=>muleBoxScreen(m, backFn)});
+ _muleShow(`<span style="color:#f0ece0">物を預ける</span><br><br>
+  ${items.length ? 'ラバに預ける物を選ぶ。装備している物は、先に外す。' : '預けられる物がない。'}<br>
+  あと${left}wu、載せられる。`, ch);
+}
+function muleWithdrawItems(m, backFn){
+ const b = muleBox(m);
+ const items = [];
+ ['invWeapons','invArmors','invJewels','invSpecialties'].forEach(f=>{ (b[f]||[]).forEach((o,i)=>items.push({f, i, name:o.name, wt:o.weight||0})); });
+ (b.invEquip||[]).forEach((n,i)=>{ const d = EQUIP_TABLE.find(t=>t.name===n); items.push({f:'invEquip', i, name:n, wt:d?d.weight:0}); });
+ const ch = items.map(it=>({label:` ${it.name}（${it.wt}wu）`, fn:()=>{
+  const arr = b[it.f]; const obj = arr[it.i]; if(obj === undefined) return;
+  arr.splice(it.i, 1);
+  m[it.f] = m[it.f] || []; m[it.f].push(obj);
+  updateHUD(); checkWeightPenalty(m);
+  _mt(`${it.name}を取り出した`);
+  muleWithdrawItems(m, backFn);
+ }}));
+ ch.push({label:'← 戻る', fn:()=>muleBoxScreen(m, backFn)});
+ _muleShow(`<span style="color:#f0ece0">物を取り出す</span><br><br>${items.length ? '取り出す物を選ぶ。' : '箱は空っぽだ。'}`, ch);
+}
+function muleCoins(m, dir, backFn){
+ if(dir === 'in' && _muleRefuses(m)) return;
+ const b = muleBox(m);
+ const names = {gold:'GP', sp:'SP', cp:'CP'};
+ const verb = dir === 'in' ? '預ける' : '取り出す';
+ const maxOf = c=>{
+  const have = dir === 'in' ? (m[c]||0) : (b[c]||0);
+  return dir === 'in' ? Math.min(have, Math.max(0, _cap() - muleLoad())) : have;
+ };
+ const move = (c, n)=>{
+  if(dir === 'in'){ m[c] = (m[c]||0) - n; b[c] += n; } else { b[c] -= n; m[c] = (m[c]||0) + n; }
+ };
+ const done = (msg)=>{ updateHUD(); checkWeightPenalty(m); _mt(msg); muleCoins(m, dir, backFn); };
+ const ch = [];
+ ch.push({label:` 全ての硬貨を${verb}`, fn:()=>{
+  const parts = [];
+  ['gold','sp','cp'].forEach(c=>{ const n = maxOf(c); if(n > 0){ move(c, n); parts.push(n + names[c]); } });
+  if(!parts.length){ _mt(dir === 'in' ? '預けられる硬貨がない' : '取り出せる硬貨がない'); return; }
+  done(`${parts.join('・')}を${dir === 'in' ? '預けた' : '取り出した'}`);
+ }});
+ ['gold','sp','cp'].forEach(c=>{
+  const have = dir === 'in' ? (m[c]||0) : (b[c]||0);
+  ch.push({label:` ${names[c]}を全て${verb}（${have}）`, fn:()=>{
+   if(have <= 0){ _mt('その硬貨はない'); return; }
+   const n = maxOf(c);
+   if(n <= 0){ _mt('ラバには、これ以上載せられない'); return; }
+   move(c, n);
+   done(n < have ? `ラバに載る分だけ、${n}${names[c]}を預けた` : `${n}${names[c]}を${dir === 'in' ? '預けた' : '取り出した'}`);
+  }});
+  ch.push({label:` ${names[c]}を数を決めて${verb}`, fn:()=>{
+   if(have <= 0){ _mt('その硬貨はない'); return; }
+   const max = maxOf(c);
+   if(max <= 0){ _mt('ラバには、これ以上載せられない'); return; }
+   const input = prompt(`${verb}${names[c]}の数を入力してください（1〜${max}）`, String(max));
+   if(input === null) return;
+   const n = Math.floor(Number(input));
+   if(!(n >= 1 && n <= max)){ _mt('数が正しくない'); return; }
+   move(c, n);
+   done(`${n}${names[c]}を${dir === 'in' ? '預けた' : '取り出した'}`);
+  }});
+ });
+ ch.push({label:'← 戻る', fn:()=>muleBoxScreen(m, backFn)});
+ const who = m === PC ? 'あなた' : m.name;
+ _muleShow(`<span style="color:#f0ece0">${dir === 'in' ? '金を預ける' : '金を取り出す'}</span><br><br>
+  ${who}の手持ちは ${m.gold||0}GP ${m.sp||0}SP ${m.cp||0}CP、箱の中は ${b.gold}GP ${b.sp}SP ${b.cp}CP。<br>
+  硬貨は1枚が1wuの重さになる。`, ch);
+}
+// ── ステータス（パーティタブ）からの出し入れ ──
+function mulePanelBlocked(sel){
+ sel = sel || _muleSel;
+ const nm = sel === 'porter' ? '人夫' : 'ラバ', car = sel === 'porter' ? PC._porter : PC._mule;
+ if(typeof cbtState !== 'undefined' && cbtState) return `戦闘の最中で、${nm}の荷には手が届かない`;
+ if(PC._nightmare && PC._nightmare.active) return `${nm}の荷には、いまは手が届かない`;
+ if(car && car.inDungeon) return sel === 'porter' ? '人夫はダンジョンの入口で待っている。荷には手が届かない' : 'ラバはダンジョンの入口の近くに繋いである。荷には手が届かない';
+ const d = PC._yeldunDungeon;
+ if(d && (d.isRuinIsland || d.isNightmare)) return `${nm}の荷には、いまは手が届かない`;
+ return '';
+}
+function muleCardHtml(){
+ let html = '';
+ ['mule','porter'].forEach(sel=>{
+  const car = sel === 'porter' ? PC._porter : PC._mule;
+  if(!car) return;
+  _muleSyncOut();
+  const nm = sel === 'porter' ? `人夫（${car.name}）` : 'ラバ', btn = sel === 'porter' ? '人夫の荷を整理する' : 'ラバの荷を整理する';
+  const why = mulePanelBlocked(sel);
+  html += `<div style="background:var(--panel);border:1px solid var(--bark);border-radius:4px;padding:10px;margin-bottom:8px">
+   <div style="font-size:calc(var(--font-sm) + 1px);color:var(--gold3)">${nm} <span style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">載せている荷 ${_withSel(sel, muleLoad)} / ${_withSel(sel, _cap)}wu</span></div>
+   ${why ? `<div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-top:6px">${why}。</div>` :
+   `<button onclick="mulePanelOpen('${sel}')" style="width:100%;font-size:calc(var(--font-sm) - 2px);padding:10px;background:var(--ink);border:1px solid #505050;color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px;margin-top:6px">${btn}</button>`}
+  </div>`;
+ });
+ return html;
+}
+function mulePanelOpen(sel){
+ _muleSel = sel || 'mule';
+ if(!_car() || mulePanelBlocked()) { renderPartyTab(); return; }
+ _mulePanel = true;
+ muleBoxList(mulePanelClose);
+}
+function mulePanelClose(){
+ _mulePanel = false;
+ renderPartyTab();
+}
+// ラバと人夫の両方がいるときは、どちらの荷かを選ばせる（町の広場・荒野から）
+function carrierPick(backFn){
+ _mulePanel = false;
+ const hasM = muleHas(), hasP = porterHas();
+ if(hasM && hasP){
+  _muleSel = 'mule';
+  _muleShow(`<span style="color:#f0ece0">荷を整理する</span><br><br>どちらの荷を整理する？`, [
+   {label:' ラバの荷', fn:()=>{ _muleSel = 'mule'; muleBoxList(()=>carrierPick(backFn)); }},
+   {label:` 人夫（${PC._porter.name}）の荷`, fn:()=>{ _muleSel = 'porter'; muleBoxList(()=>carrierPick(backFn)); }},
+   {label:'← 戻る', fn:backFn},
+  ]);
+  return;
+ }
+ _muleSel = hasP ? 'porter' : 'mule';
+ muleBoxList(backFn);
+}
+// 各メンバーの、ラバ・人夫に預けている硬貨の行（ステータス表示用）
+function carrierCoinRows(m){
+ const rows = [];
+ [['mule','ラバ'],['porter','人夫']].forEach(([k,l])=>{
+  const car = k === 'porter' ? PC._porter : PC._mule;
+  if(!car) return;
+  const b = _withSel(k, ()=>muleBox(m));
+  if(b.gold || b.sp || b.cp) rows.push(`${l}：${b.gold||0}GP ${b.sp||0}SP ${b.cp||0}CP`);
+ });
+ return rows;
+}
+
+// ══ 荷運び人夫 ══════════════════════════════════════════════
+// 町の広場で雇う（同時に1人）。町に入る度に、賃金（2GP×(ST+CON)）が主人公の所持金から引かれる。
+// 持ち主ごとの袋で荷を運ぶ（運搬力はST×100）。戦闘には加わらず、ダンジョンでは入口で待つ。
+const PORTER_TRAITS = [
+ {t:'寡黙',     hire:'ほとんど口を開かず、うなずいて荷に手をかけた。', pay:'黙って金を受け取り、小さくうなずいた。', leave:'何も言わず、荷を下ろして去っていった。'},
+ {t:'陽気',     hire:'口笛を吹きながら、荷を担ぎ上げた。', pay:'歌を口ずさみながら、賃金を数えている。', leave:'歌を口ずさみながら、手を振って去っていった。'},
+ {t:'がめつい', hire:'賃金の話になると、目が光った。', pay:'金貨を一枚ずつ、数え直している。', leave:'最後まで勘定をしつこく確かめて、去っていった。'},
+ {t:'世話焼き', hire:'荷の結び方を、いきなり直しはじめた。', pay:'荷の紐を結び直しながら、金を受け取った。', leave:'荷をきちんと畳んでから、去っていった。'},
+ {t:'臆病',     hire:'物音がするたびに首をすくめながらも、荷を担いだ。', pay:'あたりを見回しながら、金を受け取った。', leave:'逃げるように、足早に去っていった。'},
+ {t:'豪快',     hire:'重い荷を見て、むしろ張り切って袖をまくった。', pay:'大きな声で礼を言い、金を受け取った。', leave:'豪快に笑い、荷を置いて去っていった。'},
+ {t:'信心深い', hire:'荷を担ぐ前に、短く祈りを捧げた。', pay:'金を受け取り、天に向かって祈りを捧げた。', leave:'別れ際に、旅の無事を祈ってくれた。'},
+ {t:'酒好き',   hire:'荷を担ぎながら、酒場の方をちらりと見た。', pay:'賃金を受け取ると、酒場の方へ目をやった。', leave:'酒場の方へ、ふらりと去っていった。'},
+ {t:'几帳面',   hire:'荷の重さを、一つずつ数えはじめた。', pay:'金額を帳面に書きつけてから、受け取った。', leave:'荷の目録を渡し、一礼して去っていった。'},
+ {t:'無鉄砲',   hire:'荒野の話を聞いて、嬉しそうに荷を担いだ。', pay:'賃金を懐に突っ込み、次はどこへ行くのかと尋ねた。', leave:'「次はもっと面白い所へ」と言い残して、去っていった。'},
+ {t:'物知り',   hire:'道の様子を、聞かれてもいないのに語りはじめた。', pay:'金を受け取りながら、道の噂を一つ語った。', leave:'道中の噂を一つ置き土産にして、去っていった。'},
+ {t:'頑固',     hire:'一度決めたら動かない顔で、荷を担いだ。', pay:'言われた額きっかりを、黙って受け取った。', leave:'一度言い出したら聞かず、そのまま去っていった。'},
+];
+function _porterRoll(){
+ const r3 = ()=>d6()+d6()+d6();
+ const st = r3(), con = r3();
+ const trait = Math.floor(Math.random()*PORTER_TRAITS.length);
+ return {name:NPC_NAMES[Math.floor(Math.random()*NPC_NAMES.length)], trait, st, con, wage:2*(st+con), cap:st*100, boxes:{}, inDungeon:false};
+}
+function porterTrait(p){ return PORTER_TRAITS[(p && p.trait) || 0] || PORTER_TRAITS[0]; }
+function _porterCandidates(townId){
+ if(!PC._porterCand) PC._porterCand = {};
+ const day = GAME_TIME.totalDays;
+ let rec = PC._porterCand[townId];
+ if(!rec || rec.day !== day){ rec = PC._porterCand[townId] = {day, list:[_porterRoll(), _porterRoll(), _porterRoll()]}; }
+ return rec;
+}
+function porterMenu(townId, backFn){
+ _mulePanel = false; _muleSel = 'porter';
+ _muleSyncOut();
+ const p = PC._porter;
+ if(p){
+  const tr = porterTrait(p);
+  _muleShow(`<span style="color:#f0ece0">荷運び人夫</span><br><br>
+   ${p.name}（${tr.t}）を雇っている。ST ${p.st}・CON ${p.con}。町に入る度に、賃金${p.wage}GPを払う。<br>
+   載せている荷は${muleLoad()} / ${p.cap}wu。`, [
+   {label:' 人夫の荷を整理する', fn:()=>{ _muleSel = 'porter'; muleBoxList(()=>porterMenu(townId, backFn)); }},
+   {label:` ${p.name}との契約を解く`, fn:()=>porterDismissAsk(townId, backFn)},
+   {label:'← 広場に戻る', fn:backFn},
+  ]);
+  return;
+ }
+ const rec = _porterCandidates(townId);
+ const ch = rec.list.map((c,i)=>({label:` ${c.name}（${PORTER_TRAITS[c.trait].t}）　ST ${c.st}・CON ${c.con}　賃金${c.wage}GP／町　運搬${c.cap}wu`, fn:()=>{
+  const q = PC._porter; if(q) return;
+  PC._porter = c;
+  rec.list.splice(i, 1);
+  showSaveToast(` ${c.name}を雇った`);
+  _muleShow(`<span style="color:#f0ece0">${c.name}を雇った</span><br><br>${PORTER_TRAITS[c.trait].hire}<br><br>町に入る度、賃金${c.wage}GPを払う。荷は、この者が持ち主ごとの袋に分けて運んでくれる。`, [
+   {label:'▶ 人夫の荷を整理する', fn:()=>{ _muleSel = 'porter'; muleBoxList(()=>porterMenu(townId, backFn)); }},
+   {label:'← 広場に戻る', fn:backFn},
+  ]);
+ }}));
+ ch.push({label:'← 広場に戻る', fn:backFn});
+ _muleShow(`<span style="color:#f0ece0">荷運び人夫</span><br><br>
+  広場の隅に、荷運びの仕事を探している者たちがいる。賃金は、町に入る度に払う。荷運びは戦いには加わらず、ダンジョンでは入口で待つ。連れていけるのは1人までだ。`, ch);
+}
+function porterDismissAsk(townId, backFn){
+ const p = PC._porter; if(!p) return;
+ _muleShow(`<span style="color:#f0ece0">契約を解く</span><br><br>${p.name}に預けている荷は、それぞれの持ち主の手元に戻る。重くなりすぎるかもしれない。`, [
+  {label:' 契約を解く', fn:()=>{
+   _muleSel = 'porter'; _carReturnAll();
+   const tr = porterTrait(p); PC._porter = null; updateHUD();
+   showSaveToast(` ${p.name}との契約を解いた`);
+   _muleSel = 'porter';
+   _muleShow(`<span style="color:#f0ece0">${p.name}は去った</span><br><br>${tr.leave}`, [{label:'← 広場に戻る', fn:backFn}]);
+  }},
+  {label:'← 戻る', fn:()=>porterMenu(townId, backFn)},
+ ]);
+}
+// 町に入った瞬間に賃金を払う。払えなければ人夫は去り、荷は持ち主に戻る
+function porterSettle(){
+ const p = PC._porter;
+ if(!p || p.inDungeon || !p.away) return;   // 旅（荒野・ダンジョンを含む）を経て着いたときだけ払う
+ p.away = false;
+ const tr = (PC.party||[]).map(n=>n.trust);
+ const ok = payGP(p.wage);
+ (PC.party||[]).forEach((n,i)=>{ n.trust = tr[i]; });   // 賃金で仲間の信頼度は動かさない
+ const T = porterTrait(p);
+ const note = m=>{ PC._pendingMsg = (PC._pendingMsg||'') + `<span style="color:#c8b8a0">${m}</span><br><br>`; };   // 町の本文の先頭に残す
+ if(ok){ updateHUD(); note(`人夫の${p.name}に、賃金${p.wage}GPを払った。${T.pay}`); return; }
+ _withSel('porter', _carReturnAll);
+ PC._porter = null; updateHUD();
+ note(`人夫の${p.name}に払う賃金${p.wage}GPが足りず、契約は切れた。預けていた荷は、それぞれの持ち主の手元に戻った。${T.leave}`);
+}
+// ══ END ラバ ═════════════════════════════════════════════════════
 
 function plazaTalkChoices(townId, backFn){
  const day = GAME_TIME.totalDays;
@@ -37248,7 +38062,9 @@ function plazaTalkChoices(townId, backFn){
   if(backFn) backFn();                 // 広場の画面を先に描き直し、時間帯の表示を新しくする
   plazaTalk(townId, ph, null);
  }},
- {label:' 共同墓地を訪ねる', fn:()=>showTownCemetery(townId, backFn)}];
+ {label:' 共同墓地を訪ねる', fn:()=>showTownCemetery(townId, backFn)},
+ {label: muleHas() ? ' ラバのところへ行く' : ` ラバを見に行く（${MULE_PRICE}GP）`, fn:()=>muleMenu(townId, backFn)},
+ {label: porterHas() ? ' 荷運び人夫と話す' : ' 荷運び人夫を探す', fn:()=>porterMenu(townId, backFn)}];
 }
 function plazaTalk(townId, ph, backFn){
  const who = _plazaSpeaker(ph);
@@ -37778,7 +38594,7 @@ function ydExplore(fromNodeId, direction){
 
  // 新ノード生成
  const newId = ydNewNodeId(floor);
- const roll = mustHunt
+ let roll = mustHunt
   ? {type:'encounter'}                 // 残スロットが足りなくなったら強制
   : mustAnchor
    ? {type: forcedAnchor==='forage' ? 'village_forage' : 'encounter', anchorTag: forcedAnchor}
@@ -37797,6 +38613,15 @@ function ydExplore(fromNodeId, direction){
         : atLimit
          ? {type:'dead_end'}                 // 上限到達（討伐完了済み／アンカー配置済み）
          : ydRoll100(dung.isHideoutDungeon ? YD_T_PASSAGE_HIDEOUT : (dung.isVillageBackAlley ? YD_T_PASSAGE_VILLAGE : YD_T_PASSAGE)); // 通常テーブル
+ // 悪夢：行き止まり・罠・出来事は出さない（必ず先へ続く）
+ if(dung.isNightmare){
+  let _g = 0;
+  while(['dead_end','trap','village_incident','village_forage'].includes(roll.type) && _g++ < 50) roll = ydRoll100(YD_T_PASSAGE_VILLAGE);
+ }
+ // 隆起島の遺跡：新しい通路・部屋に着くたび16%で敵に遭遇する
+ if(dung.isRuinIsland && !mustAnchor && !atLimit && ['straight10','straight20','side','turn','room'].includes(roll.type) && Math.random() < 0.16){
+  roll = {type:'encounter'};
+ }
  let node  = ydBuildNode(newId, fromNodeId, direction, roll, floor);
  // 酒場の誘いで来た町歩き：噂の出来事がまだ出ていないのに、最後の進路が行き止まりになる場合は、そこに噂の出来事を置く
  if(dung.tavernRumorBoost && heardRumorActive && !dung._rumorPlaced && node.type !== 'town_mini_resolve' && !(node.pending && node.pending.length) && !mustHunt && !mustAnchor){
@@ -37903,7 +38728,9 @@ function ydBuildNode(id, fromId, fromDir, roll, floor){
   case 'room':{
    const rw  = ydRoll100([{r:[1,50],w:'狭い'},{r:[51,70],w:'こぢんまりとした'},{r:[71,80],w:'広めの'},{r:[81,90],w:'広い'},{r:[91,95],w:'非常に広い'},{r:[96,100],w:'unusual'}]);
    const rexits = ydRoll100(dung.isVillageBackAlley ? YD_T_ROOM_EXITS_VILLAGE : YD_T_ROOM_EXITS);
-   const rcont  = ydRoll100(dung.isHideoutDungeon ? YD_T_ROOM_CONTENTS_HIDEOUT : (dung.isVillageBackAlley ? YD_T_ROOM_CONTENTS_VILLAGE : YD_T_ROOM_CONTENTS));
+   let rcont  = ydRoll100(dung.isHideoutDungeon ? YD_T_ROOM_CONTENTS_HIDEOUT : (dung.isVillageBackAlley ? YD_T_ROOM_CONTENTS_VILLAGE : YD_T_ROOM_CONTENTS));
+   if(dung.isNightmare) rcont = {type:'empty'};
+   else if(dung.isRuinIsland && (rcont.type==='monster'||rcont.type==='monster_treasure')) rcont = {type:'empty'}; // 遭遇は16%判定に一本化
    node.type = 'room';
    node.roomWidth = rw.w;
    node.roomExits = rexits.exits;
@@ -38268,6 +39095,7 @@ function huntKilledCount(dung){
 }
 function ydGoNode(nodeId, floor){
  if(!PC._yeldunDungeon) return;
+ if(muleYdHook(nodeId, floor)) return; // ラバ：ダンジョンの入口で留め置く
  // 酒場パネルが開いたままダンジョンへ移動した場合に備え、確実に閉じる
  const _pp = document.getElementById('patron-panel');
  if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
@@ -38286,10 +39114,12 @@ function ydGoNode(nodeId, floor){
 
  // ── ヴェルダ裏路地専用：時刻を進め、現在時刻から明暗を動的に再判定 ──
  if(dung.isVillageBackAlley){
-  if(node.type !== 'entrance'){
+  if(node.type !== 'entrance' && !dung.isNightmare){
    if(advanceVillageTime(10)) return; // 日跨ぎで力尽きた場合はここで中断
+   // 隆起島：探索中に島が沈む時期を迎えたら、探索を打ち切って船へ戻す
+   if(dung.isRuinIsland && !isPortArgonIslandUp()){ PC._yeldunDungeon = null; hideDungeonImage(); go('PORT_ARGON_ISLAND'); return; }
   }
-  dung.design.isNaturalLight = !villagePhase(getGameHour()).dark;
+  dung.design.isNaturalLight = dung.isNightmare ? true : !villagePhase(getGameHour()).dark;
  }
 
  _ydState = { nodeId, floor };
@@ -38444,7 +39274,7 @@ function ydGoNode(nodeId, floor){
  cbtState = null; // 戦闘後にydGoNodeが呼ばれる場合にリセット
 
  const storyEl = document.getElementById('story');
- storyEl.innerHTML = ydNodeTxt(node, floor);
+ storyEl.innerHTML = dung.isNightmare ? ydNodeTxt(node, floor).replace(/^(\s|<br>)+/, '') : ydNodeTxt(node, floor);
 
  // イベント（未解決の遭遇・宝箱・依頼等）がある間は、通常の移動選択肢を一時的に隠す。
  // ただし「撤退する」等の常時表示したいものは_alwaysShowで残す。
@@ -38797,7 +39627,7 @@ function ydNodeTxt(node, floor){
  const fLabel = dung.isHideoutDungeon
   ? `<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">賞金首のアジト　${floor}F</span>`
   : dung.isVillageBackAlley
-  ? `<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">${villageCfg(dung).label}　── ${villagePhase(getGameHour()).label} ──</span>`
+  ? (dung.isNightmare ? '' : `<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">${villageCfg(dung).label}　── ${villagePhase(getGameHour()).label} ──</span>`)
   : `<span style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px)">B${floor}F ${YD_STYLE_DATA[style]?.name||'ダンジョン'}</span>`;
 
  const isLit = design.isNaturalLight;
@@ -39057,7 +39887,7 @@ function ydNodeTxt(node, floor){
    return `${tBar}${fLabel}<br><br>
     <span style="color:#b8a890">${!PC[node.monsterKey] ? tenseAtms[Math.floor(Math.random()*tenseAtms.length)] : (dung.isVillageBackAlley ? _rdungPick(villageCfg(dung).flavor.passage) : ydStyleAtm(design))}</span>
     ${!PC[node.monsterKey]
-     ? `<br><br><span style="color:var(--white)"> <b>${node.monster.name}</b>が<b>${node.monster.count}体</b>、この先にいる！</span>`
+     ? `<br><br><span style="color:var(--white)"> <b>${node.monster.name}</b>が<b>${node.monster.count}体</b>、この先にいる！</span>${node.monster.idle ? '<br><span style="color:#d0c8b8">全員が、遠くを見つめたまま、ぼんやりとたたずんでいる。</span>' : ''}`
      : `<br><br><span style="color:#b0a080">ここは静寂が戻っている。</span>`}
     ${darkWarn}`;
   }
@@ -40275,6 +41105,39 @@ function ydActionChoices(node, floor){
        onFail:()=>{
         if(advanceVillageTime(120)) return;
         finish(`<span style="color:#e0d0d0"> 何度歩いても、同じ岩の前に戻ってしまう。ようやく抜け出したときには、思いのほか時間が過ぎていた。</span>`);
+       },
+      });
+     }});
+     break;
+
+    case 'island_tidepool':
+     ch.push({label:' 水底に手を伸ばす（運 Lv2 能力値テスト）', fn:()=>{
+      setupSavingRoll({ attr:'lk', level:2,
+       onSuccess:()=>{
+        const gp = ydDn(6,2)*10;
+        gainGP(gp);
+        finish(`<span style="color:#f0ece0"> 水底から、古い装飾品を拾い上げた。海の底で長く眠っていたものらしい。（${gp}GP）</span>`);
+       },
+       onFail:()=>{
+        const dmg = ydD(3);
+        PC.con = Math.max(0, PC.con-dmg);
+        finish(`<span style="color:#e0d0d0"> 水底の石の縁で、手を切ってしまった。光っていたのは、割れた貝殻だった。（体力-${dmg}）</span>`);
+       },
+      });
+     }});
+     break;
+
+    case 'island_inscription':
+     ch.push({label:' 文字を読み解く（知性 Lv2 能力値テスト）', fn:()=>{
+      setupSavingRoll({ attr:'iq', level:2,
+       onSuccess:()=>{
+        const gp = ydDn(6,2)*10;
+        gainGP(gp);
+        finish(`<span style="color:#f0ece0"> 文字は、この街の倉の場所を記したものだった。壁の裏の隙間に、古い貨幣が残っていた。（${gp}GP）</span>`);
+       },
+       onFail:()=>{
+        if(advanceVillageTime(60)) return;
+        finish(`<span style="color:#e0d0d0"> 長いこと文字を睨んでいたが、何も読み取れなかった。気づけば、かなりの時間が過ぎていた。</span>`);
        },
       });
      }});
@@ -43693,7 +44556,10 @@ function ydActionChoices(node, floor){
   case 'encounter':
    if(!PC[node.monsterKey]){
     const m = node.monster;
-    if(m.isNPCType){
+    if(PC._yeldunDungeon?.isNightmare){
+     ch.push({label:` 戦う（${m.name} ×${m.count}）`, fn:()=>{ nightmareFight(node, floor); }});
+     break;
+    } else if(m.isNPCType){
      // NPC型（ST/DEX等を持つ人間キャラクター）：startCombatNPCで戦う
      ch.push({label:` 戦う（${m.name} ×${m.count}）`, fn:()=>{
       const _nid=node.id, _fl=floor;
@@ -43998,8 +44864,10 @@ function ydMoveChoices(node, floor){
     hideDungeonImage();
     go(backNode);
    }});
+  } else if(exitDung?.isVillageBackAlley && exitDung.isNightmare){
+   // 悪夢の中に出口はない
   } else if(exitDung?.isVillageBackAlley){
-   ch.push({label: exitDung.districtType ? ' 広場へ戻る' : ' 村へ戻る', fn:()=>{
+   ch.push({label: exitDung.isRuinIsland ? ' 島の入口へ戻る' : (exitDung.districtType ? ' 広場へ戻る' : ' 村へ戻る'), fn:()=>{
     PC._yeldunDungeon = null;
     hideDungeonImage();
     if(exitDung.districtType) smallTownHub(exitDung.villageId);
@@ -48087,6 +48955,155 @@ function startPortArgonIslandJourney(){
  travelLog(`<span style="color:#b8a890"> 船で <span style="color:#f0ece0">ポートアルゴン</span> → <span style="color:#f0ece0">隆起した島</span> へ出発。所要: ${PORT_ARGON_ISLAND_TRAVEL_DAYS}日</span>`);
 }
 
+// ── 隆起島：開口部（地下は未実装）とキャンプ ──
+function islandHoleTry(){
+ const st = document.getElementById('story');
+ if(st) st.innerHTML = `<span style="color:#f0ece0">隆起した島</span><br><br>
+  穴に近づくと、湿った空気に混じって、不快な甘い匂いが鼻をついた。<br>
+  底の見えない暗い穴。降りるには、もう少し準備が要りそうだ。`;
+ renderChoices([{label:'▶ 戻る', fn:()=>go('PORT_ARGON_ISLAND')}]);
+}
+function islandCampMenu(){
+ const st = document.getElementById('story');
+ if(st) st.innerHTML = `<span style="color:#f0ece0">キャンプする</span><br><br>
+  崩れた石壁の陰に野営の場所を決め、夜を明かす。`;
+ renderChoices([
+  {label:'野営して、朝まで休む', fn:()=>islandCampDo()},
+  {label:'▶ やめる', fn:()=>go('PORT_ARGON_ISLAND')},
+ ]);
+}
+function islandCampDo(){
+ // 朝（6時）まで時間を進める。必ず1日以上経過する
+ const h = GAME_TIME.hour ?? 6;
+ const minutes = (h >= 6 ? (24 - h + 6) : (6 - h + 24)) * 60;
+ if(advanceVillageTime(minutes)) return;
+ GAME_TIME.hour = 6;
+ updateHUD();
+ // 夜のワンダリングモンスター（16%）
+ if(Math.random() < 0.16){
+  const m = ydRollVillageEncounter(VILLAGE_BACKALLEY_CONFIGS.ruinisland.wildlifeTable);
+  const st = document.getElementById('story');
+  if(st) st.innerHTML = `<span style="color:#f0ece0">キャンプする</span><br><br>
+   夜更け、焚き火の向こうで気配が動いた。<b>${m.name}</b>が<b>${m.count}体</b>、闇の中から現れた！${m.idle ? '<br>全員が、遠くを見つめたまま、ぼんやりとたたずんでいる。' : ''}`;
+  renderChoices([{label:` 迎え撃つ（${m.name} ×${m.count}）`, fn:()=>{
+   const onWin = ()=>{ islandCampRecover(true); };
+   if(m.isNPCType){
+    startCombatNPC({ enemies:m.npcs, canFlee:true, fleeTo:'PORT_ARGON_ISLAND', win:'__noop__', lose:'DEAD', onWin });
+   } else {
+    const enemies = Array.from({length:m.count},(_,i)=>({
+     name:m.count>1?`${m.name} #${i+1}`:m.name, mr:m.singleMR, curMR:m.singleMR, armor:m.armor||0, magicOnly:!!m.magicOnly,
+    }));
+    startCombat({ enemies, canFlee:true, fleeTo:'PORT_ARGON_ISLAND', isHuman:m.isHuman, win:'__noop__', lose:'DEAD', onWin });
+   }
+   renderChoices([]); scrollToTop();
+  }}]);
+  return;
+ }
+ // 何事もなく夜が明けた場合、16%で悪夢に迷い込む。迷い込まなければ、16%で食料が盗まれている
+ if(Math.random() < 0.16){ islandNightmareIntro(); return; }
+ let _stolen = 0;
+ if((PC._food||0) >= 2 && Math.random() < 0.16){ _stolen = Math.floor(PC._food / 2); PC._food -= _stolen; }
+ islandCampRecover(false, _stolen);
+}
+
+// ── 悪夢の進行 ──
+function islandNightmareIntro(){
+ // 夢に入る前の状態を覚えておく（目覚めたときに体力・強さ・仲間の生死を元に戻す）
+ PC._nightmare = {
+  active: true,
+  fights: 0,
+  snap: {
+   con: PC.con, st: PC.st, poisoned: !!PC._poisoned,
+   party: (PC.party||[]).map(n=>({name:n.name, con:n.con, st:n.st, logged:!!n._fallenLogged, poisoned:!!n._poisoned})),
+  },
+ };
+ const st = document.getElementById('story');
+ if(st) st.innerHTML = `<span style="color:#f0ece0">キャンプする</span><br><br>
+  眠りは、いつもより深かった。<br>
+  どこかで、甘ったるい匂いがしている。`;
+ renderChoices([{label:'▶ 目を開ける', fn:()=>{ PC._torchStock = PC._torchStock||0; enterVillageBackAlley('ruinisland', null, {nightmare:true}); }}]);
+}
+// 悪夢の中の戦闘：戦闘のたびに敵が10倍の強さになる（NPC型はレベル、CR型はCRと防御点）。敵は魔法を反射する
+function nightmareFight(node, floor){
+ const nm = PC._nightmare; if(!nm) return;
+ const mult = Math.pow(10, nm.fights);
+ nm.fights++;
+ const m = node.monster;
+ const _nid = node.id, _fl = floor;
+ const onWin = ()=>{ PC[node.monsterKey] = true; updateHUD(); ydGoNode(_nid, _fl); };
+ const onLose = ()=>{ islandNightmareWake(); };
+ if(m.isNPCType){
+  const tpl = ISLAND_RUIN_ENEMIES.find(e=>e.name===m.name) || {};
+  const level = Math.max(1, Math.round((m.level||3) * mult));
+  const npcs = Array.from({length:m.count}, (_,i)=>{
+   const npc = generateNPC(level);
+   if(tpl.npcType === 'wizard'){ npc.type = 'wizard'; npc.spells = _spellsUpToLevel(Math.min(level, 20)); }
+   if(tpl.race) npc.race = tpl.race;
+   npc.reflectsSpells = true;
+   npc.name = m.count>1 ? `${m.name} #${i+1}` : m.name;
+   return npc;
+  });
+  startCombatNPC({ enemies:npcs, canFlee:false, isYD:true, win:'__yd_win__', lose:'DEAD', onWin, onLose });
+ } else {
+  const singleMR = Math.round(m.singleMR * mult);
+  const armor = Math.round((m.armor||0) * mult);
+  const enemies = Array.from({length:m.count},(_,i)=>({
+   name:m.count>1?`${m.name} #${i+1}`:m.name, mr:singleMR, curMR:singleMR, armor, magicOnly:!!m.magicOnly, reflectsSpells:true,
+  }));
+  startCombat({ enemies, canFlee:false, isHuman:m.isHuman, isYD:true, win:'__yd_win__', lose:'DEAD', onWin, onLose });
+ }
+ renderChoices([]); scrollToTop();
+}
+// 悪夢の戦闘に負けて、キャンプの朝に目覚める。体力・強さ・仲間の生死は夢に入る前の状態へ戻る（回復はない）
+function islandNightmareWake(){
+ const nm = PC._nightmare;
+ if(nm && nm.snap){
+  PC.con = nm.snap.con; PC.st = nm.snap.st; PC._poisoned = nm.snap.poisoned;
+  (PC.party||[]).forEach(n=>{
+   const r = nm.snap.party.find(x=>x.name===n.name);
+   if(!r) return;
+   n.con = r.con; n.st = r.st; n._fallenLogged = r.logged; n._poisoned = r.poisoned;
+  });
+ }
+ PC._nightmare = null;
+ PC._yeldunDungeon = null;
+ hideDungeonImage();
+ document.getElementById('cbt-area').classList.add('hidden');
+ document.getElementById('scroll-area').classList.remove('in-combat');
+ document.getElementById('text-win').style.display = '';
+ cbtState = null;
+ updateHUD();
+ const st = document.getElementById('story');
+ if(st) st.innerHTML = `<span style="color:#f0ece0">キャンプする</span><br><br>
+  目が覚めると、朝になっていた。ひどい悪夢を見た気がするが、内容は思い出せない。<br>
+  身体は重く、嫌な甘い匂いだけが、まだ鼻の奥に残っている。`;
+ renderChoices([{label:'▶ OK', fn:()=>go('PORT_ARGON_ISLAND')}]);
+}
+function islandCampRecover(afterFight, stolen){
+ const msgs = [];
+ const conGain = Math.floor(PC.maxCon * 0.25);
+ PC.con = Math.min(PC.maxCon, PC.con + conGain);
+ msgs.push(`体力が回復した（体力+${conGain}）`);
+ const stGain = Math.floor(PC.maxSt * 0.25);
+ if(stGain > 0){
+  PC.st = Math.min(PC.maxSt, PC.st + stGain);
+  msgs.push(`強さが回復した（強さ+${stGain}）`);
+ }
+ if(PC._poisoned){ PC._poisoned = false; msgs.push('毒が抜けた'); }
+ const aliveParty = (PC.party||[]).filter(n=>n.con>0);
+ aliveParty.forEach(n=>{
+  n.con = Math.min(n.maxCon, n.con + Math.floor(n.maxCon * 0.25));
+  n.st = Math.min(n.maxSt || n.st, n.st + Math.floor((n.maxSt||0) * 0.25));
+  if(n._poisoned) n._poisoned = false;
+ });
+ if(aliveParty.length) msgs.push(`仲間も回復した（${aliveParty.map(n=>n.name).join('、')}）`);
+ updateHUD();
+ const st = document.getElementById('story');
+ if(st) st.innerHTML = `<span style="color:#f0ece0">キャンプする</span><br><br>
+  ${afterFight ? '敵を退け、残りの夜を過ごした。' : '夜は静かに過ぎていった。'}朝になった。${stolen ? '<br><br>荷物を確かめると、食料が' + stolen + '日分なくなっていた。眠っている間に、誰かに持ち去られたらしい。' : ''}`;
+ renderChoices([{label:'▶ OK', fn:()=>go('PORT_ARGON_ISLAND')}]);
+}
+
 // 隆起島 → ポートアルゴン（復路）
 function startPortArgonIslandReturnJourney(){
  hideDungeonImage();
@@ -50604,6 +51621,7 @@ function travelLog(html){
 
 // 1日ずつカウントアップしながら時間を進める（移動・長期行動用）
 function advanceDaysAnimated(totalDays, onDone, interval=1000){
+ if(PC._porter) PC._porter.away = true;   // 旅に出た：次に町へ着いたとき、人夫に賃金を払う
  document.querySelectorAll('.choice-btn').forEach(b=>b.disabled=true);
 
  travelState = {
@@ -52935,7 +53953,7 @@ function startGame(){
  PC.maxCon=PC.con;PC.maxSt=PC.st;
  PC.gold=startGold||Nd6(3)*10;
  PC.ap=0;PC.level=1;
- PC.invWeapons=[];PC.invArmors=[];PC.invBoots=false;PC.invBootsName=null;PC._spareFootwear={};PC.invEquip=[];PC.invSpecialties=[];
+ PC.invWeapons=[];PC.invArmors=[];PC.invBoots=false;PC.invBootsName=null;PC._spareFootwear={};PC._spareWear={};PC._mule=null;PC._porter=null;PC.invEquip=[];PC.invSpecialties=[];
  PC.equippedWeapons=[];PC.equippedArmors=[];PC.equippedBoots=false;PC.equippedClothing=false;
  PC._torchStock=0; PC._torchTurns=0;
  PC.quests=[]; PC.party=[];
@@ -53330,23 +54348,56 @@ function addSpareFootwear(pc, name){
  if(!pc._spareFootwear) pc._spareFootwear = {};
  pc._spareFootwear[name] = (pc._spareFootwear[name]||0) + 1;
 }
-// 予備の1足を主人公が履く（現在の靴は無い状態が前提）。摩耗日数は新品としてやり直す
+// 予備の靴のうち、すでに履いた分の摩耗（日数と壊れるまでの日数）を種類ごとに控える。控えのない予備は新品
+// PC._spareWear = { 'ブーツ':[{d:履いた日数, t:壊れるまでの日数}, ...] }
+function _spareWearList(pc, name){
+ pc._spareWear = pc._spareWear || {};
+ pc._spareWear[name] = pc._spareWear[name] || [];
+ return pc._spareWear[name];
+}
+// 予備を1足減らす（売る・捨てる）。履き古した分を先に手放す
+function removeSpareFootwear(pc, name){
+ if(spareFootwearCount(name, pc) <= 0) return;
+ pc._spareFootwear[name]--;
+ const lst = _spareWearList(pc, name);
+ if(lst.length > pc._spareFootwear[name]){
+  lst.sort((a,b)=>b.d-a.d); lst.shift();
+ }
+}
+// 予備の1足を主人公が履く。いま持っている靴（履いている・脱いでいる）は予備に回し、摩耗日数も一緒に控える。
+// 予備に履き古した分があれば、いちばん履き古したものから使う（なければ新品）
 function wearSpareFootwear(name){
- if(spareFootwearCount(name) <= 0 || PC.invBoots) return false;
+ if(spareFootwearCount(name) <= 0) return false;
+ // いま持っている靴を予備へ
+ if(PC.invBoots){
+  const cur = PC.invBootsName || 'ブーツ';
+  addSpareFootwear(PC, cur);
+  if((PC._bootsWearDays||0) > 0 && PC._bootsBreakThreshold != null){
+   _spareWearList(PC, cur).push({d:PC._bootsWearDays, t:PC._bootsBreakThreshold});
+  }
+ }
+ // 予備から取り出す
  PC._spareFootwear[name]--;
+ const lst = _spareWearList(PC, name);
+ let wear = null;
+ if(lst.length > PC._spareFootwear[name]){
+  lst.sort((a,b)=>b.d-a.d); wear = lst.shift();
+ }
  PC.invBoots = true; PC.invBootsName = name; PC.equippedBoots = true;
- PC._bootsWearDays = 0; PC._bootsBreakThreshold = null;
+ PC._bootsWearDays = wear ? wear.d : 0;
+ PC._bootsBreakThreshold = wear ? wear.t : null;
  return true;
 }
 function wearSpareFootwearUI(name){
+ const was = PC.invBoots;
  if(!wearSpareFootwear(name)) return;
- checkWeightPenalty(); updateHUD(); renderStatusPanel(); showSaveToast(` 予備の${name}を履いた`);
+ checkWeightPenalty(); updateHUD(); renderStatusPanel(); showSaveToast(was ? ` 予備の${name}に履き替えた` : ` 予備の${name}を履いた`);
 }
 function sellSpareFootwear(name){
  if(spareFootwearCount(name) <= 0) return;
  const def = EQUIP_TABLE.find(t=>t.name===name);
  if(!_sellConfirm(`予備の${name}を売りますか？（${sellPriceLabel(def?def.cost:0)}）`)) return;
- PC._spareFootwear[name]--;
+ removeSpareFootwear(PC, name);
  if(def) gainPriceCP(sellPriceCP(def.cost), PC);
  updateHUD(); checkWeightPenalty(); renderStatusPanel();
  if(typeof renderIngameShop === 'function' && isShopOpen()) renderIngameShop();
@@ -54118,7 +55169,7 @@ function discardOwned(kind, who, idx){
    t.arrows=have-k; label=`矢${k}本`; break; }
   case 'clothing': { const nm=t.invClothingName||'防寒着と荷物袋'; if(!(t.invClothing||t.equippedClothing)) return; if(!ask(nm)) return; t.invClothing=false; t.equippedClothing=false; t.invClothingName=null; label=nm; break; }
   case 'boots': { const nm=t.invBootsName||'履物'; if(!(t.invBoots||t.equippedBoots)) return; if(!ask(nm)) return; t.invBoots=false; t.equippedBoots=false; t.invBootsName=null; label=nm; break; }
-  case 'spare': { /* idx は FOOTWEAR_NAMES の添字 */ const nm=FOOTWEAR_NAMES[idx]; if(!nm || spareFootwearCount(nm,t)<=0) return; if(!ask('予備の'+nm)) return; t._spareFootwear[nm]--; label='予備の'+nm; break; }
+  case 'spare': { /* idx は FOOTWEAR_NAMES の添字 */ const nm=FOOTWEAR_NAMES[idx]; if(!nm || spareFootwearCount(nm,t)<=0) return; if(!ask('予備の'+nm)) return; removeSpareFootwear(t, nm); label='予備の'+nm; break; }
   case 'jewel': { const j=(t.invJewels||[])[idx]; if(!j) return; if(!ask(j.name)) return; t.invJewels.splice(idx,1); label=j.name; break; }
   case 'spec': { const sp=(t.invSpecialties||[])[idx]; if(!sp) return; if(!ask(sp.name)) return; t.invSpecialties.splice(idx,1); label=sp.name; break; }
   default: return;
@@ -55623,9 +56674,11 @@ let _partyDetailIdx = null; // null=一覧, 0〜=個別
 function renderPartyTab(){
  const el = document.getElementById('sp-party-content');
  const party = PC.party||[];
+ _mulePanel = false;
+ const _mc = muleCardHtml();
  if(!party.length){
  _partyDetailIdx = null;
- el.innerHTML = '<div style="font-size:var(--font-sm);color:#c8b8a0;text-align:center;padding:20px">仲間がいません。<br>酒場で仲間を探しましょう。</div>' + fcRosterHtml();
+ el.innerHTML = _mc + '<div style="font-size:var(--font-sm);color:#c8b8a0;text-align:center;padding:20px">仲間がいません。<br>酒場で仲間を探しましょう。</div>' + fcRosterHtml();
  return;
  }
  if(_partyDetailIdx !== null && party[_partyDetailIdx]){
@@ -55633,7 +56686,7 @@ function renderPartyTab(){
  } else {
  _partyDetailIdx = null;
  renderPartyList(el, party);
- el.innerHTML += fcRosterHtml(); // かつての仲間の名簿
+ el.innerHTML = _mc + el.innerHTML + fcRosterHtml(); // かつての仲間の名簿
  }
 }
 
@@ -55779,13 +56832,15 @@ function renderNPCDetail(el, n, idx){
  </div>`).join('');
 
  const invArRows = (n.invArmors||[]).map((a,ai)=>{
- const canUse = a.stReq<=n.st;
+ const _chk = canEquipArmor(a, n);
+ const _stOk = a.stReq<=n.st;
+ const canUse = _stOk && _chk.ok;
  return `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
  <div>
- <div style="font-size:var(--font-sm);color:#c8b8a0">${a.isShield?'':''} ${a.name} ${a._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${a._baseName}）</span>`:''}${canUse?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※強さ不足</span>'}</div>
+ <div style="font-size:var(--font-sm);color:#c8b8a0">${a.isShield?'':''} ${a.name} ${a._baseName?`<span style="font-size:calc(var(--font-sm) - 3px);color:#d8d0c0">（${a._baseName}）</span>`:''}${_stOk?'':' <span style="color:#e0d0d0;font-size:calc(var(--font-sm) - 3px)">※強さ不足</span>'}</div>
  <div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">防護 ${a.hits}hits${wtLbl(a.weight)}</div>${weaponDescHtml(a)}
  </div>
- <span style="display:flex;gap:4px"><button onclick="renameGear('aInv',${ai},${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#14110c;border:1px solid #554a38;color:#c0b098;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">名前</button><button onclick="npcEquipArmor(${idx},${ai})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">装備</button>${discBtn('aInv',idx,ai)}</span>
+ <span style="display:flex;gap:4px"><button onclick="renameGear('aInv',${ai},${idx})" style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#14110c;border:1px solid #554a38;color:#c0b098;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px">名前</button><button onclick="npcEquipArmor(${idx},${ai})" ${canUse?'':'disabled'} style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#0e1006;border:1px solid var(--rust);color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px${canUse?'':';opacity:0.4'}">${canUse?'装備':(_stOk?(_chk.reason.length>6?'不可':_chk.reason):'装備')}</button>${discBtn('aInv',idx,ai)}</span>
  </div>`;
  }).join('');
 
@@ -55865,8 +56920,9 @@ function renderNPCDetail(el, n, idx){
  </div>
  ${(()=>{
   const bankEntries = Object.entries(n.bankAccounts||{}).filter(([t,a])=>a.gold||a.sp||a.cp);
-  if(!bankEntries.length) return '';
-  const rows = bankEntries.map(([t,a])=>`${EXCHANGE_BANK_NAMES[t]||t}：${a.gold||0}GP ${a.sp||0}SP ${a.cp||0}CP`).join('<br>');
+  const muleRow = carrierCoinRows(n);
+  if(!bankEntries.length && !muleRow.length) return '';
+  const rows = bankEntries.map(([t,a])=>`${EXCHANGE_BANK_NAMES[t]||t}：${a.gold||0}GP ${a.sp||0}SP ${a.cp||0}CP`).concat(muleRow).join('<br>');
   return `<div style="font-size:calc(var(--font-sm) - 2px);color:#a8c8a0;margin-bottom:12px">${rows}</div>`;
  })()}
 
@@ -56078,6 +57134,14 @@ function renderStatusPanel(){
  d.innerHTML = `<div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:3px">${l}</div><div style="font-size:var(--font-base);color:${c}">${v}</div>`;
  advEl.appendChild(d);
  });
+ // 両替所の預金・ラバに預けた金
+ const bankEl = document.getElementById('sp-bank');
+ if(bankEl){
+  const rows = Object.entries(PC.bankAccounts||{}).filter(([t,a])=>a.gold||a.sp||a.cp)
+   .map(([t,a])=>`${EXCHANGE_BANK_NAMES[t]||t}：${a.gold||0}GP ${a.sp||0}SP ${a.cp||0}CP`);
+  carrierCoinRows(PC).forEach(r=>rows.push(r));
+  bankEl.innerHTML = rows.length ? `<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:6px 8px;font-size:calc(var(--font-sm) - 2px);color:#a8c8a0;line-height:1.7">${rows.join('<br>')}</div>` : '';
+ }
  // 経験値バー（次のレベルまでの進み具合。仲間の詳細画面と同じ計算）
  const apBarEl = document.getElementById('sp-apbar');
  if(apBarEl){
@@ -56310,10 +57374,10 @@ function renderStatusPanel(){
   const cnt = spareFootwearCount(n);
   if(cnt <= 0) return;
   const sDef = EQUIP_TABLE.find(t=>t.name===n);
-  const wearBtn = !PC.invBoots ? `<button onclick="wearSpareFootwearUI('${n}')" ${btnStyle('var(--nature2)','#0e1006','var(--rust)')}>履く</button>` : '';
+  const wearBtn = `<button onclick="wearSpareFootwearUI('${n}')" ${btnStyle('var(--nature2)','#0e1006','var(--rust)')}>${PC.invBoots?'履き替える':'履く'}</button>`;
   const sSell = isShopOpen() && sDef ? `<button onclick="sellSpareFootwear('${n}')" ${btnStyle('var(--gold4)','var(--coal)','var(--mud)')}>売 ${sellPriceLabel(sDef.cost)}</button>` : '';
   eqHtml += `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
-  <div><div style="font-size:var(--font-sm);color:var(--dim)"> 予備の${n} ×${cnt}</div>${sDef?`<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${wtLbl(sDef.weight*cnt).replace('　','')}</div>`:''}</div>
+  <div><div style="font-size:var(--font-sm);color:var(--dim)"> 予備の${n} ×${cnt}</div>${sDef?`<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0">${wtLbl(wearWt(sDef.name, sDef.weight, PC)*cnt).replace('　','')}</div>`:''}</div>
   <div style="display:flex;gap:4px">${wearBtn}${sSell}${discBtn('spare',-1,FOOTWEAR_NAMES.indexOf(n))}</div>
   </div>`;
  });
@@ -58256,6 +59320,7 @@ function darkRoomTxt(nodeId){
 function darkRoomChoices(nodeId){
  // ノードIDのプレフィクスから正しい脱出ノードを決定
  const escapeMap = [
+  { prefix:'TOMB_',         escape:'TOMB_DARK_ESCAPE' },
   { prefix:'SHRINE_',       escape:'SHRINE_DARK_ESCAPE' },
   { prefix:'SHR2_',         escape:'SHR2_DARK_ESCAPE' },
   { prefix:'CRYPT3_',       escape:'CRYPT3_DARK_ESCAPE' },
@@ -58264,9 +59329,9 @@ function darkRoomChoices(nodeId){
   { prefix:'ISKALD_',       escape:'ISKALD_DARK_ESCAPE' },
   { prefix:'SHM3_',         escape:'RUIN_DARK_ESCAPE' },
   { prefix:'SHM2_',         escape:'RUIN_DARK_ESCAPE' },
-  { prefix:'AL_DNG_',       escape:'RUIN_DARK_ESCAPE' },
-  { prefix:'AL_W_',         escape:'RUIN_DARK_ESCAPE' },
-  { prefix:'AL_',           escape:'RUIN_DARK_ESCAPE' },
+  { prefix:'AL_DNG_',       escape:'AL_DARK_ESCAPE' },
+  { prefix:'AL_W_',         escape:'AL_DARK_ESCAPE' },
+  { prefix:'AL_',           escape:'AL_DARK_ESCAPE' },
   { prefix:'FP_B2_',        escape:'FP_B2_ENTRANCE' },
   { prefix:'FP_',           escape:'FP_ENTRANCE' },
   { prefix:'NIFLAIR_',      escape:'NIFLAIR_DARK_ESCAPE' },
@@ -58347,6 +59412,7 @@ function go(nodeId){
  if(nodeId==='__hunt_room__') return;
  if(nodeId==='__ARC_REST__'){ if(window._restVisitResume && restTickState) window._restVisitResume(); return; }
  if(nodeId==='__yd_win__') return;
+ if(typeof nodeId==='string' && muleGoHook(nodeId)) return; // ラバ：ダンジョンの出入り
  // 酒場パネルが開いていれば閉じる
  const _pp = document.getElementById('patron-panel');
  if(_pp && !_pp.classList.contains('hidden')) _pp.classList.add('hidden');
@@ -58438,6 +59504,8 @@ function go(nodeId){
    }
   }
  }
+ // 荷運び人夫：町に入る度に賃金を払う（同じ町の再描画では発動しない）
+ if(nodeId.startsWith('TOWN_') && currentNodeId!==nodeId && PC._porter) porterSettle();
  // 手配度：町に新しく入る瞬間の衛兵遭遇チェック（同じ町の再描画では発動しない）
  // ※ここでcurrentNodeIdを先に更新しておかないと、遭遇戦に勝利してgo()で同じ町へ戻った際に
  //   「まだ町に到着していない」と誤判定されて衛兵遭遇が無限に再発生してしまう
@@ -59815,7 +60883,7 @@ function _reflectSpellBack(caster, fn, lv, onDone, heat){
  if(fn==='atomization' && heat>0) cbtState._spellHitBonus = (cbtState._spellHitBonus||0) + heat;
  const spName = {ttyf:'Magic Bolt', turnToStone:'Turn to Stone', atomization:'Atomization'}[fn];
  const dodgeLv = fn==='atomization' ? 7 : fn==='turnToStone' ? 6 : Math.max(1, lv||1);
- cl.innerHTML += `<span class="red"> 鎧が${spName}を弾き返した！魔法は${who}に跳ね返ってくる——</span><br>`;
+ cl.innerHTML += `<span class="red"> ${(PC._nightmare && PC._nightmare.active) ? '見えない膜が' : '鎧が'}${spName}を弾き返した！魔法は${who}に跳ね返ってくる——</span><br>`;
  if(fn==='atomization' && heat>0) cl.innerHTML += `<span style="color:#e8e0d8"> （発生した熱で近接戦闘に${heat}ヒット追加）</span><br>`;
  _npcCombatTtyfDodge(dodgeLv, victim, (dodged)=>{
   if(dodged){
@@ -67648,6 +68716,37 @@ const NODES = {
  }}],
  },
 
+ AL_DARK_ESCAPE:{
+ scene:'dungeon',
+ txt:()=>`<span style="color:#f0ece0"></span><br><br>
+ <span style="color:var(--white2)">松明が切れた。完全な暗闇の中、壁を手探りで進む。出口まで帰り着けるか……</span>`,
+ choices:()=>[{label:' もう一度出口を探す（運 Lv3 能力値テスト）', fn:()=>{
+  setupSavingRoll({
+   attr:'lk', level:3,
+   onSuccess:()=>{
+    const s = document.getElementById('story');
+    s.innerHTML = `<span style="color:#f0ece0"></span><br><br>
+     壁を伝いながら必死に出口を探した。冷や汗をかきながらも、かすかな外の光を頼りにやっと入口へたどり着いた！`;
+    renderChoices([{label:' 入口の光の方へ歩いた', go:'AL_DNG_ENTRANCE'}]);
+    scrollToTop();
+   },
+   onFail:()=>{
+    const dmg = 5;
+    PC.con -= dmg; updateHUD();
+    const s = document.getElementById('story');
+    if(PC.con <= 0){
+     s.innerHTML = `<span style="color:#f0ece0"></span><br><br>闇の中で足を踏み外し、石の床に叩きつけられた。動けない……`;
+     renderChoices([{label:'…（力尽きた）', go:'DEAD'}]);
+    } else {
+     s.innerHTML = `<span style="color:#f0ece0"></span><br><br>出口を探して歩いていると、段差に気づかず転倒した。石床に激しく打ちつける。<br><br>体力-${dmg}　（残り ${PC.con}）<br><br>痛みをこらえながら、また出口を探す…`;
+     renderChoices([{label:' もう一度出口を探す（運 Lv3 能力値テスト）', go:'AL_DARK_ESCAPE'}]);
+    }
+    scrollToTop();
+   },
+  });
+ }}],
+ },
+
  // ── 大部屋A（北西）──────────────────────────
  RUIN_A:{
  scene:'dungeon',
@@ -74730,12 +75829,26 @@ ${gaugeHtml}${popDeliveryMsg()}${popHeroMsg()}${popInfamyMsg()}${popRegionHeroMs
 
  PORT_ARGON_ISLAND:{
  scene:'dungeon',
- txt:()=>`<span style="color:#f0ece0">隆起した島</span><br><br>
-  地震によって海底から隆起したばかりの、切り立った岩肌が剥き出しの小島。まだ誰の手も入っていないようで、目立った建造物や道らしきものは見当たらない。<br>
-  今はまだ、ただの岩と土の塊にすぎないようだ。`,
- choices:()=>[
-  {label:'↑ ポートアルゴンへ戻る（船で3日）', fn:()=>startPortArgonIslandReturnJourney()},
- ],
+ txt:()=>{
+  if(!isPortArgonIslandUp()){
+   return `<span style="color:#f0ece0">隆起した島</span><br><br>
+    足元が、低く唸った。島が、ゆっくりと海へ沈み始めている。<br>
+    これ以上ここにはいられない。急いで船へ戻らなければならない。`;
+  }
+  return `<span style="color:#f0ece0">隆起した島</span><br><br>
+   地震によって海底から隆起した島。崩れた石組みの街並みが、潮の匂いを残したまま海面から姿を現している。<br>
+   街の奥の地面には、暗い穴が口を開けている。`;
+ },
+ choices:()=>{
+  const back = {label:'↑ ポートアルゴンへ戻る（船で3日）', fn:()=>startPortArgonIslandReturnJourney()};
+  if(!isPortArgonIslandUp()) return [{label:'▶ 急いで船へ戻る', fn:()=>startPortArgonIslandReturnJourney()}];
+  return [
+   {label:'→ 遺跡を探索する', fn:()=>enterVillageBackAlley('ruinisland')},
+   {label:'↓ 地面に開いた開口部に入る', fn:()=>islandHoleTry()},
+   {label:'キャンプする', fn:()=>islandCampMenu()},
+   back,
+  ];
+ },
  },
 
  LAIR_ENTRANCE:{
