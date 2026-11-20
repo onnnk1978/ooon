@@ -17229,7 +17229,7 @@ function showLevelUpPanel(lv, pc){
 // ── WEIGHT POSSIBLE ────────────────────
 // 防寒着と荷物袋を装備していれば強さ×100、していなければその半分（強さ×50）までしか持てない
 // 仲間のNPCは着脱の操作がないので、防寒着を持っていれば着ている扱い
-const weightPossible = (pc=PC) => (pc.equippedClothing || (pc !== PC && pc.invClothing)) ? pc.st * 100 : pc.st * 50;
+const weightPossible = (pc=PC) => (pc.equippedClothing || (pc !== PC && pc.invClothing && !pc._clothingOff)) ? pc.st * 100 : pc.st * 50;
 
 // 現在の総所持重量を計算（アイテム＋硬貨）
 function calcTotalWeight(pc=PC){
@@ -54327,7 +54327,7 @@ function sellClothing(){
  const def = EQUIP_TABLE.find(t=>t.name===name)||EQUIP_TABLE.find(t=>t.name==='防寒着と荷物袋');
  if(!_sellConfirm(`${name}を売りますか？（${sellPriceLabel(def?def.cost:0)}）`)) return;
  if(def) gainPriceCP(sellPriceCP(def.cost), _sa);
- _sa.invClothing=false; _sa.invClothingName=null; _sa.equippedClothing=false;
+ _sa.invClothing=false; _sa.invClothingName=null; _sa.equippedClothing=false; _sa._clothingOff=false;
  updateHUD(); renderStatusPanel(); showSaveToast('衣服を売った');
 }
 function equipBoots(){
@@ -54642,7 +54642,7 @@ function coldDayTick(ts, days){
    } else if(ts && isWinter()){
     let p = 0.01;
     if(PC._hungerDmg > 0 || getFrostbiteLevel() > 0) p *= 2;
-    if(x.equippedClothing || x.invClothing) p *= 0.5;   // 仲間は着脱の操作がないので、防寒着を持っていれば着ている扱い
+    if((x.equippedClothing || x.invClothing) && !x._clothingOff) p *= 0.5;   // 仲間は着脱の操作がないので、防寒着を持っていれば着ている扱い
     if(Math.random() < p && coldCatch(x)){ coldNotify(coldCatchMsg(x), true); coldAskSet(); }
    }
   });
@@ -54652,7 +54652,7 @@ function coldWeather(ts, desc){
  if(!/雨|嵐|吹雪/.test(desc || '')) return;
  coldActors().forEach(x=>{
   if(x._cold > 0) return;
-  if(Math.random() < ((x.equippedClothing || x.invClothing) ? 0.0625 : 0.125) && coldCatch(x)){ coldNotify(coldCatchMsg(x), true); coldAskSet(); }
+  if(Math.random() < (((x.equippedClothing || x.invClothing) && !x._clothingOff) ? 0.0625 : 0.125) && coldCatch(x)){ coldNotify(coldCatchMsg(x), true); coldAskSet(); }
  });
 }
 // 宿屋の1泊：風邪の者は、あと何泊かで完治する
@@ -55079,7 +55079,7 @@ function sellBoots(){
  const bootsName = _sa.invBootsName || 'ブーツ';
  const def = EQUIP_TABLE.find(t=>t.name===bootsName);
  if(!_sellConfirm(`${bootsName}を売りますか？（${sellPriceLabel(def?.cost||0)}）`)) return;
- _sa.invBoots=false; _sa.invBootsName=null; _sa.equippedBoots=false;
+ _sa.invBoots=false; _sa.invBootsName=null; _sa.equippedBoots=false; _sa._bootsOff=false;
  const price = def ? sellPriceCP(def.cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
@@ -55133,6 +55133,18 @@ function sellArrows(){
 // 所持品・装備を捨てる（対価なし・ショップ外でも使用可）。who: -1=主人公, 0以上=仲間の番号
 const _DISC_BTN = `style="background:#150808;border:1px solid #5a3030;color:#c89090;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 8px;cursor:pointer;border-radius:2px"`;
 function discBtn(kind, who, idx){ return `<button onclick="discardOwned('${kind}',${who},${idx==null?-1:idx})" ${_DISC_BTN}>捨てる</button>`; }
+// 仲間の衣服（防寒着と荷物袋）・履き物の着脱。持ち物は手放さず、身に着けるかどうかだけを切り替える
+function npcToggleWear(who, kind){
+ const t = (PC.party||[])[who];
+ if(!t) return;
+ const key = kind === 'boots' ? '_bootsOff' : '_clothingOff';
+ t[key] = !t[key];
+ const nm = kind === 'boots' ? (t.invBootsName || '履物') : (t.invClothingName || '防寒着と荷物袋');
+ const verb = kind === 'boots' ? (t[key] ? '脱いだ' : '履いた') : (t[key] ? '脱いだ' : '着た');
+ try{ if(typeof checkWeightPenalty==='function') checkWeightPenalty(); }catch(e){}
+ renderStatusPanel();
+ showSaveToast(` ${t.name}は${nm}を${verb}`);
+}
 function discardOwned(kind, who, idx){
  const t = who < 0 ? PC : (PC.party||[])[who];
  if(!t) return;
@@ -55167,8 +55179,8 @@ function discardOwned(kind, who, idx){
   case 'arrows': {
    const have=t.arrows||0; if(have<=0) return; const k=_count(have,'矢'); if(!k) return;
    t.arrows=have-k; label=`矢${k}本`; break; }
-  case 'clothing': { const nm=t.invClothingName||'防寒着と荷物袋'; if(!(t.invClothing||t.equippedClothing)) return; if(!ask(nm)) return; t.invClothing=false; t.equippedClothing=false; t.invClothingName=null; label=nm; break; }
-  case 'boots': { const nm=t.invBootsName||'履物'; if(!(t.invBoots||t.equippedBoots)) return; if(!ask(nm)) return; t.invBoots=false; t.equippedBoots=false; t.invBootsName=null; label=nm; break; }
+  case 'clothing': { const nm=t.invClothingName||'防寒着と荷物袋'; if(!(t.invClothing||t.equippedClothing)) return; if(!ask(nm)) return; t.invClothing=false; t.equippedClothing=false; t._clothingOff=false; t.invClothingName=null; label=nm; break; }
+  case 'boots': { const nm=t.invBootsName||'履物'; if(!(t.invBoots||t.equippedBoots)) return; if(!ask(nm)) return; t.invBoots=false; t.equippedBoots=false; t.invBootsName=null; t._bootsOff=false; label=nm; break; }
   case 'spare': { /* idx は FOOTWEAR_NAMES の添字 */ const nm=FOOTWEAR_NAMES[idx]; if(!nm || spareFootwearCount(nm,t)<=0) return; if(!ask('予備の'+nm)) return; removeSpareFootwear(t, nm); label='予備の'+nm; break; }
   case 'jewel': { const j=(t.invJewels||[])[idx]; if(!j) return; if(!ask(j.name)) return; t.invJewels.splice(idx,1); label=j.name; break; }
   case 'spec': { const sp=(t.invSpecialties||[])[idx]; if(!sp) return; if(!ask(sp.name)) return; t.invSpecialties.splice(idx,1); label=sp.name; break; }
@@ -55849,10 +55861,10 @@ function igsBuyEquip(i){
  if(it._isFood){ const amt=it._foodAmt||1; PC._food=(PC._food||0)+amt; showSaveToast(` 食料+${amt}（残り${PC._food}日分）`); }
  else if(it.name==='ブーツ'||it.name==='サンダル'){
   if(_sa === PC && _sa.invBoots){ addSpareFootwear(_sa, it.name); } // すでに1足持っている場合は予備にする（仲間は従来どおり）
-  else { _sa.invBoots=true; _sa.invBootsName=it.name; _sa._bootsWearDays=0; _sa._bootsBreakThreshold=null; }
+  else { _sa.invBoots=true; _sa.invBootsName=it.name; _sa._bootsOff=false; _sa._bootsWearDays=0; _sa._bootsBreakThreshold=null; }
  }
  else if(it.name==='松明'){ PC._torchStock=(PC._torchStock||0)+1; }
- else if(it.name==='防寒着と荷物袋'){ _sa.invClothing=true; _sa.invClothingName=it.name; }
+ else if(it.name==='防寒着と荷物袋'){ _sa.invClothing=true; _sa.invClothingName=it.name; _sa._clothingOff=false; }
  else { if(!_sa.invEquip) _sa.invEquip=[]; _sa.invEquip.push(it.name); }
  updateHUD(); renderIngameShop();
  if(!it._isFood) showSaveToast(` ${_sa.name}: ${it.name}を購入`);
@@ -56756,10 +56768,10 @@ function renderNPCDetail(el, n, idx){
  const _nWtCur = calcTotalWeight(n), _nWtMax = weightPossible(n), _nWtOver = _nWtCur > _nWtMax;
  const _nWtColor = _nWtOver ? 'var(--red)' : _nWtCur > _nWtMax * 0.8 ? 'var(--ora)' : 'var(--grn)';
  const npcWtHtml = `<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:6px 8px;margin-bottom:12px"><div style="font-size:calc(var(--font-sm) - 1px);color:#c8b8a0;margin-bottom:3px">所持重量</div><div style="font-size:calc(var(--font-sm) + 1px);color:${_nWtColor}">${_nWtCur} / ${_nWtMax} wu</div>${_nWtOver ? `<div style="font-size:calc(var(--font-sm) - 2px);margin-top:3px;color:#e0d0d0">過積載！一行の徒歩の移動日数が2倍になる</div>` : ''}</div>`;
- // 衣服・履物：仲間は着脱の操作がないので、持っていれば着ている（履いている）扱い
- const _wearRow = (has, name, onLabel, kind) => `<div style="background:${has?'var(--info-bg)':'var(--panel)'};border:1px solid ${has?'#004444':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div style="font-size:var(--font-sm);color:${has?'#ece8e0':'#c8b8a0'}">${has ? name + ' [' + onLabel + ']' + (itemWt(name)!=null ? wtLbl(itemWt(name)) : '') : name + '：なし'}</div>${has ? discBtn(kind, idx) : ''}</div>`;
- const npcWearHtml = _wearRow(!!(n.invClothing || n.equippedClothing), n.invClothingName || '防寒着と荷物袋', '着用中', 'clothing')
-  + _wearRow(!!(n.invBoots || n.equippedBoots), n.invBootsName || '履物', '履いている', 'boots');
+ // 衣服・履物：持っていれば着ている（履いている）扱い。「外す」を押すと持ったまま身に着けない状態になる
+ const _wearRow = (has, name, onLabel, kind, off) => `<div style="background:${has&&!off?'var(--info-bg)':'var(--panel)'};border:1px solid ${has&&!off?'#004444':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div style="font-size:var(--font-sm);color:${has&&!off?'#ece8e0':'#c8b8a0'}">${has ? name + (off ? ' [外している]' : ' [' + onLabel + ']') + (itemWt(name)!=null ? wtLbl(itemWt(name)) : '') : name + '：なし'}</div>${has ? `<div style="display:flex;gap:4px"><button onclick="npcToggleWear(${idx},'${kind}')" style="${off?'background:#0e1006;border:1px solid var(--rust);color:var(--nature2)':'background:#1a1a1a;border:1px solid #484848;color:#e0d8c8'};font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 8px;cursor:pointer;border-radius:2px">${off ? (kind==='boots'?'履く':'着る') : '外す'}</button>${discBtn(kind, idx)}</div>` : ''}</div>`;
+ const npcWearHtml = _wearRow(!!(n.invClothing || n.equippedClothing), n.invClothingName || '防寒着と荷物袋', '着用中', 'clothing', !!n._clothingOff)
+  + _wearRow(!!(n.invBoots || n.equippedBoots), n.invBootsName || '履物', '履いている', 'boots', !!n._bootsOff);
  const coldHtml = n._cold > 0 ? `<div style="font-size:calc(var(--font-sm) - 1px);color:#e0b0a0;margin-bottom:8px">風邪を引いている（強さ・体力 ${coldPenaltyText(n)}／宿屋で1〜2泊すれば治る）</div>` : '';
  const trustHtml = coldHtml + '<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:8px;margin-bottom:12px">'
   + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">'
