@@ -673,7 +673,7 @@ html.cmd-vertical #npc-action-btns > .cmd-skip{ order:-1; }   /* 魔法・遠距
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026111701</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026112001</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -64901,6 +64901,26 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026112001', sections:[
+  { heading:'新規実装項目', items:[
+   '町の広場でラバを買えるようにした。ラバには持ち物と硬貨を預けられる。ダンジョンの入口に繋いでおくことになり、見張りを残さないと逃げることがある。',
+   '町の広場で荷運び人夫を雇えるようにした。',
+   '拠点の留守番パーティが出る遠征に、討伐対象の階級（弱・中・強）を設けた。階級が高いほど報酬が増える。繰り返し遠征では、出発時の階級とその1つ下から選ばれる。',
+   '遠征の記録に、各回の討伐相手と結果を残すようにした。',
+  ]},
+  { heading:'調整', items:[
+   '人名の種類を2倍に増やした。',
+   '遠征から傷を負って戻った仲間は、体力が戻るまで休み、その間は次の遠征に出ない。',
+   '仲間の防具が今は着られないとき（鎧を着用中など）、装備ボタンを押せなくして理由を表示するようにした。',
+   '予備の靴の重さ表示を、種族の大きさに合わせた。',
+  ]},
+  { heading:'不具合修正', items:[
+   '拠点の留守番パーティの遠征で、探索・採取・交易が必ず失敗する不具合を修正した。',
+   '子どもの職業選択で「盗賊」が「筊賊」と表示される不具合を修正した。',
+   'アル・ラシード東方の地下迷宮で、松明が切れて地上に戻ると、町の名前がストーンヘイムの表示になる不具合を修正した。',
+   '自拠点の酒場の客に話しかけて始まる噂調査で、近くの町の路地裏に移動する不具合を修正した。',
+  ]},
+ ]},
  { version:'ver.2026111701', sections:[
   { heading:'新規実装項目', items:[
    '町の広場に「共同墓地」を追加した。倒れた仲間を持ち物ごと無料で埋葬でき、町ごとに埋葬した仲間の名前を確認できる。記録は世代交代後も引き継ぐ。',
