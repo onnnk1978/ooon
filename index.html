@@ -673,7 +673,7 @@ html.cmd-vertical #npc-action-btns > .cmd-skip{ order:-1; }   /* 魔法・遠距
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026112001</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026112301</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -1211,8 +1211,8 @@ function addLifeEvent(icon, text){
  const cur = getCurrentDate ? getCurrentDate() : null;
  const dateStr = cur ? formatDate(cur) : `${GAME_TIME.totalDays}日目`;
  PC.lifeEvents.unshift({ date: dateStr, day: GAME_TIME.totalDays, icon, text });
- // 最大100件保持
- if(PC.lifeEvents.length > 100) PC.lifeEvents.length = 100;
+ // 最大365件保持
+ if(PC.lifeEvents.length > 365) PC.lifeEvents.length = 365;
 }
 
 // ── CHARACTER ──────────────────────────
@@ -2283,17 +2283,19 @@ function _runSpecialMissionNode(q, nodeIdx){
   story.innerHTML += `<div style="color:#d8d0c0;font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:#080600;border-left:2px solid #553300;line-height:1.9">時間の歪みに対応するための判定が必要だ。<br><span style="color:#e0d8c8"> ${attrNames[attr]} Lv${sr.level} 能力値テスト</span></div>`;
   renderChoices([{label:` ダイスを振る（${attrNames[attr]} Lv${sr.level} 能力値テスト）`, fn:()=>{
    document.getElementById('dice-area').classList.remove('hidden');
-   setupSavingRoll({
+   setupSavingRollWithParty({
     attr, level:sr.level, label:'特命依頼',
     onSuccess(){
      document.getElementById('dice-area').classList.add('hidden');
      story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:var(--ink);border-left:2px solid var(--nature-border);line-height:1.9"> 歪みを読んだ。体が正しく動いた。</div>`;
      _startSpecialMissionCombat(q, node, nodeIdx, false);
     },
-    onFail(){
+    onFail(who){
      document.getElementById('dice-area').classList.add('hidden');
-     PC[sr.failAttr] = Math.max(0, (PC[sr.failAttr]||0) - sr.failDmg);
+     const _victim = who || PC;
+     _victim[sr.failAttr] = Math.max(0, (_victim[sr.failAttr]||0) - sr.failDmg);
      updateHUD();
+     if(_victim !== PC && _victim.con <= 0) logFallenCompanions();
      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#120800;border-left:2px solid #663322;line-height:1.9"> ${sr.failTxt}（${sr.failAttr.toUpperCase()} -${sr.failDmg}）</div>`;
      if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 1000); return; }
      _startSpecialMissionCombat(q, node, nodeIdx, true);
@@ -2555,17 +2557,19 @@ function _runSpecialMissionVNode(q, nodeIdx){
   story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:var(--ink);border-left:2px solid var(--info-border);line-height:1.9">時間の歪みに対応するための判定が必要だ。<br><span style="color:#e0d8c8"> ${attrNames[attr]} Lv${sr.level} 能力値テスト</span></div>`;
   renderChoices([{label:` ダイスを振る（${attrNames[attr]} Lv${sr.level} 能力値テスト）`, fn:()=>{
    document.getElementById('dice-area').classList.remove('hidden');
-   setupSavingRoll({
+   setupSavingRollWithParty({
     attr, level:sr.level, label:'特命依頼',
     onSuccess(){
      document.getElementById('dice-area').classList.add('hidden');
      story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:var(--ink);border-left:2px solid var(--nature-border);line-height:1.9"> 歪みを読んだ。体が正しく動いた。</div>`;
      _startSpecialMissionVCombat(q, node, nodeIdx, false);
     },
-    onFail(){
+    onFail(who){
      document.getElementById('dice-area').classList.add('hidden');
-     PC[sr.failAttr] = Math.max(0, (PC[sr.failAttr]||0) - sr.failDmg);
+     const _victim = who || PC;
+     _victim[sr.failAttr] = Math.max(0, (_victim[sr.failAttr]||0) - sr.failDmg);
      updateHUD();
+     if(_victim !== PC && _victim.con <= 0) logFallenCompanions();
      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#120800;border-left:2px solid #663322;line-height:1.9"> ${sr.failTxt}（${sr.failAttr.toUpperCase()} -${sr.failDmg}）</div>`;
      if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 1000); return; }
      _startSpecialMissionVCombat(q, node, nodeIdx, true);
@@ -2809,17 +2813,19 @@ function _runSpecialMissionMNode(q, nodeIdx){
   story.innerHTML += `<div style="color:var(--white2);font-size:calc(var(--font-sm) - 1px);margin-top:10px;padding:8px;background:#040c08;border-left:2px solid var(--white2);line-height:1.9">時間の歪みに対応するための判定が必要だ。<br><span style="color:#f0ece0"> ${attrNames[attr]} Lv${sr.level} 能力値テスト</span></div>`;
   renderChoices([{label:` ダイスを振る（${attrNames[attr]} Lv${sr.level} 能力値テスト）`, fn:()=>{
    document.getElementById('dice-area').classList.remove('hidden');
-   setupSavingRoll({
+   setupSavingRollWithParty({
     attr, level:sr.level, label:'特命依頼', noAP:true,
     onSuccess(){
      document.getElementById('dice-area').classList.add('hidden');
      story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:var(--ink);border-left:2px solid var(--nature-border);line-height:1.9"> 歪みを読んだ。体が正しく動いた。</div>`;
      _startSpecialMissionMCombat(q, node, nodeIdx, false);
     },
-    onFail(){
+    onFail(who){
      document.getElementById('dice-area').classList.add('hidden');
-     PC[sr.failAttr] = Math.max(0, (PC[sr.failAttr]||0) - sr.failDmg);
+     const _victim = who || PC;
+     _victim[sr.failAttr] = Math.max(0, (_victim[sr.failAttr]||0) - sr.failDmg);
      updateHUD();
+     if(_victim !== PC && _victim.con <= 0) logFallenCompanions();
      story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) - 1px);margin-top:8px;padding:8px;background:#120800;border-left:2px solid #663322;line-height:1.9"> ${sr.failTxt}（${sr.failAttr.toUpperCase()} -${sr.failDmg}）</div>`;
      if(PC.con <= 0){ setTimeout(()=>go('DEAD'), 1000); return; }
      _startSpecialMissionMCombat(q, node, nodeIdx, true);
@@ -5372,7 +5378,7 @@ function goPropertyNode(townId){
  const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const owned = hasProperty(townId);
  currentNodeId = 'PROPERTY_'+townId.toUpperCase(); // セーブ/ロードで拠点画面から正しく再開できるようにする
- if(owned) autoSave(); // 拠点への到着時にも自動セーブする
+ if(owned){ _portraitDeliver(townId); autoSave(); } // 拠点への到着時にも自動セーブする（届いた肖像画があれば飾る）
  const info = calcPropertyPrice(townId);
  const rank = trustRank(townId);
  const story = document.getElementById('story');
@@ -5863,6 +5869,13 @@ function _showPropertyMain(townId){
        ${canViewGraves ? `<button class="choice-btn" onclick="propertyViewGraves('${townId}')">閲覧</button>` : ''}
       </div>
      </details>` : ''}
+     <details ${_isOpen('manage_records')} ontoggle="_propMenuSetOpen('manage_records', this.open)" style="margin:4px 0">
+      ${_summary(_recPlace(townId).name)}
+      <div style="padding-left:14px;padding-bottom:4px">
+       <button class="choice-btn" onclick="propertyRecordWrite('${townId}')">記録を残す</button>
+       <button class="choice-btn" onclick="propertyRecordRoom('${townId}')">${_recPlace(townId).name}を見る</button>
+      </div>
+     </details>
     </div>
    </details>
    <button class="choice-btn" onclick="propertyShop('${townId}')">店を営む</button>
@@ -5896,6 +5909,530 @@ const RESIDENT_EPITAPHS = [
  '最後の夜、窓辺に旅の灯りを置いて眠った。',
 ];
 // ── 墓地ノード ────────────────────────────────────────────
+
+// ══════════════════════════════════════════
+// 拠点の記録室：日誌と年代記
+// プレイヤーが能動的に「残す」と決めたときだけ、その拠点の記録室に書き加えられる。記録は拠点ごとに管理する。
+//  prop.records = { journals:[{key,name,race,type,lastDay,entries:[{day,date,text,note}]}], chronicle:{chapters:[{key,name,race,type,lines:[{day,date,text}]}]} }
+// ══════════════════════════════════════════
+function _recPcKey(){ return `${PC.name}|${PC.birthYear}-${PC.birthMonth}-${PC.birthDay}`; }
+function _recTypeJa(t){ return {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'}[t] || t; }
+function _recRaceJa(r){ return ({human:'人間',elf:'エルフ',dwarf:'ドワーフ',halfling:'ハーフリング',fairy:'フェアリー',leprechaun:'レプラコーン',troll:'トロール',ogre:'オーガ',orc:'オーク',goblin:'ゴブリン'})[r] || r; }
+// 記録の置き場所は、拠点の段階で変わる：最初は「記録棚」（日誌のみ）、第2段階は「書き物机」、第3段階と領地の砦は「記録室」
+function _recPlace(townId){
+ const t = isFiefId(townId) ? 2 : propTier(townId);
+ if(t >= 2) return { name:'記録室', chronicle:true, portrait:true, look:null };
+ if(t === 1) return { name:'書き物机', chronicle:true, portrait:true, look:'机と棚のある一角に、これまでの記録が並んでいる。' };
+ return { name:'記録棚', chronicle:false, portrait:false, look:'壁にかけた板の棚に、日誌が収まっている。' };
+}
+function _propRecords(townId){
+ const p = PC.properties && PC.properties[townId];
+ if(!p) return null;
+ p.records = p.records || { journals:[], chronicle:{ chapters:[] } };
+ p.records.journals = p.records.journals || [];
+ p.records.chronicle = p.records.chronicle || { chapters:[] };
+ p.records.chronicle.chapters = p.records.chronicle.chapters || [];
+ p.records.portraits = p.records.portraits || [];
+ return p.records;
+}
+// この冒険者の記録が、どこかの拠点の記録室にあるか（引退時の案内に使う）
+function _pcRecordPlaces(){
+ const key = _recPcKey(), out = [];
+ Object.keys(PC.properties||{}).forEach(tid=>{
+  const r = PC.properties[tid].records;
+  if(!r) return;
+  if((r.journals||[]).some(j=>j.key===key) || ((r.chronicle||{}).chapters||[]).some(c=>c.key===key) || (r.portraits||[]).some(x=>x.key===key)) out.push(tid);
+ });
+ return out;
+}
+function propertyRecordWrite(townId){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ const key = _recPcKey();
+ const j = rec.journals.find(x=>x.key===key);
+ const c = rec.chronicle.chapters.find(x=>x.key===key);
+ const story = document.getElementById('story');
+ const _pl0 = _recPlace(townId);
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}の${_pl0.name}</span><br><br>`
+  +`<b> 記録を残す</b><br><br>`
+  +`<span style="color:#c0b098">いま残した内容は、この拠点の${_recPlace(townId).name}にだけ収まります。同じ媒体には、何度でも書き加えられます。</span><br><br>`
+  +`<span style="color:#c0b098">日誌：${j ? `${j.entries.length}件の記述（最後に書いたのは${j.lastDate||'—'}）` : 'まだ書いていない'}</span><br>`
+  +(!_pl0.chronicle ? `<span style="color:#a89880">年代記を綴るには、もっと広い場所が要る。拠点を改装すると、書き物机が置ける。</span>` : `<span style="color:#c0b098">年代記：${c ? `${c.lines.length}節（最後に書いたのは${c.lines[c.lines.length-1].date}）` : 'まだ書いていない'}</span>`);
+ renderChoices([
+  {label:' 日誌に書き加える（これまでの出来事を綴る）', fn:()=>propertyRecordSaveJournal(townId)},
+  _pl0.chronicle ? {label:' 年代記に書き加える（この代の歩みを一節記す）', fn:()=>propertyRecordSaveChronicle(townId)} : null,
+  {label:' 日誌に自分の言葉を書く', fn:()=>propertyRecordFreeWrite(townId,'journal',-1,-1)},
+  _pl0.chronicle ? {label:' 年代記に自分の言葉を書く', fn:()=>propertyRecordFreeWrite(townId,'chronicle',-1,-1)} : null,
+  {label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)},
+ ].filter(Boolean));
+}
+function _recSnapshotText(){
+ const cur = getCurrentDate();
+ const age = calcAge();
+ const title = (PC._nobilityTitle ? PC._nobilityTitle+' ' : '') + (PC.epithet ? PC.epithet+' ' : '');
+ const mates = (PC.party||[]).filter(n=>n.con>0).map(n=>n.name);
+ return `${_recRaceJa(PC.race)}の${_recTypeJa(PC.type)}、${title}${PC.name}（${age}歳・Lv${PC.level}）。`
+  + (mates.length ? `仲間は${mates.join('、')}。` : 'ひとりで旅をしている。');
+}
+function propertyRecordSaveJournal(townId){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ const key = _recPcKey();
+ let j = rec.journals.find(x=>x.key===key);
+ if(!j){ j = { key, name:PC.name, race:PC.race, type:PC.type, lastDay:-1, lastDate:null, entries:[] }; rec.journals.push(j); }
+ const cur = getCurrentDate();
+ const dateStr = formatDate(cur);
+ const seen = new Set(j.entries.filter(e=>!e.note).map(e=>`${e.day}|${e.text}`));
+ const fresh = (PC.lifeEvents||[]).filter(e=>e.day >= j.lastDay && !seen.has(`${e.day}|${e.text}`)).slice().reverse();
+ fresh.forEach(e=>j.entries.push({ day:e.day, date:e.date, text:e.text }));
+ j.entries.push({ day:GAME_TIME.totalDays, date:dateStr, text:_recSnapshotText(), note:true });
+ j.lastDay = GAME_TIME.totalDays; j.lastDate = dateStr;
+ j.name = PC.name; j.race = PC.race; j.type = PC.type;
+ autoSave();
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}の${_recPlace(townId).name}</span><br><br>`
+  +`<span style="color:#e8e4d8">日誌を開き、これまでの出来事を綴った。（${fresh.length}件の出来事を書き加えた）</span>`;
+ renderChoices([
+  {label:` ${_recPlace(townId).name}を見る`, fn:()=>propertyRecordRoom(townId)},
+  {label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)},
+ ]);
+}
+function propertyRecordSaveChronicle(townId){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ const key = _recPcKey();
+ let c = rec.chronicle.chapters.find(x=>x.key===key);
+ if(!c){ c = { key, name:PC.name, race:PC.race, type:PC.type, lines:[] }; rec.chronicle.chapters.push(c); }
+ const dateStr = formatDate(getCurrentDate());
+ const _auto = c.lines.filter(l=>!l.free);
+ const lastDay = _auto.length ? _auto[_auto.length-1].day : -1;
+ const recent = (PC.lifeEvents||[]).filter(e=>e.day > lastDay).slice(0,3).reverse().map(e=>e.text);
+ const text = _recSnapshotText() + (recent.length ? `　近ごろの出来事：${recent.join('／')}` : '');
+ c.lines.push({ day:GAME_TIME.totalDays, date:dateStr, text });
+ c.name = PC.name; c.race = PC.race; c.type = PC.type;
+ autoSave();
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}の${_recPlace(townId).name}</span><br><br>`
+  +`<span style="color:#e8e4d8">年代記に、${PC.name}の歩みを一節書き加えた。</span>`;
+ renderChoices([
+  {label:` ${_recPlace(townId).name}を見る`, fn:()=>propertyRecordRoom(townId)},
+  {label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)},
+ ]);
+}
+
+// ── プレイヤー自身の言葉（手記）：日誌・年代記に1回140字まで。同じ代のあいだだけ直す・消すができる ──
+const REC_FREE_MAX = 140;
+function _recClean(t){ return String(t||'').replace(/\r/g,'').replace(/\n{3,}/g,'\n\n').trim().slice(0, REC_FREE_MAX); }
+function _recEsc(t){ return String(t==null?'':t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function _recFreeBtns(townId, medium, gi, ei){
+ const st = 'font-size:calc(var(--font-sm) - 3px);padding:3px 8px;margin-right:6px;margin-top:4px;background:#10140a;border:1px solid #3a4a20;color:#c0d0a0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px';
+ return `<div><button style="${st}" onclick="propertyRecordFreeWrite('${townId}','${medium}',${gi},${ei})">直す</button><button style="${st}" onclick="propertyRecordFreeDelete('${townId}','${medium}',${gi},${ei})">消す</button></div>`;
+}
+// 対象の記録を返す。gi<0 なら、いまの代の日誌／年代記の章（なければ作る）
+function _recFreeTarget(rec, medium, gi, create){
+ const key = _recPcKey();
+ if(medium === 'journal'){
+  if(gi >= 0) return rec.journals[gi] || null;
+  let j = rec.journals.find(x=>x.key===key);
+  if(!j && create){ j = { key, name:PC.name, race:PC.race, type:PC.type, lastDay:-1, lastDate:null, entries:[] }; rec.journals.push(j); }
+  return j || null;
+ }
+ if(gi >= 0) return rec.chronicle.chapters[gi] || null;
+ let c = rec.chronicle.chapters.find(x=>x.key===key);
+ if(!c && create){ c = { key, name:PC.name, race:PC.race, type:PC.type, lines:[] }; rec.chronicle.chapters.push(c); }
+ return c || null;
+}
+function propertyRecordFreeWrite(townId, medium, gi, ei){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ if(document.getElementById('rec-free-ask')) return;
+ const tgt = _recFreeTarget(rec, medium, gi, false);
+ const list = tgt ? (medium === 'journal' ? tgt.entries : tgt.lines) : null;
+ const cur = (ei >= 0 && list && list[ei] && list[ei].free) ? list[ei] : null;
+ if(ei >= 0 && !cur) return;
+ if(cur && tgt.key !== _recPcKey()) return;
+ const label = medium === 'journal' ? '日誌' : '年代記';
+ const ov = document.createElement('div');
+ ov.id = 'rec-free-ask';
+ ov.style.cssText = 'position:fixed;inset:0;background:#000a;z-index:9997;display:flex;align-items:center;justify-content:center;padding:16px';
+ ov.innerHTML = `<div style="background:var(--info-bg);border:2px solid #686048;border-radius:6px;padding:16px;max-width:460px;width:100%;color:#e8e0d0;font-size:var(--font-sm);line-height:1.7">
+  <div style="color:#f0ece0;font-size:calc(var(--font-sm) + 2px);margin-bottom:8px">${label}に${cur ? '書いた言葉を直す' : '自分の言葉を書く'}</div>
+  <div>${REC_FREE_MAX}字まで書けます。</div>
+  <textarea id="rec-free-input" maxlength="${REC_FREE_MAX}" rows="5" style="margin-top:8px;width:100%;box-sizing:border-box;background:var(--ink);border:2px solid var(--border);color:var(--white2);font-size:var(--font-base);padding:7px;border-radius:3px;resize:vertical;font-family:inherit"></textarea>
+  <div id="rec-free-count" style="text-align:right;color:#a89880;font-size:calc(var(--font-sm) - 2px)"></div>
+  <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+   <button class="wild-btn" id="rec-free-ok">${cur ? 'この内容に直す' : '書き込む'}</button>
+   <button class="wild-btn" id="rec-free-cancel">やめる</button>
+  </div></div>`;
+ document.body.appendChild(ov);
+ const inp = document.getElementById('rec-free-input');
+ inp.value = cur ? cur.text : '';
+ const cnt = document.getElementById('rec-free-count');
+ const upd = ()=>{ cnt.textContent = `${inp.value.length} / ${REC_FREE_MAX}`; };
+ inp.addEventListener('input', upd); upd(); inp.focus();
+ const close = ()=>{ const o = document.getElementById('rec-free-ask'); if(o) o.remove(); };
+ document.getElementById('rec-free-cancel').onclick = close;
+ document.getElementById('rec-free-ok').onclick = ()=>{
+  const text = _recClean(inp.value);
+  if(!text){ showSaveToast('言葉を入力してください'); return; }
+  close();
+  if(cur){
+   cur.text = text;
+   showSaveToast(`${label}に書いた言葉を直した`);
+  } else {
+   const t2 = _recFreeTarget(rec, medium, -1, true);
+   const arr = medium === 'journal' ? t2.entries : t2.lines;
+   arr.push({ day:GAME_TIME.totalDays, date:formatDate(getCurrentDate()), text, free:true });
+   showSaveToast(`${label}に言葉を書き加えた`);
+  }
+  autoSave();
+  if(medium === 'journal'){
+   const j2 = _recFreeTarget(rec, medium, gi, false) || _recFreeTarget(rec, medium, -1, false);
+   const ji = rec.journals.indexOf(j2);
+   propertyRecordReadJournal(townId, ji);
+  } else propertyRecordReadChronicle(townId);
+ };
+}
+function propertyRecordFreeDelete(townId, medium, gi, ei){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ const tgt = _recFreeTarget(rec, medium, gi, false);
+ if(!tgt || tgt.key !== _recPcKey()) return;
+ const list = medium === 'journal' ? tgt.entries : tgt.lines;
+ if(!list[ei] || !list[ei].free) return;
+ if(!confirm('この言葉を消しますか？')) return;
+ list.splice(ei, 1);
+ autoSave();
+ showSaveToast('書いた言葉を消した');
+ if(medium === 'journal') propertyRecordReadJournal(townId, gi); else propertyRecordReadChronicle(townId);
+}
+
+
+// ══ 肖像画：記録室で画家を呼ぶ。7日間モデルを務め、2か月後に拠点へ届く（文章の描写） ══
+const PORTRAIT_SIT_DAYS = 7, PORTRAIT_WAIT_DAYS = 60, PORTRAIT_FEE = 30;
+const PORTRAIT_WHO = [
+ {id:'self',  label:'ひとりで描いてもらう', desc:'自分ひとりの肖像。'},
+ {id:'party', label:'仲間とともに描いてもらう', desc:'自分と、旅の仲間たち。'},
+ {id:'home',  label:'拠点の留守番たちだけで描いてもらう', desc:'自分は描かれない。拠点にいる者と遠征中の者の絵で、モデルの7日間は要らない。'},
+ {id:'all',   label:'拠点の全員で描いてもらう', desc:'自分と仲間、拠点にいる者たち。冒険に出ている者も、画家が話を聞いて描く。'},
+];
+const PORTRAIT_MOOD = [
+ {id:'proud',   label:'誇らしげ'},
+ {id:'calm',    label:'穏やか'},
+ {id:'merry',   label:'楽しげ'},
+ {id:'stern',   label:'厳しい'},
+ {id:'lonely',  label:'ものさびしい'},
+];
+const PORTRAIT_ATTIRE = [
+ {id:'travel', label:'旅装'}, {id:'armed', label:'武装'}, {id:'plain', label:'ふだん着'}, {id:'formal', label:'晴れ着'},
+];
+const PORTRAIT_SCENE = [
+ {id:'home', label:'拠点で'}, {id:'outdoor', label:'戸外で'}, {id:'none', label:'背景なし'},
+];
+let _portraitOrder = null;
+
+function _portraitList(townId){ const r = _propRecords(townId); if(!r) return []; r.portraits = r.portraits || []; return r.portraits; }
+function _portraitPending(townId){ return _portraitList(townId).find(p=>!p.delivered) || null; }
+function _portraitDeliver(townId){
+ if(!PC.properties || !PC.properties[townId]) return 0;
+ const now = GAME_TIME.totalDays, ds = formatDate(getCurrentDate());
+ let n = 0;
+ _portraitList(townId).forEach(p=>{ if(!p.delivered && p.readyDay <= now){ p.delivered = true; p.deliveredDate = ds; n++; } });
+ if(n){ showSaveToast(` 画家から、肖像画が届いた（${propName(townId)}）`); }
+ return n;
+}
+// 描ける人の名簿：自分、旅の仲間、拠点の留守番、遠征中の留守番、拠点の子ども
+function _portraitRoster(townId){
+ const list = [{ id:'pc', group:'あなた', name:PC.name, race:PC.race, type:PC.type, pc:true, age:calcAge(), lifespan:PC.lifespan }];
+ (PC.party||[]).filter(n=>n.con>0).forEach((n,i)=>list.push({ id:'party'+i, group:'旅の仲間', name:n.name, race:n.race, type:n.type, age:npcAgeOf(n), lifespan:n.lifespan }));
+ const p = (PC.properties && PC.properties[townId]) || {};
+ (p.caretakers||[]).forEach((n,i)=>list.push({ id:'care'+i, group:'拠点の留守番', name:n.name, race:n.race, type:n.type, age:npcAgeOf(n) + (n._joinedPropertyDay!=null ? Math.max(0,Math.floor((GAME_TIME.totalDays-n._joinedPropertyDay)/365)) : 0), lifespan:n.lifespan }));
+ // 遠征に出ている留守番も名簿に入れる（姿は画家が人づてに聞いて描く）
+ let ei = 0;
+ (p.expeditions||[]).forEach(e=>(e.members||[]).forEach(n=>{ if(!list.some(x=>x.name===n.name)) list.push({ id:'exp'+(ei++), group:'遠征中の留守番', name:n.name, race:n.race, type:n.type, away:true, age:npcAgeOf(n), lifespan:n.lifespan }); }));
+ (p.children||[]).forEach((c,i)=>list.push({ id:'child'+i, group:'拠点の子ども', name:c.name, child:true }));
+ return list;
+}
+function _portraitSubjects(townId, sel){
+ const set = new Set(sel||[]);
+ return _portraitRoster(townId).filter(x=>set.has(x.id));
+}
+function _portraitDefaultTitle(townId, sel, d){
+ const names = _portraitSubjects(townId, sel).map(s=>s.name).join('、');
+ return `${d.year}年${MONTHS_JP[d.month-1]}　${names}`;
+}
+// 種族ごとの寿命に沿った、年齢の描き分け（若い／壮年／老い／寿命が近い）
+function _portraitAgeLook(sub){
+ if(sub.age == null) return '';
+ const prm = AGING_PARAMS[sub.race] || AGING_PARAMS.human;
+ const life = sub.lifespan || prm.lifespan;
+ if(sub.age >= life*0.9) return '深く皺の刻まれた顔つき';
+ if(sub.age >= prm.declineStart) return '歳月を刻んだ顔つき';
+ if(sub.age < prm.declineStart/2) return 'まだ若さの残る顔つき';
+ return '';
+}
+function _pPick(a){ return a[Math.floor(Math.random()*a.length)]; }
+function _portraitText(townId, o){
+ const subs = _portraitSubjects(townId, o.sel);
+ const many = subs.length;
+ const away = new Set((PC.party||[]).map(n=>n.name));
+ const eqW = (PC.equippedWeapons||[])[0], eqA = (PC.equippedArmors||[])[0];
+ const place = o.scene==='home' ? _pPick([`${propName(townId)}の一室を背に、`, `${propName(townId)}の見慣れた壁の前で、`])
+  : o.scene==='outdoor' ? _pPick(['拠点の外の、空の見える場所で、','戸口の外、風の通る場所で、'])
+  : '飾りのない無地の背景の前で、';
+ const attire = {
+  travel: _pPick(['旅の埃を残した装いで','使い込んだ旅装のまま']),
+  armed:  (eqW && o.sel.includes('pc')) ? `${eqW.name}を携え、${eqA ? eqA.name+'を身につけた' : '武具をまとった'}姿で` : '武具をまとった姿で',
+  plain:  _pPick(['武具を外し、ふだんの着物で','肩の力を抜いた、ふだんの装いで']),
+  formal: _pPick(['袖を通す機会の少ない晴れ着で','きちんと整えた晴れ着で']),
+ }[o.attire];
+ const lead = many === 1 ? `${place}${attire}、${subs[0].name}が座っている。`
+  : `${place}${attire}、${many}人が並んでいる。`;
+ const face = {
+  proud:  ['顔を上げ、胸を張っている。','まっすぐ前を見据え、口元に自信がにじむ。'],
+  calm:   ['肩の力が抜け、おだやかな目をしている。','静かな呼吸が聞こえてきそうな、落ち着いた面持ちだ。'],
+  merry:  ['いまにも声を上げて笑い出しそうな顔をしている。','目尻に笑い皺を寄せ、頬がゆるんでいる。'],
+  stern:  ['眉根を寄せ、固く口を結んでいる。','鋭い眼差しは、見る者を射すくめるようだ。'],
+  lonely: ['どこか遠くを見る目をしている。','ふと寂しさがよぎったような、影のある面持ちだ。'],
+ }[o.mood];
+ const _pl = _portraitAgeLook(subs[0]);
+ const pcLine = `${PC.name}は${_recRaceJa(PC.race)}の${_recTypeJa(PC.type)}。${_pl ? _pl+'で、' : ''}${PC.level>=8 ? '数々の戦いをくぐり抜けた者の風格がある。' : '旅の途上の者の面影がある。'}`;
+ let others = '';
+ if(many >= 2 && many <= 4){
+  others = subs.slice(1).map(s=> s.child ? `${s.name}はあどけなさを残して寄り添っている。`
+   : `${s.name}（${_recRaceJa(s.race)}の${_recTypeJa(s.type)}）${_portraitAgeLook(s) ? 'は'+_portraitAgeLook(s)+'で、' : 'も、'}`+ _pPick(['そのかたわらに並ぶ。','少し緊張した様子で立っている。','画面の端に収まっている。'])).join('');
+ } else if(many > 4){
+  const awayNames = subs.slice(1).filter(s=>!s.child && !away.has(s.name));
+  others = `${subs.slice(1,4).map(s=>s.name).join('、')}ほか、あわせて${many}人が肩を寄せ合い、画面いっぱいに描かれている。`;
+ }
+ const hearsay = (subs.some(x=>x.away)) ? '留守にしている者の姿は、画家が人づてに聞いた話をもとに描き足した。' : '';
+ const tail = {
+  proud:  '画家は、堂々とした線で仕上げた。',
+  calm:   '画家は、やわらかな色づかいで仕上げた。',
+  merry:  '画家は、明るい色をふんだんに使った。',
+  stern:  '画家は、陰影を深く落として仕上げた。',
+  lonely: '画家は、くすんだ色合いで、静けさを描き出した。',
+ }[o.mood];
+ if(!o.sel.includes('pc')){
+  let each;
+  if(many <= 4){
+   each = subs.map(x=> x.child ? `${x.name}はあどけなさを残して寄り添っている。`
+    : `${x.name}（${_recRaceJa(x.race)}の${_recTypeJa(x.type)}）${_portraitAgeLook(x) ? 'は'+_portraitAgeLook(x)+'で、' : 'は、'}`+ _pPick(['静かに佇んでいる。','少し緊張した様子で立っている。','画面の端に収まっている。'])).join('');
+  } else {
+   each = `${subs.slice(0,3).map(x=>x.name).join('、')}ほか、あわせて${many}人が肩を寄せ合い、画面いっぱいに描かれている。`;
+  }
+  return `${lead}${_pPick(face)}${each}${hearsay}${tail}`;
+ }
+ return `${lead}${_pPick(face)}${pcLine}${others}${hearsay}${tail}`;
+}
+
+function _portraitStep(townId, step){
+ const story = document.getElementById('story');
+ const o = _portraitOrder;
+ const head = ` <span style="color:#f0ece0">${propName(townId)}に画家を呼ぶ</span><br><br>`;
+ const back = {label:'← やめる', fn:()=>{ _portraitOrder = null; propertyRecordRoom(townId); }};
+ if(step === 'who'){
+  const roster = _portraitRoster(townId);
+  const sel = new Set(o.sel);
+  story.innerHTML = head + `<span style="color:#c0b098">画家は、どんな絵にするかを尋ねる。まず、誰を描くか。名前を選ぶと、描く・描かないが切り替わる。冒険に出ている者は、画家が話を聞いて描く。</span><br><br>`
+   + roster.map(x=>`<span style="color:${sel.has(x.id)?'#f0ece0':'#807868'}">${sel.has(x.id)?'✔':'　'} ${x.name}（${x.group}）</span>`).join('<br>');
+  const ch = roster.map(x=>({label:` ${sel.has(x.id)?'✔ ':''}${x.name}（${x.group}）`, fn:()=>{ if(sel.has(x.id)) sel.delete(x.id); else sel.add(x.id); o.sel = roster.filter(r=>sel.has(r.id)).map(r=>r.id); _portraitStep(townId,'who'); }}));
+  if(roster.length > 1){
+   ch.push({label:' 全員にする', fn:()=>{ o.sel = roster.map(r=>r.id); _portraitStep(townId,'who'); }});
+   ch.push({label:' 自分だけにする', fn:()=>{ o.sel = ['pc']; _portraitStep(townId,'who'); }});
+  }
+  ch.push({label: o.sel.length ? ' この人たちを描いてもらう' : ' ［だれも選ばれていない］', fn: o.sel.length ? ()=>_portraitStep(townId,'mood') : null});
+  ch.push(back);
+  renderChoices(ch);
+ } else if(step === 'mood'){
+  story.innerHTML = head + `<span style="color:#c0b098">どんな雰囲気の絵にするか。</span>`;
+  renderChoices([...PORTRAIT_MOOD.map(m=>({label:' '+m.label, fn:()=>{ o.mood = m.id; _portraitStep(townId,'attire'); }})), {label:'← 戻る', fn:()=>_portraitStep(townId,'who')}]);
+ } else if(step === 'attire'){
+  story.innerHTML = head + `<span style="color:#c0b098">どんな姿で描くか。</span>`;
+  renderChoices([...PORTRAIT_ATTIRE.map(a=>({label:' '+a.label, fn:()=>{ o.attire = a.id; _portraitStep(townId,'scene'); }})), {label:'← 戻る', fn:()=>_portraitStep(townId,'mood')}]);
+ } else if(step === 'scene'){
+  story.innerHTML = head + `<span style="color:#c0b098">背景はどうするか。</span>`;
+  renderChoices([...PORTRAIT_SCENE.map(s=>({label:' '+s.label, fn:()=>{ o.scene = s.id; _portraitStep(townId,'confirm'); }})), {label:'← 戻る', fn:()=>_portraitStep(townId,'attire')}]);
+ } else if(step === 'confirm'){
+  const homeOnly = !o.sel.includes('pc');
+  const living = homeOnly ? 0 : foodPrice(1) * PORTRAIT_SIT_DAYS, cost = PORTRAIT_FEE + living;
+  const ok = (PC.gold||0) >= cost;
+  const lab = (arr,id)=>(arr.find(x=>x.id===id)||{}).label;
+  story.innerHTML = head
+   + `<span style="color:#e8e4d8">誰を：${_portraitSubjects(townId,o.sel).map(x=>x.name).join('、')}<br>雰囲気：${lab(PORTRAIT_MOOD,o.mood)}<br>姿：${lab(PORTRAIT_ATTIRE,o.attire)}<br>背景：${lab(PORTRAIT_SCENE,o.scene)}</span><br><br>`
+   + (homeOnly
+    ? `<span style="color:#c0b098">あなたは絵に描かれないので、モデルになる必要はない。画家は、描かれる者たちを訪ねて、あるいは話を聞いて絵を描く。絵は、約${Math.round(PORTRAIT_WAIT_DAYS/30)}か月後に拠点へ届けられる。注文のあとで、内容を変えることはできない。</span><br><br>`
+    : `<span style="color:#c0b098">画家は、${PORTRAIT_SIT_DAYS}日のあいだ、毎日あなたの前に座って筆を走らせる。その間、拠点を離れることはできない。仕上げのために絵は持ち帰られ、約${Math.round(PORTRAIT_WAIT_DAYS/30)}か月後に拠点へ届けられる。注文のあとで、内容を変えることはできない。</span><br><br>`)
+   + `<span style="color:#c0b098">画家への謝礼：${PORTRAIT_FEE}GP${homeOnly ? '' : `　${PORTRAIT_SIT_DAYS}日間の生活費：${living}GP`}　（合計 ${cost}GP）　所持金：${PC.gold||0}GP</span>`
+   + (ok ? '' : `<br><span style="color:#e0a060">所持金が足りない。</span>`);
+  renderChoices([
+   {label:' 題を決めて、依頼する', fn: ok ? ()=>_portraitTitleAsk(townId) : null},
+   {label:'← 戻る', fn:()=>_portraitStep(townId,'scene')},
+  ]);
+ }
+}
+function propertyPortraitOrder(townId){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ if(!_recPlace(townId).portrait){ showSaveToast('画家を迎える場所がない。拠点を改装すると、頼めるようになる'); return propertyRecordRoom(townId); }
+ _portraitDeliver(townId);
+ if(_portraitPending(townId)){ showSaveToast('この拠点には、仕上げ待ちの肖像画がある'); return propertyRecordRoom(townId); }
+ _portraitOrder = { sel:['pc'], mood:'calm', attire:'travel', scene:'home' };
+ _portraitStep(townId, 'who');
+}
+function _portraitOverlay(opts){
+ if(document.getElementById('portrait-title-ask')) return;
+ const ov = document.createElement('div');
+ ov.id = 'portrait-title-ask';
+ ov.style.cssText = 'position:fixed;inset:0;background:#000a;z-index:9997;display:flex;align-items:center;justify-content:center;padding:16px';
+ ov.innerHTML = `<div style="background:var(--info-bg);border:2px solid #686048;border-radius:6px;padding:16px;max-width:460px;width:100%;color:#e8e0d0;font-size:var(--font-sm);line-height:1.7">
+  <div style="color:#f0ece0;font-size:calc(var(--font-sm) + 2px);margin-bottom:8px">${opts.heading}</div>
+  <div>${opts.hint}</div>
+  <textarea id="portrait-title-input" maxlength="${REC_FREE_MAX}" rows="2" style="margin-top:8px;width:100%;box-sizing:border-box;background:var(--ink);border:2px solid var(--border);color:var(--white2);font-size:var(--font-base);padding:7px;border-radius:3px;resize:vertical;font-family:inherit"></textarea>
+  <div id="portrait-title-count" style="text-align:right;color:#a89880;font-size:calc(var(--font-sm) - 2px)"></div>
+  <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+   <button class="wild-btn" id="portrait-title-ok">${opts.okLabel}</button>
+   <button class="wild-btn" id="portrait-title-cancel">${opts.cancelLabel||'やめる'}</button>
+  </div></div>`;
+ document.body.appendChild(ov);
+ const inp = document.getElementById('portrait-title-input');
+ inp.value = opts.initial;
+ const cnt = document.getElementById('portrait-title-count');
+ const upd = ()=>{ cnt.textContent = `${inp.value.length} / ${REC_FREE_MAX}`; };
+ inp.addEventListener('input', upd); upd(); inp.focus();
+ const close = ()=>{ const o = document.getElementById('portrait-title-ask'); if(o) o.remove(); };
+ document.getElementById('portrait-title-cancel').onclick = close;
+ document.getElementById('portrait-title-ok').onclick = ()=>{
+  const t = _recClean(inp.value).replace(/\n/g,' ');
+  if(!t){ showSaveToast('題を入力してください'); return; }
+  close(); opts.onOk(t);
+ };
+}
+function _portraitTitleAsk(townId){
+ const o = _portraitOrder;
+ if(!o) return;
+ const proj = daysToDate(GAME_TIME.totalDays + (o.sel.includes('pc') ? PORTRAIT_SIT_DAYS : 0));
+ _portraitOverlay({
+  heading:'絵の題',
+  hint:'初めは、描き終える年月と、描かれる人物の名前になっています。このまま使うことも、書き換えることもできます。',
+  initial:_portraitDefaultTitle(townId, o.sel, proj),
+  okLabel:'この題で依頼する',
+  onOk:(t)=>{ o.titleEdited = (t !== _portraitDefaultTitle(townId, o.sel, proj)) ? t : null; _portraitStart(townId); },
+ });
+}
+function _portraitStart(townId){
+ const o = _portraitOrder;
+ if(!o) return;
+ const costPerDay = foodPrice(1);
+ if(!o.sel.includes('pc')){
+  if((PC.gold||0) < PORTRAIT_FEE){ showSaveToast('所持金が足りない'); return; }
+  PC.gold -= PORTRAIT_FEE; updateHUD();
+  return _portraitFinishSitting(townId);
+ }
+ const cost = PORTRAIT_FEE + costPerDay * PORTRAIT_SIT_DAYS;
+ if((PC.gold||0) < cost){ showSaveToast('所持金が足りない'); return; }
+ PC.gold -= PORTRAIT_FEE;   // 謝礼（生活費は休養と同じ要領で、続く処理が支払う）
+ doPropertyRest(townId, PORTRAIT_SIT_DAYS, costPerDay, ()=>_portraitFinishSitting(townId), 'モデル');
+}
+function _portraitFinishSitting(townId){
+ const o = _portraitOrder; _portraitOrder = null;
+ if(!o || !PC.properties[townId]) return propertyRecordRoom(townId);
+ const d = getCurrentDate();
+ const text = _portraitText(townId, o);
+ const title = o.titleEdited || _portraitDefaultTitle(townId, o.sel, d);
+ _portraitList(townId).push({
+  id:'p'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36),
+  key:_recPcKey(), pcName:PC.name, title, text, names:_portraitSubjects(townId, o.sel).map(x=>x.name),
+  sitDate:formatDate(d), readyDay:GAME_TIME.totalDays + PORTRAIT_WAIT_DAYS, delivered:false, deliveredDate:null,
+ });
+ autoSave();
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
+  +`<span style="color:#e8e4d8">${!o.sel.includes('pc') ? '画家は、描かれる者たちに話を聞いて回り、下絵を描き留めていった。' : `${PORTRAIT_SIT_DAYS}日間のモデルを務め終えた。`}画家は下絵を抱え、「仕上げたら、${propName(townId)}へお届けしましょう」と言って去っていった。</span>`;
+ renderChoices([{label:`▶ ${_recPlace(townId).name}へ`, fn:()=>propertyRecordRoom(townId)}]);
+}
+function propertyPortraitHall(townId){
+ const list = _portraitList(townId).filter(p=>p.delivered);
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}の肖像の間</span><br><br>`
+  +`<span style="color:#c0b098">${list.length ? '壁には、これまでに描かれた肖像画が掛けられている。' : 'まだ、飾られた肖像画はない。'}</span>`;
+ const ch = list.map((p,i)=>({label:` ${_recEsc(p.title).slice(0,40)}`, fn:()=>propertyPortraitView(townId, p.id)}));
+ ch.push({label:`← ${_recPlace(townId).name}に戻る`, fn:()=>propertyRecordRoom(townId)});
+ renderChoices(ch);
+}
+function propertyPortraitView(townId, id){
+ const p = _portraitList(townId).find(x=>x.id===id);
+ if(!p) return propertyPortraitHall(townId);
+ const mine = p.key === _recPcKey();
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0;white-space:pre-wrap">${_recEsc(p.title)}</span><br>`
+  +`<span style="color:#a89880;font-size:calc(var(--font-sm) - 1px)">${_recEsc(p.pcName)}の代　${p.sitDate}に描かれ、${p.deliveredDate||''}に届いた</span><br><br>`
+  +`<div style="font-size:calc(var(--font-sm) - 1px);line-height:1.9;color:#e8e0d0">${_recEsc(p.text)}</div>`;
+ const ch = [];
+ if(mine) ch.push({label:' 題を付け直す', fn:()=>{
+  _portraitOverlay({ heading:'絵の題を付け直す', hint:'同じ代のあいだだけ、付け直せます。', initial:p.title, okLabel:'この題にする',
+   onOk:(t)=>{ p.title = t; autoSave(); showSaveToast('題を付け直した'); propertyPortraitView(townId, id); } });
+ }});
+ ch.push({label:'← 肖像の間に戻る', fn:()=>propertyPortraitHall(townId)});
+ renderChoices(ch);
+ scrollToTop();
+}
+
+function propertyRecordRoom(townId){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ _portraitDeliver(townId);
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}の${_recPlace(townId).name}</span><br><br>`
+  +`<span style="color:#c0b098">${rec.journals.length || rec.chronicle.chapters.length ? (_recPlace(townId).look || '棚には、これまでに残された記録が並んでいる。') : `まだ何も残されていない。「記録を残す」から、${_recPlace(townId).chronicle ? '日誌や年代記' : '日誌'}に書き加えられる。`}</span>`;
+ const ch = [];
+ if(rec.chronicle.chapters.length){
+  ch.push({label:` 年代記を開く（${rec.chronicle.chapters.length}代・${rec.chronicle.chapters.reduce((a,c)=>a+c.lines.length,0)}節）`, fn:()=>propertyRecordReadChronicle(townId)});
+ }
+ rec.journals.forEach((j,i)=>{
+  ch.push({label:` ${j.name}の日誌を開く（${j.entries.length}件）`, fn:()=>propertyRecordReadJournal(townId, i)});
+ });
+ ch.push({label:' 記録を残す', fn:()=>propertyRecordWrite(townId)});
+ const _pl = _portraitList(townId), _pd = _pl.filter(p=>p.delivered).length, _pp = _portraitPending(townId);
+ if(_pd) ch.push({label:` 肖像の間を見る（${_pd}枚）`, fn:()=>propertyPortraitHall(townId)});
+ if(_recPlace(townId).portrait) ch.push({label: _pp ? ` 肖像画を依頼する［仕上げ待ち：あと約${Math.max(1,_pp.readyDay-GAME_TIME.totalDays)}日］` : ' 肖像画を依頼する（画家を呼ぶ）', fn: _pp ? null : ()=>propertyPortraitOrder(townId)});
+ else ch.push({label:' 肖像画を依頼する［画家を迎える場所がない］', fn:null});
+ ch.push({label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)});
+ renderChoices(ch);
+}
+function propertyRecordReadJournal(townId, i){
+ const rec = _propRecords(townId);
+ const j = rec && rec.journals[i];
+ if(!j) return propertyRecordRoom(townId);
+ const mine = j.key === _recPcKey();   // 同じ代のあいだだけ、自分の言葉を直したり消したりできる
+ const body = j.entries.map((e,ei)=> e.free
+  ? `<div style="margin:6px 0;padding:6px 8px;border-left:3px solid #8a7a50;background:#15110a;color:#ece4d0"><span style="color:#c8b878">${e.date}　手記</span><div style="white-space:pre-wrap;margin-top:2px">${_recEsc(e.text)}</div>${mine ? _recFreeBtns(townId,'journal',i,ei) : ''}</div>`
+  : e.note
+  ? `<div style="margin:10px 0 4px;color:#e8e0d0;border-top:1px solid #3a2818;padding-top:6px"><span style="color:#c8b8a0">${e.date}</span>　${e.text}</div>`
+  : `<div style="margin:2px 0;color:#d8d0c0"><span style="color:#a89880">${e.date}</span>　${e.text}</div>`).join('');
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${j.name}の日誌</span><br>`
+  +`<span style="color:#c0b098;font-size:calc(var(--font-sm) - 1px)">${_recRaceJa(j.race)}の${_recTypeJa(j.type)}</span><br><br>`
+  +`<div style="font-size:calc(var(--font-sm) - 1px);line-height:1.8">${body}</div>`;
+ renderChoices([{label:`← ${_recPlace(townId).name}に戻る`, fn:()=>propertyRecordRoom(townId)}]);
+ scrollToTop();
+}
+function propertyRecordReadChronicle(townId){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ const body = rec.chronicle.chapters.map((c,ci)=>
+  `<div style="margin:12px 0 4px;color:#f0ece0">第${ci+1}章　${c.name}（${_recRaceJa(c.race)}の${_recTypeJa(c.type)}）</div>`
+  + c.lines.map((l,li)=> l.free
+   ? `<div style="margin:6px 0 6px 10px;padding:6px 8px;border-left:3px solid #8a7a50;background:#15110a;color:#ece4d0"><span style="color:#c8b878">${l.date}　自筆</span><div style="white-space:pre-wrap;margin-top:2px">${_recEsc(l.text)}</div>${c.key === _recPcKey() ? _recFreeBtns(townId,'chronicle',ci,li) : ''}</div>`
+   : `<div style="margin:3px 0 3px 10px;color:#d8d0c0"><span style="color:#a89880">${l.date}</span>　${l.text}</div>`).join('')
+ ).join('');
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}の年代記</span><br><br>`
+  +`<div style="font-size:calc(var(--font-sm) - 1px);line-height:1.8">${body}</div>`;
+ renderChoices([{label:`← ${_recPlace(townId).name}に戻る`, fn:()=>propertyRecordRoom(townId)}]);
+ scrollToTop();
+}
+
 function propertyViewGraves(townId){
  const def = isFiefId(townId) ? PROPERTY_DEFS.fief : PROPERTY_DEFS[townId];
  const prop = PC.properties[townId];
@@ -6073,7 +6610,52 @@ function _propStor(townId){
  if(!p) return null;
  p.storage = p.storage || { gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], specialties:[], torches:0 };
  if(!p.storage.specialties) p.storage.specialties = [];
+ if(!p.storage.misc) p.storage.misc = [];   // その他の品：荷物（護符など）と予備の履き物。{name, cat:'equip'|'footwear', wear?}
  return p.storage;
+}
+
+
+// ── その他の品（聖なる護符などの荷物アイテム・予備の履き物）の預け入れ／棚並べ用の共通処理 ──
+const SPECIAL_EQUIP_VALUES = { '聖なる護符': 200 };   // 装備の価格表に載っていない品の定価（GP）
+function _equipCostGP(name){
+ const def = EQUIP_TABLE.find(t=>t.name===name);
+ if(def) return def.cost;
+ return SPECIAL_EQUIP_VALUES[name] || 0;
+}
+// 預ける・棚に並べる対象にしない荷物（食料・松明は別の仕組みで扱う）
+function _miscExcluded(name){ return /^食料/.test(name) || name === '松明'; }
+// 所持している「その他の品」を、1点ずつの項目にして返す（実体を指す参照ではなく、名前と種別の組）
+function _miscInvList(){
+ const out = [];
+ (PC.invEquip||[]).forEach(n=>{ if(!_miscExcluded(n)) out.push({name:n, cat:'equip'}); });
+ FOOTWEAR_NAMES.forEach(n=>{ for(let k=0;k<spareFootwearCount(n);k++) out.push({name:'予備の'+n, cat:'footwear', base:n}); });
+ return out;
+}
+// 所持品から1点取り出す（成功なら保管用の項目を返す）
+function _miscTakeFromInv(it){
+ if(it.cat === 'equip'){
+  const i = (PC.invEquip||[]).indexOf(it.name);
+  if(i < 0) return null;
+  PC.invEquip.splice(i,1);
+  return {name:it.name, cat:'equip'};
+ }
+ const n = it.base;
+ if(spareFootwearCount(n) <= 0) return null;
+ PC._spareFootwear[n]--;
+ const lst = _spareWearList(PC, n);
+ let wear = null;
+ if(lst.length > PC._spareFootwear[n]){ lst.sort((a,b)=>b.d-a.d); wear = lst.shift(); }
+ return {name:it.name, cat:'footwear', base:n, wear};
+}
+// 保管・棚から所持品へ戻す
+function _miscGiveToInv(it){
+ if(it.cat === 'equip'){ PC.invEquip = PC.invEquip||[]; PC.invEquip.push(it.name); return; }
+ addSpareFootwear(PC, it.base);
+ if(it.wear) _spareWearList(PC, it.base).push(it.wear);
+}
+function _miscBasePrice(it){
+ if(it.cat === 'footwear') return _equipCostGP(it.base);
+ return _equipCostGP(it.name);
 }
 
 // ── 拠点の店（放置販売） ──────────────────────────────────
@@ -6124,6 +6706,7 @@ function _shopBasePrice(kind, item, townId){
   return def ? def.cost : 0;
  }
  if(kind === 'jewel') return item.priceGP || 0;
+ if(kind === 'misc') return _miscBasePrice(item);
  if(kind === 'specialty'){
   // 通常店での売却額と同じ地方間距離倍率を適用（ランダム変動は定価としては除く）
   const fromKey = item.regionKey;
@@ -6236,7 +6819,7 @@ function propertyTransfer(townId){
 }
 
 function propertyTransferDest(fromTownId, member, destTownIds){
- const fromDef = PROPERTY_DEFS[fromTownId];
+ const fromName = propName(fromTownId);
  const story = document.getElementById('story');
 
  // 護送費計算：徒歩日数×2GP（最低10GP）、ルートなしは一律100GP
@@ -6247,14 +6830,14 @@ function propertyTransferDest(fromTownId, member, destTownIds){
   return Math.max(10, days * 10);
  };
 
- story.innerHTML = ` <span style="color:#f0ece0">${fromDef.name}</span><br><br>`
+ story.innerHTML = ` <span style="color:#f0ece0">${fromName}</span><br><br>`
   +`<b> 転居先を選ぶ</b><br><br>`
   +`<span style="color:#c0b098">${member.name}をどの拠点へ転居させますか？</span><br>`
   +`<span class="dim" style="font-size:calc(var(--font-sm) - 1px)">護送費：徒歩日数×2GP（最低10GP）</span>`;
 
  renderChoices([
   ...destTownIds.map(destId=>{
-   const destDef = PROPERTY_DEFS[destId];
+   const destName = propName(destId);
    const cost = calcCost(destId);
    const canAfford = (PC.gold||0) >= cost;
    // 転居先の保管金チェック（30日分の生活費を目安に警告）
@@ -6266,7 +6849,7 @@ function propertyTransferDest(fromTownId, member, destTownIds){
    const needed = newMemberCount * warnDays * foodPrice(1);
    const lowFunds = destStorGP < needed;
    const warnLabel = lowFunds ? ` ⚠ 生活費不足の恐れあり（保管:${destStorGP}GP / 目安${needed}GP）` : '';
-   return {label:` ${destDef.name}へ（護送費 ${cost}GP）${canAfford?'':'　［所持金不足］'}${warnLabel}`, fn:()=>{
+   return {label:` ${destName}へ（護送費 ${cost}GP）${canAfford?'':'　［所持金不足］'}${warnLabel}`, fn:()=>{
     if(!canAfford){ showSaveToast('所持金が足りない'); return; }
     const fromProp = PC.properties[fromTownId];
     const destProp = PC.properties[destId];
@@ -6289,9 +6872,9 @@ function propertyTransferDest(fromTownId, member, destTownIds){
     }
 
     payPrice(cost);
-    addLifeEvent('', `${member.name}を${fromDef.name}から${destDef.name}へ転居させた。（護送費${cost}GP）`);
+    addLifeEvent('', `${member.name}を${fromName}から${destName}へ転居させた。（護送費${cost}GP）`);
     updateHUD();
-    showSaveToast(` ${member.name}を${destDef.name}へ転居させた（${cost}GP）`);
+    showSaveToast(` ${member.name}を${destName}へ転居させた（${cost}GP）`);
     propertyManageCaretakers(fromTownId);
    }};
   }),
@@ -7291,7 +7874,7 @@ function propertyRest(townId){
  showUI();
 }
 
-function doPropertyRest(townId, days, costPerDay){
+function doPropertyRest(townId, days, costPerDay, afterFn, label){
  const cost = days * costPerDay;
  if((PC.gold||0) < cost){ showSaveToast('所持金が足りない'); return; }
 
@@ -7333,7 +7916,7 @@ function doPropertyRest(townId, days, costPerDay){
  showSaveToast(` ${days}日間休養（生活費 ${cost}GP）　${msgs.join('、')}`);
 
  startPropertyRestTick(townId, days, ()=>{
-  const _back = ()=>propertyRest(townId);
+  const _back = afterFn || (()=>propertyRest(townId));
   // 休養のあと、訪ねてきた元仲間と出会うことがある（出会いがなければそのまま休養画面に戻る）
   const _next = ()=>{ if(!fcVisitEncounter(_back, { letters:true, place:propName(townId) })) _back(); };
   // 1年間休養かつ結婚済みかつ配偶者が拠点に留守番している場合の子どもイベント
@@ -7342,7 +7925,7 @@ function doPropertyRest(townId, days, costPerDay){
   } else {
    _next();
   }
- });
+ }, label);
 }
 
 // 休養を1日ずつ進める（旅の約3倍速）。低確率で功名目当ての襲撃者に中断される
@@ -7362,10 +7945,10 @@ function restLog(html){
  Array.from(evEl.children).slice(1).forEach(ch=>{ ch.style.opacity = '0.45'; });
 }
 
-function startPropertyRestTick(townId, days, onDone){
+function startPropertyRestTick(townId, days, onDone, label){
  renderChoices([]);
  const townName = (TOWNS[townId]||{}).name || propName(townId);
- restTickState = { townId, totalDays: days, daysDone: 0, onDone, interval: 333 };
+ restTickState = { townId, totalDays: days, daysDone: 0, onDone, interval: 333, label: label||'休養' };
  _restVisitDone = false;
  const tpw = document.getElementById('travel-progress-wrap');
  if(tpw){
@@ -7374,7 +7957,7 @@ function startPropertyRestTick(townId, days, onDone){
   document.getElementById('travel-progress-dot').style.left = '0%';
   document.getElementById('travel-latest').textContent = '';
   document.getElementById('travel-progress-label').innerHTML =
-   ` 休養中　<span style="color:#f0ece0">${townName}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+   ` ${label||'休養'}中　<span style="color:#f0ece0">${townName}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
  }
  setTimeout(_restTick, restTickState.interval);
 }
@@ -7385,7 +7968,7 @@ function _restTick(){
  if(rs.daysDone >= rs.totalDays){
   const tpw = document.getElementById('travel-progress-wrap');
   if(tpw) tpw.style.display = 'none';
-  restLog(`<span style="color:#ece8e0">⏳ ${rs.totalDays}日の休養を終えた。</span> ${dateStr()}`);
+  restLog(`<span style="color:#ece8e0">⏳ ${rs.totalDays}日の${rs.label||'休養'}を終えた。</span> ${dateStr()}`);
   const onDone = rs.onDone;
   restTickState = null;
   renderChoices([{label:'▶ OK', fn:()=>{ renderChoices([]); onDone(); }}]);
@@ -7548,7 +8131,7 @@ function propertyShop(townId){
  if(!shop) return;
  const story = document.getElementById('story');
  const keeper = _shopKeeperInfo(townId);
- const kindLabel = {weapon:'武器', armor:'防具', jewel:'宝飾品', specialty:'特産品'};
+ const kindLabel = {weapon:'武器', armor:'防具', jewel:'宝飾品', specialty:'特産品', misc:'その他'};
 
  story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
   +`<b> 店番</b><br><br>`
@@ -7610,6 +8193,7 @@ function propertyShopAddItem(townId){
   {label:' 防具を選ぶ', fn:()=>propertyShopAddPick(townId,'armor')},
   {label:' 宝飾品を選ぶ', fn:()=>propertyShopAddPick(townId,'jewel')},
   {label:' 特産品を選ぶ', fn:()=>propertyShopAddPick(townId,'specialty')},
+  {label:' その他の品を選ぶ', fn:()=>propertyShopAddPick(townId,'misc')},
   {label:'← 戻る', fn:()=>propertyShop(townId)},
  ]);
 }
@@ -7622,9 +8206,10 @@ function propertyShopAddPick(townId, kind){
   armor:     { inv: PC.invArmors||[],     stor: stor.armors },
   jewel:     { inv: PC.invJewels||[],     stor: stor.jewels },
   specialty: { inv: PC.invSpecialties||[],stor: stor.specialties },
+  misc:      { inv: _miscInvList(),        stor: stor.misc },
  };
  const src = srcMap[kind];
- const kindLabel = {weapon:'武器', armor:'防具', jewel:'宝飾品', specialty:'特産品'}[kind];
+ const kindLabel = {weapon:'武器', armor:'防具', jewel:'宝飾品', specialty:'特産品', misc:'その他'}[kind];
  const eq = kind==='weapon' ? (PC.equippedWeapons||[]) : kind==='armor' ? (PC.equippedArmors||[]) : [];
  const invAvail = src.inv.filter(it=>!eq.includes(it));
 
@@ -7648,6 +8233,7 @@ function propertyShopAddPick(townId, kind){
   const base = _shopBasePrice(kind, g.items[0], townId);
   const countTxt = g.items.length > 1 ? ` ×${g.items.length}` : '';
   choices.push({label:`[所持] ${g.name}${countTxt}（定価目安 ${base}GP）`, fn:()=>propertyShopSetPrice(townId, kind, g.items, (sub)=>{
+   if(kind === 'misc'){ const taken = sub.map(it=>_miscTakeFromInv(it)).filter(Boolean); sub.length = 0; taken.forEach(t=>sub.push(t)); updateHUD(); checkWeightPenalty(); return; }
    sub.forEach(it=>{ const idx = src.inv.indexOf(it); if(idx>=0) src.inv.splice(idx,1); });
   })});
  });
@@ -7689,8 +8275,8 @@ function propertyShopRemoveItem(townId){
  const shop = _propShop(townId);
  const stor = _propStor(townId);
  const story = document.getElementById('story');
- const kindLabel = {weapon:'武器', armor:'防具', jewel:'宝飾品', specialty:'特産品'};
- const storMap = { weapon:stor.weapons, armor:stor.armors, jewel:stor.jewels, specialty:stor.specialties };
+ const kindLabel = {weapon:'武器', armor:'防具', jewel:'宝飾品', specialty:'特産品', misc:'その他'};
+ const storMap = { weapon:stor.weapons, armor:stor.armors, jewel:stor.jewels, specialty:stor.specialties, misc:stor.misc };
  story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
   +`<b> 棚から下げる</b><br><br>`
   +`<span style="color:#c0b098">下げた商品は拠点の保管に戻ります。</span>`;
@@ -7728,13 +8314,16 @@ function propertyStorageItems(townId){
  const story = document.getElementById('story');
  const storW=(stor.weapons||[]).length, storA=(stor.armors||[]).length;
  const storJ=(stor.jewels||[]).length, storT=stor.torches||0;
+ const storS=(stor.specialties||[]).length, storM=(stor.misc||[]).length;
  story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}</span><br><br>`
   +`<b> アイテムの保管</b><br><br>`
-  +`<span style="color:#c0b098">保管中： 武器${storW}　 防具${storA}　 宝石${storJ}　 松明${storT}本</span>`;
+  +`<span style="color:#c0b098">保管中： 武器${storW}　 防具${storA}　 宝石${storJ}　 特産品${storS}　 その他${storM}　 松明${storT}本</span>`;
  renderChoices([
   {label:' 武器を預ける／引き出す',   fn:()=>propertyStorageWeapons(townId)},
   {label:' 防具を預ける／引き出す',   fn:()=>propertyStorageArmors(townId)},
   {label:' 宝石を預ける／引き出す',   fn:()=>propertyStorageJewels(townId)},
+  {label:' 特産品を預ける／引き出す', fn:()=>propertyStorageSpecialties(townId)},
+  {label:' その他の品を預ける／引き出す', fn:()=>propertyStorageMisc(townId)},
   {label:' 松明を預ける／引き出す',   fn:()=>propertyStorageTorches(townId)},
   {label:'← 戻る',               fn:()=>propertyStorageMenu(townId)},
  ]);
@@ -7893,6 +8482,55 @@ function propertyStorageJewels(townId){
   renderChoices(choices);
  };
  showUI();
+}
+
+// ── 特産品の預け入れ・引き出し ──
+function propertyStorageSpecialties(townId){
+ const stor = _propStor(townId);
+ if(!stor) return;
+ const story = document.getElementById('story');
+ const inv = PC.invSpecialties = PC.invSpecialties || [];
+ story.innerHTML = ` <span style="color:#f0ece0">特産品の保管</span><br><br>`
+  +`<span style="color:#c0b098">保管中（${stor.specialties.length}点）：${stor.specialties.map(j=>j.name).join('、')||'なし'}</span><br>`
+  +`<span style="color:#c0b098">所持中（${inv.length}点）</span>`;
+ const choices = [];
+ inv.forEach((j,i)=>{
+  choices.push({label:`▼ 預ける：${j.name}`, fn:()=>{
+   stor.specialties.push(j); PC.invSpecialties.splice(i,1); updateHUD(); checkWeightPenalty(); showSaveToast(`${j.name}を預けた`); propertyStorageSpecialties(townId);
+  }});
+ });
+ stor.specialties.forEach((j,i)=>{
+  choices.push({label:`▲ 引き出す：${j.name}`, fn:()=>{
+   PC.invSpecialties.push(j); stor.specialties.splice(i,1); updateHUD(); checkWeightPenalty(); showSaveToast(`${j.name}を引き出した`); propertyStorageSpecialties(townId);
+  }});
+ });
+ choices.push({label:'← アイテム保管に戻る', fn:()=>propertyStorageItems(townId)});
+ renderChoices(choices);
+}
+
+// ── その他の品（聖なる護符などの荷物・予備の履き物）の預け入れ・引き出し ──
+function propertyStorageMisc(townId){
+ const stor = _propStor(townId);
+ if(!stor) return;
+ const story = document.getElementById('story');
+ const inv = _miscInvList();
+ story.innerHTML = ` <span style="color:#f0ece0">その他の品の保管</span><br><br>`
+  +`<span style="color:#c0b098">保管中（${stor.misc.length}点）：${stor.misc.map(j=>j.name).join('、')||'なし'}</span><br>`
+  +`<span style="color:#c0b098">所持中（${inv.length}点）　※食料と松明は対象外です</span>`;
+ const choices = [];
+ inv.forEach(it=>{
+  choices.push({label:`▼ 預ける：${it.name}`, fn:()=>{
+   const t = _miscTakeFromInv(it); if(!t) return;
+   stor.misc.push(t); updateHUD(); checkWeightPenalty(); showSaveToast(`${t.name}を預けた`); propertyStorageMisc(townId);
+  }});
+ });
+ stor.misc.forEach((it,i)=>{
+  choices.push({label:`▲ 引き出す：${it.name}`, fn:()=>{
+   _miscGiveToInv(it); stor.misc.splice(i,1); updateHUD(); checkWeightPenalty(); showSaveToast(`${it.name}を引き出した`); propertyStorageMisc(townId);
+  }});
+ });
+ choices.push({label:'← アイテム保管に戻る', fn:()=>propertyStorageItems(townId)});
+ renderChoices(choices);
 }
 
 // ── 松明の預け入れ・引き出し ──
@@ -10755,7 +11393,7 @@ function _lair5GetTheme(themeId){
 // _lair5GetThemeの中身を汎用化したもの（全5つの巣窟ダンジョンで共有）
 function _lairScenarioAwareTheme(themeId){
  if(!themeId) return null;
- return LAIR5_SCENARIOS[themeId] || LAIR_THEMES[themeId] || (typeof HFORT_THEMES !== 'undefined' && HFORT_THEMES[themeId]) || null;
+ return LAIR5_SCENARIOS[themeId] || LAIR_THEMES[themeId] || (typeof HFORT_THEMES !== 'undefined' && HFORT_THEMES[themeId]) || (typeof NERGOL_B2_THEMES !== 'undefined' && NERGOL_B2_THEMES[themeId]) || null;
 }
 
 function initLair5Dungeon(){
@@ -11603,7 +12241,7 @@ function _lairRoomStatusTextGeneric(key, nodeId){
    def.defeatFn(nodeId);
    return '';
   }
-  const table = _lairAreaTableGeneric(theme, area);
+  const table = (def.nodeTable && def.nodeTable(nodeId, theme)) || _lairAreaTableGeneric(theme, area);
   if(!table || !table.length){
    ns.monsters = [];
    ns.kind = 'monster';
@@ -16271,6 +16909,7 @@ function dismissNPC(idx){
  if(npc.con<=0){ showSaveToast('亡くなった仲間は、町の広場の共同墓地で埋葬できます'); return; }
  if(!confirm(`${npc.name} を解散しますか？`)) return;
  PC.party.splice(idx,1);
+ if(npc.spdBase != null) npc.spd = npc.spdBase;   // 重量オーバーの半減は、パーティを離れたら解除する
  addFormerCompanion(npc);
  _partyDetailIdx = null;
  addLifeEvent('', `${npc.name}がパーティを離れた。`);
@@ -17323,6 +17962,22 @@ function fitNPCGearToWeight(npc){
 
 // 重量オーバーチェック＆SPD半減を適用
 // pc.spdBaseに素のSPDを保存し、過積載ならspd=floor(spdBase/2)
+// 仲間全員の重量による素早さ半減を、現在の荷物に合わせて更新する（重量が変わる操作の呼び出し漏れの救済）
+function _syncPartyWeightSpd(){
+ try{ (PC.party||[]).forEach(n=>{ if(n && typeof n === 'object' && n.spd != null) checkWeightPenalty(n); }); }catch(e){}
+}
+// 松明の消耗が2倍になる条件：プレイヤーか生存中の仲間が重量オーバー（風邪は含めない）。who は原因になっている人の名前
+function _torchOverInfo(){
+ const pcOver = checkWeightPenalty().over;
+ const heavy = (PC.party||[]).filter(n=>n && n.con > 0 && calcTotalWeight(n) > weightPossible(n)).map(n=>n.name);
+ return { over: pcOver || heavy.length > 0, pcOver, heavy };
+}
+function _torchOverText(){
+ const r = _torchOverInfo();
+ if(!r.over) return '';
+ if(r.pcOver) return '重量オーバーのため松明の消費が2倍になっている';
+ return `${r.heavy.join('、')}の荷物が重すぎるため松明の消費が2倍になっている`;
+}
 function checkWeightPenalty(pc=PC){
  if(pc.spdBase == null) pc.spdBase = pc.spd; // 初回セット
  const max = weightPossible(pc);
@@ -28152,6 +28807,7 @@ function checkNPCAging(){
      npc.chr = Math.max(1, (npc.chr||1) - 1);
      npc.dex = Math.max(1, (npc.dex||1) - 1);
      npc.spd = Math.max(1, (npc.spd||1) - 1);
+     if(npc.spdBase != null) npc.spdBase = Math.max(1, npc.spdBase - 1);
      npc.con = Math.max(1, (npc.con||1) - 1);
      npc.maxCon = Math.max(1, (npc.maxCon||1) - 1);
     }
@@ -39145,7 +39801,7 @@ function ydGoNode(nodeId, floor){
   _decrementWizardBuffTurns();
   _decrementChainedTurns();
   if(!dung.isHideoutDungeon && !dung.design?.isNaturalLight){
-   const _ydConsume = checkWeightPenalty().over ? 2 : 1;
+   const _ydConsume = _torchOverInfo().over ? 2 : 1;
    for(let _tc=0; _tc<_ydConsume; _tc++){
     if(PC._torchTurns>0){
      PC._torchTurns--;
@@ -39632,7 +40288,8 @@ function ydNodeTxt(node, floor){
 
  const isLit = design.isNaturalLight;
  const darkWarn = !isLit && (PC._torchTurns||0)<=0
-  ? '<br><span style="color:#e0d0d0"> 松明が切れた！暗闇の中を手探りで進む。</span>' : '';
+  ? '<br><span style="color:#e0d0d0"> 松明が切れた！暗闇の中を手探りで進む。</span>'
+  : ((!isLit && !dung.isHideoutDungeon && node.type!=='entrance' && (PC._torchTurns||0)>0 && _torchOverInfo().over) ? '<br><span style="color:#e0a060;font-size:calc(var(--font-sm) - 2px)"> ' + _torchOverText() + '</span>' : '');
 
  switch(node.type){
   case 'entrance':{
@@ -47211,7 +47868,7 @@ function _huntGoNode(nodeIdOrIdx, opts){
   _decrementWizardBuffTurns();
   _decrementChainedTurns();
   if(!opts.skipTorch){
-   const _hdConsume = checkWeightPenalty().over ? 2 : 1;
+   const _hdConsume = _torchOverInfo().over ? 2 : 1;
    for(let _tc=0; _tc<_hdConsume; _tc++){
     if(PC._torchTurns > 0){
      PC._torchTurns--;
@@ -47308,6 +47965,7 @@ function _huntGoNode(nodeIdOrIdx, opts){
   }
   nodeTxt += `<br><br><span style="color:#c8b8a0">${node._branchDesc}</span>`;
  }
+ if(node.type !== 'entrance' && !opts.skipTorch && (PC._torchTurns||0) > 0 && _torchOverInfo().over) nodeTxt += '<br><span style="color:#e0a060;font-size:calc(var(--font-sm) - 2px)"> ' + _torchOverText() + '</span>';
  storyEl.innerHTML = nodeTxt;
 
  // 選択肢を組み立て
@@ -48085,7 +48743,7 @@ function popTimeOfDayMsg(townId){
 // 酒場のクエスト掲示板HTML生成
 // 依頼の大分類（見やすさのため掲示板でグループ分けする用）
 function _questCategory(type){
- if(type==='hunt' || type==='bounty' || type==='heroquest' || type==='settleRuin') return 'combat';
+ if(type==='hunt' || type==='bounty' || type==='heroquest' || type==='settleRuin' || type==='special_mission') return 'combat';
  if(type==='assassination' || type==='kidnapping') return 'shadow';
  return 'delivery'; // escort, delivery(local/cross), purchase, contraband
 }
@@ -48156,6 +48814,8 @@ function renderQuestBoard(townId, board){
     依頼主：${q.clientName}　報酬: <span style="color:#f0ece0">${q.reward}GP</span>
     ${isHere ? `<button onclick="startHeroQuest(${JSON.stringify(q.id)})" style="margin-top:5px;width:100%;background:#150f06;border:1px solid #606060;color:#f0ece0;font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);padding:7px;cursor:pointer;border-radius:3px"> 出発する</button>` : `<div style="font-size:calc(var(--font-sm) - 2px);color:#c8b8a0;margin-top:4px">（依頼元：${(TOWNS[q.fromTownId]||{name:q.fromTownId}).name}で出発）</div>`}
     </div>`;
+   } else if(q.type === 'special_mission'){
+    html += renderSpecialMissionActive(q);
    } else if(q.isCompanionHunt){
     const totalCount = q.rooms.reduce((s,r)=>s+r.count,0);
     const isHere = q.fromTownId === townId;
@@ -54187,6 +54847,7 @@ function buyArmor(i){
 }
 function buyEquip(i){
  const it=EQUIP_TABLE[i];
+ if(it.name==='防寒着と荷物袋' && (PC.invClothing || PC.equippedClothing)){ showSaveToast(' すでに防寒着と荷物袋を持っている'); return; }
  const effectiveCost = it._isFood ? foodPrice(it.cost) : it.cost;
  if(totalCP()<effectiveCost*100)return;
  payPrice(effectiveCost);
@@ -54366,42 +55027,50 @@ function removeSpareFootwear(pc, name){
 }
 // 予備の1足を主人公が履く。いま持っている靴（履いている・脱いでいる）は予備に回し、摩耗日数も一緒に控える。
 // 予備に履き古した分があれば、いちばん履き古したものから使う（なければ新品）
-function wearSpareFootwear(name){
- if(spareFootwearCount(name) <= 0) return false;
+function wearSpareFootwear(name, pc){
+ pc = pc || PC;
+ if(spareFootwearCount(name, pc) <= 0) return false;
  // いま持っている靴を予備へ
- if(PC.invBoots){
-  const cur = PC.invBootsName || 'ブーツ';
-  addSpareFootwear(PC, cur);
-  if((PC._bootsWearDays||0) > 0 && PC._bootsBreakThreshold != null){
-   _spareWearList(PC, cur).push({d:PC._bootsWearDays, t:PC._bootsBreakThreshold});
+ if(pc.invBoots){
+  const cur = pc.invBootsName || 'ブーツ';
+  addSpareFootwear(pc, cur);
+  if((pc._bootsWearDays||0) > 0 && pc._bootsBreakThreshold != null){
+   _spareWearList(pc, cur).push({d:pc._bootsWearDays, t:pc._bootsBreakThreshold});
   }
  }
  // 予備から取り出す
- PC._spareFootwear[name]--;
- const lst = _spareWearList(PC, name);
+ pc._spareFootwear[name]--;
+ const lst = _spareWearList(pc, name);
  let wear = null;
- if(lst.length > PC._spareFootwear[name]){
+ if(lst.length > pc._spareFootwear[name]){
   lst.sort((a,b)=>b.d-a.d); wear = lst.shift();
  }
- PC.invBoots = true; PC.invBootsName = name; PC.equippedBoots = true;
- PC._bootsWearDays = wear ? wear.d : 0;
- PC._bootsBreakThreshold = wear ? wear.t : null;
+ pc.invBoots = true; pc.invBootsName = name; pc.equippedBoots = true;
+ if(pc !== PC) pc._bootsOff = false;
+ pc._bootsWearDays = wear ? wear.d : 0;
+ pc._bootsBreakThreshold = wear ? wear.t : null;
  return true;
 }
-function wearSpareFootwearUI(name){
- const was = PC.invBoots;
- if(!wearSpareFootwear(name)) return;
- checkWeightPenalty(); updateHUD(); renderStatusPanel(); showSaveToast(was ? ` 予備の${name}に履き替えた` : ` 予備の${name}を履いた`);
+// who: 仲間の添字（-1 または省略で主人公）
+function _footwearActor(who){ return (who == null || who < 0) ? PC : (PC.party||[])[who]; }
+function wearSpareFootwearUI(name, who){
+ const t = _footwearActor(who); if(!t) return;
+ const was = t.invBoots;
+ if(!wearSpareFootwear(name, t)) return;
+ checkWeightPenalty(t); updateHUD(); renderStatusPanel();
+ const who_ = t === PC ? '' : `${t.name}：`;
+ showSaveToast(was ? ` ${who_}予備の${name}に履き替えた` : ` ${who_}予備の${name}を履いた`);
 }
-function sellSpareFootwear(name){
- if(spareFootwearCount(name) <= 0) return;
- const def = EQUIP_TABLE.find(t=>t.name===name);
+function sellSpareFootwear(name, who){
+ const t = _footwearActor(who); if(!t) return;
+ if(spareFootwearCount(name, t) <= 0) return;
+ const def = EQUIP_TABLE.find(t2=>t2.name===name);
  if(!_sellConfirm(`予備の${name}を売りますか？（${sellPriceLabel(def?def.cost:0)}）`)) return;
- removeSpareFootwear(PC, name);
- if(def) gainPriceCP(sellPriceCP(def.cost), PC);
- updateHUD(); checkWeightPenalty(); renderStatusPanel();
+ removeSpareFootwear(t, name);
+ if(def) gainPriceCP(sellPriceCP(def.cost), t);
+ updateHUD(); checkWeightPenalty(t); renderStatusPanel();
  if(typeof renderIngameShop === 'function' && isShopOpen()) renderIngameShop();
- showSaveToast(` 予備の${name}を売った（${sellPriceLabel(def?def.cost:0)}）`);
+ showSaveToast(` ${t === PC ? '' : t.name+'：'}予備の${name}を売った（${sellPriceLabel(def?def.cost:0)}）`);
 }
 
 // ブーツ・サンダルの摩耗（移動1日ごとに蓄積し、365日±30日で壊れる）
@@ -55091,13 +55760,13 @@ function sellEquip(idx){
  const _sa = _shopActor||PC;
  const name = (_sa.invEquip||[])[idx];
  if(!name) return;
- const def = EQUIP_TABLE.find(t=>t.name===name);
- if(!_sellConfirm(`${name}を売りますか？（${sellPriceLabel(def?.cost||0)}）`)) return;
+ const _cost = _equipCostGP(name);
+ if(!_sellConfirm(`${name}を売りますか？（${sellPriceLabel(_cost)}）`)) return;
  _sa.invEquip.splice(idx,1);
- const price = def ? sellPriceCP(def.cost) : 0;
+ const price = _cost ? sellPriceCP(_cost) : 0;
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
- showSaveToast(` ${name}を売った（${sellPriceLabel(def?.cost||0)}）`);
+ showSaveToast(` ${name}を売った（${sellPriceLabel(_cost)}）`);
 }
 
 // 矢の売値：1本あたり5CP
@@ -55141,7 +55810,7 @@ function npcToggleWear(who, kind){
  t[key] = !t[key];
  const nm = kind === 'boots' ? (t.invBootsName || '履物') : (t.invClothingName || '防寒着と荷物袋');
  const verb = kind === 'boots' ? (t[key] ? '脱いだ' : '履いた') : (t[key] ? '脱いだ' : '着た');
- try{ if(typeof checkWeightPenalty==='function') checkWeightPenalty(); }catch(e){}
+ try{ checkWeightPenalty(); checkWeightPenalty(t); }catch(e){}
  renderStatusPanel();
  showSaveToast(` ${t.name}は${nm}を${verb}`);
 }
@@ -55430,14 +56099,15 @@ function renderIgsList(townId){
   row('', bn, bdef ? sellPriceCP(bdef.cost) : 0, ()=>sellBoots());
  }
  // 予備の靴（主人公のみ）
- if(_shopA === PC){
+ if(true){
+  const _who = _shopA === PC ? -1 : (PC.party||[]).indexOf(_shopA);
   let _spareHead = !!(_shopA.invBoots && !_shopA.equippedBoots); // 靴の行で「装備品」見出しが出ていれば重ねない
   FOOTWEAR_NAMES.forEach(n=>{
-   const cnt = spareFootwearCount(n);
+   const cnt = spareFootwearCount(n, _shopA);
    if(cnt <= 0) return;
    if(!_spareHead){ sec(' 装備品'); _spareHead = true; }
    const sdef = EQUIP_TABLE.find(t=>t.name===n);
-   for(let k=0; k<cnt; k++) row('', `予備の${n}`, sdef ? sellPriceCP(sdef.cost) : 0, ()=>sellSpareFootwear(n));
+   for(let k=0; k<cnt; k++) row('', `予備の${n}`, sdef ? sellPriceCP(sdef.cost) : 0, ()=>sellSpareFootwear(n, _who));
   });
  }
 
@@ -55445,9 +56115,9 @@ function renderIgsList(townId){
  if(_shopA.invEquip && _shopA.invEquip.length){
   sec(' 消耗品');
   _shopA.invEquip.forEach((name)=>{
-   const def = EQUIP_TABLE.find(t=>t.name===name);
+   const _c = _equipCostGP(name);
    const _name = name;
-   row('', name, def ? sellPriceCP(def.cost) : 0, ()=>{ const _i=(_shopActor||PC).invEquip.indexOf(_name); if(_i>=0) sellEquip(_i); });
+   row('', name, _c ? sellPriceCP(_c) : 0, ()=>{ const _i=(_shopActor||PC).invEquip.indexOf(_name); if(_i>=0) sellEquip(_i); });
   });
  }
 
@@ -55844,6 +56514,7 @@ function igsBuyEquip(i){
  const it=EQUIP_TABLE[i];
  if(it._isFood && _sa !== PC) return; // 食料は主人公のみが買う
  if(it._isFood && _sa !== PC) return; // 食料は主人公のみ購入（仲間の金では買わない）
+ if(it.name==='防寒着と荷物袋' && (_sa.invClothing || _sa.equippedClothing)){ showSaveToast(` ${_sa.name}は、すでに防寒着と荷物袋を持っている`); return; }
  const effectiveCost = it._isFood ? foodPrice(it.cost) : it.cost;
  if(totalCP(_sa)<effectiveCost*100)return;
  payPrice(effectiveCost, _sa);
@@ -55860,7 +56531,7 @@ function igsBuyEquip(i){
  }
  if(it._isFood){ const amt=it._foodAmt||1; PC._food=(PC._food||0)+amt; showSaveToast(` 食料+${amt}（残り${PC._food}日分）`); }
  else if(it.name==='ブーツ'||it.name==='サンダル'){
-  if(_sa === PC && _sa.invBoots){ addSpareFootwear(_sa, it.name); } // すでに1足持っている場合は予備にする（仲間は従来どおり）
+  if(_sa.invBoots){ addSpareFootwear(_sa, it.name); } // すでに1足持っている場合は予備にする（仲間も同じ）
   else { _sa.invBoots=true; _sa.invBootsName=it.name; _sa._bootsOff=false; _sa._bootsWearDays=0; _sa._bootsBreakThreshold=null; }
  }
  else if(it.name==='松明'){ PC._torchStock=(PC._torchStock||0)+1; }
@@ -56503,6 +57174,7 @@ function gainIQ(amount, pc=PC){
 // HUD
 // ──────────────────────────────────────
 function updateHUD(){
+ _syncPartyWeightSpd();
  try{ const _mp = document.getElementById('stpanel-magic'); if(_mp && _mp.style.display !== 'none' && typeof renderMagicTab === 'function') renderMagicTab(); }catch(e){}
  // Overdrive未リセット救済：戦闘が終了しているのに能力値が倍のままなら元に戻す
  if(!cbtState){
@@ -56542,7 +57214,7 @@ function updateHUD(){
  foodEl.textContent = food;
  foodEl.style.color = food > 15 ? 'var(--white)' : food > 5 ? 'var(--grn)' : food > 0 ? 'var(--yel)' : 'var(--red)';
  }
- if(foodCell) foodCell.className = 'stat-cell' + (food === 0 ? ' critical' : food <= 5 ? 'danger' : food <= 15 ? ' warn' : '');
+ if(foodCell) foodCell.className = 'stat-cell' + (food === 0 ? ' critical' : food <= 5 ? ' danger' : food <= 15 ? ' warn' : '');
 
  // 重量警告
  const wtCell = document.getElementById('sc-wt');
@@ -56684,6 +57356,7 @@ function renderMagicTab(){
 let _partyDetailIdx = null; // null=一覧, 0〜=個別
 
 function renderPartyTab(){
+ _syncPartyWeightSpd();
  const el = document.getElementById('sp-party-content');
  const party = PC.party||[];
  _mulePanel = false;
@@ -56771,7 +57444,16 @@ function renderNPCDetail(el, n, idx){
  // 衣服・履物：持っていれば着ている（履いている）扱い。「外す」を押すと持ったまま身に着けない状態になる
  const _wearRow = (has, name, onLabel, kind, off) => `<div style="background:${has&&!off?'var(--info-bg)':'var(--panel)'};border:1px solid ${has&&!off?'#004444':'var(--deep)'};border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div style="font-size:var(--font-sm);color:${has&&!off?'#ece8e0':'#c8b8a0'}">${has ? name + (off ? ' [外している]' : ' [' + onLabel + ']') + (itemWt(name)!=null ? wtLbl(itemWt(name)) : '') : name + '：なし'}</div>${has ? `<div style="display:flex;gap:4px"><button onclick="npcToggleWear(${idx},'${kind}')" style="${off?'background:#0e1006;border:1px solid var(--rust);color:var(--nature2)':'background:#1a1a1a;border:1px solid #484848;color:#e0d8c8'};font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 3px);padding:4px 8px;cursor:pointer;border-radius:2px">${off ? (kind==='boots'?'履く':'着る') : '外す'}</button>${discBtn(kind, idx)}</div>` : ''}</div>`;
  const npcWearHtml = _wearRow(!!(n.invClothing || n.equippedClothing), n.invClothingName || '防寒着と荷物袋', '着用中', 'clothing', !!n._clothingOff)
-  + _wearRow(!!(n.invBoots || n.equippedBoots), n.invBootsName || '履物', '履いている', 'boots', !!n._bootsOff);
+  + _wearRow(!!(n.invBoots || n.equippedBoots), n.invBootsName || '履物', '履いている', 'boots', !!n._bootsOff)
+  + FOOTWEAR_NAMES.map(fn=>{
+   const cnt = spareFootwearCount(fn, n);
+   if(cnt <= 0) return '';
+   const sDef = EQUIP_TABLE.find(t=>t.name===fn);
+   const _b = 'style="font-size:calc(var(--font-sm) - 3px);padding:4px 8px;background:#10140a;border:1px solid #3a4a20;color:#c0d0a0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:2px"';
+   const wearB = `<button onclick="wearSpareFootwearUI('${fn}',${idx})" ${_b}>${n.invBoots?'履き替える':'履く'}</button>`;
+   const sellB = isShopOpen() && sDef ? `<button onclick="sellSpareFootwear('${fn}',${idx})" ${_b}>売 ${sellPriceLabel(sDef.cost)}</button>` : '';
+   return `<div style="background:var(--panel);border:1px solid var(--deep);border-radius:3px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div style="font-size:var(--font-sm);color:var(--dim)"> 予備の${fn} ×${cnt}</div><div style="display:flex;gap:4px">${wearB}${sellB}${discBtn('spare',idx,FOOTWEAR_NAMES.indexOf(fn))}</div></div>`;
+  }).join('');
  const coldHtml = n._cold > 0 ? `<div style="font-size:calc(var(--font-sm) - 1px);color:#e0b0a0;margin-bottom:8px">風邪を引いている（強さ・体力 ${coldPenaltyText(n)}／宿屋で1〜2泊すれば治る）</div>` : '';
  const trustHtml = coldHtml + '<div style="background:var(--panel);border:1px solid var(--panel2);border-radius:3px;padding:8px;margin-bottom:12px">'
   + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">'
@@ -58103,6 +58785,18 @@ function applyTrapResult(trap, passed, actor){
 // ══════════════════════════════════════════
 //  DUNGEON EVENT SYSTEM
 // ══════════════════════════════════════════
+// イベントの対象を選ぶ：生存中の仲間がいなければそのまま主人公、いれば「誰が？」を選ばせる
+function _eventTargetName(t){ return t === PC ? '' : `${t.name}は、`; }
+function _eventPickTarget(question, onPick){
+ const living = (PC.party||[]).filter(n=>n && n.con > 0 && !n._isSummonedDemon);
+ if(!living.length){ onPick(PC); return; }
+ const story = document.getElementById('story');
+ story.innerHTML += `<div style="color:#e8e0d8;font-size:calc(var(--font-sm) + 1px);margin-top:8px">${question}</div>`;
+ renderChoices([
+  { label:` ${PC.name || 'あなた'}`, fn:()=>onPick(PC) },
+  ...living.map(n=>({ label:` ${n.name}`, fn:()=>onPick(n) })),
+ ]);
+}
 const DUNGEON_EVENTS = [
  // ① 清らかな湧き水
  {
@@ -58114,29 +58808,34 @@ const DUNGEON_EVENTS = [
  {
  label: ' 水を飲む',
  fn: () => {
+ _eventPickTarget('誰が水を飲む？', (t)=>{
  const roll = Math.random();
  const story = document.getElementById('story');
+ const nm = _eventTargetName(t);
+ const baseMaxSt = t.maxSt ?? t.st;
  if(roll < 0.05){
- PC.st += 10; PC.maxSt = (PC.maxSt||PC.st) + 10;
- story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>力の泉だった！</b> 強さ が永続的に +10！（強さ ${PC.st}）</div>`;
+ t.st += 10; t.maxSt = baseMaxSt + 10;
+ story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>力の泉だった！</b> ${nm}強さ が永続的に +10！（強さ ${t.st}）</div>`;
  } else if(roll < 0.10){
- gainIQ(10, PC);
- story.innerHTML += `<div style="color:#e8e0d8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>知恵の泉だった！</b> 知力 が永続的に +10！（知力 ${PC.iq}）</div>`;
+ gainIQ(10, t);
+ story.innerHTML += `<div style="color:#e8e0d8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>知恵の泉だった！</b> ${nm}知力 が永続的に +10！（知力 ${t.iq}）</div>`;
  } else if(roll < 0.15){
- PC.lk += 10;
- story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幸運の泉だった！</b> 運 が永続的に +10！（運 ${PC.lk}）</div>`;
+ t.lk += 10;
+ story.innerHTML += `<div style="color:#f0ece0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>幸運の泉だった！</b> ${nm}運 が永続的に +10！（運 ${t.lk}）</div>`;
  } else if(roll < 0.20){
- PC.st = Math.max(1, Math.floor(PC.st / 2));
- PC.con = Math.max(1, Math.floor(PC.con / 2));
- PC.maxSt = Math.max(1, Math.floor((PC.maxSt||PC.st) / 2));
- PC.maxCon = Math.max(1, Math.floor(PC.maxCon / 2));
- story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>毒の泉だった！</b> 強さ と 体力 が永続的に 1/2 になった…（強さ ${PC.st} / 体力 ${PC.con}）</div>`;
+ t.st = Math.max(1, Math.floor(t.st / 2));
+ t.con = Math.max(1, Math.floor(t.con / 2));
+ t.maxSt = Math.max(1, Math.floor(baseMaxSt / 2));
+ t.maxCon = Math.max(1, Math.floor((t.maxCon||t.con) / 2));
+ story.innerHTML += `<div style="color:#e0d0d0;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>毒の泉だった！</b> ${nm}強さ と 体力 が永続的に 1/2 になった…（強さ ${t.st} / 体力 ${t.con}）</div>`;
  } else {
  story.innerHTML += `<div style="color:#e0d8c8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> 冷たく澄んだ水だった。特に何も感じない。</div>`;
  }
  story.innerHTML += `<div style="color:#c0b098;font-size:var(--font-sm);margin-top:4px">水はもう湧いていない。</div>`;
+ checkWeightPenalty(t);
  updateHUD();
  _restoreNodeChoices();
+ });
  },
  },
  {
@@ -58856,20 +59555,23 @@ const DUNGEON_EVENTS = [
   {
   label: ' 水を飲む・触れる',
   fn: () => {
+   _eventPickTarget('誰が黒い泉に触れる？', (t)=>{
    const story = document.getElementById('story');
    const roll = d6();
+   const nm = _eventTargetName(t);
+   const baseMaxSt = t.maxSt ?? t.st;
    const effects = [
-    ()=>{ PC.con = Math.max(1, Math.floor(PC.con/2)); PC.maxCon = Math.max(1, Math.floor(PC.maxCon/2)); return `<span style="color:#e0d0d0"> <b>生命の吸収。</b>体力が奪われる。体力 1/2（残り${PC.con}/${PC.maxCon}）</span>`; },
-    ()=>{ PC.st = Math.max(1, Math.floor(PC.st/2)); PC.maxSt = Math.max(1, Math.floor((PC.maxSt||PC.st)/2)); return `<span style="color:#e0d0d0"> <b>弱体化。</b>体が重くなる。強さ 1/2（残り${PC.st}）</span>`; },
-    ()=>{ PC.iq = Math.max(1, Math.floor(PC.iq/2)); return `<span style="color:#e0d0d0"> <b>精神の揺らぎ。</b>不安と幻覚。知力 1/2（残り${PC.iq}）</span>`; },
-    ()=>{ PC.dex *= 2; return `<span style="color:#f0ece0"> <b>奇妙な活力。</b>体が軽くなる。器用さ ×2（${PC.dex}）</span>`; },
-    ()=>{ PC.st *= 2; PC.maxSt = (PC.maxSt||PC.st)*2; return `<span style="color:#f0ece0"> <b>強化。</b>肉体が強くなる。強さ ×2（${PC.st}）</span>`; },
+    ()=>{ t.con = Math.max(1, Math.floor(t.con/2)); t.maxCon = Math.max(1, Math.floor((t.maxCon||t.con)/2)); return `<span style="color:#e0d0d0"> <b>生命の吸収。</b>${nm}体力が奪われる。体力 1/2（残り${t.con}/${t.maxCon}）</span>`; },
+    ()=>{ t.st = Math.max(1, Math.floor(t.st/2)); t.maxSt = Math.max(1, Math.floor(baseMaxSt/2)); return `<span style="color:#e0d0d0"> <b>弱体化。</b>${nm}体が重くなる。強さ 1/2（残り${t.st}）</span>`; },
+    ()=>{ t.iq = Math.max(1, Math.floor(t.iq/2)); return `<span style="color:#e0d0d0"> <b>精神の揺らぎ。</b>${nm}不安と幻覚。知力 1/2（残り${t.iq}）</span>`; },
+    ()=>{ t.dex *= 2; return `<span style="color:#f0ece0"> <b>奇妙な活力。</b>${nm}体が軽くなる。器用さ ×2（${t.dex}）</span>`; },
+    ()=>{ t.st *= 2; t.maxSt = baseMaxSt*2; return `<span style="color:#f0ece0"> <b>強化。</b>${nm}肉体が強くなる。強さ ×2（${t.st}）</span>`; },
     ()=>{
-     // プレイヤーが選択
-     story.innerHTML += `<div style="color:#e8e0d8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>深い覚醒。</b>精神が研ぎ澄まされる。どちらを強化する？</div>`;
+     // 対象となったキャラクターの強化先を選ぶ
+     story.innerHTML += `<div style="color:#e8e0d8;font-size:calc(var(--font-sm) + 1px);margin-top:8px"> <b>深い覚醒。</b>${nm}精神が研ぎ澄まされる。どちらを強化する？</div>`;
      renderChoices([
-      { label:` 知力 ×2（現在${PC.iq}→${PC.iq*2}）`, fn:()=>{ PC.iq *= 2; document.getElementById('story').innerHTML += `<div style="color:#f0ece0">知力 ×2（${PC.iq}）</div>`; updateHUD(); _restoreNodeChoices(); } },
-      { label:` 運 ×2（現在${PC.lk}→${PC.lk*2}）`, fn:()=>{ PC.lk *= 2; document.getElementById('story').innerHTML += `<div style="color:#f0ece0">運 ×2（${PC.lk}）</div>`; updateHUD(); _restoreNodeChoices(); } },
+      { label:` 知力 ×2（現在${t.iq}→${t.iq*2}）`, fn:()=>{ t.iq *= 2; document.getElementById('story').innerHTML += `<div style="color:#f0ece0">${nm}知力 ×2（${t.iq}）</div>`; checkWeightPenalty(t); updateHUD(); _restoreNodeChoices(); } },
+      { label:` 運 ×2（現在${t.lk}→${t.lk*2}）`, fn:()=>{ t.lk *= 2; document.getElementById('story').innerHTML += `<div style="color:#f0ece0">${nm}運 ×2（${t.lk}）</div>`; checkWeightPenalty(t); updateHUD(); _restoreNodeChoices(); } },
      ]);
      return null; // 選択肢を出したので処理継続しない
     },
@@ -58877,9 +59579,11 @@ const DUNGEON_EVENTS = [
    const resultHtml = effects[roll-1]();
    if(resultHtml !== null){
     story.innerHTML += `<div style="font-size:calc(var(--font-sm) + 1px);margin-top:8px">${resultHtml}<br><span style="color:#c0b098;font-size:calc(var(--font-sm) - 1px)">※能力値の変化は恒久的</span></div>`;
+    checkWeightPenalty(t);
     updateHUD();
     _restoreNodeChoices();
    }
+   });
   },
   },
   {
@@ -58994,6 +59698,7 @@ function confirmRetire(){
   const story = document.getElementById('story');
   story.innerHTML = `<span style="color:#f0ece0"> ${PC.name}を引退させますか？</span><br><br>`
    +`<span style="color:#c0b098">拠点を持っています。次の冒険者に引き継ぐことができます。</span>`
+   +(_pcRecordPlaces().length ? `<br><br><span style="color:#c0b098">${PC.name}の記録は、${_pcRecordPlaces().map(t=>propName(t)+'の'+_recPlace(t).name).join('、')}に残っています。最近の出来事も残したいときは、いったんキャンセルして、拠点で記録を書き加えてください。</span>` : `<br><br><span style="color:#e0a060">拠点で記録を残していないと、${PC.name}の記録は、この引退の画面を除いて、どこにも残りません。残したいときは、いったんキャンセルして、拠点の「記録を残す」（肖像画は「肖像画を依頼する」）を行ってください。</span>`)
    +(((PC.party||[]).some(n=>n.con>0)) ? `<br><br><span style="color:#c0b098">世代交代のあとは、引き継ぎ相手に選んだ一人だけで再出発します。引き続きパーティを組みたい仲間は、引退の前に、拠点の「留守番を置く」で預けておくと、世代交代のあとに「留守番を引き取る」で呼び戻せます。</span>` : '');
   renderChoices([
    {label:' 拠点に住んで引退（拠点・住人として登録）', fn:()=>{
@@ -59011,7 +59716,7 @@ function confirmRetire(){
    {label:'← キャンセル', fn:()=>go(currentNodeId)},
   ]);
  } else {
-  if(!confirm(`${PC.name}を引退させますか？\nこの冒険者のプレイは終了します。`)) return;
+  if(!confirm(`${PC.name}を引退させますか？\nこの冒険者のプレイは終了します。\n\n拠点を持っていないため、${PC.name}の記録は、引退の画面を除いて、どこにも残りません。`)) return;
   archiveCurrentPC('retire');
   closeInventory();
   go('RETIRE');
@@ -59575,7 +60280,7 @@ function go(nodeId){
  PC._torchStock = PC._torchStock || 0;
  if(PC._torchTurns == null) PC._torchTurns = 0;
  // 重量オーバーなら1回の移動で松明の消費が2倍（2ターン分）かかる
- const _wpOverDng = checkWeightPenalty().over;
+ const _wpOverDng = _torchOverInfo().over;
  const _torchConsume = _wpOverDng ? 2 : 1;
  for(let _tc=0; _tc<_torchConsume; _tc++){
  if(PC._torchTurns > 0){
@@ -59600,7 +60305,7 @@ function go(nodeId){
  }
  }
  if(_wpOverDng && _torchConsume>1 && PC._torchTurns>0){
- PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e0a060;font-size:calc(var(--font-sm) - 2px);margin-top:4px"> 重量オーバーのため松明の消費が2倍になっている</div>`;
+ PC._pendingMsg = (PC._pendingMsg||'') + `<div style="color:#e0a060;font-size:calc(var(--font-sm) - 2px);margin-top:4px"> ${_torchOverText()}</div>`;
  }
  }
 
@@ -60388,13 +61093,13 @@ function _resolveSRRoll(sr, diceArr){
   sr._srTarget = target;
   sr._srGrandTotal = grandTotal;
   if(success && typeof sr.onSuccess === 'function'){
-   sr.onSuccess();
+   sr.onSuccess(actor);
   } else if(!success && typeof sr.onFail === 'function'){
-   sr.onFail();
+   sr.onFail(actor);
   } else if(sr.autoAdvance){
    // autoAdvanceフラグがある場合はDONEボタンなしで即進行（onSuccess/onFail必須）
-   if(success) sr.onSuccess && sr.onSuccess();
-   else sr.onFail && sr.onFail();
+   if(success) sr.onSuccess && sr.onSuccess(actor);
+   else sr.onFail && sr.onFail(actor);
   } else {
    go(success?sr.success:sr.fail);
   }
@@ -63370,7 +64075,7 @@ function showNPCActionPhase(idx, aliveParty){
     panel.style.display = 'none';
     document.getElementById('dice-area').classList.remove('hidden');
     document.getElementById('text-win').style.display = '';
-    setupSavingRoll({
+    setupSavingRollFor(npc, {
      attr, level:2, label:`${npc.name}カオス判定`, noAP:true,
      onSuccess(){
       document.getElementById('dice-area').classList.add('hidden');
@@ -64913,6 +65618,27 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026112301', sections:[
+  { heading:'新規実装項目', items:[
+   '拠点に記録室（最初は「記録棚」、改装で「書き物机」「記録室」）を設けた。',
+   '拠点の記録室で画家を呼び、肖像画を描いてもらえるようにした。',
+   '倉庫や棚に、聖なる護符などその他の品と特産品を預けたり並べたりできる。',
+   '仲間の防寒着・荷物袋・履物を外す／着る／履くことができる。仲間にも予備の履物を持たせられる。',
+   '能力値増減イベントの効果を、仲間にも受けさせられる。',
+  ]},
+  { heading:'調整', items:[
+   '引退時、拠点に記録を残していないと記録が残らない旨を表示するようにした。',
+   '人生の記録の保存件数を100件から365件に増やした。',
+   '重量超過で松明の消耗が2倍になるとき、警告を出す。仲間が重量超過の場合も消耗が速くなる。',
+   '拠点を転居させる仲間の行き先の名前を正しく表示する。',
+   '酒場の受託依頼一覧で特命依頼のカードを、配達ではなく討伐として表示する。',
+  ]},
+  { heading:'不具合修正', items:[
+   '特命依頼の指揮官との戦いで、主人公の能力値のみが参照され、仲間の判定が使われない不具合を修正した。',
+   '食料が一桁のとき、表示が崩れる不具合を修正した。',
+   '防寒着や靴をすでに装備している仲間にさらに買うと、外せなくなる不具合を修正した。',
+  ]},
+ ]},
  { version:'ver.2026112001', sections:[
   { heading:'新規実装項目', items:[
    '町の広場でラバを買えるようにした。ラバには持ち物と硬貨を預けられる。ダンジョンの入口に繋いでおくことになり、見張りを残さないと逃げることがある。',
@@ -65979,7 +66705,7 @@ const SHM2_MONSTER_TABLE = [
 ];
 
 function _consumeDungeonTorch(){
- const _n = checkWeightPenalty().over ? 2 : 1;
+ const _n = _torchOverInfo().over ? 2 : 1;
  for(let _tc=0; _tc<_n; _tc++){
   if((PC._torchTurns||0) > 0){
    PC._torchTurns--;
@@ -65990,6 +66716,7 @@ function _consumeDungeonTorch(){
    updateHUD();
   } else break;
  }
+ if(_n > 1 && (PC._torchTurns||0) > 0) PC._pendingMsg = (PC._pendingMsg||'') + '<div style="color:#e0a060;font-size:calc(var(--font-sm) - 2px);margin-top:4px"> ' + _torchOverText() + '</div>';
  // Enchant Weapon/Fortify Armorの残りターンは、松明の有無に関わらずノード移動1回につき1回だけ減らす
  _decrementWizardBuffTurns();
  _decrementChainedTurns();
@@ -80509,9 +81236,10 @@ function nergolPayPrisoners(){
  showSaveToast(`${list.map(x=>x.name).join('、')}を解放した！謝礼として${total}GPを受け取った`);
  PC._nergolPrisonersFreed = [];
 }
-function _nergolLairOf(nid){ return NERGOL_ROOM_AREAS3[nid] ? PC._nergolDungeon3 : NERGOL_ROOM_AREAS5[nid] ? PC._nergolDungeon5 : NERGOL_ROOM_AREAS4[nid] ? PC._nergolDungeon4 : NERGOL_ROOM_AREAS2[nid] ? PC._nergolDungeon2 : PC._nergolDungeon; }
-function _nergolKeyOf(nid){ return NERGOL_ROOM_AREAS3[nid] ? 'nergol3' : NERGOL_ROOM_AREAS5[nid] ? 'nergol5' : NERGOL_ROOM_AREAS4[nid] ? 'nergol4' : NERGOL_ROOM_AREAS2[nid] ? 'nergol2' : 'nergol'; }
+function _nergolLairOf(nid){ return NERGOL_B2_AREAS[nid] ? PC._nergolB2 : NERGOL_ROOM_AREAS3[nid] ? PC._nergolDungeon3 : NERGOL_ROOM_AREAS5[nid] ? PC._nergolDungeon5 : NERGOL_ROOM_AREAS4[nid] ? PC._nergolDungeon4 : NERGOL_ROOM_AREAS2[nid] ? PC._nergolDungeon2 : PC._nergolDungeon; }
+function _nergolKeyOf(nid){ return NERGOL_B2_AREAS[nid] ? 'nergolb2' : NERGOL_ROOM_AREAS3[nid] ? 'nergol3' : NERGOL_ROOM_AREAS5[nid] ? 'nergol5' : NERGOL_ROOM_AREAS4[nid] ? 'nergol4' : NERGOL_ROOM_AREAS2[nid] ? 'nergol2' : 'nergol'; }
 function checkNergolRespawn(){
+ checkNergolB2Respawn();
  checkNergolRespawn2();
  initNergolDungeon4(); initNergolDungeon5();
  { const l4 = PC._nergolDungeon4, b4 = l4.themeId; _lairCheckRespawnGeneric('nergol4', initNergolDungeon4); if(!b4 && l4.themeId){ l4.boost = 1; l4.yLoot = null; } }
@@ -80819,8 +81547,8 @@ function _nergolMakeNode(key, d){
    const out = [];
    d.e.forEach(([label, dest])=>{
     if(dest === '@STAIRS') out.push({label, fn:()=>go('NERGOL_STAIRS')});
-    else if(dest === '@B2') out.push({label, fn:()=>go('NERGOL_B2_STUB')});
-    else if(dest === '@B2_5') out.push({label, fn:()=>{ PC._nergolB2Back = 'NERGOL_B1_COL_5'; go('NERGOL_B2_STUB'); }});
+    else if(dest === '@B2') out.push({label, fn:()=>go('NERGOL_B2_COL_1')});
+    else if(dest === '@B2_5') out.push({label, fn:()=>go('NERGOL_B2B_PASSAGE_1')});
     else if(dest === '@B2_P') out.push({label, fn:()=>{ PC._nergolB2Back = 'NERGOL_B1_ROOM_P'; go('NERGOL_B2_STUB'); }});
     else if(dest === '@SURFV') out.push({label, fn:()=>go('NERGOL_SURFV')});
     else if(dest === '@SURF4') out.push({label, fn:()=>go('NERGOL_SURF4')});
@@ -80944,6 +81672,390 @@ function _nergolMakeNode(key, d){
    return out;
   },
  };
+ Object.assign(NODES, nodes);
+ Object.keys(nodes).forEach(id=>DUNGEON_NODES.add(id));
+})();
+
+
+// ══════════════════════════════════════════
+// ネルゴルークの墳墓 地下2階（ゾーンI：重装の山賊団）
+// 地下1階の通路8の東端の階段から入る。部屋Hの南壁東端の階段は地下3階（未作成）
+// ══════════════════════════════════════════
+const NERGOL_B2_HEAD = `<span style="color:#f0ece0">${NERGOL_NAME} 地下2階</span><br><br>`;
+// エリア番号：1＝堂々／貫禄／重装の山賊、2＝重装／騎士くずれ、3＝騎士くずれ／魔術師くずれ
+const NERGOL_B2_AREAS = {
+ NERGOL_B2_COL_1:1, NERGOL_B2_ROOM_A:1, NERGOL_B2_ROOM_E:1,
+ NERGOL_B2_COL_2:2, NERGOL_B2_ROOM_B:2, NERGOL_B2_ROOM_F:2, NERGOL_B2_ROOM_G:2,
+ NERGOL_B2_ROOM_C:3, NERGOL_B2_ROOM_D:3, NERGOL_B2_ROOM_H:3, NERGOL_B2_ROOM_I:3,
+};
+const _NB2_PLATE = {name:'プレートアーマー', hits:14, stReq:11, isShield:false, weight:1000};
+const _NB2_SHIELD = {name:'ナイトシールド', hits:5, stReq:5, isShield:true, weight:450};
+// 種族の体格に合わせた防具にする（合う防具がない種族は、そのままの防具を身につけたことにする。敵なので重さは関係しない）
+function _nb2Wear(npc, list){
+ const worn = armorsForRace(list.map(a=>({...a})), npc.race);
+ npc.equippedArmors = (worn && worn.length >= list.length) ? worn : list.map(a=>({...a}));
+}
+// 魔法使いとして生まれたNPCを戦士にするとき、持ち物の武器を手に持たせ、魔法を外す
+function _nb2MakeWarrior(npc, name){
+ npc.type = 'warrior'; npc.name = name;
+ if(!(npc.equippedWeapons||[]).length){ npc.equippedWeapons = npc.invWeapons || []; npc.invWeapons = []; }
+ npc.spells = [];
+ return npc;
+}
+// 部屋Fの訓練場の敵
+function generateNergolB2Trainee(withBolt){
+ const npc = _nb2MakeWarrior(generateNPC(1), '訓練中の山賊');
+ // 魔法訓練中：Magic Bolt（強さ6）を放てるだけの強さがあれば使える。使える者は魔法使いとして魔法フェーズに参加する（武器も持ったまま）
+ if(withBolt){
+  const bolt = SPELLS_L1.find(sp=>sp.fn === 'ttyf');
+  if(bolt && (npc.st||0) > bolt.cost){ npc.type = 'wizard'; npc.spells = [{...bolt}]; }
+ }
+ return npc;
+}
+function generateNergolB2Master(kind){
+ if(kind === 'sword'){
+  const npc = _nb2MakeWarrior(generateNPC(13), '剣術の師範崩れ');
+  npc.equippedWeapons = [{name:'ブロードソード',dice:3,adds:4,twoHand:false,weight:120,stReq:15,dexReq:10}];
+  return npc;
+ }
+ const npc = generateNPC(10);
+ npc.type = 'wizard'; npc.name = '魔法の師範崩れ';
+ npc.invWeapons = []; npc.equippedWeapons = []; npc.equippedRanged = null; npc.arrows = 0;
+ npc.spells = _spellsUpToLevel(7);   // 攻撃魔法はすべて使える
+ return npc;
+}
+const _NB2_TRAIN_SWORD = { spawn: ()=>[generateNergolB2Master('sword'), ...Array.from({length:15}, ()=>generateNergolB2Trainee(false))] };
+const _NB2_TRAIN_MAGIC = { spawn: ()=>[generateNergolB2Master('magic'), ...Array.from({length:15}, ()=>generateNergolB2Trainee(true))] };
+// kind: 'stalwart'|'veteran'|'heavy'|'knight'|'mage'
+function generateNergolB2Bandit(kind){
+ if(kind === 'stalwart' || kind === 'veteran') return generateLairBandit(kind);
+ if(kind === 'heavy'){
+  const npc = _nb2MakeWarrior(generateNPC(5), '重装の山賊');
+  _nb2Wear(npc, [_NB2_PLATE]);
+  return npc;
+ }
+ if(kind === 'knight'){
+  const npc = _nb2MakeWarrior(generateNPC(7), '騎士くずれの山賊');
+  _nb2Wear(npc, [_NB2_PLATE, _NB2_SHIELD]);
+  return npc;
+ }
+ // 魔術師くずれの山賊：LV7の魔法使い。LV7までの魔法（敵が使うのは攻撃魔法）
+ const npc = generateNPC(7);
+ npc.type = 'wizard'; npc.name = '魔術師くずれの山賊';
+ npc.invWeapons = []; npc.equippedWeapons = []; npc.equippedRanged = null; npc.arrows = 0;
+ npc.spells = _spellsUpToLevel(7);
+ return npc;
+}
+function _nb2Group(parts){ // parts: [[kind, min, max], ...]
+ return ()=>{ const out = []; parts.forEach(([k,mn,mx])=>{ const n = mn + Math.floor(Math.random()*(mx-mn+1)); for(let i=0;i<n;i++) out.push(generateNergolB2Bandit(k)); }); return out; };
+}
+const NERGOL_B2_THEMES = {
+ nergolB2Bandits: {
+  name: '重装の山賊団',
+  entryFlavor: '鉄と油の臭いが、冷えた空気に混じっている。',
+  area1: [
+   { spawn: _nb2Group([['stalwart',3,5],['veteran',2,3]]) },
+   { spawn: _nb2Group([['heavy',1,3]]) },
+  ],
+  area2: [
+   { spawn: _nb2Group([['veteran',2,3],['heavy',1,3]]) },
+   { spawn: _nb2Group([['heavy',1,3],['knight',1,3]]) },
+  ],
+  area3: [
+   { spawn: _nb2Group([['knight',3,5]]) },
+   { spawn: _nb2Group([['mage',1,3],['heavy',1,5]]) },
+  ],
+ },
+};
+function initNergolB2(){ _nergolInitZone('_nergolB2', NERGOL_B2_AREAS); }
+function defeatNergolB2Room(id){ _nergolDefeatZone('_nergolB2', NERGOL_B2_AREAS, id); }
+function checkNergolB2Respawn(){ _lairCheckRespawnGeneric('nergolb2', initNergolB2); }
+LAIR_DUNGEON_REG.nergolb2 = { fixedTheme:'nergolB2Bandits', areaRates:NERGOL_AREA_RATES, stateProp:'_nergolB2', roomAreas:NERGOL_B2_AREAS, defeatFn:(id)=>defeatNergolB2Room(id), rescuedNamesProp:'_nergolRescuedNames', wanderFn:(area)=>null, wanderCombatFn:(m,r)=>startHruinWanderCombat(m,r),
+ // 部屋Fは訓練場：75%で剣術の訓練、25%で魔法の訓練
+ nodeTable:(nid, theme)=> nid === 'NERGOL_B2_ROOM_F' ? [_NB2_TRAIN_SWORD, _NB2_TRAIN_SWORD, _NB2_TRAIN_SWORD, _NB2_TRAIN_MAGIC] : null };
+
+const NERGOL_B2_DEFS = {
+ COL_1: { t:()=>'幅15m、高さ20mの柱廊が、南北に45m続いている。北端は行き止まりで、東壁の北端に扉がある。南端も行き止まりで、南壁には、地下1階へ続く上りの階段がある。東壁の南端には部屋へ通じるアーチがあり、西壁の中央には扉がある。',
+  e:[['→ 東壁北端の扉へ','ROOM_E'], ['→ 東壁南端のアーチへ','ROOM_A'], ['← 西壁中央の扉へ','ROOM_B'], ['↓ 南壁の階段を上る（地下1階へ）','@B1']] },
+ ROOM_A: { t:()=>'南北25m、東西20mの部屋。北壁の東端から10mのところに扉、西壁の南端から10mのところに柱廊へ通じるアーチがある。',
+  e:[['↑ 北壁東寄りの扉へ','ROOM_E'], ['← 西壁南寄りのアーチへ','COL_1']] },
+ ROOM_B: { t:()=>'南北15m、東西20mの部屋。東壁の中央と、西壁の中央に、それぞれ扉がある。',
+  e:[['→ 東壁中央の扉へ','COL_1'], ['← 西壁中央の扉へ','COL_2']] },
+ COL_2: { t:()=>'幅20m、高さ20mの大柱廊が、南北に50m続いている。北端も南端も行き止まりになっている。東壁の北端から10mのところと、南端から25mのところに、それぞれ扉がある。南壁の西端から10mのところには、部屋へ通じるアーチがある。',
+  e:[['→ 東壁北寄りの扉へ','ROOM_D'], ['→ 東壁南寄りの扉へ','ROOM_B'], ['↓ 南壁西寄りのアーチへ','ROOM_C']] },
+ ROOM_C: { t:()=>'南北20m、東西15mの部屋。北壁の中央に、柱廊へ通じるアーチがある。',
+  e:[['↑ 北壁中央のアーチへ','COL_2']] },
+ ROOM_D: { t:()=>'南北15m、東西20mの部屋。西壁の中央に扉がある。',
+  e:[['← 西壁中央の扉へ','COL_2']] },
+ ROOM_E: { t:()=>'南北35m、東西20mの部屋。東壁の中央に扉、南壁の東端から10mのところに扉、西壁の中央に扉がある。',
+  e:[['→ 東壁中央の扉へ','PASSAGE_1'], ['↓ 南壁東寄りの扉へ','ROOM_A'], ['← 西壁中央の扉へ','COL_1']] },
+ PASSAGE_1: { t:()=>'南北30mの通路。北端は行き止まりで、東壁と西壁に、それぞれ扉がある。南端はT字路になっている。',
+  e:[['→ 北端東壁の扉へ','ROOM_F'], ['← 北端西壁の扉へ','ROOM_E'], ['↓ 南端のT字路へ','TJ_1']] },
+ ROOM_F: { t:()=>'45m四方の部屋。山賊団の訓練場になっているらしく、床には、打ち込みで削れた木人形や、的、折れた木剣が散らばっている。西壁の中央に扉がある。',
+  e:[['← 西壁中央の扉へ','PASSAGE_1'], ['↓ 南壁中央の隠し扉へ','~B2FG:ROOM_G']] },
+ ROOM_G: { t:()=>'南北15m、東西25mの部屋。北壁の中央に扉、東壁の中央に扉、西壁の中央に通路へ通じるアーチがある。',
+  e:[['↑ 北壁中央の扉へ','^B2FG:ROOM_F'], ['→ 東壁中央の扉へ','ROOM_H'], ['← 西壁中央のアーチへ','PASSAGE_2']] },
+ ROOM_H: { t:()=>'南北15m、東西10mの部屋。西壁の中央に扉がある。南壁の東端は開口部になっていて、下りの階段が見える。',
+  e:[['← 西壁中央の扉へ','ROOM_G'], ['↓ 南壁東端の開口部から階段へ','@B3']] },
+ PASSAGE_2: { t:()=>'東西10mの通路。東端は、部屋へ通じるアーチになっている。西端はT字路になっている。',
+  e:[['→ 東端のアーチへ','ROOM_G'], ['← 西端のT字路へ','TJ_1']] },
+ TJ_1: { t:()=>'南北に伸びる通路から、東へ通路が分岐するT字路。',
+  e:[['↑ 北の通路へ','PASSAGE_1'], ['→ 東の通路へ','PASSAGE_2'], ['↓ 南の通路へ','PASSAGE_3']] },
+ PASSAGE_3: { t:()=>'南北20mの通路。北端はT字路になっている。南端は東に折れ曲がっている。',
+  e:[['↑ 北端のT字路へ','TJ_1'], ['↓ 南端から東へ','PASSAGE_4']] },
+ PASSAGE_4: { t:()=>'東西20mの通路。東端は、扉で終わっている。西端は北に折れ曲がっている。',
+  e:[['→ 東端の扉へ','ROOM_I'], ['← 西端から北へ','PASSAGE_3']] },
+ ROOM_I: { t:()=>'南北15m、東西20mの部屋。西壁の北端に扉がある。',
+  e:[['← 西壁北端の扉へ','PASSAGE_4']] },
+};
+function _nergolB2MakeNode(key, d){
+ const nid = 'NERGOL_B2_' + key;
+ const isRoom = !!NERGOL_B2_AREAS[nid];
+ return {
+  scene:'dungeon',
+  txt:()=>{ initNergolB2(); return NERGOL_B2_HEAD + d.t() + (isRoom ? _lairRoomStatusTextGeneric('nergolb2', nid) : ''); },
+  choices:()=>{
+   initNergolB2();
+   const lair = PC._nergolB2;
+   if(isRoom && lair.themeId && !lair.nodeState[nid].defeated){
+    return [{label:_lairEncounterLabel(lair.nodeState[nid]), fn:()=>_lairStartEncounterGeneric('nergolb2', nid)}];
+   }
+   const out = [];
+   d.e.forEach(([label, dest])=>{
+    if(dest === '@B1') out.push({label, fn:()=>go('NERGOL_B1_PASSAGE_8')});
+    else if(dest === '@B3') out.push({label, fn:()=>{ PC._nergolB3Back = nid; go('NERGOL_B3_STUB'); }});
+    else if(dest.startsWith('~')){
+     const [sk, to] = dest.slice(1).split(':');   // 隠し扉の裏側：反対側から通ったことがあるときだけ出る
+     if(_nergolSecretKnown(sk)) out.push({label, fn:()=>go('NERGOL_B2_' + to)});
+    }
+    else if(dest.startsWith('^')){
+     const [sk, to] = dest.slice(1).split(':');   // 隠し扉の表側：通り抜けると、反対側にも扉があることに気づく
+     out.push({label, fn:()=>{ _nergolSecretLearn(sk); go('NERGOL_B2_' + to); }});
+    }
+    else out.push({label, fn:()=>go('NERGOL_B2_' + dest)});
+   });
+   return out;
+  },
+ };
+}
+(function(){
+ const nodes = {};
+ Object.keys(NERGOL_B2_DEFS).forEach(k=>{ nodes['NERGOL_B2_' + k] = _nergolB2MakeNode(k, NERGOL_B2_DEFS[k]); });
+ nodes.NERGOL_B3_STUB = {
+  scene:'dungeon',
+  txt:()=>NERGOL_B2_HEAD + `石の階段を少し下ると、壁に突き当たって途切れている。ここから先へは進めそうにない。`,
+  choices:()=>[{label:'↑ 階段を上って戻る', fn:()=>{ const b = PC._nergolB3Back || 'NERGOL_B2_ROOM_H'; PC._nergolB3Back = null; go(b); }}],
+ };
+ Object.assign(NODES, nodes);
+ Object.keys(nodes).forEach(id=>DUNGEON_NODES.add(id));
+})();
+
+
+// ══════════════════════════════════════════
+// ネルゴルークの墳墓 地下2階（ゾーンII：黒い球体の部屋）
+// ゾーンIとは接続されていない独立したゾーン。地下1階の柱廊5の北端の階段から入る（通路1の南端が上り階段）
+// 敵のエリア配置はまだない。通路3・通路11・通路12は未作成（扉は固く閉ざされている扱い）
+// ══════════════════════════════════════════
+function _nbOrb(){ if(!PC._nergolOrb) PC._nergolOrb = { gauge:25, survived:0 }; return PC._nergolOrb; }
+const NERGOL_B2B_DEFS = {
+ PASSAGE_1: { t:()=>'南北10mの通路。北端は行き止まりで、東壁に扉がある。南端は上り階段になっていて、地下1階へ続いている。',
+  e:[['→ 北端東壁の扉へ','ROOM_A'], ['↓ 南端の階段を上る（地下1階へ）','@B1_5']] },
+ ROOM_A: { t:()=>{
+   const o = _nbOrb();
+   return '35m四方の部屋。北壁の中央、南壁の中央、西壁の中央に、それぞれ扉がある。'
+    + '<br><br>部屋の中央には、5m四方の黒曜石の台座がある。台座の周囲の床には、何かが溶けたような跡が広がっている。台座の上には、直径3mの黒い金属の球体が載っていて、台座から外せそうにない。'
+    + `<br>台座には、球体と同じ金属の板が埋め込まれている。板には「満たすまで捧げよ。」とあり、その下に、数字で「<b>${o.gauge}/36</b>」と刻まれている。`
+    + (o.survived > 0 ? '<br><br>雪崩れ込んできた者たちが倒れたあと、扉の錠は外れていて、出入りできるようになっている。' : ''); },
+  e:[['↑ 北壁中央の扉へ','PASSAGE_2'], ['↓ 南壁中央の扉へ','ROOM_B'], ['← 西壁中央の扉へ','PASSAGE_1'], ['@ORB','@ORB']] },
+ PASSAGE_2: { t:()=>'南北15mの通路。北端は、下り階段で終わっている。南端は行き止まりで、南壁に扉がある。',
+  e:[['↑ 北端の階段を下りる（地下3階へ）','@B3'], ['↓ 南壁の扉へ','ROOM_A']] },
+ ROOM_B: { t:()=>'南北20m、東西25mの部屋。北壁の中央に扉、南壁の中央に扉、西壁の北端から10mのところに扉がある。',
+  e:[['↑ 北壁中央の扉へ','ROOM_A'], ['↓ 南壁中央の扉へ','ROOM_C'], ['← 西壁北寄りの扉へ','PASSAGE_3']] },
+ ROOM_C: { t:()=>'南北25m、東西20mの部屋。北壁の西端から10mのところに扉、東壁の中央に扉、西壁の中央に扉がある。',
+  e:[['↑ 北壁西寄りの扉へ','ROOM_B'], ['→ 東壁中央の扉へ','PASSAGE_9'], ['← 西壁中央の扉へ','ROOM_D']] },
+ ROOM_D: { t:()=>'南北10m、東西15mの部屋。北壁の中央に通路へ通じるアーチ、東壁の南端に扉、南壁の中央に扉がある。',
+  e:[['↑ 北壁中央のアーチへ','PASSAGE_3'], ['→ 東壁南端の扉へ','ROOM_C'], ['↓ 南壁中央の扉へ','PASSAGE_4']] },
+ PASSAGE_3: { t:()=>'南北20mの通路。北端は行き止まりで、東壁に扉がある。南端は、部屋へ通じるアーチになっている。',
+  e:[['→ 北端東壁の扉へ','ROOM_B'], ['↓ 南端のアーチへ','ROOM_D']] },
+ PASSAGE_4: { t:()=>'南北15mの通路。北端は行き止まりで、北壁に扉がある。南端も行き止まりで、南壁に柱廊へ通じるアーチがある。',
+  e:[['↑ 北端の扉へ','ROOM_D'], ['↓ 南壁のアーチへ','COL_1']] },
+ COL_1: { t:()=>'幅20m、高さ20mの柱廊が、東西に50m続いている。西端は行き止まり。東は別の柱廊へ続いているようだが、先は暗くなっていて見えない。北壁の西端から10mのところと、南壁の西端から10mのところに、それぞれ通路へ通じるアーチがある。',
+  e:[['→ 東端の暗がりへ','COL_2'], ['↑ 北壁西寄りのアーチへ','PASSAGE_4'], ['↓ 南壁西寄りのアーチへ','PASSAGE_5']] },
+ PASSAGE_5: { t:()=>'南北15mの通路。北端は行き止まりで、北壁に柱廊へ通じるアーチがある。南端も行き止まりで、東壁に扉がある。',
+  e:[['↑ 北壁のアーチへ','COL_1'], ['→ 南端東壁の扉へ','ROOM_E']] },
+ ROOM_E: { t:()=>'南北15m、東西20mの部屋。東壁の中央と、西壁の中央に、それぞれ扉がある。',
+  e:[['→ 東壁中央の扉へ','PASSAGE_6'], ['← 西壁中央の扉へ','PASSAGE_5']] },
+ PASSAGE_6: { t:()=>'東西20mの通路。東端は北に折れ曲がっていて、東壁に扉がある。西端は行き止まりで、西壁に扉がある。',
+  e:[['↑ 東端から北へ','PASSAGE_7'], ['→ 東端東壁の扉へ','ROOM_F'], ['← 西端の扉へ','ROOM_E']] },
+ ROOM_F: { t:()=>'南北25m、東西20mの部屋。東壁の中央と、西壁の中央に、それぞれ扉がある。',
+  e:[['→ 東壁中央の扉へ','ROOM_G'], ['← 西壁中央の扉へ','PASSAGE_6']] },
+ ROOM_G: { t:()=>'南北25m、東西15mの部屋。西壁の中央に扉がある。',
+  e:[['← 西壁中央の扉へ','ROOM_F']] },
+ PASSAGE_7: { t:()=>'南北15mの通路。北端は、柱廊へ通じるアーチになっている。南端は西に折れ曲がっていて、東壁に扉がある。',
+  e:[['↑ 北端のアーチへ','COL_2'], ['← 南端から西へ','PASSAGE_6'], ['→ 南端東壁の扉へ','ROOM_F']] },
+ COL_2: { t:()=>'幅20m、高さ20mの柱廊が、東西に50m続いている。東端は行き止まりで、東壁には、冒険者らしき人物の彫像が彫り込まれている。西は別の柱廊へ続いているようだが、先は暗くなっていて見えない。北壁の西端から10mのところと、南壁の西端から10mのところに、それぞれ通路へ通じるアーチがある。',
+  e:[['← 西端の暗がりへ','COL_1'], ['↑ 北壁西寄りのアーチへ','PASSAGE_8'], ['↓ 南壁西寄りのアーチへ','PASSAGE_7']] },
+ PASSAGE_8: { t:()=>'南北15mの通路。北端はT字路になっている。南端は、柱廊へ通じるアーチになっている。',
+  e:[['↑ 北端のT字路へ','TJ_1'], ['↓ 南端のアーチへ','COL_2']] },
+ TJ_1: { t:()=>'東西に伸びる通路から、南へ通路が分岐するT字路。',
+  e:[['→ 東の通路へ','PASSAGE_10'], ['↓ 南の通路へ','PASSAGE_8'], ['← 西の通路へ','PASSAGE_9']] },
+ PASSAGE_9: { t:()=>'東西10mの通路。東端はT字路になっている。西端は行き止まりで、西壁に扉がある。',
+  e:[['→ 東端のT字路へ','TJ_1'], ['← 西端の扉へ','ROOM_C']] },
+ PASSAGE_10: { t:()=>'東西30mの通路。東端は、部屋へ通じるアーチになっている。西端はT字路になっている。',
+  e:[['→ 東端のアーチへ','ROOM_H'], ['← 西端のT字路へ','TJ_1'], ['↑ 北壁西寄りの隠し扉へ','~B2BP11:PASSAGE_11']] },
+ ROOM_H: { t:()=>'南北15m、東西20mの部屋。東壁の中央に扉、西壁の中央に通路へ通じるアーチがある。',
+  e:[['→ 東壁中央の扉へ','PASSAGE_12'], ['← 西壁中央のアーチへ','PASSAGE_10']] },
+ ROOM_X: { t:()=>'南北20m、東西15mの部屋。東壁の南端から10mのところに扉がある。',
+  e:[['→ 東壁南寄りの扉へ','ROOM_R']] },
+ ROOM_R: { t:()=>'南北35m、東西25mの部屋。南壁の中央に扉、西壁の北端から10mのところに扉がある。',
+  e:[['↓ 南壁中央の扉へ','ROOM_Q'], ['← 西壁北寄りの扉へ','ROOM_X']] },
+ ROOM_Q: { t:()=>'南北20m、東西25mの部屋。北壁の中央に扉、南壁の中央に扉がある。',
+  e:[['↑ 北壁中央の扉へ','ROOM_R'], ['↓ 南壁中央の扉へ','ROOM_O']] },
+ ROOM_P: { t:()=>'南北15m、東西10mの部屋。東壁の中央に扉がある。',
+  e:[['→ 東壁中央の扉へ','ROOM_O']] },
+ PASSAGE_11: { t:()=>'南北5mの短い通路。北端は行き止まりで、北壁に扉がある。南端も行き止まりで、南壁に扉がある。',
+  e:[['↑ 北端の扉へ','ROOM_O'], ['↓ 南端の扉へ','^B2BP11:PASSAGE_10']] },
+ ROOM_O: { t:()=>'南北15m、東西20mの部屋。北壁の西端から10mのところに扉、東壁の中央に扉、南壁の西端から10mのところに扉、西壁の中央に扉がある。',
+  e:[['↑ 北壁西寄りの扉へ','ROOM_Q'], ['→ 東壁中央の扉へ','PASSAGE_18'], ['↓ 南壁西寄りの扉へ','PASSAGE_11'], ['← 西壁中央の扉へ','ROOM_P']] },
+ ROOM_I: { t:()=>'南北35m、東西15mの部屋。北壁の中央に扉、東壁の中央に通路へ通じるアーチがある。',
+  e:[['↑ 北壁中央の扉へ','ROOM_J'], ['→ 東壁中央のアーチへ','PASSAGE_13']] },
+ ROOM_J: { t:()=>'南北15m、東西10mの部屋。東壁の中央に扉、南壁の西端に扉、西壁の中央に扉がある。',
+  e:[['→ 東壁中央の扉へ','PASSAGE_13'], ['↓ 南壁西端の扉へ','ROOM_I'], ['← 西壁中央の扉へ','PASSAGE_20']] },
+ PASSAGE_20: { t:()=>'東西10mの通路。東端は行き止まりで、東壁に扉がある。西端は、T字路になっている。',
+  e:[['→ 東端の扉へ','ROOM_J'], ['← 西端のT字路へ','TJ_2']] },
+ PASSAGE_23: { t:()=>'東西10mの通路。東端は行き止まりで、東壁に扉がある。西端も行き止まりで、西壁に扉がある。',
+  e:[['→ 東端の扉へ','PASSAGE_14'], ['← 西端の扉へ','ROOM_K']] },
+ ROOM_L: { t:()=>'5m四方の小さな部屋。東壁に扉がある。',
+  e:[['→ 東壁の扉へ','ROOM_K']] },
+ ROOM_K: { t:()=>'南北15m、東西25mの部屋。東壁の中央に扉、南壁の中央に扉、西壁の中央に扉がある。',
+  e:[['→ 東壁中央の扉へ','PASSAGE_23'], ['↓ 南壁中央の扉へ','PASSAGE_21'], ['← 西壁中央の扉へ','ROOM_L']] },
+ PASSAGE_21: { t:()=>'南北5mの短い通路。北端は行き止まりで、北壁に扉がある。南端は、T字路になっている。',
+  e:[['↑ 北端の扉へ','ROOM_K'], ['↓ 南端のT字路へ','TJ_2']] },
+ ROOM_M: { t:()=>'15m四方の部屋。東壁の中央に扉がある。',
+  e:[['→ 東壁中央の扉へ','TJ_2']] },
+ TJ_2: { t:()=>'南北に伸びる通路から、東へ通路が分岐するT字路。西の壁には扉がある。',
+  e:[['↑ 北の通路へ','PASSAGE_21'], ['→ 東の通路へ','PASSAGE_20'], ['↓ 南の通路へ','PASSAGE_22'], ['← 西壁の扉へ','ROOM_M']] },
+ PASSAGE_22: { t:()=>'南北15mの通路。北端は、T字路になっている。南端は行き止まりで、南壁に扉がある。',
+  e:[['↑ 北端のT字路へ','TJ_2'], ['↓ 南端の扉へ','ROOM_N']] },
+ ROOM_N: { t:()=>'南北15m、東西20mの部屋。北壁の東端に扉、西壁の中央に通路へ通じるアーチがある。',
+  e:[['↑ 北壁東端の扉へ','PASSAGE_22'], ['← 西壁中央のアーチへ','PASSAGE_19']] },
+ PASSAGE_19: { t:()=>'東西10mの通路。東端は、部屋へ通じるアーチになっている。西端は北へ折れ曲がっている。',
+  e:[['→ 東端のアーチへ','ROOM_N'], ['↑ 西端から北へ','PASSAGE_18']] },
+ PASSAGE_18: { t:()=>'南北35mに延びる通路。北端は先へ続いているが、暗くて先は見えない。南端は東へ折れ曲がっている。西壁の南端から10mのところに扉がある。',
+  e:[['↑ 北端の暗がりへ','PASSAGE_17'], ['→ 南端から東へ','PASSAGE_19'], ['← 西壁南寄りの扉へ','ROOM_O']] },
+ PASSAGE_17: { t:()=>'南北30mに延びる通路。北端は東へ折れ曲がっている。南端は先へ続いているが、暗くなっていて先は見えない。',
+  e:[['→ 北端から東へ','PASSAGE_16'], ['↓ 南端の暗がりへ','PASSAGE_18']] },
+ PASSAGE_16: { t:()=>'東西35mに延びる通路。東端は先へ続いているが、暗くて先は見えない。西端は南へ折れ曲がっている。',
+  e:[['→ 東端の暗がりへ','PASSAGE_15'], ['↓ 西端から南へ','PASSAGE_17']] },
+ PASSAGE_15: { t:()=>'東西35mに延びる通路。東端は南へ折れ曲がっている。西端は先へ続いているが、暗くなっていて先は見えない。',
+  e:[['↓ 東端から南へ','PASSAGE_14'], ['← 西端の暗がりへ','PASSAGE_16']] },
+ PASSAGE_14: { t:()=>'南北35mに延びる通路。北端は西へ折れ曲がっている。南端は先へ続いているが、暗くなっていて先はよく見えない。西壁の北端から20mのところに扉がある。',
+  e:[['← 北端から西へ','PASSAGE_15'], ['↓ 南端の暗がりへ','PASSAGE_13'], ['← 西壁北寄りの扉へ','PASSAGE_23']] },
+ PASSAGE_13: { t:()=>'南北50mに延びる通路。北端は先へ続いているが、暗くなっていてよく見えない。南端は西へ折れ曲がっている。西壁の南端から25mのところに部屋へ通じるアーチ、西壁の北端に扉がある。',
+  e:[['↑ 北端の暗がりへ','PASSAGE_14'], ['← 南端から西へ','PASSAGE_12'], ['← 西壁南寄りのアーチへ','ROOM_I'], ['← 西壁北端の扉へ','ROOM_J']] },
+ PASSAGE_12: { t:()=>'東西35mの通路。東端は北へ折れ曲がっている。西端は行き止まりで、西壁に扉がある。',
+  e:[['↑ 東端から北へ','PASSAGE_13'], ['← 西端の扉へ','ROOM_H']] },
+};
+// 黒い球体：触れた者の強さを5奪い、宝石を5つ吐き出す。数字が36を超えるとパーティ全員にAtomizationを放つ
+function _nbOrbWho(){
+ const s = document.getElementById('story');
+ const who = [PC, ...(PC.party||[])].filter(m=>m.con>0 && (m.st||0) > 5);
+ const ch = who.map(m=>({label:` ${m === PC ? m.name : m.name}が球体に触れる（強さ ${m.st}）`, fn:()=>_nbOrbTouch(m)}));
+ ch.push({label:'← 触れずに離れる', fn:()=>go('NERGOL_B2B_ROOM_A')});
+ s.innerHTML = NERGOL_B2_HEAD + (who.length ? '<span style="color:#e8e4d8">黒い球体は、表面に何も映さず、ただ重く、そこにある。誰が触れる？</span>' : '<span style="color:#e8e4d8">球体に触れられるだけの強さを残している者がいない。</span>');
+ renderChoices(ch);
+ scrollToTop();
+}
+function _nbOrbTouch(m){
+ const o = _nbOrb();
+ m.st = Math.max(0, (m.st||0) - 5);
+ o.gauge += 5;
+ const gems = []; for(let i=0;i<5;i++) gems.push(generateJewel());
+ updateHUD();
+ const s = document.getElementById('story');
+ s.innerHTML = NERGOL_B2_HEAD + `<span style="color:#e8e4d8">${m.name}が黒い球体に手を触れた。体の奥から、強さがごっそりと吸い出されていく。<br>台座の板の数字が、「${o.gauge}/36」に変わった。<br>同時に、台座の下のほうが開き、宝石が5つ転がり出た。</span><br><span style="color:#f0ddd8">${gems.join('<br>')}</span>`;
+ if(o.gauge > 36){
+  renderChoices([{label:'▶ …', fn:()=>_nbOrbFire()}]);
+ } else {
+  renderChoices([{label:'▶ OK', fn:()=>go('NERGOL_B2B_ROOM_A')}]);
+ }
+ scrollToTop();
+}
+function _nbOrbFire(){
+ const o = _nbOrb();
+ const s = document.getElementById('story');
+ const members = [PC, ...(PC.party||[])].filter(m=>m.con>0);
+ let html = NERGOL_B2_HEAD + `<span style="color:#f0ddd8">台座の数字が、36を超えた。<br>黒い球体が、内側から赤黒い光を放ち、脈打ちはじめる。球体に封じられた何者かが、捧げられた強さを使って、呪文を唱えている——</span><br><br>`;
+ members.forEach(m=>{
+  const sr = savingRoll('lk', 7, m);
+  const label = `${m.name}の回避判定：[${sr.rolled}]+運(${m.lk||0})=${sr.total} vs ${sr.target}`;
+  if(sr.success){
+   html += `<span style="color:#e8e0d8">${label}　${_spellFlavor('atomization_dodge', {target:m.name})}</span><br>`;
+  } else {
+   html += `<span class="red">${label}　${_spellFlavor('atomization_hit', {target:m.name})}</span><br>`;
+   m.con = 0;
+  }
+ });
+ o.gauge = 0;   // 放たれると、数字は0/36に戻る
+ updateHUD();
+ logFallenCompanions();
+ if(PC.con <= 0){
+  html += `<br><span class="red">あなたは、閃光の中で、跡形もなく消え去った。</span>`;
+  s.innerHTML = html;
+  renderChoices([{label:'▶ …', fn:()=>go('DEAD')}]);
+  scrollToTop();
+  return;
+ }
+ const fallen = (PC.party||[]).filter(n=>n.con<=0);
+ if(fallen.length) html += `<br><span style="color:#f0ddd8">${fallen.map(n=>n.name).join('、')}は、消え去った。</span>`;
+ const n = o.survived || 0;
+ const mr = 300 * Math.pow(10, n);
+ o.survived = n + 1;   // 生き残って繰り返すたびに、次のトロル・レイダーは10倍の強さになる
+ html += `<br><br><span style="color:#f0ddd8">光が収まると同時に、部屋の北の扉が破られた。<br>${n === 0 ? '武装した大柄な影が、3体、' : '前よりもはるかに巨大な武装した影が、3体、'}雪崩れ込んでくる。背後で、部屋の出入口の扉が、すべて、重い音を立てて錠を下ろした——</span>`;
+ s.innerHTML = html;
+ renderChoices([{label:'▶ 戦う', fn:()=>{
+  drawScene('combat');
+  startCombat({
+   enemies:[0,1,2].map(i=>({name:'トロル・レイダー', mr, armor:7})),
+   win:'NERGOL_B2B_ROOM_A', lose:'DEAD', canFlee:false,
+  });
+ }}]);
+ scrollToTop();
+}
+function _nergolB2bMakeNode(key, d){
+ const nid = 'NERGOL_B2B_' + key;
+ return {
+  scene:'dungeon',
+  txt:()=>NERGOL_B2_HEAD + d.t(),
+  choices:()=>{
+   const out = [];
+   d.e.forEach(([label, dest])=>{
+    if(dest === '@B1_5') out.push({label, fn:()=>go('NERGOL_B1_COL_5')});
+    else if(dest === '@B3') out.push({label, fn:()=>{ PC._nergolB3Back = nid; go('NERGOL_B3_STUB'); }});
+    else if(dest === '@LOCK') out.push({label, fn:()=>{
+     const st = document.getElementById('story');
+     st.innerHTML = NERGOL_B2_HEAD + `<span style="color:#e8e4d8">扉は固く閉ざされていて、押しても引いても、びくともしない。</span>`;
+     renderChoices([{label:'▶ OK', fn:()=>go(nid)}]);
+     scrollToTop();
+    }});
+    else if(dest === '@ORB') out.push({label:' 黒い球体に触れる', fn:()=>_nbOrbWho()});
+    else if(dest.startsWith('~')){
+     const [sk, to] = dest.slice(1).split(':');   // 隠し扉の裏側：反対側から通ったことがあるときだけ出る
+     if(_nergolSecretKnown(sk)) out.push({label, fn:()=>go('NERGOL_B2B_' + to)});
+    }
+    else if(dest.startsWith('^')){
+     const [sk, to] = dest.slice(1).split(':');   // 隠し扉の表側：通り抜けると、反対側にも扉があることに気づく
+     out.push({label, fn:()=>{ _nergolSecretLearn(sk); go('NERGOL_B2B_' + to); }});
+    }
+    else out.push({label, fn:()=>go('NERGOL_B2B_' + dest)});
+   });
+   return out;
+  },
+ };
+}
+(function(){
+ const nodes = {};
+ Object.keys(NERGOL_B2B_DEFS).forEach(k=>{ nodes['NERGOL_B2B_' + k] = _nergolB2bMakeNode(k, NERGOL_B2B_DEFS[k]); });
  Object.assign(NODES, nodes);
  Object.keys(nodes).forEach(id=>DUNGEON_NODES.add(id));
 })();
