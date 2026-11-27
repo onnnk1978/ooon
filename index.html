@@ -673,7 +673,7 @@ html.cmd-vertical #npc-action-btns > .cmd-skip{ order:-1; }   /* 魔法・遠距
   <img id="title-img" src="" alt="" draggable="false" style="width:100%;display:block;object-fit:cover;max-height:200px;user-select:none">
  </div>
  <div style="font-family:'Press Start 2P',monospace;font-size:calc(var(--font-lg) + 12px);color:#f0ece0;text-align:center;letter-spacing:6px;margin:10px auto 4px;width:min(360px,90vw)">OOON</div>
- <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026112301</div>
+ <div style="font-family:system-ui,sans-serif;font-size:calc(var(--font-sm) - 2px);color:#d8d0c0;text-align:center;margin-bottom:12px;letter-spacing:1px">ver.2026112701</div>
  <button class="title-btn" onclick="showCharGen()">▶ NEW ADVENTURE</button>
  <div id="save-slots-container" style="width:100%;max-width:320px;margin:8px 0"></div>
  <!-- 旧API互換用の非表示要素 -->
@@ -4567,7 +4567,9 @@ function _applyFiefYearlyPopulation(prop){
   const qMonth = QUARTER_MONTH[qIdx];
 
   // その四半期のランダムイベントを判定し、乗算で反映する
-  const ev = _rollFiefQuarterlyEvent();
+  let ev = _rollFiefQuarterlyEvent();
+  // 馬車が通った領地は人の出入りが増える：出来事による減少は1.2倍
+  if(prop.coachRoad && ev.impact < 0) ev = {...ev, impact: Math.round(ev.impact*1.2*10)/10};
   const popBeforeEvent = prop.population;
   if(ev.impact !== 0){
    prop.population = Math.max(5, Math.min(1000, Math.round(prop.population * (1 + ev.impact/100))));
@@ -4581,7 +4583,7 @@ function _applyFiefYearlyPopulation(prop){
   if(qIdx === 3){
    const pop = prop.population;
    if(pop > 0){
-    const rate = _fiefPopGrowthRate(pop);
+    const rate = _fiefPopGrowthRate(pop) * (prop.coachRoad ? 1.5 : 1);   // 馬車が通った領地は増加1.5倍
     const growth = Math.round(pop * rate);
     prop.population = Math.max(5, Math.min(1000, pop + growth));
    }
@@ -5278,6 +5280,7 @@ const FIEF_FACILITIES = [
  { id:'tavern',     name:'酒場',       desc:'砦の一角に開かれた酒場。領民の憩いの場となり、笑い声が絶えない。', cost:700, trustPoints:15, minPopulation:50 },
  { id:'temple',     name:'寺院',       desc:'素朴な石造りの寺院。領民たちの心の拠り所となっている。', cost:700, trustPoints:15 },
  { id:'market',     name:'市場',       desc:'砦の麓に立った市場。行商人が時折立ち寄るようになった。', cost:900, trustPoints:0, minPopulation:100 },
+ { id:'smithy',     name:'鍛冶屋',     desc:'砦の一角に据えられた鍛冶場。炉に火が入り、槌の音が響いている。', cost:1000, trustPoints:0, minPopulation:100 },
 ];
 // 全施設を建て終えた時の設備ポイント合計は必ず100点（20+20+15+15+15+15。市場は信頼度に影響しない）
 
@@ -5933,6 +5936,7 @@ function _propRecords(townId){
  p.records.chronicle = p.records.chronicle || { chapters:[] };
  p.records.chronicle.chapters = p.records.chronicle.chapters || [];
  p.records.portraits = p.records.portraits || [];
+ p.records.maps = p.records.maps || {};   // 荒野の地図（清書したもの）：{ 経路キー: {'列,行': ビット} }
  return p.records;
 }
 // この冒険者の記録が、どこかの拠点の記録室にあるか（引退時の案内に使う）
@@ -5963,8 +5967,54 @@ function propertyRecordWrite(townId){
   _pl0.chronicle ? {label:' 年代記に書き加える（この代の歩みを一節記す）', fn:()=>propertyRecordSaveChronicle(townId)} : null,
   {label:' 日誌に自分の言葉を書く', fn:()=>propertyRecordFreeWrite(townId,'journal',-1,-1)},
   _pl0.chronicle ? {label:' 年代記に自分の言葉を書く', fn:()=>propertyRecordFreeWrite(townId,'chronicle',-1,-1)} : null,
+  {label:' 荒野の地図を清書して残す', fn:()=>propertyRecordMapWrite(townId)},
+  Object.keys(_propRecords(townId).maps || {}).length ? {label:' 残されている地図を自分の地図に写す', fn:()=>propertyRecordMapCopy(townId)} : null,
   {label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)},
  ].filter(Boolean));
+}
+function _recMapDone(townId, msg){
+ autoSave();
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}の${_recPlace(townId).name}</span><br><br><span style="color:#e8e4d8">${msg}</span>`;
+ renderChoices([
+  {label:` ${_recPlace(townId).name}を見る`, fn:()=>propertyRecordRoom(townId)},
+  {label:'← 拠点に戻る', fn:()=>goPropertyNode(townId)},
+ ]);
+}
+function propertyRecordMapWrite(townId){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ Object.keys(PC._wildMaps || {}).forEach(k=>wildChartGet(k));   // 古いセーブの補完
+ const keys = Object.keys(PC._wildChart || {}).filter(k=>Object.keys(PC._wildChart[k]).length);
+ if(!keys.length){ _recMapDone(townId, '清書できる地図がない。まだ荒野に足を踏み入れていないようだ。'); return; }
+ keys.forEach(k=>{
+  const dst = rec.maps[k] = rec.maps[k] || {};
+  Object.keys(PC._wildChart[k]).forEach(ck=>{ dst[ck] = (dst[ck] || 0) | PC._wildChart[k][ck]; });
+ });
+ _recMapDone(townId, `これまでに歩いた荒野の地図を、${keys.length}枚、清書して残した。`);
+}
+function propertyRecordMapCopy(townId){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ const keys = Object.keys(rec.maps || {});
+ if(!keys.length){ _recMapDone(townId, '写せる地図は残されていない。'); return; }
+ PC._wildChart = PC._wildChart || {};
+ keys.forEach(k=>{
+  const dst = wildChartGet(k);
+  Object.keys(rec.maps[k]).forEach(ck=>{ dst[ck] = (dst[ck] || 0) | 1 | (rec.maps[k][ck] & 4); });   // 写した部分は「見えただけ」。自分で歩けば明るくなる
+ });
+ _recMapDone(townId, `残されていた荒野の地図を、${keys.length}枚、自分の地図に写した。`);
+}
+function propertyRecordMapView(townId){
+ const rec = _propRecords(townId);
+ if(!rec) return;
+ const keys = Object.keys(rec.maps || {});
+ const story = document.getElementById('story');
+ story.innerHTML = ` <span style="color:#f0ece0">${propName(townId)}の${_recPlace(townId).name}</span><br><br><span style="color:#c0b098">残されている荒野の地図。どれを開きますか？</span>`;
+ renderChoices(keys.map(k=>({label:' '+wildRouteLabel(k), fn:()=>{
+  story.innerHTML = ` <span style="color:#f0ece0">${wildRouteLabel(k)}の地図</span><br><br>` + wildChartHtml(k, rec.maps[k], null, false);
+  renderChoices([{label:'← 地図の一覧に戻る', fn:()=>propertyRecordMapView(townId)}]);
+ }})).concat([{label:`← ${_recPlace(townId).name}に戻る`, fn:()=>propertyRecordRoom(townId)}]));
 }
 function _recSnapshotText(){
  const cur = getCurrentDate();
@@ -6392,6 +6442,7 @@ function propertyRecordRoom(townId){
  rec.journals.forEach((j,i)=>{
   ch.push({label:` ${j.name}の日誌を開く（${j.entries.length}件）`, fn:()=>propertyRecordReadJournal(townId, i)});
  });
+ if(Object.keys(rec.maps || {}).length) ch.push({label:` 荒野の地図を見る（${Object.keys(rec.maps).length}枚）`, fn:()=>propertyRecordMapView(townId)});
  ch.push({label:' 記録を残す', fn:()=>propertyRecordWrite(townId)});
  const _pl = _portraitList(townId), _pd = _pl.filter(p=>p.delivered).length, _pp = _portraitPending(townId);
  if(_pd) ch.push({label:` 肖像の間を見る（${_pd}枚）`, fn:()=>propertyPortraitHall(townId)});
@@ -8408,12 +8459,14 @@ function propertyStorageWeapons(townId){
   const eqW  = PC.equippedWeapons||[];
   story.innerHTML = ` <span style="color:#f0ece0">武器の保管</span><br><br>`
    +`<span style="color:#c0b098">保管中（${stor.weapons.length}本）：${stor.weapons.map(w=>w.name).join('、')||'なし'}</span><br>`
-   +`<span style="color:#c0b098">所持中（${invW.length}本）・装備中（${eqW.length}本）</span>`;
+   +`<span style="color:#c0b098">所持中（${invW.length - invW.filter(w=>eqW.includes(w)).length}本）・装備中（${eqW.length}本）　※装備中の品は、先に外してから預けます</span>`;
   const choices = [];
-  // 所持武器を預ける
+  // 所持武器を預ける（装備中の品は候補に出さない。出すと、倉庫と装備欄の両方に残って増える）
   invW.forEach((w,i)=>{
+   if(eqW.includes(w)) return;
    choices.push({label:`▼ 預ける：${w.name}`, fn:()=>{
-    stor.weapons.push(w); PC.invWeapons.splice(i,1); updateHUD(); showSaveToast(`${w.name}を預けた`); propertyStorageWeapons(townId);
+    if((PC.equippedWeapons||[]).includes(w)){ showSaveToast('装備中の武器は、先に外してください'); return; }
+    stor.weapons.push(w); PC.invWeapons.splice(PC.invWeapons.indexOf(w),1); updateHUD(); showSaveToast(`${w.name}を預けた`); propertyStorageWeapons(townId);
    }});
   });
   // 保管武器を引き出す
@@ -8436,13 +8489,16 @@ function propertyStorageArmors(townId){
  const story = document.getElementById('story');
  const showUI = ()=>{
   const invA = PC.invArmors||[];
+  const eqA = PC.equippedArmors||[];
   story.innerHTML = ` <span style="color:#f0ece0">防具の保管</span><br><br>`
    +`<span style="color:#c0b098">保管中（${stor.armors.length}点）：${stor.armors.map(a=>a.name).join('、')||'なし'}</span><br>`
-   +`<span style="color:#c0b098">所持中（${invA.length}点）</span>`;
+   +`<span style="color:#c0b098">所持中（${invA.length - invA.filter(a=>eqA.includes(a)).length}点）・装備中（${eqA.length}点）　※装備中の品は、先に外してから預けます</span>`;
   const choices = [];
   invA.forEach((a,i)=>{
+   if(eqA.includes(a)) return;
    choices.push({label:`▼ 預ける：${a.name}`, fn:()=>{
-    stor.armors.push(a); PC.invArmors.splice(i,1); updateHUD(); showSaveToast(`${a.name}を預けた`); propertyStorageArmors(townId);
+    if((PC.equippedArmors||[]).includes(a)){ showSaveToast('装備中の防具は、先に外してください'); return; }
+    stor.armors.push(a); PC.invArmors.splice(PC.invArmors.indexOf(a),1); updateHUD(); showSaveToast(`${a.name}を預けた`); propertyStorageArmors(townId);
    }});
   });
   stor.armors.forEach((a,i)=>{
@@ -11393,7 +11449,7 @@ function _lair5GetTheme(themeId){
 // _lair5GetThemeの中身を汎用化したもの（全5つの巣窟ダンジョンで共有）
 function _lairScenarioAwareTheme(themeId){
  if(!themeId) return null;
- return LAIR5_SCENARIOS[themeId] || LAIR_THEMES[themeId] || (typeof HFORT_THEMES !== 'undefined' && HFORT_THEMES[themeId]) || (typeof NERGOL_B2_THEMES !== 'undefined' && NERGOL_B2_THEMES[themeId]) || null;
+ return LAIR5_SCENARIOS[themeId] || LAIR_THEMES[themeId] || (typeof HFORT_THEMES !== 'undefined' && HFORT_THEMES[themeId]) || (typeof NERGOL_B2_THEMES !== 'undefined' && NERGOL_B2_THEMES[themeId]) || (typeof NERGOL_B2B_THEMES !== 'undefined' && NERGOL_B2B_THEMES[themeId]) || (typeof NERGOL_B2C_THEMES !== 'undefined' && NERGOL_B2C_THEMES[themeId]) || null;
 }
 
 function initLair5Dungeon(){
@@ -15440,6 +15496,15 @@ function settleStageOf(a){
  if(eff < a.life - 15) return 2;
  return 3;
 }
+// 親町との間の乗合馬車：村が栄えている時期（実効年齢25年〜）から衰えの初期（70年まで）だけ走る。雪道の地方は通せない。
+const SETTLE_COACH_FROM = 25, SETTLE_COACH_TO = 70;
+function settleCoachRunning(regionKey, a){
+ if(!a || regionKey === 'valdheim_region') return false;
+ const eff = settleEffAge(a);
+ return eff >= SETTLE_COACH_FROM && eff < SETTLE_COACH_TO && settleStageOf(a) <= 2;
+}
+function settleCoachDays(regionKey, a){ return Math.max(1, Math.ceil((a.routeDays||0) * (regionKey === 'draklim_region' ? 0.6 : 0.4))); }
+function settleCoachFare(a){ return Math.round((a.routeDays||0) * 1.5); }
 function settlePcIn(regionKey, kind){
  const cs = PC._curSettle;
  return !!(cs && cs.regionKey === regionKey && cs.kind === kind && typeof currentNodeId === 'string' && /^(SETTLE_|SRUIN_)/.test(currentNodeId));
@@ -15553,10 +15618,11 @@ LAIR_DUNGEON_REG.ruin = { stateProp:'_ruinLair', roomAreas:SETTLE_ROOM_AREAS, de
  rescuedNamesProp:'_ruinRescuedNames', wanderFn:()=>null, wanderCombatFn:()=>{} };
 
 // ── 旅（領地と同じ方式：町の外の目的地へ徒歩で向かう） ──
-function _settleTravelAnim(fromLabel, toLabel, days, onArrive, townIdForImage){
+function _settleTravelAnim(fromLabel, toLabel, days, onArrive, townIdForImage, coachFare){
+ const coach = coachFare != null;
  closePatronPanel();
  drawScene('travel');
- showTravelImage('walk', townIdForImage, townIdForImage);
+ showTravelImage(coach ? 'coach' : 'walk', townIdForImage, townIdForImage);
  const storyEl = document.getElementById('story');
  if(storyEl) storyEl.innerHTML = '';
  const tpw = document.getElementById('travel-progress-wrap');
@@ -15566,12 +15632,23 @@ function _settleTravelAnim(fromLabel, toLabel, days, onArrive, townIdForImage){
   document.getElementById('travel-progress-dot').style.left = '0%';
   document.getElementById('travel-latest').textContent = '';
   document.getElementById('travel-progress-label').innerHTML =
-   ` 徒歩　<span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+   ` ${coach?'乗合馬車':'徒歩'}　<span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
  }
  renderChoices([]);
  advanceDaysAnimated(days, onArrive);
- if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; travelState.destLabel = toLabel; }
- travelLog(`<span style="color:#b8a890">徒歩で <span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span> へ出発。所要: ${days}日</span>`);
+ if(travelState){ travelState.method = coach ? 'coach' : 'walk'; travelState.crossRegion = false; travelState.destLabel = toLabel; }
+ travelLog(`<span style="color:#b8a890">${coach?'乗合馬車で':'徒歩で'} <span style="color:#f0ece0">${fromLabel}</span> → <span style="color:#f0ece0">${toLabel}</span> へ出発。所要: ${days}日${coach?'　費用: '+coachFare+'GP':''}</span>`);
+}
+function travelToSettlementCoach(regionKey, name, fromTownId){
+ const r = ensureSettlements()[regionKey];
+ const a = (r.active && r.active.name === name) ? r.active : null;
+ if(!a || !settleCoachRunning(regionKey, a)) return;
+ if(troupeTravelGate(fromTownId, 'coach')) return;
+ const fare = settleCoachFare(a);
+ if(totalCP(PC) < fare*100){ alert('所持金が足りない！'); return; }
+ payPrice(fare, PC); updateHUD();
+ const from = (TOWNS[fromTownId]||{name:fromTownId}).name;
+ _settleTravelAnim(from, name, settleCoachDays(regionKey, a), ()=>settleArrive(regionKey, name, fromTownId, true), fromTownId, fare);
 }
 function travelToSettlement(regionKey, name, fromTownId){
  if(troupeTravelGate(fromTownId, 'walk')) return;
@@ -15599,7 +15676,7 @@ function settleArrive(regionKey, name, fromTownId, expectedActive){
  PC._curSettle = { regionKey, kind:'ruin', name:ru.name, parentId:fromTownId, fresh: !!expectedActive, routeDays:ru.routeDays };
  go('SRUIN_GATE');
 }
-function settleReturnToParent(){
+function settleReturnToParent(method){
  let cs = PC._curSettle;
  if(!cs){
   // 場所の記録が失われていても、いきなり戻らず、親町との間の旅程で戻す
@@ -15615,9 +15692,16 @@ function settleReturnToParent(){
  const days = (obj && obj.routeDays) || cs.routeDays || 6;
  const to = (TOWNS[parentId]||{name:parentId}).name;
  const label = cs.kind === 'ruin' ? `${cs.name}の廃墟` : cs.name;
+ if(!days){ PC._curSettle = null; go('TOWN_'+parentId.toUpperCase()); return; }
+ let _fare = null;
+ if(method === 'coach' && cs.kind === 'active' && obj && settleCoachRunning(cs.regionKey, obj)){
+  _fare = settleCoachFare(obj);
+  if(totalCP(PC) < _fare*100){ alert('所持金が足りない！'); PC._curSettle = cs; return; }
+  payPrice(_fare, PC); updateHUD();
+ }
  PC._curSettle = null;
- if(!days){ go('TOWN_'+parentId.toUpperCase()); return; }
- _settleTravelAnim(label, to, days, ()=>go('TOWN_'+parentId.toUpperCase()), parentId);
+ const _days = _fare != null ? settleCoachDays(cs.regionKey, obj) : days;
+ _settleTravelAnim(label, to, _days, ()=>go('TOWN_'+parentId.toUpperCase()), parentId, _fare);
 }
 // 町の旅メニュー用：この町を親町とする集落／廃墟への選択肢
 function settleTravelChoices(fromId){
@@ -15627,6 +15711,7 @@ function settleTravelChoices(fromId){
   const r = S[k];
   if(r.active && r.active.parentId === fromId){
    out.push({ label:` ${r.active.name}へ 徒歩（${r.active.routeDays}日）`, fn:()=>travelToSettlement(k, r.active.name, fromId), go:'__travel__' });
+   if(settleCoachRunning(k, r.active)) out.push({ label:` ${r.active.name}へ 乗合馬車（${settleCoachDays(k, r.active)}日・${settleCoachFare(r.active)}GP）`, fn:()=>travelToSettlementCoach(k, r.active.name, fromId), go:'__travel__' });
   }
   r.ruins.filter(x=>x.parentId === fromId).forEach(ru=>{
    out.push({ label:` ${ru.name}の廃墟へ 徒歩（${ru.routeDays}日）`, fn:()=>travelToSettlement(k, ru.name, fromId), go:'__travel__' });
@@ -15636,9 +15721,45 @@ function settleTravelChoices(fromId){
 }
 
 // ── 酒場の噂（親町の酒場で、節目ごとに最大3回まで） ──
+// 引退した一座の座長の噂（引退から4〜6年のあいだ、一座が巡る地方の酒場で聞ける）
+function troupeRetireRumorCands(townId, cands){
+ if(typeof troupeEnsure !== 'function') return;
+ troupeEnsure();
+ const now = GAME_TIME.totalDays;
+ TROUPE_REGIONS.forEach(rk=>{
+  const t = PC._troupes[rk];
+  if(!t || !(REGIONS[rk]||[]).includes(townId)) return;
+  troupeRosterTick(t);
+  (t.retired||[]).forEach(r=>{
+   if(now > r.until || (r.shown||0) >= 3) return;
+   const y = Math.floor((now - r.retireDay) / DAYS_PER_YEAR);
+   const n = r.name, home = troupeTownName(r.home), cur = t.leader;
+   let pool;
+   if(y < 1) pool = [
+    `${t.name}の座長が代替わりしたそうだ。先代の${n}が引退して、副座長だった${r.successor||cur}が後を継いだらしい。`,
+    `${n}が、とうとう幌馬車を降りたそうだよ。${t.name}の舞台に立つことは、もうないだろうな。`];
+   else if(y < 2) pool = [
+    `引退した${n}は、${home}で暮らしているらしい。長年の旅の疲れを癒しているのだろうよ。`,
+    `${t.name}の先代座長、${n}なら、${home}の酒場で昔話をしていたぞ。旅の話は尽きないものだな。`];
+   else if(y < 4) pool = [
+    `先代の${n}は、近ごろは${home}で若い連中に芸を教えているそうだ。`,
+    `${n}のことを覚えているかい？ ${t.name}の元座長だ。今は${home}の外れで、畑をいじっているらしい。`];
+   else pool = [
+    `そういえば、${n}の噂をとんと聞かなくなったな。元気にしているといいが。`,
+    `${t.name}の舞台を見るたび、${n}の口上が懐かしくなるよ。もう何年になるかねえ。`];
+   if(y < 4 && townId === r.home) pool = pool.concat([
+    `${n}なら、この町に住んでいるよ。${t.name}の元座長さ。近ごろは杖を突いて、広場を散歩しているのを見かけるな。`]);
+   let txt = pool[Math.floor(Math.random()*pool.length)];
+   if((t.history||[]).some(x=>x.leader === n && x.pc === PC.name)) txt += `　あんたも、あの人の一座を護衛したことがあるんだったな。`;
+   cands.push({ txt, mark:()=>{ r.shown = (r.shown||0) + 1; } });
+  });
+ });
+}
 function settleTryRumor(townId){
  const S = ensureSettlements();
  const cands = [];
+ troupeRetireRumorCands(townId, cands);
+ tavernRetireRumorCands(townId, cands);
  REGION_CONDITION_SCOPE.forEach(k=>{
   const r = S[k];
   if(r.active && r.active.parentId === townId){
@@ -15964,6 +16085,120 @@ function checkWorldTickBundle(){
  checkSettlementTick();
  // 連続クエスト（アーク）の期限切れ判定
  checkArcTick();
+}
+
+// ══════════════════════════════════════════
+// 酒場の主人と給仕（世界側のデータ。世代交代しても続く）
+// 主人は在任15〜25年で引退し、給仕（7割）かよそから来た人（3割）が後を継ぐ。給仕の欠員には新顔が入る。
+// 引退した主人は4〜6年のあいだ、同じ地方の酒場の噂に出る。
+// 付き合いの記録（噂を聞いた・お礼を受け取った・行方を尋ねた）は主人ごと・PCごとに残り、代替わりのあとの話題になる。
+// 更新は、その町の酒場に関わる場面で、年数ぶんまとめて精算する。
+// ══════════════════════════════════════════
+function tavernUsedNames(tv){
+ return [tv.keeper && tv.keeper.name, tv.server && tv.server.name].concat((tv.retired||[]).map(x=>x.name)).filter(Boolean);
+}
+function tavernOf(townId){
+ if(!townId || !TOWNS[townId]) return null;
+ if(!PC._taverns) PC._taverns = {};
+ const now = GAME_TIME.totalDays;
+ let tv = PC._taverns[townId];
+ if(!tv){
+  tv = PC._taverns[townId] = { keeper:null, server:null, reignEnd: now + troupeRand(3, 25) * DAYS_PER_YEAR, retired:[], history:[], told:0 };
+  tv.keeper = { name: pickNPC([]) };
+  tv.server = { name: pickNPC(tavernUsedNames(tv)) };
+ }
+ let g = 0;
+ while(now >= tv.reignEnd && g++ < 10){
+  const towns = REGIONS[getRegionKey(townId)] || [townId];
+  const oldK = tv.keeper;
+  const fromServer = Math.random() < 0.7;
+  const next = fromServer ? tv.server : { name: pickNPC(tavernUsedNames(tv)) };
+  tv.retired = tv.retired || [];
+  tv.retired.push({ name: oldK.name, retireDay: tv.reignEnd, home: towns[Math.floor(Math.random()*towns.length)] || townId,
+   until: tv.reignEnd + troupeRand(4, 6) * DAYS_PER_YEAR, shown: 0, successor: next.name, fromServer });
+  if(tv.retired.length > 4) tv.retired.shift();
+  tv.keeper = { name: next.name };
+  if(fromServer) tv.server = { name: pickNPC(tavernUsedNames(tv)) };
+  tv.reignEnd += troupeRand(15, 25) * DAYS_PER_YEAR;
+  tv.told = 0;
+ }
+ return tv;
+}
+function tavernKeeperLabel(townId){
+ const tv = tavernOf(townId);
+ return tv ? `酒場の主人 ${tv.keeper.name}` : '酒場の主人';
+}
+// 付き合いの記録（主人ごと・PCごとの回数。画面には出さない）
+function tavernDeed(townId){
+ const tv = tavernOf(townId);
+ if(!tv) return;
+ tv.history = tv.history || [];
+ let e = tv.history.find(x=>x.keeper === tv.keeper.name && x.pc === PC.name);
+ if(!e){ e = { keeper: tv.keeper.name, pc: PC.name, n: 0 }; tv.history.push(e); if(tv.history.length > 12) tv.history.shift(); }
+ e.n++;
+}
+// 代替わりのあとの話題（先代の主人と、PC本人または先代PCとの付き合い）。出したら段落のHTML、なければ''
+function tavernPredecessorHtml(townId){
+ const tv = tavernOf(townId);
+ if(!tv || (tv.told||0) >= 2 || Math.random() >= 0.35) return '';
+ const old = (tv.history||[]).filter(x=>x.keeper !== tv.keeper.name && x.n >= 1);
+ if(!old.length) return '';
+ const now = GAME_TIME.totalDays;
+ const mine = old.filter(x=>x.pc === PC.name);
+ const pick = a => a[Math.floor(Math.random()*a.length)];
+ let line;
+ if(mine.length){
+  const e = mine[mine.length-1], p = e.keeper;
+  const r = (tv.retired||[]).find(x=>x.name === p);
+  const yAgo = r ? Math.floor((now - r.retireDay) / DAYS_PER_YEAR) : 99;
+  const home = r ? troupeTownName(r.home) : '';
+  line = (r && yAgo < 6) ? pick([
+   `「先代の${p}から、あんたのことは聞いているよ。いい客だったとね」`,
+   `「先代の${p}が、${home}で隠居する前に言っていたんだ。『あの冒険者には世話になった』と」`,
+   `「この店の古い帳面に、あんたの名前があってね。先代の${p}の字だよ」`])
+   : pick([
+   `「先代の${p}の代から、この店に通ってくれているそうだな」`,
+   `「${p}が主人だったころの話は、よく聞かされたよ。あんたのこともね」`]);
+ } else {
+  const e = old[old.length-1];
+  line = pick([
+   `「先代の${e.keeper}の代に、${e.pc}という冒険者が、よく顔を出していたそうだ」`,
+   `「昔、${e.pc}という冒険者に世話になったと、先代の${e.keeper}がよく話していたよ」`]);
+ }
+ tv.told = (tv.told||0) + 1;
+ return `<div style="font-size:var(--font-sm);color:#f0d8a8;line-height:1.8;margin-top:8px">${line}</div>`;
+}
+// 引退した主人の噂（引退から4〜6年、同じ地方の酒場で聞ける）
+function tavernRetireRumorCands(townId, cands){
+ const towns = REGIONS[getRegionKey(townId)] || [];
+ const now = GAME_TIME.totalDays;
+ towns.forEach(tid=>{
+  const tv = tavernOf(tid);
+  if(!tv) return;
+  (tv.retired||[]).forEach(r=>{
+   if(now > r.until || (r.shown||0) >= 3) return;
+   const y = Math.floor((now - r.retireDay) / DAYS_PER_YEAR);
+   const n = r.name, home = troupeTownName(r.home), tn = troupeTownName(tid), here = (tid === townId);
+   let pool;
+   if(y < 1) pool = here ? [
+    `先代の主人の${n}が、とうとう店を譲ったよ。後を継いだのは、${r.successor}さ。`,
+    `この店も代替わりしたな。${n}が引退して、${r.successor}が主人になった。`] : [
+    `${tn}の酒場が代替わりしたそうだ。${n}が引退して、${r.successor}が主人になったらしい。`,
+    `${tn}の酒場の${n}が、店を譲ったと聞いたよ。長いこと主人をしていたからな。`];
+   else if(y < 2) pool = [
+    `引退した${n}は、${home}で暮らしているらしい。${tn}の酒場の先代だよ。のんびりしているそうだ。`,
+    `${tn}の酒場の元主人、${n}が、${home}の酒場で昔話をしていたぞ。話は尽きないものだな。`];
+   else if(y < 4) pool = [
+    `${tn}の酒場の先代、${n}は、近ごろ${home}で釣りばかりしているそうだ。`,
+    `${n}を覚えているかい？ ${tn}の酒場の元主人さ。今は${home}の外れで、畑をいじっているらしい。`];
+   else pool = [
+    `そういえば、${tn}の酒場の${n}の噂をとんと聞かなくなったな。元気にしているといいが。`,
+    `${tn}の酒場に寄るたびに、先代の${n}の口癖が懐かしくなるよ。もう何年になるかねえ。`];
+   let txt = pool[Math.floor(Math.random()*pool.length)];
+   if((tv.history||[]).some(x=>x.keeper === n && x.pc === PC.name)) txt += `　あんたも、${n}の店では世話になったんじゃないか。`;
+   cands.push({ txt, mark:()=>{ r.shown = (r.shown||0) + 1; } });
+  });
+ });
 }
 
 // ══════════════════════════════════════════
@@ -17868,7 +18103,7 @@ function showLevelUpPanel(lv, pc){
 // ── WEIGHT POSSIBLE ────────────────────
 // 防寒着と荷物袋を装備していれば強さ×100、していなければその半分（強さ×50）までしか持てない
 // 仲間のNPCは着脱の操作がないので、防寒着を持っていれば着ている扱い
-const weightPossible = (pc=PC) => (pc.equippedClothing || (pc !== PC && pc.invClothing && !pc._clothingOff)) ? pc.st * 100 : pc.st * 50;
+const weightPossible = (pc=PC) => (pc === PC ? pc.equippedClothing : ((pc.equippedClothing || pc.invClothing) && !pc._clothingOff)) ? pc.st * 100 : pc.st * 50;   // 仲間は「外す」（_clothingOff）が効く。元の主人公だった仲間が equippedClothing を持ち越していても外した扱いになる
 
 // 現在の総所持重量を計算（アイテム＋硬貨）
 function calcTotalWeight(pc=PC){
@@ -18026,7 +18261,7 @@ function loadAutoSave(){
  PC._tavernThanks = {}; // 酒場のお礼（受け取り待ち）も、ロード前のセッションの残留を防ぐためリセットしてから代入する
  PC._formerCompanions = []; // かつての仲間の名簿も、ロード前のセッションの残留を防ぐためリセットしてから代入する
  _fcVisitLastDay = null;     // 来訪判定の基準日も、ロード後の最初の判定で現在日に合わせ直す
- delete PC._wild; delete PC._wildMaps; delete PC._wildCamps; delete PC._wildCastles; delete PC._troupes; delete PC._troupeContract; delete PC._arcs; delete PC._arcLog; delete PC._arcEpilogues; delete PC._arcLastStart; delete PC._arcLastType; delete PC._arcSeeds; delete PC._arcLetters; delete PC._arcReunions; delete PC._arcTravelerDone; delete PC._sagas; // 旅芸人の一座・護衛契約も、ロード前のセッションの残留を防ぐため消してから代入する
+ delete PC._wild; delete PC._wildMaps; delete PC._wildChart; delete PC._wildCamps; delete PC._wildDwell; delete PC._wildCastles; delete PC._troupes; delete PC._taverns; delete PC._troupeContract; delete PC._arcs; delete PC._arcLog; delete PC._arcEpilogues; delete PC._arcLastStart; delete PC._arcLastType; delete PC._arcSeeds; delete PC._arcLetters; delete PC._arcReunions; delete PC._arcTravelerDone; delete PC._sagas; // 旅芸人の一座・護衛契約も、ロード前のセッションの残留を防ぐため消してから代入する
  Object.assign(PC, data.pc);
  Object.assign(GAME_TIME, data.gameTime);
  if(PC.invEquip){
@@ -18187,6 +18422,12 @@ function archiveCurrentPC(reason){
  // 地方状態システム（物流途絶度・治安悪化度・住民流出度）を保存
  if(PC._regionCondition) ws.regionCondition = JSON.parse(JSON.stringify(PC._regionCondition));
  if(PC._settlements) ws.settlements = JSON.parse(JSON.stringify(PC._settlements));
+ // 旅芸人の一座（名簿・護衛の記録）：世界に残る記録なので世代交代しても引き継ぐ。護衛契約は先代のものなので、契約中の一座は帰路についた扱いにする
+ if(PC._troupes){
+  ws.troupes = JSON.parse(JSON.stringify(PC._troupes));
+  Object.values(ws.troupes).forEach(t=>{ if(t && t.contract){ try{ troupeReleaseTroupe(t); }catch(e){ t.contract=false; t.plan=[]; } } });
+ }
+ if(PC._taverns) ws.taverns = JSON.parse(JSON.stringify(PC._taverns));   // 酒場の主人・給仕・付き合いの記録も、世界に残る記録として引き継ぐ
  if(PC._regionConditionAmbient) ws.regionConditionAmbient = JSON.parse(JSON.stringify(PC._regionConditionAmbient));
  // 2026年10月4日：巣窟ダンジョン（全箇所）の状態を保存。世代交代しても「空／稼働中」の状態や
  // 次回再湧き予定日が引き継がれるようにする（これまでは保存されず、新しい代の最初のチェックで
@@ -18521,7 +18762,7 @@ function loadGame(slot){
  PC._tavernThanks = {}; // 酒場のお礼（受け取り待ち）も、ロード前のセッションの残留を防ぐためリセットしてから代入する
  PC._formerCompanions = []; // かつての仲間の名簿も、ロード前のセッションの残留を防ぐためリセットしてから代入する
  _fcVisitLastDay = null;     // 来訪判定の基準日も、ロード後の最初の判定で現在日に合わせ直す
- delete PC._wild; delete PC._wildMaps; delete PC._wildCamps; delete PC._wildCastles; delete PC._troupes; delete PC._troupeContract; delete PC._arcs; delete PC._arcLog; delete PC._arcEpilogues; delete PC._arcLastStart; delete PC._arcLastType; delete PC._arcSeeds; delete PC._arcLetters; delete PC._arcReunions; delete PC._arcTravelerDone; delete PC._sagas; // 旅芸人の一座・護衛契約も、ロード前のセッションの残留を防ぐため消してから代入する
+ delete PC._wild; delete PC._wildMaps; delete PC._wildChart; delete PC._wildCamps; delete PC._wildDwell; delete PC._wildCastles; delete PC._troupes; delete PC._taverns; delete PC._troupeContract; delete PC._arcs; delete PC._arcLog; delete PC._arcEpilogues; delete PC._arcLastStart; delete PC._arcLastType; delete PC._arcSeeds; delete PC._arcLetters; delete PC._arcReunions; delete PC._arcTravelerDone; delete PC._sagas; // 旅芸人の一座・護衛契約も、ロード前のセッションの残留を防ぐため消してから代入する
  Object.assign(PC, data.pc);
  Object.assign(GAME_TIME, data.gameTime);
  // 旧版で魔法使いの仲間が持っていた弓などの遠距離武器は外す（魔法使いは飛び道具を使えない）
@@ -20077,11 +20318,138 @@ function troupeCreate(rk){
  };
  t.arriveDay = GAME_TIME.totalDays - Math.floor(Math.random()*4);
  troupeRollStay(t);
+ troupeRosterInit(t);
  return t;
+}
+
+// ── 名簿・代替わり ──
+// roster = { leader, deputy, members:[3人] }。座長は在任10〜15年で引退し、副座長が後を継ぐ。
+// 新しい副座長は団員3人のうちの1人。欠けた団員には新顔が1人加わる。引退した座長は t.retired に記録する（酒場の噂に5年ほど出る）。
+// 護衛の記録は t.history（座長の名前つき）。更新は町を訪ねたとき（護衛中でない一座のみ）に、日付を遡ってまとめて精算する。
+function troupeRand(a,b){ return a + Math.floor(Math.random()*(b-a+1)); }
+function troupeUsedNames(t){
+ const r = t.roster || {};
+ return [r.leader, r.deputy, ...(r.members||[])].filter(Boolean).map(p=>p.name).concat((t.retired||[]).map(x=>x.name));
+}
+function troupePersonMake(t, role){
+ const name = pickNPC(troupeUsedNames(t));
+ return { name, role: role || TROUPE_MEMBER_ROLES[Math.floor(Math.random()*TROUPE_MEMBER_ROLES.length)] };
+}
+function troupeRosterInit(t){
+ if(t.roster) return;
+ const now = GAME_TIME.totalDays;
+ t.roster = { leader: { name: t.leader || pickNPC(), role: '座長' }, deputy: null, members: [] };
+ t.leader = t.roster.leader.name;
+ t.roster.deputy = troupePersonMake(t, '副座長');
+ for(let i=0;i<3;i++) t.roster.members.push(troupePersonMake(t));
+ t.reignEnd = now + troupeRand(2, 15) * DAYS_PER_YEAR;   // 既存の一座も、残りの在任期間を適当に割り振る
+ t.nextChurn = now + troupeRand(3, 6) * DAYS_PER_YEAR;
+ t.retired = []; t.history = [];
+}
+function troupeSucceed(t, day){
+ const r = t.roster;
+ const old = r.leader;
+ const towns = REGIONS[t.region] || [];
+ t.retired = t.retired || [];
+ t.retired.push({ name: old.name, retireDay: day, home: towns[Math.floor(Math.random()*towns.length)] || t.order[0],
+  until: day + troupeRand(4, 6) * DAYS_PER_YEAR, shown: 0, successor: r.deputy ? r.deputy.name : '' });
+ if(t.retired.length > 4) t.retired.shift();
+ r.leader = { name: r.deputy.name, role: '座長' };
+ // 新しい副座長：団員の中から1人。欠員には新顔を1人加える
+ const i = Math.floor(Math.random()*r.members.length);
+ const up = r.members.splice(i, 1)[0];
+ r.deputy = { name: up.name, role: '副座長' };
+ r.members.push(troupePersonMake(t));
+ t.leader = r.leader.name;
+ t.reignEnd = day + troupeRand(10, 15) * DAYS_PER_YEAR;
+}
+function troupeChurn(t, day){
+ const r = t.roster;
+ const i = Math.floor(Math.random()*r.members.length);
+ r.members.splice(i, 1);
+ r.members.push(troupePersonMake(t));
+ t.nextChurn = day + troupeRand(3, 6) * DAYS_PER_YEAR;
+}
+function troupeRosterTick(t){
+ if(!t.roster) troupeRosterInit(t);
+ if(t.contract) return;   // 護衛中は動かさない（終わってから、遡ってまとめて精算する）
+ const now = GAME_TIME.totalDays;
+ let g = 0;
+ while(g++ < 40){
+  if(now >= t.reignEnd && t.reignEnd <= t.nextChurn) troupeSucceed(t, t.reignEnd);
+  else if(now >= t.nextChurn) troupeChurn(t, t.nextChurn);
+  else break;
+ }
+}
+// 護衛の記録（result: 'done'満了 / 'break'途中で辞めた / 'fail'失敗）
+function troupeLogHistory(t, result){
+ if(!t) return;
+ troupeRosterInit(t);
+ const c = PC._troupeContract || {};
+ t.history = t.history || [];
+ t.history.push({ leader: t.leader, pc: PC.name, day: GAME_TIME.totalDays, result, year: (c.renewals||0) + 1, rapport: c.rapport||0 });
+ if(t.history.length > 8) t.history.shift();
+}
+// 顔なじみ／先代の話題。護衛の記録をもとに、座長を訪ねたときの冒頭の一言を返す（なければ''）
+function troupeAcquaintLine(t){
+ troupeRosterInit(t);
+ const hAll = t.history || [];
+ const nm = PC.name;
+ const h = hAll.filter(x=>x.pc === nm);   // 先代PCの護衛の記録は、このPCの顔なじみにはならない
+ if(!h.length){
+  // 先代の冒険者（前の世代のPC）が護衛していた記録がある：一座の古株の思い出話として、たまに語られる
+  const other = hAll.filter(x=>x.pc && x.pc !== nm && x.result === 'done');
+  if(other.length && Math.random() < 0.5){
+   const o = other[other.length-1];
+   return [
+    `「あんたの前にも、${o.pc}という冒険者が、うちの護衛をしてくれたことがあってね。腕のいい人だった」`,
+    `「冒険者に護衛を頼むのは久しぶりだ。昔、${o.pc}という人に世話になったことがあってね」`][Math.floor(Math.random()*2)];
+  }
+  return '';
+ }
+ const now = GAME_TIME.totalDays;
+ const mine = h.filter(x=>x.leader === t.leader);
+ const pick = a => a[Math.floor(Math.random()*a.length)];
+ if(mine.length){
+  const good = mine.filter(x=>x.result==='done');
+  const yrs = good.length;
+  if(!good.length) return pick([
+   `「……${nm}か。あのときのことは、水に流すことにしたよ。顔を見せてくれただけでも、ありがたい」`,
+   `「あんたか。いろいろあったが、団員たちももう怒ってはいないさ」`]);
+  if(yrs >= 2) return pick([
+   `「また会えたな、${nm}。あんたの顔を見ると、一座の皆が安心するんだ」`,
+   `「${nm}じゃないか！ あんたと旅をした年月は、一座の宝みたいなものだよ」`,
+   `「おお、${nm}。あんたがいない舞台は、どうも締まらなくてね」`]);
+  return pick([
+   `「おお、${nm}じゃないか。あの一年のことは、よく覚えているよ」`,
+   `「久しぶりだな、${nm}。団員たちも、あんたの噂をしていたところさ」`,
+   `「やあ、${nm}。あのときの旅の話は、今でも団員たちの語り草だ」`]);
+ }
+ // 先代の座長の時代に護衛した記録がある
+ const prev = h[h.length-1];
+ const ret = (t.retired||[]).find(r=>r.name === prev.leader);
+ const pn = prev.leader;
+ const home = ret ? troupeTownName(ret.home) : '';
+ const yAgo = ret ? Math.floor((now - ret.retireDay) / DAYS_PER_YEAR) : 99;
+ if(prev.result === 'fail') return pick([
+   `「先代の${pn}の代に、うちは大きな痛手を負ったと聞いている。……あんたを責める気はないが、古株の中には今も忘れられない者がいる」`,
+   `「先代の${pn}から、昔の話は聞いているよ。あの旅のことは、うちの者もまだ語りたがらないんだ」`]);
+ if(ret && yAgo < 6){
+  return pick([
+   `「先代の${pn}から聞いているよ。かつてうちを護衛してくれた冒険者がいたとね。あんたのことだろう？」`,
+   `「${pn}は、引退して${home}のあたりで暮らしていてね。あんたの話を、酒の肴によくしていたそうだ」`,
+   `「あんたが${nm}か。先代の${pn}が、いい用心棒だったと何度も話していたよ」`,
+   `「先代の${pn}の口癖でね。『あの冒険者がいてくれた一年は、本当に安心して旅ができた』と」`]);
+ }
+ return pick([
+   `「先代の${pn}が座長だったころ、あんたに世話になったそうだな。うちの古株は、今でもそれを語り草にしているよ」`,
+   `「${pn}の代の話だが、あんたの名は一座の古い者たちの間では有名でね」`,
+   `「先代が引退して久しいが、あんたのことだけは、今でも古株がよく口にするんだ」`,
+   `「あんたが${nm}か。${pn}の時代の護衛だったと聞いている。座長の座は替わったが、一座の恩義は変わらないよ」`]);
 }
 function troupeEnsure(){
  if(!PC._troupes) PC._troupes = {};
- TROUPE_REGIONS.forEach(rk=>{ if(!PC._troupes[rk]) PC._troupes[rk] = troupeCreate(rk); });
+ TROUPE_REGIONS.forEach(rk=>{ if(!PC._troupes[rk]) PC._troupes[rk] = troupeCreate(rk); else troupeRosterInit(PC._troupes[rk]); });
 }
 
 // 町と町の移動日数（徒歩。無ければ乗合馬車、それも無ければ最短経路）
@@ -20125,6 +20493,7 @@ function troupeAtTown(townId){
  for(const rk of TROUPE_REGIONS){
   const t = PC._troupes[rk];
   troupeCatchUp(t);
+  troupeRosterTick(t);
   if(t.phase === 'stay' && t.townId === townId){
    if(t.contract) return t;   // 護衛中の一座を優先する（地方またぎで別の地方の一座と同じ町になっても、こちらを表示）
    if(!found) found = t;
@@ -20257,7 +20626,8 @@ function troupeWatchShow(townId, t){
 function troupeVisitLeader(townId, t){
  const story = document.getElementById('story');
  const back = {label:'← 戻る', fn:()=>troupeMenu(townId)};
- const head = `<span style="color:#f0ece0">座長${t.leader}</span><br><br>`;
+ const _acq = troupeAcquaintLine(t);
+ const head = `<span style="color:#f0ece0">座長${t.leader}</span><br><br>` + (_acq ? `<span style="color:#f0d8a8">${_acq}</span><br><br>` : '');
  if(t.contract){
   const lines = [
    `「${PC.name}、頼りにしているよ。この調子で頼む」`,
@@ -20393,6 +20763,7 @@ function troupeTownHook(nodeId){
  // 冬のあいだに町を出たまま、4月になっても一座の町へ戻らなかった：契約は破棄され、一座の町の信頼度が下がる
  if(c.away && GAME_TIME.totalDays >= (c.awayLimit || (t.departDay + DAYS_PER_MONTH))){
   const _tn = t.townId;
+  troupeLogHistory(t, 'break');
   troupeReleaseTroupe(t);
   PC._troupeContract = null;
   changeTrust(_tn, -3, 'incident');
@@ -20470,7 +20841,7 @@ function troupeContractBreak(townId){
  const c = PC._troupeContract;
  const t = c && PC._troupes && PC._troupes[c.region];
  troupePayDue();
- if(t){ troupeReleaseTroupe(t); }
+ if(t){ troupeLogHistory(t, 'break'); troupeReleaseTroupe(t); }
  PC._troupeContract = null;
  changeTrust(townId, -3, 'incident');
  addLifeEvent('', `旅芸人の一座『${t ? t.name : ''}』との護衛契約を、途中で辞めた。`);
@@ -20499,6 +20870,7 @@ function troupeContractFinish(townId){
  gainAPAll(30);
  updateHUD();
  c.finishPaid = true; c.finishSafety = _safety; c.recruitDone = false;
+ troupeLogHistory(t, 'done');
  addLifeEvent('', `旅芸人の一座『${t.name}』との一年間の護衛契約を満了した。`);
  const story = document.getElementById('story');
  if(story) story.innerHTML = troupeTakePending() + `<span style="color:#f0ece0">契約満了</span><br><br>`
@@ -20526,10 +20898,15 @@ function troupeFinishNext(townId, t){
 }
 
 const TROUPE_MEMBER_ROLES = ['軽業師','語り手','楽師','道化','火吹き芸の使い手','影絵遣い'];
-function troupeMakeMember(){
+function troupeMakeMember(t){
  let npc = generateNPC(2), guard = 0;
  while(typeof NPC_MONSTER_RACES !== 'undefined' && NPC_MONSTER_RACES.includes(npc.race) && guard++ < 8) npc = generateNPC(2);
  npc._troupeRole = TROUPE_MEMBER_ROLES[Math.floor(Math.random()*TROUPE_MEMBER_ROLES.length)];
+ // 一座の名簿に載っている団員を、そのまま使う（同じ顔ぶれに何度も会える）
+ if(t && t.roster && t.roster.members && t.roster.members.length){
+  const p = t.roster.members[Math.floor(Math.random()*t.roster.members.length)];
+  npc.name = p.name; npc._troupeRole = p.role; npc._rosterName = p.name;
+ }
  return npc;
 }
 const TROUPE_TYPE_JA = {warrior:'戦士',rogue:'盗賊',wizard:'魔法使い'};
@@ -20537,7 +20914,7 @@ const TROUPE_RACE_JA = {human:'人間',elf:'エルフ',dwarf:'ドワーフ',half
 function troupeTypeJa(t){ return TROUPE_TYPE_JA[t] || t; }
 function troupeRaceJa(r){ return TROUPE_RACE_JA[r] || r; }
 function troupeRecruitOffer(townId, t){
- const m = troupeMakeMember();
+ const m = troupeMakeMember(t);
  const nm = `${m.epithet ? m.epithet+' ' : ''}${m.name}`;
  const story = document.getElementById('story');
  if(story) story.innerHTML = `<span style="color:#f0ece0">団員の申し出</span><br><br>`
@@ -20549,6 +20926,11 @@ function troupeRecruitOffer(townId, t){
    PC.party = PC.party || [];
    if(PC.party.length < 3){
     PC.party.push({...m, trust:80, joinDay:GAME_TIME.totalDays});
+    // 名簿から抜け、団員の欠けた穴に新顔が加わる
+    if(t && t.roster && m._rosterName){
+     const _i = t.roster.members.findIndex(x=>x.name===m._rosterName);
+     if(_i >= 0){ t.roster.members.splice(_i,1); t.roster.members.push(troupePersonMake(t)); }
+    }
     addLifeEvent('', `旅芸人の一座『${t.name}』の${m._troupeRole}、${m.name}がパーティに加わった（${troupeTypeJa(m.type)}・${troupeRaceJa(m.race)}）。`);
     updateHUD(); renderPartyTab();
     showSaveToast(` ${m.name}がパーティに加わった！`);
@@ -20834,6 +21216,7 @@ function troupePay(gp){
 function troupeContractFail(ctx, lastHtml){
  const t = ctx.t;
  troupePayDue();
+ troupeLogHistory(t, 'fail');
  troupeReleaseTroupe(t);
  PC._troupeContract = null;
  changeTrust(ctx.townId, TROUPE_FAIL_TRUST, 'incident');
@@ -20879,7 +21262,7 @@ function troupeWaitScene(ctx, baseMsg){
   {label:' 見張りに立つ', fn:()=>done(1, '話は他の者に任せ、馬車の周りの見張りに立った。何事もなく、時間だけが過ぎた。')},
  ]));
  scenes.push(()=>{
-  const m = troupeMakeMember();
+  const m = troupeMakeMember(ctx.t);
   const nm = m.name;
   troupeEvShow(ctx, '団員との話し込み', `一座の${m._troupeRole}、${nm}が、護衛の旅の話を聞きたがって隣に腰を下ろした。「あんたたち冒険者の話、いちど聞いてみたかったんだ」`, [
    {label:' 冒険の話を聞かせる（魅力のテスト）', fn:()=>{
@@ -21622,6 +22005,273 @@ function wildMarkVisited(){
  PC._wildMaps = PC._wildMaps || {};
  PC._wildMaps[w.key] = PC._wildMaps[w.key] || {};
  PC._wildMaps[w.key][w.col + ',' + w.row] = 1;
+ wildChartStand(w.key, w.col, w.row, wildChartGet(w.key));
+}
+
+// ── 荒野の地図（プレイヤーが作る）──────────────────────────
+// PC._wildChart[経路キー]['列,行'] = ビット：1=記録した（見えた）／2=自分が立った／4=場所を見つけた
+// 記録のルール：立ったマスと隣接8マスを記録する。丘陵に立てば、さらに1マス先（5×5）まで。深い森に立てば、自分のマスだけ。
+// 先代の地図を写した部分は、1（と4）だけが付く。
+function wildChartStand(key, c, r, ch){
+ const map = WILD_MAPS[key];
+ if(!map || r < 0 || r >= map.h || c < 0 || c >= map.w) return;
+ const t = map.terrain[r][c];
+ const R = t === 'T' ? 0 : (t === 'n' ? 2 : 1);
+ for(let dr = -R; dr <= R; dr++) for(let dc = -R; dc <= R; dc++){
+  const cc = c + dc, rr = r + dr;
+  if(rr < 0 || rr >= map.h || cc < 0 || cc >= map.w) continue;
+  const k = cc + ',' + rr;
+  ch[k] = (ch[k] || 0) | 1;
+ }
+ const o = map.objects[r][c];
+ ch[c + ',' + r] |= 2 | ((o && map.sites && map.sites[o]) ? 4 : 0);
+}
+function wildChartGet(key){
+ PC._wildChart = PC._wildChart || {};
+ if(!PC._wildChart[key]){
+  const ch = PC._wildChart[key] = {};
+  const vis = PC._wildMaps && PC._wildMaps[key];   // 古いセーブ：立ったマスから、見えたマスを補う
+  if(vis) Object.keys(vis).forEach(k=>{ const a = k.split(',').map(Number); wildChartStand(key, a[0], a[1], ch); });
+ }
+ return PC._wildChart[key];
+}
+function wildRouteLabel(key){
+ const p = key.split('__').map(id=>(TOWNS[id] || {}).name || id);
+ return `${p[0]}〜${p[1]}間の荒野`;
+}
+// ── 町・場所のアイコン ──
+// 場所の種類（名前から決める）。城塞・塔は「目立つ」ので、立っていなくても見えたマスなら薄く出す
+function wildSiteKind(site){
+ const n = (site && site.name) || '';
+ if(/野盗|山賊/.test(n)) return 'bandit';
+ if(/野営/.test(n)) return 'camp';
+ if(/砦|城/.test(n)) return 'fort';
+ if(/塔|見張り/.test(n)) return 'tower';
+ if(/遺跡|石組み|塚/.test(n)) return 'ruin';
+ if(/祭壇|祠|墓/.test(n)) return 'altar';
+ if(/小屋|廃屋|農家/.test(n)) return 'hut';
+ if(/坑/.test(n)) return 'mine';
+ return 'other';
+}
+const WILD_ICON = {
+town:{g:["............","....rr..R...","...rrrr.RRR.","..rrRRrrRRRR",".rrrRRrrrRRR",".wwwwwwwwwww",".wkkwwwwkkww",".wkkwwwwkkww",".wwwwkkwwwww",".wwwwkkwwwww","............","............"]},
+bandit:{g:["........rr..",".......rrrr.","........kR..","...b....k...","..bbb...k...",".bbbbb..k...","bbkkbbb.k...","bbkkbbbbk...","bbkkbbb.k...","kkkkkkkkkk..","............","............"]},
+camp:{g:["............",".....o......","....ooy.....","...ooyyo....","...oyyyo....","..bobyyob...","..bbbbbbb...",".b.bbbbb.b..","..SS.SS.SS..","............","............","............"]},
+fort:{g:["s.ss.ss.ss..","ssssssssss..","SSSSSSSSSS..","ssssssssss..","ssskkkksss..","sskkkkkkss..","sskkddkkss..","sskkddkkss..","SSkkddkkSS..","SSSSSSSSSS..","............","............"]},
+tower:{g:["...s.ss.s...","...ssssss...","...SssssS...","....ssss....","....skks....","....ssss....","....skks....","....ssss....","...SssssS...","..SSssssSS..","............","............"]},
+ruin:{g:["............","..s....s....","..ss..ssS...","..ss..ssS...","..ss..sss...",".sss.ssss...",".SsssSsssS..","SSSSSSSSSSS.","............","............","............","............"]},
+altar:{g:["....ss......","...ssss.....","...ssss.....","....ss......","..ssssss....","...SSSS.....","..ssssss....",".ssssssss...",".SSSSSSSS...","............","............","............"]},
+hut:{g:["....bb......","...bbbb.....","..bbBBbb....",".bbbBBbbb...","bbbbbbbbbb..",".ffffffff...",".fkkffkkf...",".fkkffkkf...",".ffffffff...",".ffdffffff..","............","............"]},
+mine:{g:["...bbbbbb...","..bbbbbbbb..",".bbBBBBBBbb.",".bBkkkkkkBb.",".bkkddddkkb.",".bkdddddkkb.",".bkdddddkkb.",".bkdddddkkb.",".bbbbbbbbbb.","............","............","............"]},
+other:{g:["............","....yy......","...yyyy.....","..yyyyyy....","..yyYyyy....","...yyyy.....","....yy......","............","............","............","............","............"]}};
+
+const WILD_ICON_COL = {k:'#33291f',w:'#c3bca8',W:'#a8a190',r:'#a2523d',R:'#84402f',y:'#c8af51',Y:'#a89040',b:'#7c5c3d',B:'#6a4e30',o:'#ca7e39',s:'#aea693',S:'#8a8474',g:'#6a9a58',d:'#0e0a06',f:'#b0a898',n:'#c8bc9c'};
+function wildIconSvg(kind, x, y, S, faint){
+ const g = (WILD_ICON[kind] || WILD_ICON.other).g, u = S / 14, ox = x + u, oy = y + u;
+ let s = '';
+ for(let pass = 0; pass < 2; pass++) for(let j = 0; j < 12; j++) for(let i = 0; i < 12; i++){
+  const c = g[j][i]; if(c === '.' || c === ' ') continue;
+  if(pass === 0) s += `<rect x="${ox + (i + .5)*u}" y="${oy + (j + .5)*u}" width="${u}" height="${u}" fill="#000" opacity=".3"/>`;
+  else s += `<rect x="${ox + i*u}" y="${oy + j*u}" width="${u}" height="${u}" fill="${WILD_ICON_COL[c] || '#888'}"/>`;
+ }
+ return `<g opacity="${faint ? .4 : .85}">${s}</g>`;
+}
+// そのマスに出すアイコン。{kind, faint} か null。町＝街道の両端（記録されていれば）、場所＝立ったマス、城塞・塔＝見えただけでも薄く
+function wildCellIcon(map, c, r, bits){
+ if(r === 5 && (c === 0 || c === map.w - 1) && (bits & 1)) return {kind:'town', faint:false};
+ const o = map.objects[r] && map.objects[r][c];
+ const site = o && !/\d/.test(o) && map.sites && map.sites[o];
+ if(!site) return null;
+ const k = wildSiteKind(site);
+ if(bits & 4) return {kind:k, faint:false};
+ if((bits & 1) && (k === 'fort' || k === 'tower')) return {kind:k, faint:true};
+ return null;
+}
+// 地図の下に出す名前の一覧（町・見つけた場所）
+function wildChartNames(map, key, list){
+ const ids = key.split('__'), towns = [], sites = [];
+ list.forEach(o=>{
+  if(o.r === 5 && (o.c === 0 || o.c === map.w - 1) && (o.bits & 1)){ const id = ids[o.c === 0 ? 0 : 1]; towns.push((TOWNS[id] || {}).name || id); }
+  const ch = map.objects[o.r] && map.objects[o.r][o.c];
+  if((o.bits & 4) && ch && !/\d/.test(ch) && map.sites && map.sites[ch]) sites.push(map.sites[ch].name);
+ });
+ let h = '';
+ if(towns.length) h += `<br>町：${towns.join('、')}`;
+ if(sites.length) h += `<br>見つけた場所：${sites.join('、')}`;
+ return h;
+}
+// 地図のASCII表示（地図データと同じ向き。北は矢印で示す）。cells＝{'列,行':ビット}、cur＝現在地{col,row}（なければnull）、all＝開発版の全体表示
+const WILD_CHART_DIRS = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];   // 東・南東・南…（x右・y下）
+// ── タイル表示（1マス16×16ドット）──
+// 地形ごとに4色のパレット[暗,中,明,強調]。模様は地形ごとの描き方と、マスごとの4通りの種で決まる。未記録は真っ黒、見えただけのマスは半分暗くする。
+const WILD_TILE_NAME = {'.':'平原','w':'平原','t':'疎林','T':'深い森','n':'丘陵','^':'山岳','s':'砂漠','=':'街道','~':'水域','%':'湿地',':':'荒地','#':'断崖','*':'雪原'};
+const WILD_TEX_PAL = {
+ '.':['#4a6240','#587448','#6a8a58','#8aa070'], 'T':['#2e4430','#3a5238','#486446','#587a52'],
+ 'n':['#6a5a3c','#80704c','#9a8660','#b4a07a'], '^':['#5c5c66','#74747e','#92929c','#d6d6de'],
+ 's':['#a89468','#bca878','#cdbb8a','#ddcf9e'], '=':['#585852','#6c6c66','#82827a','#9c9c92'],
+ '~':['#2e4a70','#3a5f8f','#5580ae','#8cb0d4'], '%':['#34503f','#425e4a','#527058','#4a7a8c'],
+ ':':['#5e5848','#746c58','#8a806a','#a49a82'], '#':['#3a3a40','#4e4e56','#666670','#8a8a94'], '*':['#aab4c0','#c4ccd6','#dde2ea','#f0f3f8'],
+};
+// 地形の色を淡くする（水域・湿地・雪原は元のコントラストのまま）
+function wildMixHex(a, b, k){
+ const pa = [1,3,5].map(i=>parseInt(a.substr(i,2),16)), pb = [1,3,5].map(i=>parseInt(b.substr(i,2),16));
+ return '#' + pa.map((v,i)=>('0' + Math.round(v + (pb[i] - v)*k).toString(16)).slice(-2)).join('');
+}
+Object.keys(WILD_TEX_PAL).forEach(k=>{ if('~%*'.includes(k)) return; WILD_TEX_PAL[k] = WILD_TEX_PAL[k].map(c=>wildMixHex(c, '#5e5e56', .4)); });
+const WILD_TREE = ['...ggggg...','..gGGGGGg..','.gGGhhGGGg.','.gGhhGGGGg.','gGGGhGGGGGg','gGGGGGGgGGg','.gGGGGGGGg.','..gggGGgg..','.....tt....','.....tt....','.....tt....'];
+const WILD_TREE_COL = {g:'#27472a',G:'#386a38',h:'#6c9a54',t:'#4a3a28'}, WILD_TREE_DARK = {g:'#1e3820',G:'#2a4e2c',h:'#4a7438',t:'#3a2c1e'};
+[WILD_TREE_COL, WILD_TREE_DARK].forEach(o=>{ for(const c in o) o[c] = wildMixHex(o[c], '#5e5e56', .4); });
+function wildTexRng(seed){ let s = (seed >>> 0) || 1; return ()=>{ s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
+const WILD_TEX_CACHE = {};
+function wildTexGrid(t, v){
+ const key = t + v; if(WILD_TEX_CACHE[key]) return WILD_TEX_CACHE[key];
+ const N = 16, g = new Array(N*N), r = wildTexRng(v*2654435761 + t.charCodeAt(0)*7919 + 7);
+ const put = (x, y, c)=>{ if(x >= 0 && y >= 0 && x < N && y < N) g[y*N + x] = c; };
+ const rn = (a, b)=>a + Math.floor(r()*(b - a + 1));
+ const ground = (t === 't' || t === 'w') ? '.' : t;
+ const pal = WILD_TEX_PAL[ground] || WILD_TEX_PAL['.'];
+ const fill = (w0, w1, w2)=>{ for(let i = 0; i < N*N; i++){ const q = r(); g[i] = q < w0 ? pal[1] : q < w1 ? pal[0] : q < w2 ? pal[2] : pal[1]; } };
+ const stamp = (map, ox, oy, col)=>{ map.forEach((row, j)=>{ for(let i = 0; i < row.length; i++){ const c = row[i]; if(c !== '.') put(ox + i, oy + j, col[c]); } }); };
+ if(ground === '.'){
+  fill(.55, .8, .95);
+  for(let k = 0; k < 5; k++){ const x = rn(1, 13), y = rn(3, 14); put(x, y, pal[3]); put(x - 1, y - 1, pal[3]); put(x + 1, y - 1, pal[3]); }
+  if(r() < .3) put(rn(2, 13), rn(2, 13), '#c8b060');
+  if(t === 't') stamp(WILD_TREE, rn(2, 4), rn(1, 3), WILD_TREE_COL);
+ } else if(ground === 'T'){
+  fill(.6, .9, 1);
+  stamp(WILD_TREE, -2, 2, WILD_TREE_DARK); stamp(WILD_TREE, 7, 0, WILD_TREE_DARK); stamp(WILD_TREE, 2, 6, WILD_TREE_COL); stamp(WILD_TREE, 9, 6, WILD_TREE_DARK);
+ } else if(ground === 'n'){
+  fill(.55, .8, .95);
+  [[3, 10, 6], [10, 6, 5], [8, 13, 4]].forEach(([cx, cy, w])=>{ const jx = rn(-1, 1);
+   for(let dx = -w; dx <= w; dx++){ const h = Math.round(Math.sqrt(Math.max(0, w*w - dx*dx))*.55);
+    for(let dy = 0; dy <= h; dy++) put(cx + jx + dx, cy - dy, dy === h ? pal[3] : (dx < 0 ? pal[2] : pal[1]));
+    for(let dy = 1; dy <= 2; dy++) put(cx + jx + dx, cy + dy, pal[0]); } });
+ } else if(ground === '^'){
+  fill(.55, .8, .95);
+  [[4, 4 + rn(0, 2), 5], [11, 3 + rn(0, 2), 6]].forEach(([cx, top])=>{
+   for(let y = top; y < N - 1; y++){ const hw = Math.floor((y - top)*.75) + 1;
+    for(let dx = -hw; dx <= hw; dx++){ let c = dx <= 0 ? pal[2] : pal[0]; if(y - top < 3) c = pal[3]; else if(dx === 0 || (dx < 0 && r() < .15)) c = pal[1]; put(cx + dx, y, c); } } });
+ } else if(ground === 's'){
+  fill(.55, .8, .95);
+  for(let k = 0; k < 4; k++){ const y = 2 + k*4 + rn(0, 1), ph = r()*6; for(let x = 0; x < N; x++){ const yy = y + Math.round(Math.sin((x + ph)*.5)*1.2); put(x, yy, pal[0]); put(x, yy - 1, pal[3]); } }
+ } else if(ground === '='){   // 砂利道：細かい粒と小石
+  for(let i = 0; i < N*N; i++){ const q = r(); g[i] = q < .45 ? pal[1] : q < .7 ? pal[0] : q < .92 ? pal[2] : pal[3]; }
+  for(let k = 0; k < 8; k++){ const x = rn(0, 13), y = rn(0, 14); put(x, y, pal[3]); put(x + 1, y, pal[2]); put(x, y + 1, pal[0]); put(x + 1, y + 1, pal[0]); }
+ } else if(ground === '~'){
+  fill(.6, .9, 1);
+  for(let k = 0; k < 4; k++){ const y = 1 + k*4 + rn(0, 2), x = rn(0, 9); for(let d = 0; d < 5; d++) put(x + d, y, pal[3]); for(let d = 1; d < 5; d++) put(x + d, y + 1, pal[2]); }
+ } else if(ground === '%'){
+  fill(.6, .88, 1);
+  for(let k = 0; k < 3; k++){ const x = rn(1, 11), y = rn(1, 12); for(let d = 0; d < 4; d++){ put(x + d, y, pal[3]); put(x + d, y + 1, pal[3]); } put(x + 1, y + 2, pal[3]); }
+  for(let k = 0; k < 4; k++){ const x = rn(0, 15), y = rn(2, 14); put(x, y, pal[2]); put(x, y - 1, pal[2]); put(x, y - 2, pal[2]); }
+ } else if(ground === ':'){
+  fill(.5, .78, .94);
+  for(let k = 0; k < 3; k++){ let x = rn(0, 15), y = rn(0, 12); for(let d = 0; d < 5; d++){ put(x, y, pal[0]); x += rn(-1, 1); y += 1; } }
+  for(let k = 0; k < 5; k++){ const x = rn(0, 14), y = rn(0, 14); put(x, y, pal[3]); put(x + 1, y, pal[2]); }
+ } else if(ground === '#'){
+  fill(.5, .78, .94);
+  for(let x = 0; x < N; x += rn(2, 4)){ const top = rn(0, 6), len = rn(5, 10); for(let y = top; y < Math.min(N, top + len); y++){ put(x, y, pal[0]); put(x + 1, y, y === top ? pal[3] : pal[2]); } }
+ } else if(ground === '*'){
+  fill(.55, .8, .95);
+  for(let k = 0; k < 6; k++){ const x = rn(0, 13), y = rn(0, 14); put(x, y, pal[0]); put(x + 1, y, pal[0]); put(x + 2, y + 1, pal[1]); }
+ } else { fill(.55, .8, .95); }
+ WILD_TEX_CACHE[key] = g; return g;
+}
+let WILD_TEX_SEQ = 0, WILD_TEX_USED = {};
+function wildTexSymbols(){
+ return Object.keys(WILD_TEX_USED).map(id=>{
+  const [t, v] = WILD_TEX_USED[id], g = wildTexGrid(t, v); let s = '';
+  for(let y = 0; y < 16; y++){ let x = 0; while(x < 16){ const c = g[y*16 + x]; let e = x + 1; while(e < 16 && g[y*16 + e] === c) e++; s += `<rect x="${x}" y="${y}" width="${e - x}" height="1" fill="${c}"/>`; x = e; } }
+  return `<symbol id="${id}" viewBox="0 0 16 16">${s}</symbol>`;
+ }).join('');
+}
+function wildTileSvg(t, c, r, x, y, S, bits, cur, ldir, ic){
+ const v = (c*7 + r*13 + c % 3) & 3, id = `wt${WILD_TEX_SEQ}_${t.charCodeAt(0)}_${v}`;
+ WILD_TEX_USED[id] = [t, v];
+ let s = `<use href="#${id}" x="${x}" y="${y}" width="${S}" height="${S}"/>`;
+ if(!(bits & 2)) s += `<rect x="${x}" y="${y}" width="${S}" height="${S}" fill="#000" opacity=".5"/>`;
+ if(ic) s += wildIconSvg(ic.kind, x, y, S, ic.faint);
+ if(cur){
+  const cx = x + S/2, cy = y + S/2;
+  if(ldir){
+   const a = Math.atan2(ldir[1], ldir[0]) * 180 / Math.PI;
+   s += `<g transform="translate(${cx} ${cy}) rotate(${a + 90})"><polygon points="0,-${S*.38} ${S*.3},${S*.1} ${S*.1},${S*.1} ${S*.1},${S*.34} -${S*.1},${S*.34} -${S*.1},${S*.1} -${S*.3},${S*.1}" fill="#d83a2a" stroke="#fff" stroke-width="1.2"/></g>`;
+  } else s += `<circle cx="${cx}" cy="${cy}" r="${S*.2}" fill="#d83a2a" stroke="#fff" stroke-width="1.2"/>`;
+ }
+ return s;
+}
+// mini=true：現在地を中心にした7×7。cur＝{col,row,lastDir}
+function wildChartTilesHtml(key, cells, cur, all, mini){
+ const map = WILD_MAPS[key];
+ if(!map) return '';
+ const northF = (6 - map.k + 8) % 8;
+ const target = northF % 2 === 0 ? 6 : 7;
+ const q = (((target - northF) / 2) % 4 + 4) % 4;
+ const northArrow = ['→','↘','↓','↙','←','↖','↑','↗'][(northF + 2*q) % 8];
+ const rot = (c, r)=>{ let x = c, y = r; for(let i = 0; i < q; i++){ const nx = -y, ny = x; x = nx; y = ny; } return [x, y]; };
+ let ld = null;
+ if(cur && cur.lastDir){ ld = cur.lastDir.slice(); for(let i = 0; i < q; i++) ld = [-ld[1], ld[0]]; }
+ const bitsOf = (c, r)=>{
+  if(all) { const o = map.objects[r][c]; return 3 | ((o && map.sites && map.sites[o]) ? 4 : 0); }
+  return (cells || {})[c + ',' + r] || 0;
+ };
+ const list = [];
+ for(let r = 0; r < map.h; r++) for(let c = 0; c < map.w; c++){ const b = bitsOf(c, r); if(b){ const pp = rot(c, r); list.push({x: pp[0], y: pp[1], c, r, bits: b}); } }
+ if(!list.length) return `<div style="color:#a89880">まだ何も記録されていない。</div>`;
+ const at = {}; list.forEach(o=>{ at[o.x + ',' + o.y] = o; });
+ const used = {};
+ WILD_TEX_SEQ++; WILD_TEX_USED = {};
+ let svg = '', W, H;
+ if(mini && cur){
+  const R = 3, S = 40, cp = rot(cur.col, cur.row);
+  W = H = (R*2 + 1) * S;
+  svg = `<rect width="${W}" height="${H}" fill="#000"/>`;
+  for(let Y = -R; Y <= R; Y++) for(let X = -R; X <= R; X++){
+   const o = at[(cp[0] + X) + ',' + (cp[1] + Y)];
+   if(!o) continue;
+   const t = map.terrain[o.r][o.c]; used[t === 'w' ? '.' : t] = 1;
+   svg += wildTileSvg(t, o.c, o.r, (X + R)*S, (Y + R)*S, S, o.bits, X === 0 && Y === 0, ld, wildCellIcon(map, o.c, o.r, o.bits));
+  }
+ } else {
+  const S = 32;
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  list.forEach(o=>{ x0 = Math.min(x0, o.x); x1 = Math.max(x1, o.x); y0 = Math.min(y0, o.y); y1 = Math.max(y1, o.y); });
+  W = (x1 - x0 + 1) * S; H = (y1 - y0 + 1) * S;
+  svg = `<rect width="${W}" height="${H}" fill="#000"/>`;
+  list.forEach(o=>{
+   const t = map.terrain[o.r][o.c]; used[t === 'w' ? '.' : t] = 1;
+   const isCur = cur && cur.col === o.c && cur.row === o.r;
+   svg += wildTileSvg(t, o.c, o.r, (o.x - x0)*S, (o.y - y0)*S, S, o.bits, isCur, ld, wildCellIcon(map, o.c, o.r, o.bits));
+  });
+ }
+ const legend = Object.keys(used).map(g=>{ const p = WILD_TEX_PAL[g === 't' ? '.' : g] || WILD_TEX_PAL['.']; return `<span style="white-space:nowrap"><i style="display:inline-block;width:12px;height:12px;vertical-align:-2px;margin-right:3px;border:1px solid #444;background:${p[1]}"></i>${WILD_TILE_NAME[g] || ''}</span>`; }).join('　');
+ return `<div style="text-align:center;color:#d8c8a0;margin-bottom:4px">${northArrow} 北</div>`
+  + `<div style="overflow:auto;max-height:60vh;text-align:center"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="max-width:100%;height:auto;shape-rendering:crispEdges;background:#000"><defs>${wildTexSymbols()}</defs>${svg}</svg></div>`
+  + `<div style="margin-top:8px;color:#a89880;font-size:calc(var(--font-sm) - 1px);line-height:1.8">${legend}${wildChartNames(map, key, list)}</div>`;
+}
+function wildChartHtml(key, cells, cur, all, mini){
+ return wildChartTilesHtml(key, cells, cur, all, mini);
+}
+function wildChartOpen(){
+ const w = PC._wild;
+ if(!w || document.getElementById('wild-chart-ov')) return;
+ const ov = document.createElement('div');
+ ov.id = 'wild-chart-ov';
+ ov.style.cssText = 'position:fixed;inset:0;background:#000b;z-index:9997;display:flex;align-items:center;justify-content:center;padding:16px';
+ let all = false, mini = true;
+ const draw = ()=>{
+  ov.innerHTML = `<div style="background:var(--info-bg);border:2px solid #686048;border-radius:6px;padding:14px;max-width:560px;width:100%;max-height:96vh;overflow:auto;color:#e8e0d0;font-size:var(--font-sm);line-height:1.6">
+   <div style="color:#f0ece0;margin-bottom:6px">${wildRouteLabel(w.key)}の地図</div>
+   ${wildChartHtml(w.key, wildChartGet(w.key), w, all, mini)}
+   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"><button class="wild-btn" id="wc-close">閉じる</button>
+   <button class="wild-btn" id="wc-mini">${mini ? '全体を見る' : '小地図に戻す'}</button>
+   ${BUILD_MODE === 'dev' ? `<button class="wild-btn" id="wc-all">［開発版］全体表示：${all ? 'オン' : 'オフ'}</button>` : ''}</div></div>`;
+  document.getElementById('wc-close').onclick = ()=>ov.remove();
+  const a = document.getElementById('wc-all'); if(a) a.onclick = ()=>{ all = !all; draw(); };
+  const m = document.getElementById('wc-mini'); if(m) m.onclick = ()=>{ mini = !mini; draw(); };
+ };
+ document.body.appendChild(ov);
+ draw();
 }
 
 function wildInstallNode(){
@@ -21707,8 +22357,7 @@ function wildTxt(){
  h += `<span style="color:${foodCol};font-size:calc(var(--font-sm) - 1px)">${food > 0 ? `食料：あと${food}日分` : '食料なし（飢えが続いている）'}</span>`
    + `<span style="color:#a89878;font-size:calc(var(--font-sm) - 1px)">　1マスは基本${wildStepDays(w)}日（地形で変わる）${(w_=>w_.over ? (w_.cold ? '（風邪で足取りが重い）' : '（重量オーバー）') : '')(checkPartyWeight())}</span>`;
  if(typeof BUILD_MODE !== 'undefined' && BUILD_MODE === 'dev'){
-  const rows = map.terrain.map((r,ri)=>r.split('').map((ch,ci)=>(ri === w.row && ci === w.col) ? '@' : (map.objects[ri][ci] !== '.' ? map.objects[ri][ci] : ch)).join(''));
-  h += `<pre style="margin-top:10px;color:#8898a8;font-size:calc(var(--font-sm) - 3px);line-height:1.15">【開発用】位置 列${w.col} 行${w.row - 5}　heading=${map.heading}\n${rows.join('\n')}</pre>`;
+  h += `<pre style="margin-top:10px;color:#8898a8;font-size:calc(var(--font-sm) - 3px);line-height:1.15">【開発用】位置 列${w.col} 行${w.row - 5}　heading=${map.heading}\n重量判定：PC ${calcTotalWeight(PC)}/${weightPossible(PC)}　over=${checkPartyWeight().over}　step=${wildStepDays(w)}日${(PC.party||[]).map(n=>`\n　${n.name} con=${n.con} ${calcTotalWeight(n)}/${weightPossible(n)}`).join('')}</pre>`;
  }
  return h;
 }
@@ -21738,6 +22387,7 @@ function wildChoices(){
  out.push(...hfort2WildChoices());
  out.push(...nergolWildChoices());
  if(muleHas() || porterHas()) out.push({label:' 荷を整理する（ラバ・人夫）', fn:()=>carrierPick(()=>go('WILDERNESS'))});
+ out.push({label:' 地図を見る', fn:()=>wildChartOpen()});
  return out;
 }
 
@@ -21747,6 +22397,8 @@ function wildBlockedWhy(ci){
  if(!w || !WILD_MAPS[w.key]) return '';
  const map = WILD_MAPS[w.key];
  const f = (ci - map.k + 8) % 8;
+ const _me = wildCell(map, w.col, w.row);
+ if(_me && _me.t === 'T') return '';   // 深い森の中では、まわりが見えない
  const c = wildCell(map, w.col + WILD_VEC[f][0], w.row + WILD_VEC[f][1]);
  if(!c) return '険しい';
  return c.def.block ? c.def.name : '';
@@ -21788,6 +22440,18 @@ const WILD_TERRAIN_REGION = {
  '*':'valdheim_region',
 };
 
+// 荒野の風景描写・遭遇の地方：地形ごとの地方（WILD_TERRAIN_REGION）を基本にするが、
+// その経路の両端の町の地方でなければ、近いほうの端の町の地方にする（ザハラ〜カザーヌ間でドラクリムの描写が出ないように）
+function wildRegionFor(key, terrain, col){
+ const reg = WILD_TERRAIN_REGION[terrain] || null;
+ if(!reg) return null;
+ const p = key.split('__');
+ const ra = getRegionKey(p[0]), rb = getRegionKey(p[1]);
+ if(reg === ra || reg === rb) return reg;
+ const m = WILD_MAPS[key];
+ return (m && col >= m.w / 2) ? rb : ra;
+}
+
 // 荒野モードでの移動：通常の旅の仕組み（advanceDaysAnimated）をそのまま使う。1マスぶんの進行バーを出す
 function wildRoadWalk(f, nc, nr, sd, slow){
  const w = PC._wild;
@@ -21812,6 +22476,7 @@ function wildRoadWalk(f, nc, nr, sd, slow){
  }
  advanceDaysAnimated(sd, ()=>{
   const _pc = w.col, _pr = w.row;   // 来たマス（城から追い出されたときに戻る）
+  w.lastDir = [WILD_VEC[f][0], WILD_VEC[f][1]];   // 直前に進んだ向き（地図の現在地の矢印）
   w.col = nc; w.row = nr; w.days += sd;
   wildMarkVisited();
   w.msg = `${sd}日かけて${where}を${WILD_COMPASS[ci]}へ進んだ。` + (slow > 1 ? `（${dest.def.name}のため進みが遅い）` : '');
@@ -21819,6 +22484,9 @@ function wildRoadWalk(f, nc, nr, sd, slow){
   // 野盗のキャンプのあるマスに着いたら、キャンプイベントを始める（6か月以内に潰したキャンプは出ない）
   const camp = wildCampAt(map, nc, nr);
   if(camp && wildCampActive(w.key, camp.letter)) wildCampBegin(camp);
+  // 住み着いたモンスターのいる場所に着いたら、住人のイベントを始める
+  const dwell = wildDwellAt(map, w.key, nc, nr);
+  if(dwell){ const dst = wildDwellState(w.key, dwell.letter, dwell.def); if(dst) wildDwellBegin(dwell, dst); }
   // NPCの城のあるマスに着いたら、領主の騎兵に追い出される
   const castle = wildCastleAt(map, nc, nr);
   if(castle) wildCastleBegin(castle, _pc, _pr);
@@ -21829,7 +22497,7 @@ function wildRoadWalk(f, nc, nr, sd, slow){
   ts.crossRegion = w.cross !== false;
   ts._wildStep = true;            // 最終日にも遭遇などの判定を行う（通常の旅の「到着日」の免除をしない）
   if(!onRoad){
-   ts._wildRegion = WILD_TERRAIN_REGION[dest.t] || null;  // 地形に応じた地方のエンカウントテーブル
+   ts._wildRegion = wildRegionFor(w.key, dest.t, nc);  // 地形に応じた地方のエンカウントテーブル・風景描写
    ts._wildCount9 = true;                                  // 敵は1〜9体
    ts._wildOff = true;                                     // 街道の外（道を含む文言・商人・NPC率の制御）
   }
@@ -22040,6 +22708,225 @@ function wildCampFight(camp, assault){
  });
 }
 
+// ── 住み着いたモンスター（荒野の場所）──────────────────────
+// 場所ごとに、住人の候補（ゴブリンの一党／エルダー・トロールの精鋭部隊）のどちらかが住み着く。最初に着いたとき決まり、倒すまで変わらない。
+// 倒した場所は6か月（180日）で、別の（または同じ）住人が住み着く。
+// 流れ：①気配を探る（運Lv3：成功＝気づかれない／失敗＝見つかる）→ ②襲撃／話しかける（その言葉が話せるとき）／立ち去る → ③戦闘 or 交渉（魅力Lv2、成功＝旅商人と同じ取引）→ ④戦利品
+const WILD_DWELL = {
+ 'al_rashid__port_argon:b': {kinds:['goblin','troll'], respawn:180, inn:1500},
+ 'khazan__yeldun:a': {kinds:['goblin','troll'], respawn:180, inn:1800},
+};
+const WILD_DWELL_SR = {attr:'lk', level:3};
+const WILD_DWELL_TALK_SR = {attr:'chr', level:2};
+function wildDwellAt(map, key, col, row){
+ const o = map.objects[row] && map.objects[row][col];
+ const d = o && WILD_DWELL[key + ':' + o];
+ return d ? {letter:o, def:d, site:map.sites[o]} : null;
+}
+// 住人の状態。倒して間もなければ null（誰もいない）。復活の時期なら新しく決める
+function wildDwellState(key, letter, def){
+ PC._wildDwell = PC._wildDwell || {};
+ const k = key + ':' + letter;
+ let st = PC._wildDwell[k];
+ if(st && st.clearedDay != null){
+  if(GAME_TIME.totalDays - st.clearedDay < def.respawn) return null;
+  st = null;
+ }
+ if(!st) st = PC._wildDwell[k] = {kind: def.kinds[Math.floor(Math.random()*def.kinds.length)], clearedDay: null};
+ return st;
+}
+function wildDwellBuildGoblins(){
+ const T = (arr, name)=>({...arr.find(x=>x.name === name)});
+ const sim = ()=>T(WEAPONS_TABLE, 'シミター');
+ const small = a=>armorsForRace(a, 'goblin');
+ const mk = (lv, name)=>{ const e = generateGoblinGuard(lv); e.name = name; e.level = lv; e.curCon = e.con; e.equippedRanged = null; e.arrows = 0; e.invWeapons = []; e.invArmors = []; return e; };
+ const gang = [];
+ // 族長：Lv5の戦士。シミター2本とスケイルアーマー
+ const chief = mk(5, 'ゴブリンの族長');
+ chief.equippedWeapons = [sim(), sim()];
+ chief.equippedArmors = small([T(ARMOR_TABLE_KHAZAN, 'スケイルアーマー')]);
+ gang.push(chief);
+ // 呪術師：Lv5の魔法使い。レベル5までの魔法。1〜2体
+ const nShaman = 1 + Math.floor(Math.random()*2);
+ for(let i = 0; i < nShaman; i++){
+  const e = mk(5, 'ゴブリンの呪術師');
+  e.type = 'wizard'; e.equippedWeapons = []; e.equippedArmors = [];
+  e.spells = _spellsUpToLevel(5);
+  gang.push(e);
+ }
+ // 戦士：Lv3〜5。シミター・革の鎧・バックラー。5〜8体
+ const nWar = 5 + Math.floor(Math.random()*4);
+ for(let i = 0; i < nWar; i++){
+  const e = mk(3 + Math.floor(Math.random()*3), 'ゴブリンの戦士');
+  e.equippedWeapons = [sim()];
+  e.equippedArmors = small([T(ARMOR_TABLE, '革製の鎧'), T(ARMOR_TABLE, 'バックラー')]);
+  gang.push(e);
+ }
+ return gang;
+}
+function wildDwellBuildTrolls(){
+ const n = 3 + Math.floor(Math.random()*3);   // 3〜5体
+ const gang = [];
+ for(let i = 0; i < n; i++){
+  const e = generateEliteMonster('troll', 15);
+  e.name = 'エルダー・トロールの精鋭';
+  e.curCon = e.con;
+  gang.push(e);
+ }
+ return gang;
+}
+const WILD_DWELL_KIND = {
+ goblin:{label:'ゴブリン', lang:'ゴブリン語', build:wildDwellBuildGoblins,
+  sign:'煙のにおいと、甲高い話し声が風に乗って届く。崩れかけた塔のまわりに、ゴブリンたちが住み着いているらしい。',
+  seen:'崩れかけた塔のまわりに、ゴブリンたちが見える。族長らしき大柄な個体と、骨の飾りをつけた呪術師、武器を手にした戦士たちが、焚き火を囲んでいる。',
+  found:'見張りのゴブリンが甲高い声を上げた。一党が武器を手に立ち上がる！',
+  talk:'ゴブリン語で呼びかけた。', win:'ゴブリンの一党を討ち果たした', ok:'族長が低く唸り、荷を広げるよう手下に命じた。', ng:'族長は鼻で笑い、手下たちに武器を取らせた。'},
+ troll:{label:'エルダー・トロール', lang:'トロール語', build:wildDwellBuildTrolls,
+  sign:'地面がかすかに揺れ、低い唸り声が聞こえる。塔の根元に、巨大な影がいくつもうずくまっている。',
+  seen:'塔の根元に、年輪のような傷跡を刻んだ巨体のトロールたちがうずくまっている。どれも並のトロールとは貫禄が違う。',
+  found:'巨大な影がゆっくりと顔を上げ、こちらを見据えた。精鋭たちが立ち上がる！',
+  talk:'トロール語で呼びかけた。', win:'エルダー・トロールの精鋭部隊を討ち果たした', ok:'一頭が地鳴りのような声で応じ、荷を地面に広げた。', ng:'先頭の一頭が牙をむき、咆哮を上げた。'},
+};
+function wildDwellStory(html, replace){ wildCampStory(html, replace); }
+function wildDwellBegin(d, st){
+ const info = WILD_DWELL_KIND[st.kind];
+ renderChoices([]);
+ wildDwellStory(`<div style="border-top:1px solid var(--panel2);margin-top:10px;padding-top:10px;color:#d8c8a0">${d.site.name}に近づくと、${info.sign}気配を探りながら、そっと近づいていく…</div>`);
+ scrollToTop();
+ const canTalk = (PC.languages || ['共通語']).includes(info.lang);
+ setupSavingRoll({
+  attr: WILD_DWELL_SR.attr, level: WILD_DWELL_SR.level,
+  label: `${info.label}の気配`,
+  onSuccess(){
+   document.getElementById('dice-area').classList.add('hidden');
+   wildDwellStory(`<br><span style="color:#f0ece0">${info.seen}</span><span style="color:#e8e4d8">向こうはこちらに気づいていない。</span>`);
+   const ch = [{label:` ${info.label}を襲撃する`, fn:()=>wildDwellFight(d, st)}];
+   if(canTalk) ch.push({label:` ${info.lang}で話しかける`, fn:()=>wildDwellTalk(d, st)});
+   ch.push({label:' 放っておく', fn:()=>{ const w = PC._wild; if(w) w.msg = `${d.site.name}には手を出さず、静かにその場を離れた。`; go('WILDERNESS'); }});
+   renderChoices(ch);
+  },
+  onFail(){
+   document.getElementById('dice-area').classList.add('hidden');
+   wildDwellStory(`<br><span style="color:#e0b0a0">${info.found}</span>`);
+   const ch = [];
+   if(canTalk) ch.push({label:` ${info.lang}で話しかける`, fn:()=>wildDwellTalk(d, st)});
+   ch.push({label:' 応戦する', fn:()=>wildDwellFight(d, st)});
+   renderChoices(ch);
+  },
+ });
+}
+// 交渉：魅力Lv2。成功すれば、旅の商人と同じ形で取引できる。失敗すれば戦闘になる
+function wildDwellTalk(d, st){
+ const info = WILD_DWELL_KIND[st.kind];
+ renderChoices([]);
+ wildDwellStory(`<br><span style="color:#c8b8a0">${info.talk}</span>`);
+ setupSavingRoll({
+  attr: WILD_DWELL_TALK_SR.attr, level: WILD_DWELL_TALK_SR.level,
+  label: `${info.label}との交渉`,
+  onSuccess(){
+   document.getElementById('dice-area').classList.add('hidden');
+   wildDwellStory(`<br><span style="color:#e8e4d8">${info.ok}</span>`);
+   window._wildDwellRumorLeft = WILD_DWELL_RUMOR_MAX;
+   wildDwellTrade(d, st);
+  },
+  onFail(){
+   document.getElementById('dice-area').classList.add('hidden');
+   wildDwellStory(`<br><span class="red">交渉決裂…${info.ng}</span>`);
+   renderChoices([{label:' 応戦する', fn:()=>wildDwellFight(d, st)}]);
+  },
+ });
+}
+const WILD_DWELL_RUMORS = {
+ goblin: [
+  '「この塔は、俺たちが来る前は人間の兵が詰めてた。ある晩、みんないなくなった。置いてった酒樽は、ありがたく頂いたがな」と、族長はにやりと笑った。',
+  '「人間は街道を石で固めて、見張りを立てて、それで安全だと思ってる。夜に荷馬車の後ろを歩いてみろ。落ちた荷が拾えるぞ」と、手下の一匹が甲高く笑った。',
+  '呪術師が骨の飾りを鳴らした。「ここは風がいい。煙を上げても、遠くまで見えにくい。前にいた連中は、それを知らなかった」',
+  '「人間は、俺たちを見ると剣を抜く。だが、銭を持ってくる人間は、ほんの少し違う顔をする。あの顔は嫌いじゃない」と、族長は銭を弾く真似をした。',
+  '「この塔は崩れかけだが、地下は意外と乾いてる。冬はいい寝床になる。だから手放さん」と、戦士のひとりが胸を張った。',
+  '「人間の旅人は、荷が重いと歩みが遅くなる。うまくできてるもんだ」と、手下たちがひそひそと笑い合った。',
+ ],
+ troll: [
+  '「ここは、昔、人間が建てた。石は固い。壁にもたれると、寝心地がいい」と、一頭が低く言った。それだけ言って、また目を閉じた。',
+  '「人間は、小さい。小さいのに、よく群れる。群れて、壁を作り、道を作る。我らは、一頭ずつで足りる」と、老いた一頭が唸った。',
+  '「この塔に来る前は、もっと北の岩場にいた。冬が長く、獲物が減った。それで、南へ下りてきた」と、年嵩のトロールは地面を見つめたまま語った。',
+  '「人間の隊商は、鉄と塩を運ぶ。鉄は硬く、塩は旨い。どちらも、我らの欲しいものだ」と、一頭が牙の間から息を吐いた。',
+  '「我らは、約束を忘れない。傷つけられたことも、そうでないことも」と、先頭の一頭がゆっくり告げた。',
+  '「塔の根元は、夜でも暖かい。石が昼の熱を溜めておく。人間の宿より、よほど良い」と、若い一頭が得意げに言い、年嵩に小突かれた。',
+ ],
+};
+const WILD_DWELL_RUMOR_MAX = 3;
+function wildDwellRumorLeft(){ return window._wildDwellRumorLeft == null ? 0 : window._wildDwellRumorLeft; }
+function wildDwellRumor(d, st){
+ const info = WILD_DWELL_KIND[st.kind];
+ const pool = WILD_DWELL_RUMORS[st.kind] || [];
+ if(!pool.length || wildDwellRumorLeft() <= 0){ wildDwellTrade(d, st); return; }
+ st._heard = st._heard || [];
+ let cand = pool.map((t,i)=>i).filter(i=>!st._heard.includes(i));
+ if(!cand.length){ st._heard = []; cand = pool.map((t,i)=>i); }
+ const i = cand[Math.floor(Math.random()*cand.length)];
+ st._heard.push(i);
+ window._wildDwellRumorLeft = wildDwellRumorLeft() - 1;
+ wildDwellStory(`<br><span style="color:#e8e4d8">${pool[i]}</span>`);
+ wildDwellTrade(d, st);
+}
+function wildDwellInnCost(d){ return (d && d.def && d.def.inn) || 0; }
+function wildDwellInn(d, st){
+ const info = WILD_DWELL_KIND[st.kind];
+ const cost = wildDwellInnCost(d);
+ if(totalCP() < cost){ wildDwellStory(`<br><span class="red">宿代が足りない。</span>`); return; }
+ renderChoices([]);
+ wildDwellStory(`<br><span style="color:#e8e4d8">${info.label}たちは、焚き火のそばの一角を顎で示した。銭を渡すと、夜明けまで手出しはしないという。</span>`);
+ innRest(cost, {after:()=>{
+  const w = PC._wild; if(w){ w.days += 1; w.msg = `${d.site.name}で一夜を明かした。`; }
+  go('WILDERNESS');
+ }});
+}
+function wildDwellTrade(d, st){
+ const info = WILD_DWELL_KIND[st.kind];
+ const back = ()=>wildDwellTrade(d, st);
+ renderChoices([
+  {label:` ${info.label}と取引する`, fn:()=>{
+   window._wildTradeBack = back;
+   window._settleShopStage = 0;
+   window._settleShopTitle = ` ${info.label}の荷`;
+   showIngameShop('__merchant__');
+  }},
+  ...(wildDwellRumorLeft() > 0 ? [{label:` ${info.label}の話を聞く`, fn:()=>wildDwellRumor(d, st)}] : []),
+ ...(wildDwellInnCost(d) ? [{label:` ${d.site.name}に泊めてもらう（${wildDwellInnCost(d)/100}GP・1日休む）`, fn:()=>wildDwellInn(d, st)}] : []),
+ {label:' 取引を終えて立ち去る', fn:()=>{ const w = PC._wild; if(w) w.msg = `${info.label}との取引を終え、${d.site.name}をあとにした。`; go('WILDERNESS'); }},
+ ]);
+}
+function wildDwellFight(d, st){
+ const info = WILD_DWELL_KIND[st.kind];
+ renderChoices([]);
+ scrollToTop();
+ const gang = info.build();
+ const w = PC._wild;
+ startCombatNPC({
+  enemies: gang,
+  canFlee: true,
+  fleeTo: 'WILDERNESS',
+  win: '__noop__', lose: 'DEAD',
+  onWin: ()=>{
+   if(w){ PC._wildDwell = PC._wildDwell || {}; const k = w.key + ':' + d.letter; PC._wildDwell[k] = {kind: st.kind, clearedDay: GAME_TIME.totalDays}; }
+   let gold = 0, sp = 0, cp = 0;
+   gang.forEach(e=>{ gold += (e.gold||0); sp += (e.sp||0); cp += (e.cp||0); });
+   const parts = [];
+   if(gold > 0){ gainGPAll(gold); parts.push(`${gold}GP`); }
+   if(sp > 0){ gainSPAll(sp); parts.push(`${sp}SP`); }
+   if(cp > 0){ gainCPAll(cp); parts.push(`${cp}CP`); }
+   const power = gang.reduce((t,e)=>t+((e.st||10)+(e.lk||10)+(e.dex||10)), 0);
+   const t1 = generateTreasure(power), t2 = generateTreasure(power);
+   updateHUD();
+   wildDwellStory(`<span style="color:#f0ece0">${info.win}</span><br><br>`
+    + `<span style="color:#e8e4d8">${d.site.name}を調べた。</span><br>`
+    + (parts.length ? `<span style="color:#e8e4d8">所持品：${parts.join('・')}</span><br>` : '')
+    + `<span style="color:#e8e4d8">住処の蓄え：${t1}／${t2}</span>`, true);
+   renderChoices([{label:'▶ OK', fn:()=>{ if(PC._wild) PC._wild.msg = ''; go('WILDERNESS'); }}]);
+  },
+ });
+}
+
 // 街道に戻って旅を再開する（街道の列の位置から、旅の進み具合を復元する）
 // 街道へ戻るとき、どちらの町へ向かうかを選ぶ
 function wildReturnAsk(){
@@ -22106,6 +22993,65 @@ function wildReturn(back){
   travelState.toId = toId;
  }
  travelLog(`<span style="color:#f0ece0">街道に戻り、旅を再開した。</span>`);
+}
+
+// ── 町から直接、荒野へ出る（旅に出るメニューの「荒野へ出る」）──
+// 荒野の地図の端になっている町から、その街道の町側の端に出て、そこから荒野へ踏み出せる。
+// 出たあとの扱い（街道に戻る・町に入る）は、旅の途中で荒野に降りたときと同じ。
+function wildTownKeys(townId){
+ return Object.keys(WILD_MAPS).filter(k=>{
+  const p = k.split('__');
+  if(p[0] !== townId && p[1] !== townId) return false;
+  // リリース版では、カザーヌ地方内の荒野への入口を出さない（旅の途中からの入口と同じ）
+  if(BUILD_MODE !== 'dev' && getRegionKey(p[0]) === 'khazan_region' && getRegionKey(p[1]) === 'khazan_region') return false;
+  return true;
+ });
+}
+function wildTownOpen(townId){
+ const tn = id=>(TOWNS[id] || {}).name || id;
+ if(PC._tutorial && PC._tutorial.step !== 'done'){ showSaveToast('今は荒野へ出られない'); return; }
+ if(typeof _getActiveCompanionDeliveryQuest === 'function' && _getActiveCompanionDeliveryQuest()){ showSaveToast('同行している依頼の最中は、荒野へ出られない'); return; }
+ if(PC._troupeContract){ showSaveToast('一座との護衛契約中は、荒野へ出られない'); return; }
+ if(typeof isGuardLockedOut === 'function' && isGuardLockedOut(townId)){ showSaveToast('衛兵に顔を見られた以上、正面から町を出るのは難しそうだ'); return; }
+ if(document.getElementById('wild-town-ask')) return;
+ const keys = wildTownKeys(townId).filter(k=>{
+  const other = k.split('__').find(x=>x !== townId);
+  return !(typeof isRouteWinterBlocked === 'function' && isRouteWinterBlocked(townId, other));
+ });
+ if(!keys.length){ showSaveToast(' 冬期のため、街道が雪で遮断されている'); return; }
+ const food = PC._food || 0;
+ let foodHtml = `食料：あと<b>${food}日分</b>`;
+ if(food <= 0) foodHtml = `<span style="color:#e08060">食料がありません。荒野に出れば、すぐに飢えが始まります。</span>`;
+ else if(food <= 10) foodHtml += `<br><span style="color:#e0c080">食料に余裕がありません。</span>`;
+ const near = (PC.quests||[]).filter(q=>q.status === 'active' && typeof q.deadlineDays === 'number')
+  .map(q=>({q, left: q.deadlineDays - (GAME_TIME.totalDays - q.issuedDay)}))
+  .filter(o=>o.left <= 30).sort((a,b)=>a.left - b.left);
+ const questHtml = near.length ? `<div style="margin-top:8px;color:#e0c080">期限が近い依頼：<br>` + near.map(o=>`・${wildQuestName(o.q)}（期限まであと${o.left}日）`).join('<br>') + `</div>` : '';
+ const ov = document.createElement('div');
+ ov.id = 'wild-town-ask';
+ ov.style.cssText = 'position:fixed;inset:0;background:#000a;z-index:9997;display:flex;align-items:center;justify-content:center;padding:16px';
+ const btns = keys.map((k,i)=>{
+  const other = k.split('__').find(x=>x !== townId);
+  return `<button class="wild-btn" data-i="${i}">${keys.length > 1 ? tn(other) + '方面の街道から荒野へ出る' : '荒野へ出る'}</button>`;
+ }).join('');
+ ov.innerHTML = `<div style="background:var(--info-bg);border:2px solid #686048;border-radius:6px;padding:16px;max-width:420px;width:100%;color:#e8e0d0;font-size:calc(var(--font-sm));line-height:1.7">
+  <div style="color:#f0ece0;font-size:calc(var(--font-sm) + 2px);margin-bottom:8px">荒野へ出ますか？</div>
+  <div>${tn(townId)}を発ち、街道を外れて荒野へ足を踏み入れます。地図はなく、1マスごとに日数がかかります。</div>
+  <div style="margin-top:8px">${foodHtml}</div>${questHtml}
+  <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">${btns}<button class="wild-btn" id="wta-cancel">やめる</button></div></div>`;
+ document.body.appendChild(ov);
+ const close = ()=>{ const o = document.getElementById('wild-town-ask'); if(o) o.remove(); };
+ ov.querySelectorAll('button[data-i]').forEach(b=>{ b.onclick = ()=>{ close(); wildBeginFromTown(townId, keys[+b.dataset.i]); }; });
+ document.getElementById('wta-cancel').onclick = close;
+}
+function wildBeginFromTown(townId, key){
+ const other = key.split('__').find(x=>x !== townId);
+ const r = getRoute(townId, other);
+ const total = Math.max(2, (r && r.days && r.days.walk) || 10);
+ const cross = getRegionKey(townId) !== getRegionKey(other);
+ wildBegin(townId, other, total, 0, 'walk', cross);
+ if(PC._wild) PC._wild.msg = `${(TOWNS[townId]||{}).name || townId}を発ち、街道から荒野へ足を踏み入れた。`;
+ go('WILDERNESS');
 }
 
 // 開発用：カザーヌ→ポートアルゴン（地方内・1マス1日）の旅の6日目から荒野に入る
@@ -22286,7 +23232,7 @@ const ARC_WITNESS_ROLE_GENS = {'生き残った御者':['adult','old'], '隊商�
 function arcWitnessGens(role){ return ARC_WITNESS_ROLE_GENS[role] || ['young','adult','old']; }
 
 const ARC_MAX_ACTIVE = 3;
-const ARC_RUMOR_CHANCE = 0.07;       // 酒場で客に話しかけたとき、噂が出る確率
+const ARC_RUMOR_CHANCE = 0.05;       // 酒場で客に話しかけたとき、噂が出る確率
 const ARC_RUMOR_GAP_DAYS = 20;       // 前回の発端から最低この日数は空ける
 const ARC_ENEMY_LV = [3, 5];
 // 続編の段ごとの敵レベル（段1＝前編、段2＝続編、段3＝終章）
@@ -22434,7 +23380,7 @@ function arcShowEpilogue(townId){
  if(e.saga) sagaClueHeard(e.saga);
  if(e.life) addLifeEvent('', e.life);
  const header = e.master
-  ? `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の主人</div>
+  ? `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> ${tavernKeeperLabel(townId)}</div>
   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">主人は、あなたの顔を見るなり、声を落とした。</div>`
   : `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の客</div>
   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">近くの席の客が、あの件について話している。</div>`;
@@ -25389,7 +26335,7 @@ function sagaClimaxLapse(s){
 const ARC_CHAIN_MAX_DEPTH = 3;
 const ARC_SEED_DELAY = [30, 90];      // 種ができてから、続編の噂が出るようになるまでの日数
 const ARC_SEED_KEEP_DAYS = 150;       // 噂が出るようになってから、種が失効するまでの日数
-const ARC_SEED_RUMOR_CHANCE = 0.25;   // 種がある地方の酒場での、噂の発生率（通常は ARC_RUMOR_CHANCE）
+const ARC_SEED_RUMOR_CHANCE = 0.2;   // 種がある地方の酒場での、噂の発生率（通常は ARC_RUMOR_CHANCE）
 const ARC_SEED_MAX = 6;
 const ARC_SEED_P_SUCCESS = 0.7, ARC_SEED_P_FAIL = 1.0;
 let ARC_SEED_FORCE = false;           // デバッグ用：確率を無視して必ず種を残す
@@ -27747,6 +28693,7 @@ function fcAskTavernExec(townId, npcId, backNode){
   return;
  }
  PC.gold -= FC_SEARCH_FEE_GP;
+ tavernDeed(townId);
  updateHUD();
  npc._searchedAt[townId] = now;
  fcEnsureWhereabouts(npc);
@@ -34832,9 +35779,11 @@ function _showTavernThanks(townId){
  updateHUD();
  const lines = TAVERN_THANKS_LINES[t.rumorId] || {};
  const text = lines[t.kind] || lines.solved || '「町の者たちからの礼だ、受け取ってくれ」';
- const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の主人</div>
+ tavernDeed(townId);
+ const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> ${tavernKeeperLabel(townId)}</div>
   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">主人が声をかけてきた。</div>`;
- const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>
+ const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid var(--border)">${text}</div>`
+  + tavernPredecessorHtml(townId) + `
   <div style="font-size:var(--font-sm);color:#ffcc88;line-height:1.8;margin-top:8px">町の人たちからのお礼として${amount}GPを受け取った。</div>`;
  _showPatronPanel(header + msgBox, ()=>{ updateHUD(); });
  return true;
@@ -34866,9 +35815,10 @@ function _showTavernRumor(townId){
  const def = TAVERN_RUMOR_LINES[n.rumorId];
  n.heardAtTavern = true;
  const district = _tavernRumorDistrict(townId, n.rumorId);
- const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> 酒場の主人</div>
+ tavernDeed(townId);
+ const header = `<div style="font-size:calc(var(--font-sm) + 1px);color:#f0ece0;margin-bottom:8px"> ${tavernKeeperLabel(townId)}</div>
   <div style="font-size:var(--font-sm);color:#c8b8a0;line-height:1.8;margin-bottom:10px">${def.intro}</div>`;
- const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${def.text}</div>`;
+ const msgBox = `<div style="font-size:var(--font-sm);color:#e0d8cc;line-height:1.8;padding:8px;background:#0a0804;border-radius:3px;border-left:2px solid #553300">${def.text}</div>` + tavernPredecessorHtml(townId);
  const btnStyle = 'display:block;width:100%;margin-top:8px;font-size:calc(var(--font-sm) - 1px);padding:10px;background:var(--panel);border:1px solid #a08848;color:#f0ece0;font-family:system-ui,sans-serif;cursor:pointer;border-radius:3px';
  const buttons = district
   ? `<button style="${btnStyle}" onclick="_tavernRumorGo('${townId}','${district}')"> 調べに行く（${TAVERN_DISTRICT_LABELS[district]||district}へ）</button>
@@ -40027,7 +40977,7 @@ const YD_STYLE_ATM = {
   '洞窟の壁に気泡の跡が無数に残っている。過去に水没していた際の痕跡で、その高さまで水があったことを示す。',
   '洞窟の天井から水晶が剥き出しになっている。無数の面が松明の光を乱反射し、まるで星空のようだ。',
   '洞窟の床が突然傾斜している。足を踏み外せば、暗闇の中を落ちていくことになる。',
-  '洞窟の奥から複数の声のような音が聞こえる。音が反響しているだけかもしれないが、確認する前に考えさせてくれ。',
+  '洞窟の奥から複数の声のような音が聞こえる。音が反響しているだけかもしれないが、確かめるまでは何とも言えない。',
   '洞窟の壁に化石が露出している。古代の生き物の形が石の中に残されており、この地の古さを物語っている。',
   '天井の亀裂から根が下りてきている。地上の植物がここまで根を伸ばしてきたもので、その生命力に驚かされる。',
   '洞窟の一角が完全に暗い。松明の光が届かないほど広い空間か、光を吸収する何かがあるのか。',
@@ -47542,17 +48492,72 @@ function ydInitDungeonForFief(){
 
 // 領地の砦跡へ出発する（townIdは免状の基点となった町＝現在地）
 // 町から領地へ向かう（免状の基点からの日数分、実際に旅をする）
-// 領地への旅：通常の町間移動と同じ画面（進捗バー・旅の情景・道中イベント）を経由する
-function _fiefTravelAnimated(townId, onArrive){
+
+// ── 領地の街道整備（馬車）：領民300人以上で投資すると、基点の町⇔領地に乗合馬車が通る ──
+const FIEF_COACH_MIN_POP = 300;
+const FIEF_COACH_INVEST_PER_DAY = 200;   // 徒歩1日あたり（GP）
+const FIEF_COACH_FARE_PER_DAY = 1.5;     // 徒歩1日あたり（GP）
+function fiefCoachAllowed(townId){
+ const rk = getRegionKey(townId);
+ return rk !== 'valdheim_region' && rk !== 'marea_region';   // 雪道・島では馬車を通せない
+}
+function fiefCoachDays(charter, townId){
+ const ratio = getRegionKey(townId) === 'draklim_region' ? 0.6 : 0.4;   // 山道は短縮が小さい
+ return Math.max(1, Math.ceil((charter?.anchorDays||0) * ratio));
+}
+function fiefCoachFare(charter){ return Math.round((charter?.anchorDays||0) * FIEF_COACH_FARE_PER_DAY); }
+function fiefCoachCost(charter){ return (charter?.anchorDays||0) * FIEF_COACH_INVEST_PER_DAY; }
+function showFiefRoadInvest(townId){
  const charter = getFiefCharterByAnchor(townId);
- const days = charter?.anchorDays || 0;
+ const prop = charter ? PC.properties?.[charter.fiefId] : null;
+ if(!charter || !prop) return;
+ const cost = fiefCoachCost(charter);
+ const enough = totalCP(PC) >= cost*100;
+ document.getElementById('story').innerHTML = ` <span style="color:#f0ece0">街道を整える</span><br><br>`
+  +`<span style="color:#c8b8a0">${TOWNS[townId]?.name||'町'}までの道に石を敷き、橋を架け、宿場を設ければ、乗合馬車が通るようになる。道が開ければ、人の出入りも増えるだろう。</span><br><br>`
+  +`<span style="color:#e0d8c8">費用は${cost}GP。一度整えれば、馬車はずっと通い続ける。</span>`
+  +`<br><span style="color:#c8b8a0">人が増えやすくなる一方で、災いのあとに出ていく人も、少し増えるかもしれない。</span>`
+  +(enough ? '' : `<br><br><span class="red">所持金が足りない。</span>`);
+ renderChoices([
+  ...(enough ? [{label:` 投資する（${cost}GP）`, fn:()=>{
+   if(totalCP(PC) < cost*100){ showSaveToast('所持金が足りない'); return; }
+   payPrice(cost, PC);
+   charter.coachRoad = true; prop.coachRoad = true;
+   updateHUD();
+   try{ addLifeEvent('', `${prop.fiefName||'領地'}と${TOWNS[townId]?.name||'町'}のあいだに街道を整え、乗合馬車を通した。`); }catch(e){}
+   showSaveToast(' 街道が整った。乗合馬車が通る');
+   try{ autoSave(); }catch(e){}
+   showFiefPlaza(townId);
+  }}] : []),
+  {label:'← 広場に戻る', fn:()=>showFiefPlaza(townId)},
+ ]);
+ scrollToTop();
+}
+// 乗合馬車で領地へ向かう（運賃はPCが片道1回分）
+function travelToFiefCoach(townId){
+ const charter = getFiefCharterByAnchor(townId);
+ if(!charter || !charter.coachRoad) return;
+ const fare = fiefCoachFare(charter);
+ if(totalCP(PC) < fare*100){ alert('所持金が足りない！'); return; }
+ payPrice(fare, PC); updateHUD();
+ _fiefTravelAnimated(townId, ()=>{
+  if(!charter.cleared) enterFiefClearing(townId);
+  else if(!charter.improved) showFiefImprove(townId);
+  else showFiefPlaza(townId);
+ }, 'coach');
+}
+// 領地への旅：通常の町間移動と同じ画面（進捗バー・旅の情景・道中イベント）を経由する
+function _fiefTravelAnimated(townId, onArrive, method){
+ const charter = getFiefCharterByAnchor(townId);
+ const coach = method === 'coach' && charter?.coachRoad;
+ const days = coach ? fiefCoachDays(charter, townId) : (charter?.anchorDays || 0);
  const from = TOWNS[townId] || {name:townId};
  const fiefLabel = (charter && PC.properties?.[charter.fiefId]?.fiefName) || '領地';
 
  if(days <= 0){ onArrive(); return; }
 
  drawScene('travel');
- showTravelImage('walk', townId, townId); // 目的地は実在の町ではないため、出発地の地方の雰囲気を流用する
+ showTravelImage(coach ? 'coach' : 'walk', townId, townId); // 目的地は実在の町ではないため、出発地の地方の雰囲気を流用する
  const storyEl = document.getElementById('story');
  if(storyEl) storyEl.innerHTML = '';
  const tpw = document.getElementById('travel-progress-wrap');
@@ -47562,13 +48567,13 @@ function _fiefTravelAnimated(townId, onArrive){
   document.getElementById('travel-progress-dot').style.left = '0%';
   document.getElementById('travel-latest').textContent = '';
   document.getElementById('travel-progress-label').innerHTML =
-   ` 徒歩　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${fiefLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+   ` ${coach?'乗合馬車':'徒歩'}　<span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${fiefLabel}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
  }
  renderChoices([]);
 
  advanceDaysAnimated(days, onArrive);
- if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; travelState.destLabel = fiefLabel; }
- travelLog(`<span style="color:#b8a890">徒歩で <span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${fiefLabel}</span> へ出発。所要: ${days}日　費用: 0GP</span>`);
+ if(travelState){ travelState.method = coach ? 'coach' : 'walk'; travelState.crossRegion = false; travelState.destLabel = fiefLabel; }
+ travelLog(`<span style="color:#b8a890">${coach?'乗合馬車で':'徒歩で'} <span style="color:#f0ece0">${from.name}</span> → <span style="color:#f0ece0">${fiefLabel}</span> へ出発。所要: ${days}日　費用: ${coach ? fiefCoachFare(charter) : 0}GP</span>`);
 }
 
 function travelToFief(townId){
@@ -47618,7 +48623,9 @@ function showFiefPlaza(townId){
  renderChoices([
   {label:' 拠点を確認する', fn:()=>goPropertyNode(fiefId)},
   ...(built.length ? [{label:' 施設を見る', fn:()=>showFiefFacilityList(townId, fiefId)}] : []),
-  {label:'← 町へ戻る', fn:()=>travelBackFromFief(townId)},
+  ...((charter && !charter.coachRoad && (prop?.population||0) >= FIEF_COACH_MIN_POP && fiefCoachAllowed(townId)) ? [{label:' 街道を整える（馬車を通す）', fn:()=>showFiefRoadInvest(townId)}] : []),
+  ...((charter && charter.coachRoad) ? [{label:`← 町へ戻る（乗合馬車・${fiefCoachDays(charter, townId)}日・${fiefCoachFare(charter)}GP）`, fn:()=>travelBackFromFief(townId, 'coach')}] : []),
+  {label:(charter && charter.coachRoad) ? '← 町へ戻る（徒歩）' : '← 町へ戻る', fn:()=>travelBackFromFief(townId)},
  ]);
  scrollToTop();
 }
@@ -47677,6 +48684,12 @@ const FIEF_FACILITY_POP_FLAVOR = {
   '寺院には数人の領民が集まり、それぞれの祈りを捧げている。',
   '寺院は大勢の領民で埋め尽くされ、祈りの声が堂内に満ちている。',
  ],
+ smithy: [
+  '炉は冷え、金床の上には埃が積もっている。',
+  '炉の前で、鍛冶師が一人、黙々と槌を振るっている。',
+  '鍛冶場には数人の領民が出入りし、鍬や蹄鉄の修繕を頼んでいる。',
+  '鍛冶場は槌の音と火花に満ち、注文の品を待つ領民で賑わっている。',
+ ],
  market: [
   '市場には商人の姿も客の姿もなく、閑散としている。',
   '市場の一角に、一人の行商人が退屈そうに品物を並べている。',
@@ -47691,8 +48704,333 @@ function _fiefFacilityPopFlavor(facilityId, population){
  return arr[tier];
 }
 
+
+// ══════════════════════════════════════════
+// 領地の鍛冶屋：雇える鍛冶師（格1〜3）。製造・販売・武器の鍛錬と、魔法のダイス追加
+// 預かり制の仕事（通常武器の製造・鍛錬+7以降・ダイス追加）は一度に1本のみ。破損の判定は受け取るとき
+// ══════════════════════════════════════════
+const SMITHY_TIERS = {
+ 1:{label:'村の鍛冶師', salary:0, minPop:0, looks:['煤で黒くなった腕の、口数の少ない人だ。','鍬や蹄鉄ばかり打ってきた、節くれだった手をしている。','日焼けした顔に、小さな火傷の跡がいくつも残っている。']},
+ 2:{label:'腕利きの鍛冶師', salary:10, minPop:200, looks:['槌の握りに目を落としたまま話す、落ち着いた人だ。','腕は太く、炉の火加減を見る目が鋭い。','道具はどれも手入れが行き届き、無駄がない。']},
+ 3:{label:'名工', salary:50, minPop:500, looks:['炉の火のような静かな眼差しで、こちらの武器を一目見て黙り込んだ。','古い刃物の傷跡を見ただけで、打った者の癖を言い当てそうな人だ。','槌を置く所作ひとつにも、長年の積み重ねがにじんでいる。']},
+};
+const SMITHY_NAMES = ['ボルグ','ハンナ','ガルド','ミルダ','トーレ','ヨルン','ベルタ','オルガ','ドルフ','カイラ','ブラン','セルマ','ラグナ','ヘイル','コルム','リーナ','グンナ','アルヴ','サーシャ','ディルク'];
+const SMITHY_MAKE_DAYS = 14;
+const SMITHY_RISK = 0.15;
+const SMITHY_FORGE_COSTS = [100,200,400,800,1600,3200,6400,12800,25600,51200];   // 鍛錬+1〜+10（GP）
+const SMITHY_FORGE_DAYS = {7:30, 8:60, 9:90, 10:180};                             // +7以降は預かり制（日）
+const SMITHY_DICE_COSTS = [5000,10000,20000,40000,80000];                         // ダイス追加1〜5つ目（GP）
+const SMITHY_DICE_DAYS = [30,60,90,180,360];
+const _SMITHY_W_CACHE = {};
+function smithyWeaponTable(tier){
+ if(_SMITHY_W_CACHE[tier]) return _SMITHY_W_CACHE[tier];
+ let t;
+ if(tier >= 3){
+  const seen = new Set(); t = [];
+  [...WEAPONS_TABLE_KHAZAN, ...WEAPONS_TABLE, ...WEAPONS_TABLE_ELSIA, ...WEAPONS_TABLE_AL_RASHID, ...WEAPONS_TABLE_YELDUN, ...WEAPONS_TABLE_VALDHEIM, ...WEAPONS_TABLE_NERIA].forEach(w=>{ if(!seen.has(w.name)){ seen.add(w.name); t.push(w); } });
+ } else if(tier === 2){ t = WEAPONS_TABLE_KHAZAN; }
+ else { t = WEAPONS_TABLE; }
+ return _SMITHY_W_CACHE[tier] = t;
+}
+function smithyArmorTable(tier){ return tier >= 2 ? ARMOR_TABLE_KHAZAN : ARMOR_TABLE; }
+function _smithyAllWeaponNames(){
+ return new Set([...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].map(w=>w.name));
+}
+function smithyForgeable(w){
+ if(!w || w._isMagic || w.isWizardStaff) return false;
+ return _smithyAllWeaponNames().has(w._baseName || w.name);
+}
+function smithyNewSmith(tier){
+ const t = SMITHY_TIERS[tier];
+ return { tier, name: SMITHY_NAMES[Math.floor(Math.random()*SMITHY_NAMES.length)], look: t.looks[Math.floor(Math.random()*t.looks.length)], paidKey: _fiefMonthKey(GAME_TIME.totalDays) };
+}
+function smithyTitle(sm){ return `${SMITHY_TIERS[sm.tier].label}の${sm.name}`; }
+function smithyDaysText(d){ return d >= 30 ? `${Math.ceil(d/30)}か月` : `${d}日`; }
+function _smSign(n){ return n>=0 ? '+'+n : String(n); }
+// 受け取った武器を持ち主に返す（持ち主が仲間で、すでにいなければPCの持ち物へ）
+function smithyGiveWeapon(ownerKey, w){
+ const member = ownerKey !== 'PC' ? (PC.party||[]).find(n=>n.name===ownerKey && n.con>0) : null;
+ const target = member || PC;
+ target.invWeapons = target.invWeapons || [];
+ target.invWeapons.push(w);
+ return { name: target.name, isPC: target===PC, fallback: ownerKey !== 'PC' && !member };
+}
+// 鍛冶師が去る：作業中の武器は強化前の状態で返す（前払いは返さない）
+function smithyLeave(prop){
+ let msg = '';
+ const job = prop.smithJob;
+ if(job){
+  if(job.kind === 'make'){
+   msg = `<br>注文していた${job.item.name}は、仕上がらないまま終わった。前払いの代金は戻らない。`;
+  } else {
+   const r = smithyGiveWeapon(job.owner, job.weapon);
+   msg = `<br>預けていた${job.weapon.name}は、手を加えられる前の姿で${(r.fallback||r.isPC) ? 'あなたの手に' : r.name+'の手に'}戻された。`;
+  }
+  prop.smithJob = null;
+ }
+ return msg;
+}
+// 月給を払う（保管庫から）。払えなければ鍛冶師は出ていき、村の鍛冶師が炉に入る
+function smithyPaySalary(prop){
+ const sm = prop.smith;
+ if(!sm) return '';
+ const now = _fiefMonthKey(GAME_TIME.totalDays);
+ if(sm.paidKey == null){ sm.paidKey = now; return ''; }
+ let msg = '';
+ prop.storage = prop.storage || { gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 };
+ while(sm.paidKey < now){
+  sm.paidKey++;
+  const sal = SMITHY_TIERS[sm.tier].salary;
+  if(sal <= 0) continue;
+  if((prop.storage.gold||0) >= sal){ prop.storage.gold -= sal; continue; }
+  const old = smithyTitle(sm);
+  msg += `<span class="red">月給が払われず、${old}は荷をまとめて出ていった。</span>` + smithyLeave(prop);
+  prop.smith = smithyNewSmith(1);
+  msg += `<br><span style="color:#c8b8a0">空いた炉には、${smithyTitle(prop.smith)}が入った。</span>`;
+  break;
+ }
+ return msg ? `<div style="border:1px solid var(--border2);border-radius:4px;padding:8px;margin-top:8px">${msg}</div>` : '';
+}
+function showSmithy(fiefId){
+ const prop = PC.properties?.[fiefId];
+ if(!prop){ go('WILDERNESS'); return; }
+ window._smFief = fiefId;
+ prop.storage = prop.storage || { gold:0, sp:0, cp:0, weapons:[], armors:[], jewels:[], torches:0 };
+ let taxHtml = '';
+ try{ taxHtml = _applyFiefMonthlyTax(prop) || ''; }catch(e){}
+ // 留守番の遠征の帰還（収入が保管庫に入る）を月給の精算より先に済ませる
+ try{ const _ex = _checkExpeditionReturn(fiefId); if(_ex) taxHtml += _ex; }catch(e){}
+ if(!prop.smith) prop.smith = smithyNewSmith(1);
+ const payHtml = smithyPaySalary(prop);
+ const sm = prop.smith;
+ const tier = sm.tier;
+ const job = prop.smithJob;
+ const story = document.getElementById('story');
+ let jobHtml = '';
+ let ready = false;
+ if(job){
+  const left = job.doneDay - GAME_TIME.totalDays;
+  if(left <= 0){ ready = true; jobHtml = `<br><br><span style="color:#e8e4d8">${job.label}は、すでに仕上がっている。</span>`; }
+  else jobHtml = `<br><br><span style="color:#c8b8a0">${job.label}を預かっている。仕上がりまで、${smithyDaysText(left)}ほどかかる。</span>`;
+ }
+ const popFlavor = _fiefFacilityPopFlavor('smithy', prop.population||0);
+ story.innerHTML = ` <span style="color:#f0ece0">鍛冶屋</span><br><br>`
+  +`<span style="color:#c8b8a0">${FIEF_FACILITIES.find(x=>x.id==='smithy').desc}</span>`
+  +(popFlavor ? `<br><span style="color:#b8a888">${popFlavor}</span>` : '')
+  +`<br><br><span style="color:#e0d8c8">${smithyTitle(sm)}が、炉の前に立っている。${sm.look}</span>`
+  +jobHtml + payHtml + taxHtml;
+ const ch = [];
+ if(ready) ch.push({label:' 預けた品を受け取る', fn:()=>smithyCollect(fiefId)});
+ ch.push({label:' 武器・防具を買う', fn:()=>smithyOpenShop(fiefId)});
+ if(!job) ch.push({label:' 武器を打ってもらう（注文）', fn:()=>smithyOrderMenu(fiefId)});
+ if(tier >= 2 && !job) ch.push({label:' 武器を鍛えてもらう', fn:()=>smithyForgeList(fiefId)});
+ ch.push({label:' 鍛冶師を雇う・替える', fn:()=>smithyHireMenu(fiefId)});
+ ch.push({label:'← 施設一覧に戻る', fn:()=>{ const charter = getFiefCharter(fiefId); showFiefFacilityList(charter?.anchorTownId, fiefId); }});
+ renderChoices(ch);
+ scrollToTop();
+}
+function smithyOpenShop(fiefId){
+ const prop = PC.properties?.[fiefId]; if(!prop || !prop.smith) return;
+ const sm = prop.smith;
+ window._fiefShopFiefId = fiefId; window._fiefShopFacility = 'smithy';
+ window._smithyTier = sm.tier;
+ window._settleShopStage = sm.tier === 1 ? 1 : 0;
+ window._settleShopTitle = ' ' + (prop.fiefName || '領地') + 'の鍛冶屋（' + SMITHY_TIERS[sm.tier].label + '）';
+ showIngameShop('__merchant__');
+}
+function smithyHireMenu(fiefId){
+ const prop = PC.properties?.[fiefId]; if(!prop) return;
+ const sm = prop.smith;
+ const pop = prop.population || 0;
+ const story = document.getElementById('story');
+ let html = ` <span style="color:#f0ece0">鍛冶師を雇う</span><br><br>`
+  +`<span style="color:#c8b8a0">いまは${smithyTitle(sm)}が炉を預かっている。</span><br>`
+  +`<span style="color:#c8b8a0">月給は、領地の保管庫から支払われる。払えなくなれば、鍛冶師は出ていく。</span>`;
+ const ch = [];
+ if(prop.smithJob){
+  html += `<br><br><span style="color:#e0c0a0">預けている品があるあいだは、鍛冶師を替えられない。</span>`;
+ } else {
+  [1,2,3].forEach(t=>{
+   if(t === sm.tier) return;
+   const d = SMITHY_TIERS[t];
+   if(pop < d.minPop){ html += `<br><br><span style="color:#a89880">${d.label}を雇うには、領民が${d.minPop}人以上いなければならない。</span>`; return; }
+   ch.push({label:` ${d.label}を雇う（月給${d.salary}GP）`, fn:()=>{
+    prop.smith = smithyNewSmith(t);
+    showSaveToast(` ${smithyTitle(prop.smith)}を雇った`);
+    showSmithy(fiefId);
+   }});
+  });
+ }
+ story.innerHTML = html;
+ ch.push({label:'← 鍛冶屋に戻る', fn:()=>showSmithy(fiefId)});
+ renderChoices(ch);
+ scrollToTop();
+}
+function smithyOrderMenu(fiefId){
+ const prop = PC.properties?.[fiefId]; if(!prop || !prop.smith) return;
+ const sm = prop.smith;
+ const tbl = smithyWeaponTable(sm.tier).filter(w=>!w.wizard);
+ document.getElementById('story').innerHTML = ` <span style="color:#f0ece0">武器を打ってもらう</span><br><br>`
+  +`<span style="color:#c8b8a0">打ち上がるまで、二週間はかかる。代金は前払いで、出来上がりは領地に来たときに受け取る。</span>`;
+ const ch = tbl.map((it, i)=>({label:` ${it.name}（${it.dice}D${_smSign(it.adds)}・${it.cost}GP）`, fn:()=>smithyOrderConfirm(fiefId, it.name)}));
+ ch.push({label:'← 鍛冶屋に戻る', fn:()=>showSmithy(fiefId)});
+ renderChoices(ch);
+ scrollToTop();
+}
+function smithyOrderConfirm(fiefId, itemName){
+ const prop = PC.properties?.[fiefId]; if(!prop || !prop.smith) return;
+ if(prop.smithJob){ showSmithy(fiefId); return; }
+ const it = smithyWeaponTable(prop.smith.tier).find(w=>w.name===itemName);
+ if(!it){ showSmithy(fiefId); return; }
+ const enough = totalCP(PC) >= it.cost*100;
+ document.getElementById('story').innerHTML = ` <span style="color:#f0ece0">注文</span><br><br>`
+  +`<span style="color:#e0d8c8">${it.name}（${it.dice}D${_smSign(it.adds)}）を、${it.cost}GPで打たせる。二週間後に仕上がる。</span>`
+  +(enough ? '' : `<br><span class="red">所持金が足りない。</span>`);
+ renderChoices([
+  ...(enough ? [{label:` 注文する（${it.cost}GP）`, fn:()=>{
+   if(totalCP(PC) < it.cost*100){ showSaveToast('所持金が足りない'); return; }
+   payPrice(it.cost, PC);
+   prop.smithJob = { kind:'make', owner:'PC', item:{...it}, label:`注文の${it.name}`, doneDay: GAME_TIME.totalDays + SMITHY_MAKE_DAYS };
+   updateHUD();
+   showSaveToast(` ${it.name}を注文した`);
+   try{ autoSave(); }catch(e){}
+   showSmithy(fiefId);
+  }}] : []),
+  {label:'← 注文に戻る', fn:()=>smithyOrderMenu(fiefId)},
+ ]);
+}
+function _smithyOwners(){
+ return [{key:'PC', actor:PC, name:PC.name}, ...(PC.party||[]).filter(n=>n.con>0).map(n=>({key:n.name, actor:n, name:n.name}))];
+}
+function smithyForgeList(fiefId){
+ const prop = PC.properties?.[fiefId]; if(!prop || !prop.smith) return;
+ const items = [];
+ _smithyOwners().forEach(o=>(o.actor.invWeapons||[]).forEach(w=>{ if(smithyForgeable(w)) items.push({o, w}); }));
+ document.getElementById('story').innerHTML = ` <span style="color:#f0ece0">武器を鍛えてもらう</span><br><br>`
+  +(items.length ? `<span style="color:#c8b8a0">どの武器を見てもらう？</span>` : `<span style="color:#c8b8a0">鍛えられる武器が手元にない。魔法の武器や宝石付きの武器は、鍛えられない。</span>`);
+ const ch = items.map(({o,w})=>({label:` ${o.name}：${w.name}（${w.dice}D${_smSign(w.adds)}）`, fn:()=>smithyForgeWeapon(fiefId, o.key, w)}));
+ ch.push({label:'← 鍛冶屋に戻る', fn:()=>showSmithy(fiefId)});
+ renderChoices(ch);
+ scrollToTop();
+}
+function _smithyFindOwner(key){ return _smithyOwners().find(o=>o.key===key); }
+function smithyForgeWeapon(fiefId, ownerKey, w){
+ const prop = PC.properties?.[fiefId]; if(!prop || !prop.smith) return;
+ if(prop.smithJob){ showSmithy(fiefId); return; }
+ const o = _smithyFindOwner(ownerKey);
+ if(!o || !(o.actor.invWeapons||[]).includes(w)){ smithyForgeList(fiefId); return; }
+ const tier = prop.smith.tier;
+ const level = _getForgeLevel(w);
+ const nDice = w._smDice || 0;
+ const equipped = (o.actor.equippedWeapons||[]).some(e=>e===w || e.name===w.name);
+ let html = ` <span style="color:#f0ece0">${o.name}の${w.name}</span><br><br>`
+  +`<span style="color:#e0d8c8">${w.dice}D${_smSign(w.adds)}</span>`;
+ const ch = [];
+ if(level >= 10){
+  html += `<br><br><span style="color:#c8b8a0">鍛冶師は刃をためつすがめつして、首を振った。「これ以上、鍛えようがない」</span>`;
+ } else {
+  const cost = SMITHY_FORGE_COSTS[level];
+  if(level < 6){
+   const can = totalCP(PC) >= cost*100;
+   if(!can) html += `<br><br><span style="color:#c8b8a0">次の鍛錬には、${cost}GPが要る。</span>`;
+   if(can) ch.push({label:` 鍛錬を頼む（${cost}GP・その場で仕上がる）`, fn:()=>{
+    if(totalCP(PC) < cost*100){ showSaveToast('所持金が足りない'); return; }
+    payPrice(cost, PC);
+    if(w._baseAdds == null) w._baseAdds = w.adds;
+    w.adds += 1;
+    updateHUD();
+    showSaveToast(` 鍛錬完了！${w.name} → ${w.dice}D${_smSign(w.adds)}`);
+    smithyForgeWeapon(fiefId, ownerKey, w);
+   }});
+  } else {
+   const days = SMITHY_FORGE_DAYS[level+1];
+   ch.push({label:` 魔法の鍛錬を頼む（${cost}GP・${smithyDaysText(days)}預ける）`, fn:()=>smithyDepositConfirm(fiefId, ownerKey, w, 'adds')});
+  }
+ }
+ if(tier >= 3){
+  if(nDice >= 5){
+   html += `<br><br><span style="color:#c8b8a0">この刃には、これ以上の力は込められない。</span>`;
+  } else {
+   const cost = SMITHY_DICE_COSTS[nDice], days = SMITHY_DICE_DAYS[nDice];
+   ch.push({label:` 魔法で刃に力を込める（${cost}GP・${smithyDaysText(days)}預ける）`, fn:()=>smithyDepositConfirm(fiefId, ownerKey, w, 'dice')});
+  }
+ }
+ if(equipped) html += `<br><br><span style="color:#e0c0a0">この武器は装備している。魔法の仕事は、装備から外して預けなければならない。</span>`;
+ document.getElementById('story').innerHTML = html;
+ ch.push({label:'← 武器の選び直し', fn:()=>smithyForgeList(fiefId)});
+ renderChoices(ch);
+ scrollToTop();
+}
+function smithyDepositConfirm(fiefId, ownerKey, w, kind){
+ const prop = PC.properties?.[fiefId]; if(!prop || !prop.smith) return;
+ const o = _smithyFindOwner(ownerKey);
+ if(!o || !(o.actor.invWeapons||[]).includes(w)){ smithyForgeList(fiefId); return; }
+ const equipped = (o.actor.equippedWeapons||[]).some(e=>e===w || e.name===w.name);
+ let cost, days, what;
+ if(kind === 'dice'){ const n = w._smDice||0; cost = SMITHY_DICE_COSTS[n]; days = SMITHY_DICE_DAYS[n]; what = '刃に魔法で力を込める'; }
+ else { const lv = _getForgeLevel(w); cost = SMITHY_FORGE_COSTS[lv]; days = SMITHY_FORGE_DAYS[lv+1]; what = '魔法を使って鍛え上げる'; }
+ const enough = totalCP(PC) >= cost*100;
+ document.getElementById('story').innerHTML = ` <span style="color:#f0ece0">魔法の仕事</span><br><br>`
+  +`<span style="color:#e0d8c8">${o.name}の${w.name}を、預けて${what}。代金は${cost}GP（前払い）、仕上がりまで${smithyDaysText(days)}かかる。</span><br><br>`
+  +`<span style="color:#e0c0a0">「魔法の工程だ。刃が力に耐えきれず、砕けてしまう恐れもある。砕けた刃は、元には戻らない」と、鍛冶師は告げた。</span>`
+  +(equipped ? `<br><br><span class="red">装備を外さなければ、預けられない。</span>` : '')
+  +(enough ? '' : `<br><br><span class="red">所持金が足りない。</span>`);
+ const ch = [];
+ if(!equipped && enough) ch.push({label:` 預けて頼む（${cost}GP）`, fn:()=>{
+  if(totalCP(PC) < cost*100){ showSaveToast('所持金が足りない'); return; }
+  const idx = (o.actor.invWeapons||[]).indexOf(w);
+  if(idx < 0 || prop.smithJob) { showSmithy(fiefId); return; }
+  payPrice(cost, PC);
+  o.actor.invWeapons.splice(idx, 1);
+  prop.smithJob = { kind, owner:ownerKey, weapon:w, costGP:cost, label:`${o.name}の${w.name}`, doneDay: GAME_TIME.totalDays + days };
+  updateHUD();
+  try{ checkWeightPenalty(o.actor); }catch(e){}
+  showSaveToast(` ${w.name}を預けた`);
+  try{ autoSave(); }catch(e){}
+  showSmithy(fiefId);
+ }});
+ ch.push({label:'← やめる', fn:()=>smithyForgeWeapon(fiefId, ownerKey, w)});
+ renderChoices(ch);
+ scrollToTop();
+}
+function smithyCollect(fiefId){
+ const prop = PC.properties?.[fiefId]; if(!prop) return;
+ const job = prop.smithJob;
+ if(!job || GAME_TIME.totalDays < job.doneDay){ showSmithy(fiefId); return; }
+ let html = '';
+ if(job.kind === 'make'){
+  const it = job.item;
+  const w = {name:it.name,dice:it.dice,adds:it.adds,twoHand:it.twoHand,stReq:it.stReq||0,dexReq:it.dexReq||0,weight:it.weight||0,...(it._masterpiece?{_masterpiece:true}:{}),...(it.isRanged?{isRanged:true}:{}),...(it.rangedOk?{rangedOk:true}:{}),...(it.isWizardStaff?{isWizardStaff:true}:{})};
+  smithyGiveWeapon('PC', w);
+  html = `<span style="color:#e8e4d8">注文の${it.name}が打ち上がった。鍛冶師は、冷めきった刃を差し出した。</span>`;
+ } else {
+  const w = job.weapon;
+  if(Math.random() < SMITHY_RISK){
+   html = `<span class="red">鍛冶師は、無言で布の包みを差し出した。中には、砕けた${w.name}の欠片が入っていた。魔法の力に、刃が耐えきれなかったのだ。</span>`;
+  } else {
+   if(job.kind === 'dice'){
+    w.dice += 1; w._smDice = (w._smDice||0) + 1; w._smDiceCostGP = (w._smDiceCostGP||0) + (job.costGP||0);
+    html = `<span style="color:#e8e4d8">${w.name}は、うっすらと魔力の光をまとって戻ってきた。刃は以前より重く、鋭い。（${w.dice}D${_smSign(w.adds)}）</span>`;
+   } else {
+    if(w._baseAdds == null) w._baseAdds = w.adds;
+    w.adds += 1;
+    html = `<span style="color:#e8e4d8">${w.name}は、魔法の火で鍛え直されて戻ってきた。手に馴染み、切れ味が増している。（${w.dice}D${_smSign(w.adds)}）</span>`;
+   }
+   const r = smithyGiveWeapon(job.owner, w);
+   html += `<br><span style="color:#c8b8a0">${r.fallback ? '持ち主はもういないので、あなたの手に戻った。' : r.isPC ? 'あなたの手に戻った。' : r.name+'の手に戻った。'}</span>`;
+  }
+ }
+ prop.smithJob = null;
+ updateHUD();
+ try{ autoSave(); }catch(e){}
+ document.getElementById('story').innerHTML = ` <span style="color:#f0ece0">鍛冶屋</span><br><br>${html}`;
+ renderChoices([{label:'← 鍛冶屋に戻る', fn:()=>showSmithy(fiefId)}]);
+ scrollToTop();
+}
+
 // 領地の市場の装備屋：集落の店と同じ仕組み（旅商人の品揃え）。領民が多いほど品揃えが良い
 function fiefOpenShop(fiefId){
+ window._fiefShopFacility = 'market'; window._smithyTier = null;
  const pop = (PC.properties?.[fiefId]?.population) || 0;
  window._fiefShopFiefId = fiefId;
  window._settleShopStage = pop >= 200 ? 1 : 2;     // 1＝村の店並み／2＝さびれた店並み
@@ -47700,6 +49038,7 @@ function fiefOpenShop(fiefId){
  showIngameShop('__merchant__');
 }
 function showFiefFacilityVisit(fiefId, facilityId){
+ if(facilityId === 'smithy'){ showSmithy(fiefId); return; }
  const f = FIEF_FACILITIES.find(x=>x.id===facilityId);
  const prop = PC.properties?.[fiefId];
  const population = prop?.population||0;
@@ -47720,19 +49059,21 @@ function showFiefFacilityVisit(fiefId, facilityId){
 }
 
 // 領地から基点の町への帰路。行きと同じ日数をかけて旅する（切り離された遠隔地という位置づけを保つ）
-function travelBackFromFief(anchorTownId){
+function travelBackFromFief(anchorTownId, method){
  closePatronPanel();
  const townId = anchorTownId || getFiefCharter(PC._fiefCharters?.[0]?.fiefId)?.anchorTownId;
  if(!townId){ go('TOWN_KHAZAN'); return; }
  const charter = getFiefCharterByAnchor(townId);
- const days = charter?.anchorDays || 0;
+ const coach = method === 'coach' && charter?.coachRoad;
+ if(coach){ const _fare = fiefCoachFare(charter); if(totalCP(PC) < _fare*100){ alert('所持金が足りない！'); return; } payPrice(_fare, PC); updateHUD(); }
+ const days = coach ? fiefCoachDays(charter, townId) : (charter?.anchorDays || 0);
  const to = TOWNS[townId] || {name:townId};
  const fiefLabel = (charter && PC.properties?.[charter.fiefId]?.fiefName) || '領地';
 
  if(days <= 0){ go('TOWN_'+townId.toUpperCase()); return; }
 
  drawScene('travel');
- showTravelImage('walk', townId, townId);
+ showTravelImage(coach ? 'coach' : 'walk', townId, townId);
  const storyEl = document.getElementById('story');
  if(storyEl) storyEl.innerHTML = '';
  const tpw = document.getElementById('travel-progress-wrap');
@@ -47742,13 +49083,13 @@ function travelBackFromFief(anchorTownId){
   document.getElementById('travel-progress-dot').style.left = '0%';
   document.getElementById('travel-latest').textContent = '';
   document.getElementById('travel-progress-label').innerHTML =
-   ` 徒歩　<span style="color:#f0ece0">${fiefLabel}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
+   ` ${coach?'乗合馬車':'徒歩'}　<span style="color:#f0ece0">${fiefLabel}</span> → <span style="color:#f0ece0">${to.name}</span>　<span id="travel-day-count" style="color:#e0d8c8">0/${days}日</span>`;
  }
  renderChoices([]);
 
  advanceDaysAnimated(days, ()=>go('TOWN_'+townId.toUpperCase()));
- if(travelState){ travelState.method = 'walk'; travelState.crossRegion = false; }
- travelLog(`<span style="color:#b8a890">徒歩で <span style="color:#f0ece0">${fiefLabel}</span> → <span style="color:#f0ece0">${to.name}</span> へ出発。所要: ${days}日　費用: 0GP</span>`);
+ if(travelState){ travelState.method = coach ? 'coach' : 'walk'; travelState.crossRegion = false; }
+ travelLog(`<span style="color:#b8a890">${coach?'乗合馬車で':'徒歩で'} <span style="color:#f0ece0">${fiefLabel}</span> → <span style="color:#f0ece0">${to.name}</span> へ出発。所要: ${days}日　費用: ${coach ? fiefCoachFare(charter) : 0}GP</span>`);
 }
 
 function enterFiefClearing(townId){
@@ -49935,8 +51276,17 @@ function makeTravelChoices(fromId){
    label:` ${fiefLabel}へ 徒歩${stageLabel}（${days}日）`,
    fn:()=>travelToFiefAny(fromId), go:'__travel__'
   });
+  if(charter.coachRoad){
+   choices.push({
+    label:` ${fiefLabel}へ 乗合馬車（${fiefCoachDays(charter, fromId)}日・${fiefCoachFare(charter)}GP）`,
+    fn:()=>travelToFiefCoach(fromId), go:'__travel__'
+   });
+  }
  });
  settleTravelChoices(fromId).forEach(c=>choices.push(c));
+ if(typeof wildTownKeys === 'function' && wildTownKeys(fromId).length){
+  choices.push({label:' 荒野へ出る', fn:()=>wildTownOpen(fromId)});
+ }
  choices.push({label:'← 戻る', go:'TOWN_'+fromId.toUpperCase()});
  return choices;
 }
@@ -53306,7 +54656,7 @@ function renderTravelEvents(events){
 
 
 // 宿屋休憩の共通処理
-function innRest(cost){
+function innRest(cost, opts){
  if(totalCP() < cost){ alert('所持金が足りない！'); return; }
  payPrice(cost/100);
  // 宿屋で休むと村の時刻を朝にリセット（ヴェルダ裏路地の時刻連動用）
@@ -53352,6 +54702,7 @@ function innRest(cost){
  }
  if(msgs.length) showSaveToast(' ' + msgs.join('、') + '！');
  const _innBack = currentNodeId;
+ if(opts && opts.after){ showTimePass(1, ()=>{ opts.after(); setTimeout(coldFlushStory, 0); }); return; }
  showTimePass(1, ()=>{ checkNeriaChaosSiege(); checkKalvoSiege(); fcVisitAfterRest(_innBack, '宿屋'); setTimeout(coldFlushStory, 0); });
 }
 
@@ -54619,7 +55970,7 @@ function startGame(){
  PC.quests=[]; PC.party=[];
  PC._formerCompanions = []; // 前の代のNPC交友記録は引き継がない
  _fcVisitLastDay = null;
- PC._troupes = {}; PC._troupeContract = null; // 旅芸人の一座は新しい代で作り直し、護衛契約は引き継がない
+ PC._taverns = {}; PC._troupes = {}; PC._troupeContract = null; // 護衛契約は引き継がない（一座は世界側の記録として、下で引き継ぐ）
  PC._tavernThanks = {}; // 前の代の酒場のお礼（受け取り待ち）は引き継がない
  PC.lifeEvents = []; // 前の代のライフイベントは引き継がない
  PC._heroTowns = {}; // 前の代の英雄ステータスは引き継がない
@@ -54687,6 +56038,10 @@ function startGame(){
  // 集落の盛衰の引き継ぎ（無ければensureSettlements()が初回に開始時の世界を作る）
  PC._settlements = PC._inheritedSettlements || undefined;
  PC._inheritedSettlements = undefined;
+ if(PC._inheritedTroupes){ PC._troupes = PC._inheritedTroupes; }   // 旅芸人の一座は世代を越えて続く（無ければ初回に新規作成）
+ PC._inheritedTroupes = undefined;
+ if(PC._inheritedTaverns){ PC._taverns = PC._inheritedTaverns; }
+ PC._inheritedTaverns = undefined;
  PC._settleLastKey = undefined;
  PC._curSettle = null;
  // 地方状態システムの引き継ぎ（世界に残る記録。無ければensureRegionCondition()が初回アクセス時に0で初期化する）
@@ -55309,9 +56664,9 @@ function coldDayTick(ts, days){
       coldNotify(`${x === PC ? 'あなた' : x.name}は風邪をこじらせた。（強さ・体力 ${coldPenaltyText(x)}）`, true);
     }
    } else if(ts && isWinter()){
-    let p = 0.01;
+    let p = 0.007;
     if(PC._hungerDmg > 0 || getFrostbiteLevel() > 0) p *= 2;
-    if((x.equippedClothing || x.invClothing) && !x._clothingOff) p *= 0.5;   // 仲間は着脱の操作がないので、防寒着を持っていれば着ている扱い
+    if((x.equippedClothing || x.invClothing) && !x._clothingOff) p *= 0.25;   // 仲間は着脱の操作がないので、防寒着を持っていれば着ている扱い
     if(Math.random() < p && coldCatch(x)){ coldNotify(coldCatchMsg(x), true); coldAskSet(); }
    }
   });
@@ -55321,7 +56676,7 @@ function coldWeather(ts, desc){
  if(!/雨|嵐|吹雪/.test(desc || '')) return;
  coldActors().forEach(x=>{
   if(x._cold > 0) return;
-  if(Math.random() < (((x.equippedClothing || x.invClothing) && !x._clothingOff) ? 0.0625 : 0.125) && coldCatch(x)){ coldNotify(coldCatchMsg(x), true); coldAskSet(); }
+  if(Math.random() < (((x.equippedClothing || x.invClothing) && !x._clothingOff) ? 0.0225 : 0.09) && coldCatch(x)){ coldNotify(coldCatchMsg(x), true); coldAskSet(); }
  });
 }
 // 宿屋の1泊：風邪の者は、あと何泊かで完治する
@@ -55512,7 +56867,14 @@ function showIngameShop(townId){
    _openIngameShop(townId);
   },
  }));
- if(townId === '__merchant__' && travelState && travelState._merchantOffer){
+ if(window._wildTradeBack){
+  // 荒野の住人との取引：取引するか立ち去るかの選択に戻す
+  choices.push({label:'<- 戻る', fn:()=>{
+   const f = window._wildTradeBack; window._wildTradeBack = null; window._settleShopStage = null; window._settleShopTitle = null; window._smithyTier = null;
+   if(window._shopSelectPrevStoryHtml != null){ if(story) story.innerHTML = window._shopSelectPrevStoryHtml; window._shopSelectPrevStoryHtml = null; }
+   f();
+  }});
+ } else if(townId === '__merchant__' && travelState && travelState._merchantOffer){
   // 旅商人：取引するか旅を続けるかの選択に戻す
   choices.push({label:'<- 戻る', fn:()=>{
    if(window._shopSelectPrevStoryHtml != null){ if(story) story.innerHTML = window._shopSelectPrevStoryHtml; window._shopSelectPrevStoryHtml = null; }
@@ -55523,14 +56885,15 @@ function showIngameShop(townId){
   // 領地の市場の装備屋：市場の画面に戻る
   choices.push({label:'<- 戻る', fn:()=>{
    const fid = window._fiefShopFiefId;
-   window._fiefShopFiefId = null; window._settleShopStage = null; window._settleShopTitle = null;
+   window._fiefShopFiefId = null; window._settleShopStage = null; window._settleShopTitle = null; window._smithyTier = null;
    if(window._shopSelectPrevStoryHtml != null){ if(story) story.innerHTML = window._shopSelectPrevStoryHtml; window._shopSelectPrevStoryHtml = null; }
-   showFiefFacilityVisit(fid, 'market');
+   const _fac = window._fiefShopFacility || 'market'; window._fiefShopFacility = null;
+   showFiefFacilityVisit(fid, _fac);
   }});
  } else if(/^SETTLE_/.test(currentNodeId||'')){
   // 集落の店：町のノードは無いので、集落の広場に戻る
   choices.push({label:'<- 戻る', fn:()=>{
-   window._settleShopStage = null; window._settleShopTitle = null;
+   window._settleShopStage = null; window._settleShopTitle = null; window._smithyTier = null;
    if(window._shopSelectPrevStoryHtml != null){ if(story) story.innerHTML = window._shopSelectPrevStoryHtml; window._shopSelectPrevStoryHtml = null; }
    go(currentNodeId);
   }});
@@ -55560,12 +56923,14 @@ function closeIngameShop(){
  _igsBulk = false;
  const _fiefShop = window._fiefShopFiefId || null;
  window._fiefShopFiefId = null;
- window._settleShopStage = null; window._settleShopTitle = null;
+ window._settleShopStage = null; window._settleShopTitle = null; window._smithyTier = null;
  document.getElementById('ingame-shop').classList.add('hidden');
  document.getElementById('text-win').style.display = '';
  _shopActor = null;
  // 領地の市場の装備屋を閉じた場合 → 市場の画面へ
- if(_fiefShop){ showFiefFacilityVisit(_fiefShop, 'market'); return; }
+ if(_fiefShop){ const _fac = window._fiefShopFacility || 'market'; window._fiefShopFacility = null; showFiefFacilityVisit(_fiefShop, _fac); return; }
+ // 荒野の住人との取引を閉じた場合 → 取引するか立ち去るかの選択へ
+ if(window._wildTradeBack){ const _f = window._wildTradeBack; window._wildTradeBack = null; _f(); return; }
  // 旅商人ショップを閉じた場合 → 旅を再開
  if(travelState && travelState._merchantOpen){
   travelState._merchantOpen = false;
@@ -55668,7 +57033,7 @@ function sellWeapon(idx){
  if(!w) return;
  {
   const _def0 = (w._isMagic && w._priceGP) ? null : [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(w._baseName||w.name));
-  const _pl = (w._isMagic && w._priceGP) ? gemWeaponSellGP(w._priceGP)+'GP' : sellPriceLabel(_def0?.cost||0);
+  const _pl = (w._isMagic && w._priceGP) ? gemWeaponSellGP(w._priceGP)+'GP' : sellPriceLabel((_def0?.cost||0)+(w._smDiceCostGP||0));
   if(!_sellConfirm(`${w.name}を売りますか？（${_pl}）`)) return;
  }
  _sa.equippedWeapons = (_sa.equippedWeapons||[]).filter(e=>e!==w);
@@ -55682,10 +57047,10 @@ function sellWeapon(idx){
   return;
  }
  const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(w._baseName||w.name));
- const price = def ? sellPriceCP(def.cost) : 0;
+ const price = def ? sellPriceCP(def.cost + (w._smDiceCostGP||0)) : 0;
  if(price>0) gainPriceCP(price, _sa);
  updateHUD(); checkWeightPenalty(_shopActor || PC); renderIngameShop();
- showSaveToast(` ${w.name}を売った（${sellPriceLabel(def?.cost||0)}）`);
+ showSaveToast(` ${w.name}を売った（${sellPriceLabel((def?.cost||0)+(w._smDiceCostGP||0))}）`);
 }
 
 // 防具を売る
@@ -55811,7 +57176,7 @@ function npcToggleWear(who, kind){
  const nm = kind === 'boots' ? (t.invBootsName || '履物') : (t.invClothingName || '防寒着と荷物袋');
  const verb = kind === 'boots' ? (t[key] ? '脱いだ' : '履いた') : (t[key] ? '脱いだ' : '着た');
  try{ checkWeightPenalty(); checkWeightPenalty(t); }catch(e){}
- renderStatusPanel();
+ renderPartyTab();   // 仲間の詳細画面を描き直す（ボタンの「外す／着る」と[着用中／外している]の表示を切り替える）
  showSaveToast(` ${t.name}は${nm}を${verb}`);
 }
 function discardOwned(kind, who, idx){
@@ -55946,7 +57311,8 @@ function renderIgsList(townId){
  const isValdheim  = (townId||'') === 'valdheim';
  const isNeria     = (townId||'') === 'neria' || (townId||'') === 'kalvo';
  const isVillage   = ['verda','rimholm','marakai'].includes(townId||'');
- const wTable = isKhazan   ? WEAPONS_TABLE_KHAZAN
+ const wTable = (townId === '__merchant__' && window._smithyTier) ? smithyWeaponTable(window._smithyTier)
+              : isKhazan   ? WEAPONS_TABLE_KHAZAN
               : isElsia    ? WEAPONS_TABLE_ELSIA
               : isAlRashid ? WEAPONS_TABLE_AL_RASHID
               : isYeldun   ? WEAPONS_TABLE_YELDUN
@@ -55981,7 +57347,8 @@ function renderIgsList(townId){
                  return WEAPONS_TABLE;
                 })();
  // ヴァルドヘイム・エルシアはそれぞれの地方の中心都市のみが対象（同地方の他の町では売らない）
- const aTable = _armorTableForActor(isKhazan   ? ARMOR_TABLE_KHAZAN
+ const aTable = _armorTableForActor((townId === '__merchant__' && window._smithyTier) ? smithyArmorTable(window._smithyTier)
+              : isKhazan   ? ARMOR_TABLE_KHAZAN
               : isElsia    ? ARMOR_TABLE_ELSIA
               : (isAlRashid || isYeldun || isValdheim) ? ARMOR_TABLE_WITH_SCALE
               : ARMOR_TABLE, townId, _shopActor || PC);
@@ -56074,7 +57441,7 @@ function renderIgsList(townId){
   sec(' 武器');
   uninvW.forEach(w=>{
    const def = [...WEAPONS_TABLE,...WEAPONS_TABLE_KHAZAN,...WEAPONS_TABLE_ELSIA,...WEAPONS_TABLE_AL_RASHID,...WEAPONS_TABLE_YELDUN,...WEAPONS_TABLE_VALDHEIM,...WEAPONS_TABLE_NERIA].find(t=>t.name===(w._baseName||w.name));
-   const priceCP = w._isMagic && w._priceGP ? gemWeaponSellGP(w._priceGP) * 100 : (def ? sellPriceCP(def.cost) : 0);
+   const priceCP = w._isMagic && w._priceGP ? gemWeaponSellGP(w._priceGP) * 100 : (def ? sellPriceCP(def.cost + (w._smDiceCostGP||0)) : 0);
    const _w = w;
    row(w._isMagic ? '⚔' : '', w.name, priceCP, ()=>{ const _idx=(_shopActor||PC).invWeapons.indexOf(_w); if(_idx>=0) sellWeapon(_idx); });
   });
@@ -56477,7 +57844,7 @@ function exchangeSPtoGP(){
 
 function igsBuyWeapon(i, townId){
  const _sa = _shopActor || PC;
- const _t1=townId||(isShopOpen()&&_igsTownId)||PC.town; const tbl = _t1==='khazan'?WEAPONS_TABLE_KHAZAN:_t1==='elsia'?WEAPONS_TABLE_ELSIA:_t1==='al_rashid'?WEAPONS_TABLE_AL_RASHID:_t1==='yeldun'?WEAPONS_TABLE_YELDUN:_t1==='valdheim'?WEAPONS_TABLE_VALDHEIM:(_t1==='neria'||_t1==='kalvo')?WEAPONS_TABLE_NERIA:WEAPONS_TABLE;
+ const _t1=townId||(isShopOpen()&&_igsTownId)||PC.town; const tbl = (_t1==='__merchant__'&&window._smithyTier)?smithyWeaponTable(window._smithyTier):_t1==='khazan'?WEAPONS_TABLE_KHAZAN:_t1==='elsia'?WEAPONS_TABLE_ELSIA:_t1==='al_rashid'?WEAPONS_TABLE_AL_RASHID:_t1==='yeldun'?WEAPONS_TABLE_YELDUN:_t1==='valdheim'?WEAPONS_TABLE_VALDHEIM:(_t1==='neria'||_t1==='kalvo')?WEAPONS_TABLE_NERIA:WEAPONS_TABLE;
  const it=tbl[i];
  if(!it||totalCP(_sa)<it.cost*100)return;
  if(it.wizard && _sa.type!=='wizard'){ showSaveToast('魔法使い専用の品です'); return; }
@@ -56500,7 +57867,7 @@ function igsBuyFallbackClub(townId){
 }
 function igsBuyArmor(i, townId){
  const _sa = _shopActor || PC;
- const _t2=townId||(isShopOpen()&&_igsTownId)||PC.town; const tbl = _t2==='khazan' ? ARMOR_TABLE_KHAZAN : _t2==='elsia' ? ARMOR_TABLE_ELSIA : (_t2==='al_rashid'||_t2==='yeldun'||_t2==='valdheim') ? ARMOR_TABLE_WITH_SCALE : ARMOR_TABLE; // 表示側（renderIngameShop の aTable）と同じ表を引く
+ const _t2=townId||(isShopOpen()&&_igsTownId)||PC.town; const tbl = (_t2==='__merchant__'&&window._smithyTier) ? smithyArmorTable(window._smithyTier) : _t2==='khazan' ? ARMOR_TABLE_KHAZAN : _t2==='elsia' ? ARMOR_TABLE_ELSIA : (_t2==='al_rashid'||_t2==='yeldun'||_t2==='valdheim') ? ARMOR_TABLE_WITH_SCALE : ARMOR_TABLE; // 表示側（renderIngameShop の aTable）と同じ表を引く
  const it=_armorTableForActor(tbl, _t2, _sa)[i];
  if(!it||totalCP(_sa)<it.cost*100)return;
  payPrice(it.cost, _sa);
@@ -57141,7 +58508,7 @@ function rollBackground(race, type){
  _initMotiveExtras(bg, motiveObj);
  return bg;
 }
-const MONSTER_LANGUAGES = ['トロール語', 'オーク語', 'ゴブリン語'];
+const MONSTER_LANGUAGES = ['トロール語', 'オーク語', 'ゴブリン語', 'グール語', 'オーガ語'];
 function rollLanguages(pc){
  pc.languages = ['共通語'];
  const chances = Math.max(0, (pc.iq||0) - 12);
@@ -58294,6 +59661,10 @@ function renderStatusPanel(){
  halfling: '強さ ×1/2、体力 ×2、器用さ ×3/2。寿命100年前後。',
  fairy: '強さ・体力 ×1/4、運・器用さ ×3/2、魅力 ×2。寿命200年前後。',
  leprechaun: '強さ ×1/2、知力・運・器用さ ×3/2。寿命300年前後。',
+ troll: '強さ・体力 ×3。寿命300年前後。',
+ ogre: '強さ・体力 ×2。寿命150年前後。',
+ orc: '全能力値 ×1（人間と同等の水準）。寿命60年前後。',
+ goblin: '強さ・体力 ×3/4、器用さ ×3/2、魅力 ×3/4。寿命40年前後。',
  };
  const alEl = document.getElementById('sp-alignment');
  if(alEl) alEl.innerHTML = renderAlignmentWidget(PC.alignment_ethics, PC.alignment_order);
@@ -59909,6 +61280,8 @@ function startAsNPC(npcIdx){
  // 地方状態システムの引き継ぎ（世界に残る記録なので、世代交代しても地方ごとに引き継がれる）
  if(ws.regionCondition) PC._regionCondition = JSON.parse(JSON.stringify(ws.regionCondition));
  if(ws.settlements){ PC._settlements = JSON.parse(JSON.stringify(ws.settlements)); PC._settleLastKey = undefined; }
+ if(ws.troupes) PC._troupes = JSON.parse(JSON.stringify(ws.troupes));
+ if(ws.taverns) PC._taverns = JSON.parse(JSON.stringify(ws.taverns));
  if(ws.regionConditionAmbient) PC._regionConditionAmbient = JSON.parse(JSON.stringify(ws.regionConditionAmbient));
  // 危機的状況からのPC主導の回復の記録も引き継ぐ（記録自体は先代のものとして残り、未回復の「危機的に達した」フラグも持ち越す）
  if(ws.townGraves) PC._townGraves = JSON.parse(JSON.stringify(ws.townGraves));
@@ -59946,6 +61319,8 @@ function startNewPCInherit(){
  if(ws && ws.harvestYear){ PC._inheritedHarvestYear = ws.harvestYear; PC._inheritedHarvestResult = ws.harvestResult; PC._inheritedFoodPriceMult = ws.foodPriceMult; PC._inheritedHarvestPriceApplied = ws.harvestPriceApplied; }
  if(ws && ws.regionCondition) PC._inheritedRegionCondition = JSON.parse(JSON.stringify(ws.regionCondition));
  if(ws && ws.settlements) PC._inheritedSettlements = JSON.parse(JSON.stringify(ws.settlements));
+ if(ws && ws.troupes) PC._inheritedTroupes = JSON.parse(JSON.stringify(ws.troupes));
+ if(ws && ws.taverns) PC._inheritedTaverns = JSON.parse(JSON.stringify(ws.taverns));
  if(ws && ws.regionConditionAmbient) PC._inheritedRegionConditionAmbient = JSON.parse(JSON.stringify(ws.regionConditionAmbient));
  if(ws && ws.townGraves) PC._inheritedTownGraves = JSON.parse(JSON.stringify(ws.townGraves));
  if(ws && ws.regionWasCrisis) PC._inheritedRegionWasCrisis = JSON.parse(JSON.stringify(ws.regionWasCrisis));
@@ -61673,7 +63048,7 @@ function _startMagicPhaseNPC(){
   }
  });
  (cbtState.enemies||[]).forEach(e=>{
-  if(e.curCon>0 && e.type==='wizard' && !e._shapeshifted){
+  if(e.curCon>0 && e.type==='wizard' && !e._shapeshifted && !(e._sleepTurns>0)){
    casters.push({ kind:'enemy', actor:e, spd:e.spd||0 });
   }
  });
@@ -62262,6 +63637,17 @@ function _npcCastSpellInPhase(npc, npcIdx, magicParty, sp, customOnDone){
  if(sp.fn === 'rockABye'){
   npc.st = Math.max(0,(npc.st||0)-_applyStaffDiscount(npc, sp.cost));
   const power = (npc.st||0)+(npc.iq||0)+(npc.chr||0);
+  if(cbtState.isNPC){
+   const r = applyDeepSleepNPC(power);
+   if(r.slept.length){
+    cl.innerHTML += `<span style="color:#e8e4d8"> ${npc.name}が${sp.name}を詠唱！${r.slept.join('、')}が${r.turns}ターン眠り込んだ！</span>`
+     + (r.resisted.length ? `<span style="color:#f0ddd8"> ${r.resisted.join('、')}には効かなかった。</span>` : '') + '<br>';
+   } else {
+    cl.innerHTML += `<span style="color:#f0ddd8"> ${npc.name}が${sp.name}を詠唱したが、${r.resisted.join('、')}には効かなかった。</span><br>`;
+   }
+   updateCombatUI();
+   onDone(); return;
+  }
   const enemyMR = cbtState.enemies ? cbtState.enemies.reduce((s,e)=>s+(e.curMR||0),0) : (cbtState.curMR||0);
   if(power > enemyMR){
    const sleepTurns = Nd6(1);
@@ -63163,6 +64549,19 @@ function gainAPCombatNPC(enemies){
  return share;
 }
 
+// Deep Sleep（NPC型の敵）：強さ+知力+魅力の合計が詠唱者より低い敵だけが眠る（同じか高ければ効かない）。
+// 眠る敵は個別に管理する（e._sleepTurns）。戻り値：{slept:[名前], resisted:[名前]}
+function applyDeepSleepNPC(power){
+ const turns = Nd6(1);
+ const slept = [], resisted = [];
+ (cbtState.enemies||[]).filter(e=>e.curCon>0).forEach(e=>{
+  const total = (e.st||0) + (e.iq||0) + (e.chr||0);
+  if(power > total){ e._sleepTurns = turns; slept.push(e.name); }
+  else resisted.push(e.name);
+ });
+ return { slept, resisted, turns };
+}
+
 function startCombatNPC(en){
  // 前回の戦闘のShapeshiftをリセット
  [PC, ...(PC.party||[])].forEach(a=>{ a._shapeshifted = false; });
@@ -63407,7 +64806,7 @@ function resolveRoundNPC(pRoll, npcActions){
  const eRollers = aliveEnemies.concat(_dyingRollers);
  const eRolls = eRollers.map(e=>{
   if(e.curCon<=0) e._dyingCast = false;
-  if(cs.sleeping>0){ if(e.curCon<=0){ e._castDetonateThisRound=false; e._detonateHitThisRound=0; e._castTtyfThisRound=false; e._ttyfHitThisRound=0; } return {enemy:e, roll:0, dice:[], ttyf:0}; }
+  if(cs.sleeping>0 || e._sleepTurns>0){ if(e.curCon<=0){ e._castDetonateThisRound=false; e._detonateHitThisRound=0; e._castTtyfThisRound=false; e._ttyfHitThisRound=0; } return {enemy:e, roll:0, dice:[], ttyf:0}; }
   // 魔法フェーズで詠唱済みなら、その結果（回避成功なら0）をそのまま使う。近接ロールはしない
   if(e._castTtyfThisRound){
    const ttyfVal = e._ttyfHitThisRound||0;
@@ -63431,6 +64830,7 @@ function resolveRoundNPC(pRoll, npcActions){
   return {enemy:e, roll:rv.total, dice:rv.dice, ttyf:0};
  });
  if(cs.sleeping>0) cs.sleeping--;
+ cs.enemies.forEach(e=>{ if(e._sleepTurns>0) e._sleepTurns--; });
  const eRawRoll = eRolls.reduce((s,r)=>s+r.roll, 0);
  const eTotalRoll = easyEnemyHits(eRawRoll);
 
@@ -65384,7 +66784,18 @@ function castSpell(spell,ctx){
 
  // ── Level 3 ──────────────────────────
  case 'rockABye':
- if(cbtState){
+ if(cbtState && cbtState.isNPC){
+ const power = PC.st+PC.iq+PC.chr;
+ const r = applyDeepSleepNPC(power);
+ if(r.slept.length){
+  cbtState._spellCaster = true;
+  result.innerHTML=` <span class="wizard-c">Deep Sleep</span><br><span style="color:#e8e4d8"> 魔法が効いた！${r.slept.join('、')}が${r.turns}ターン眠り込んだ！</span>`
+   + (r.resisted.length ? `<br><span class="red"> ${r.resisted.join('、')}には効かなかった。</span>` : '');
+ } else {
+  result.innerHTML=` <span class="wizard-c">Deep Sleep</span><br><span class="red"> 魔法は弾かれた！${r.resisted.join('、')}は眠らない。</span>`;
+ }
+ updateCombatUI();
+ } else if(cbtState){
  const power = PC.st+PC.iq+PC.chr;
  const enemyMR = cbtState.enemies ? cbtState.enemies.reduce((s,e)=>s+(e.curMR||0),0) : cbtState.curMR;
  if(power > enemyMR){
@@ -65618,6 +67029,23 @@ function castSpell(spell,ctx){
 // 新しいバージョンを出す際は配列の先頭に追加していく（新しい順）
 // 各エントリは items（フラットな箇条書き）か sections（見出し付きグループ）のどちらかを持つ
 const CHANGELOG = [
+ { version:'ver.2026112701', sections:[
+  { heading:'新規実装項目', items:[
+   '荒野での地図機能を追加。',
+   '荒野の地図を、拠点の記録室で清書して残せるようにした。',
+   '町の旅メニューから、荒野へ直接出られるようにした。',
+   '領地に施設「鍛冶屋」を追加。',
+   '領地と最寄りの町との間の街道を整えられるようにした。',
+   '村が栄えている時期の集落と親町のあいだに、乗合馬車が走るようにした。',
+  ]},
+  { heading:'調整', items:[
+   'STATUS画面の種族説明に、トロール・オーガ・オーク・ゴブリンの寿命を表示するようにした。',
+  ]},
+  { heading:'不具合修正', items:[
+   '仲間の防寒着や履物を外しても、STATUS画面の表示が「着用中」「外す」のまま変わらない不具合を修正した。',
+   '仲間の防寒着を外しても、運べる重さの上限が着ているときのままになる不具合を修正した。',
+  ]},
+ ]},
  { version:'ver.2026112301', sections:[
   { heading:'新規実装項目', items:[
    '拠点に記録室（最初は「記録棚」、改装で「書き物机」「記録室」）を設けた。',
@@ -81236,10 +82664,12 @@ function nergolPayPrisoners(){
  showSaveToast(`${list.map(x=>x.name).join('、')}を解放した！謝礼として${total}GPを受け取った`);
  PC._nergolPrisonersFreed = [];
 }
-function _nergolLairOf(nid){ return NERGOL_B2_AREAS[nid] ? PC._nergolB2 : NERGOL_ROOM_AREAS3[nid] ? PC._nergolDungeon3 : NERGOL_ROOM_AREAS5[nid] ? PC._nergolDungeon5 : NERGOL_ROOM_AREAS4[nid] ? PC._nergolDungeon4 : NERGOL_ROOM_AREAS2[nid] ? PC._nergolDungeon2 : PC._nergolDungeon; }
-function _nergolKeyOf(nid){ return NERGOL_B2_AREAS[nid] ? 'nergolb2' : NERGOL_ROOM_AREAS3[nid] ? 'nergol3' : NERGOL_ROOM_AREAS5[nid] ? 'nergol5' : NERGOL_ROOM_AREAS4[nid] ? 'nergol4' : NERGOL_ROOM_AREAS2[nid] ? 'nergol2' : 'nergol'; }
+function _nergolLairOf(nid){ return NERGOL_B2C_AREAS[nid] ? PC._nergolB2c : NERGOL_B2B_AREAS[nid] ? PC._nergolB2b : NERGOL_B2_AREAS[nid] ? PC._nergolB2 : NERGOL_ROOM_AREAS3[nid] ? PC._nergolDungeon3 : NERGOL_ROOM_AREAS5[nid] ? PC._nergolDungeon5 : NERGOL_ROOM_AREAS4[nid] ? PC._nergolDungeon4 : NERGOL_ROOM_AREAS2[nid] ? PC._nergolDungeon2 : PC._nergolDungeon; }
+function _nergolKeyOf(nid){ return NERGOL_B2C_AREAS[nid] ? 'nergolb2c' : NERGOL_B2B_AREAS[nid] ? 'nergolb2b' : NERGOL_B2_AREAS[nid] ? 'nergolb2' : NERGOL_ROOM_AREAS3[nid] ? 'nergol3' : NERGOL_ROOM_AREAS5[nid] ? 'nergol5' : NERGOL_ROOM_AREAS4[nid] ? 'nergol4' : NERGOL_ROOM_AREAS2[nid] ? 'nergol2' : 'nergol'; }
 function checkNergolRespawn(){
  checkNergolB2Respawn();
+ checkNergolB2bRespawn();
+ checkNergolB2cRespawn();
  checkNergolRespawn2();
  initNergolDungeon4(); initNergolDungeon5();
  { const l4 = PC._nergolDungeon4, b4 = l4.themeId; _lairCheckRespawnGeneric('nergol4', initNergolDungeon4); if(!b4 && l4.themeId){ l4.boost = 1; l4.yLoot = null; } }
@@ -81549,7 +82979,7 @@ function _nergolMakeNode(key, d){
     if(dest === '@STAIRS') out.push({label, fn:()=>go('NERGOL_STAIRS')});
     else if(dest === '@B2') out.push({label, fn:()=>go('NERGOL_B2_COL_1')});
     else if(dest === '@B2_5') out.push({label, fn:()=>go('NERGOL_B2B_PASSAGE_1')});
-    else if(dest === '@B2_P') out.push({label, fn:()=>{ PC._nergolB2Back = 'NERGOL_B1_ROOM_P'; go('NERGOL_B2_STUB'); }});
+    else if(dest === '@B2_P') out.push({label, fn:()=>go('NERGOL_B2C_PASSAGE_1')});
     else if(dest === '@SURFV') out.push({label, fn:()=>go('NERGOL_SURFV')});
     else if(dest === '@SURF4') out.push({label, fn:()=>go('NERGOL_SURF4')});
     else if(dest === '@SURF5') out.push({label, fn:()=>go('NERGOL_SURF5')});
@@ -81911,7 +83341,7 @@ const NERGOL_B2B_DEFS = {
   e:[['↓ 南壁中央の扉へ','ROOM_Q'], ['← 西壁北寄りの扉へ','ROOM_X']] },
  ROOM_Q: { t:()=>'南北20m、東西25mの部屋。北壁の中央に扉、南壁の中央に扉がある。',
   e:[['↑ 北壁中央の扉へ','ROOM_R'], ['↓ 南壁中央の扉へ','ROOM_O']] },
- ROOM_P: { t:()=>'南北15m、東西10mの部屋。東壁の中央に扉がある。',
+ ROOM_P: { t:()=>'南北15m、東西10mの部屋。粗末な卓と長椅子が置かれ、詰め所のような様子をしている。卓の上には食い散らかした骨と飲みかけの器が転がり、壁には使い込まれた槍や盾が立てかけてある。東壁の中央に扉がある。',
   e:[['→ 東壁中央の扉へ','ROOM_O']] },
  PASSAGE_11: { t:()=>'南北5mの短い通路。北端は行き止まりで、北壁に扉がある。南端も行き止まりで、南壁に扉がある。',
   e:[['↑ 北端の扉へ','ROOM_O'], ['↓ 南端の扉へ','^B2BP11:PASSAGE_10']] },
@@ -82022,12 +83452,98 @@ function _nbOrbFire(){
  }}]);
  scrollToTop();
 }
+
+// ── ゾーンIIの敵配置（モンスターの居住区）──
+// エリア1＝必ず出る（柱廊2・警備の部屋・モンスターの部屋）／エリア2＝50%（放棄されたエリアのアンデッド）／エリア3＝16%（集会・見張りの巡回路）
+const NERGOL_B2B_AREAS = {
+ NERGOL_B2B_COL_2:1,
+ NERGOL_B2B_ROOM_H:1, NERGOL_B2B_ROOM_O:1, NERGOL_B2B_ROOM_P:1,
+ NERGOL_B2B_ROOM_I:1, NERGOL_B2B_ROOM_J:1, NERGOL_B2B_ROOM_K:1, NERGOL_B2B_ROOM_L:1, NERGOL_B2B_ROOM_M:1, NERGOL_B2B_ROOM_N:1,
+ NERGOL_B2B_ROOM_B:2, NERGOL_B2B_ROOM_C:2, NERGOL_B2B_ROOM_D:2, NERGOL_B2B_ROOM_E:2, NERGOL_B2B_ROOM_F:2, NERGOL_B2B_ROOM_G:2,
+ NERGOL_B2B_ROOM_R:3,
+ NERGOL_B2B_PASSAGE_13:3, NERGOL_B2B_PASSAGE_14:3, NERGOL_B2B_PASSAGE_15:3, NERGOL_B2B_PASSAGE_16:3,
+ NERGOL_B2B_PASSAGE_17:3, NERGOL_B2B_PASSAGE_18:3, NERGOL_B2B_PASSAGE_19:3,
+};
+const NERGOL_B2B_RATES = {1:1, 2:0.5, 3:0.16};
+function _nbRand(a, b){ return a + Math.floor(Math.random()*(b-a+1)); }
+function _nbNpcGroup(make, n){ return Array.from({length:n}, make); }
+// ハイゴブリン（NPC型）。衛兵は少し強い
+function _nbHighGoblin(lvMin, lvMax, name){
+ const npc = generateEliteMonster('goblin', _nbRand(lvMin, lvMax));
+ npc.name = name;
+ return npc;
+}
+// ゾンビ化した冒険者（戦士）／魔法使い
+function _nbZombieWarrior(){ return _nb2MakeWarrior(generateNPC(_nbRand(3,6)), 'ゾンビ化した冒険者'); }
+function _nbZombieMage(){
+ const lv = _nbRand(3,6), npc = generateNPC(lv);
+ npc.type = 'wizard'; npc.name = 'ゾンビ化した魔法使い';
+ npc.invWeapons = []; npc.equippedWeapons = []; npc.equippedRanged = null; npc.arrows = 0;
+ npc.spells = _spellsUpToLevel(lv);
+ return npc;
+}
+// 妖術師：Lv7の魔法使い。Lv7までの魔法を使える
+function _nbSorcerer(){
+ const npc = generateNPC(7);
+ npc.type = 'wizard'; npc.name = '妖術師';
+ npc.invWeapons = []; npc.equippedWeapons = []; npc.equippedRanged = null; npc.arrows = 0;
+ npc.spells = _spellsUpToLevel(7);
+ return npc;
+}
+// トロールゾンビ：CR100・防御点7。妖術師（NPC型）と同じ戦闘に出るため、NPC型として組み立てる（攻撃はCR相当の11d6+50）
+function _nbTrollZombie(){
+ return { name:'トロールゾンビ', race:'troll', type:'warrior', level:10, isHuman:false,
+  st:10, iq:3, lk:10, con:100, maxCon:100, dex:10, chr:3, spd:8,
+  equippedWeapons:[{name:'腐った剛腕', dice:11, adds:50, twoHand:false, weight:0}],
+  equippedArmors:[{name:'腐肉の皮膚', hits:7, isShield:false, weight:0}],
+  invWeapons:[], invArmors:[], spells:[], gold:0, sp:0, cp:0 };
+}
+function _nbMonsterEntries(mult){
+ // モンスターリスト：ハイゴブリン／トロルレイダー／オーガのうち1種類（mult倍の数）
+ return [
+  { spawn:()=> _nbNpcGroup(()=>_nbHighGoblin(3,5,'ハイゴブリン'), _nbRand(3,8)*mult) },
+  { spawn:()=> Array.from({length:_nbRand(1,6)*mult}, ()=>({name:'トロルレイダー', mr:170, armor:7})) },
+  { spawn:()=> Array.from({length:_nbRand(1,6)*mult}, ()=>({name:'オーガ', mr:100, armor:5})) },
+ ];
+}
+function _nbGuardGroup(){ return _nbNpcGroup(()=>_nbHighGoblin(4,6,'ハイゴブリンの衛兵'), _nbRand(2,7)); }
+const NERGOL_B2B_THEMES = {
+ nergolB2bMonsters: { name:'モンスターの居住区', entryFlavor:'', area1:[], area2:[], area3:[] },
+};
+function initNergolB2b(){ _nergolInitZone('_nergolB2b', NERGOL_B2B_AREAS); }
+function defeatNergolB2bRoom(id){ _nergolDefeatZone('_nergolB2b', NERGOL_B2B_AREAS, id); }
+function checkNergolB2bRespawn(){ _lairCheckRespawnGeneric('nergolb2b', initNergolB2b); }
+LAIR_DUNGEON_REG.nergolb2b = { fixedTheme:'nergolB2bMonsters', areaRates:NERGOL_B2B_RATES, stateProp:'_nergolB2b', roomAreas:NERGOL_B2B_AREAS, defeatFn:(id)=>defeatNergolB2bRoom(id), rescuedNamesProp:'_nergolRescuedNames', wanderFn:(area)=>null,
+ nodeTable:(nid, theme)=>{
+  const k = nid.replace('NERGOL_B2B_', '');
+  if(k === 'COL_2') return [{ spawn:()=> [_nbSorcerer(), ...Array.from({length:_nbRand(1,6)}, _nbTrollZombie)] }];
+  if(k === 'ROOM_H' || k === 'ROOM_O') return [{ spawn:_nbGuardGroup }];
+  if(k === 'ROOM_P') return [{ spawn:()=>[..._nbGuardGroup(), ..._nbGuardGroup()] }];   // 警備2組は1つの集団として戦う
+  if(['ROOM_I','ROOM_J','ROOM_K','ROOM_L','ROOM_M','ROOM_N'].includes(k)) return _nbMonsterEntries(1);
+  if(k === 'ROOM_R') return _nbMonsterEntries(2);   // 集会：通常の2倍
+  if(/^PASSAGE_1[3-9]$/.test(k)) return [{ spawn:_nbGuardGroup }];   // 見張りの巡回路
+  // 放棄されたエリア：アンデッドのどれか1種類
+  return [
+   { spawn:()=> Array.from({length:_nbRand(3,5)}, ()=>({name:'オーガのスケルトン', mr:75, armor:0})) },
+   { spawn:()=> _nbNpcGroup(_nbZombieWarrior, _nbRand(2,4)) },
+   { spawn:()=> _nbNpcGroup(_nbZombieMage, _nbRand(2,4)) },
+  ];
+ } };
+
 function _nergolB2bMakeNode(key, d){
  const nid = 'NERGOL_B2B_' + key;
+ const isRoom = !!NERGOL_B2B_AREAS[nid];
  return {
   scene:'dungeon',
-  txt:()=>NERGOL_B2_HEAD + d.t(),
+  txt:()=>{ if(isRoom) checkNergolB2bRespawn(); return NERGOL_B2_HEAD + d.t() + (isRoom ? _lairRoomStatusTextGeneric('nergolb2b', nid) : ''); },
   choices:()=>{
+   if(isRoom){
+    checkNergolB2bRespawn();
+    const lair = PC._nergolB2b;
+    if(lair.themeId && lair.nodeState[nid] && !lair.nodeState[nid].defeated){
+     return [{label:_lairEncounterLabel(lair.nodeState[nid]), fn:()=>_lairStartEncounterGeneric('nergolb2b', nid)}];
+    }
+   }
    const out = [];
    d.e.forEach(([label, dest])=>{
     if(dest === '@B1_5') out.push({label, fn:()=>go('NERGOL_B1_COL_5')});
@@ -82056,6 +83572,76 @@ function _nergolB2bMakeNode(key, d){
 (function(){
  const nodes = {};
  Object.keys(NERGOL_B2B_DEFS).forEach(k=>{ nodes['NERGOL_B2B_' + k] = _nergolB2bMakeNode(k, NERGOL_B2B_DEFS[k]); });
+ Object.assign(NODES, nodes);
+ Object.keys(nodes).forEach(id=>DUNGEON_NODES.add(id));
+})();
+
+
+// ══════════════════════════════════════════
+// ネルゴルークの墳墓 地下2階（ゾーンIII）
+// ゾーンI・IIとは接続されていない独立したゾーン。地下1階の部屋Pの南壁の階段から入る（通路1の北端が上り階段）。通路4の東端は地下3階への下り階段
+// 全ノードが48%の確率で敵がいる（騎士くずれの山賊／ハイゴブリンの衛兵のどちらか）。倒しても時間が経てば再出現する
+// ══════════════════════════════════════════
+const NERGOL_B2C_AREAS = {
+ NERGOL_B2C_PASSAGE_1:1, NERGOL_B2C_PASSAGE_2:1, NERGOL_B2C_PASSAGE_3:1, NERGOL_B2C_PASSAGE_4:1, NERGOL_B2C_PASSAGE_5:1,
+ NERGOL_B2C_ROOM_A:1, NERGOL_B2C_ROOM_B:1, NERGOL_B2C_ROOM_C:1, NERGOL_B2C_ROOM_D:1,
+};
+const NERGOL_B2C_RATES = {1:0.48};
+const NERGOL_B2C_THEMES = {
+ nergolB2cGuards: { name:'重装の守り', entryFlavor:'', area1:[], area2:[], area3:[] },
+};
+function initNergolB2c(){ _nergolInitZone('_nergolB2c', NERGOL_B2C_AREAS); }
+function defeatNergolB2cRoom(id){ _nergolDefeatZone('_nergolB2c', NERGOL_B2C_AREAS, id); }
+function checkNergolB2cRespawn(){ _lairCheckRespawnGeneric('nergolb2c', initNergolB2c); }
+LAIR_DUNGEON_REG.nergolb2c = { fixedTheme:'nergolB2cGuards', areaRates:NERGOL_B2C_RATES, stateProp:'_nergolB2c', roomAreas:NERGOL_B2C_AREAS, defeatFn:(id)=>defeatNergolB2cRoom(id), rescuedNamesProp:'_nergolRescuedNames', wanderFn:(area)=>null,
+ nodeTable:(nid, theme)=>[
+  { spawn:()=> Array.from({length:_nbRand(3,5)}, ()=>generateNergolB2Bandit('knight')) },   // 騎士くずれの山賊：Lv7・プレートアーマーとナイトシールド
+  { spawn:_nbGuardGroup },                                                                  // ハイゴブリンの衛兵：Lv4〜6
+ ] };
+const NERGOL_B2C_DEFS = {
+ PASSAGE_1: { t:()=>'南北50mの通路。北端は、地下1階の部屋Pへつながる上り階段になっている。南端は西へ折れ曲がっている。西壁の北端から10mのところに扉がある。',
+  e:[['↑ 北端の階段を上る（地下1階へ）','@B1_P'], ['← 西壁北寄りの扉へ','ROOM_B'], ['↓ 南端から西へ','PASSAGE_2']] },
+ PASSAGE_2: { t:()=>'東西45mの通路。東端は北へ折れ曲がり、西端も北へ折れ曲がっている。北壁の西端から20mのところに扉がある。',
+  e:[['→ 東端から北へ','PASSAGE_1'], ['↑ 北壁西寄りの扉へ','ROOM_A'], ['← 西端から北へ','PASSAGE_3']] },
+ PASSAGE_3: { t:()=>'南北30mの通路。北端は東に折れ曲がり、南端も東に折れ曲がっている。',
+  e:[['↑ 北端から東へ','PASSAGE_4'], ['↓ 南端から東へ','PASSAGE_2']] },
+ PASSAGE_4: { t:()=>'東西10mの通路。東端は、地下3階へ続く下り階段になっている。西端は南へ折れ曲がっている。',
+  e:[['→ 東端の階段を下る（地下3階へ）','@B3'], ['← 西端から南へ','PASSAGE_3']] },
+ PASSAGE_5: { t:()=>'東西10mの通路。東端は行き止まりで、東壁に扉がある。西端は、部屋へ通じるアーチになっている。',
+  e:[['→ 東壁の扉へ','ROOM_C'], ['← 西端のアーチへ','ROOM_D']] },
+ ROOM_A: { t:()=>'南北10m、東西15mの部屋。南壁の中央に扉がある。',
+  e:[['↓ 南壁中央の扉へ','PASSAGE_2']] },
+ ROOM_B: { t:()=>'南北20m、東西25mの部屋。東壁の南端から10mのところに扉、西壁の南端から10mのところに扉がある。',
+  e:[['→ 東壁南寄りの扉へ','PASSAGE_1'], ['← 西壁南寄りの扉へ','ROOM_C']] },
+ ROOM_C: { t:()=>'南北15m、東西10mの部屋。東壁の中央に扉、西壁の北端に扉がある。',
+  e:[['→ 東壁中央の扉へ','ROOM_B'], ['← 西壁北端の扉へ','PASSAGE_5']] },
+ ROOM_D: { t:()=>'南北10m、東西20mの部屋。東壁の南端に、通路へ通じるアーチがある。',
+  e:[['→ 東壁南端のアーチへ','PASSAGE_5']] },
+};
+function _nergolB2cMakeNode(key, d){
+ const nid = 'NERGOL_B2C_' + key;
+ return {
+  scene:'dungeon',
+  txt:()=>{ checkNergolB2cRespawn(); return NERGOL_B2_HEAD + d.t() + _lairRoomStatusTextGeneric('nergolb2c', nid); },
+  choices:()=>{
+   checkNergolB2cRespawn();
+   const lair = PC._nergolB2c;
+   if(lair.themeId && lair.nodeState[nid] && !lair.nodeState[nid].defeated){
+    return [{label:_lairEncounterLabel(lair.nodeState[nid]), fn:()=>_lairStartEncounterGeneric('nergolb2c', nid)}];
+   }
+   const out = [];
+   d.e.forEach(([label, dest])=>{
+    if(dest === '@B1_P') out.push({label, fn:()=>go('NERGOL_B1_ROOM_P')});
+    else if(dest === '@B3') out.push({label, fn:()=>{ PC._nergolB3Back = nid; go('NERGOL_B3_STUB'); }});
+    else out.push({label, fn:()=>go('NERGOL_B2C_' + dest)});
+   });
+   return out;
+  },
+ };
+}
+(function(){
+ const nodes = {};
+ Object.keys(NERGOL_B2C_DEFS).forEach(k=>{ nodes['NERGOL_B2C_' + k] = _nergolB2cMakeNode(k, NERGOL_B2C_DEFS[k]); });
  Object.assign(NODES, nodes);
  Object.keys(nodes).forEach(id=>DUNGEON_NODES.add(id));
 })();
@@ -82106,6 +83692,7 @@ Object.assign(NODES, {
          : st === 3 ? {label:' 空き家を借りて休む（1GP・1日休む）', fn:()=>{ innRest(100); }, go:'SETTLE_PLAZA'}
          : {label:' 宿屋（2GP・1日休む）', fn:()=>{ innRest(200); }, go:'SETTLE_PLAZA'});
    if(a.monument) ch.push({label:' 広場の石碑を読む', go:'SETTLE_STONE'});
+   if(settleCoachRunning(PC._curSettle && PC._curSettle.regionKey, a)) ch.push({label:`← ${pn}へ戻る（乗合馬車${settleCoachDays(PC._curSettle.regionKey, a)}日・${settleCoachFare(a)}GP）`, fn:()=>settleReturnToParent('coach'), go:'__travel__'});
    ch.push({label:`← ${pn}へ戻る（徒歩${a.routeDays}日）`, fn:()=>settleReturnToParent(), go:'__travel__'});
    return ch;
   },
